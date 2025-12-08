@@ -147,11 +147,10 @@ export function Sidebar({
         className={cn(
           'group relative flex items-center gap-3 rounded-xl px-3 py-2.5',
           'text-label-sm transition-all duration-200 ease-out',
-          // Spec: Active = "floating pill" with bg-white, shadow-sm, 1px border
-          // Added: Keel-style inner highlight for 3D tactile effect
+          // Keel-style: Subtle floating pill with soft shadow, minimal border
           active
-            ? 'bg-bg-white-0 text-text-strong-950 font-medium border border-stroke-soft-200 [box-shadow:var(--shadow-keel-active)]'
-            : 'text-text-sub-600 hover:bg-bg-white-0 hover:text-text-strong-950 hover:border hover:border-stroke-soft-200 hover:[box-shadow:var(--shadow-keel-button)] border border-transparent'
+            ? 'bg-bg-white-0 text-text-strong-950 font-medium shadow-sm'
+            : 'text-text-sub-600 hover:bg-bg-white-0/80 hover:text-text-strong-950 hover:shadow-sm'
         )}
       >
         <Icon 
@@ -244,8 +243,7 @@ export function Sidebar({
                 <button 
                   className={cn(
                     'flex w-full items-center justify-center rounded-xl p-2 transition-all',
-                    'bg-bg-white-0 shadow-sm border border-stroke-soft-200',
-                    'hover:shadow-md',
+                    'hover:bg-bg-soft-200/50',
                   )}
                 >
                   <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-base to-primary-dark">
@@ -314,7 +312,7 @@ export function Sidebar({
           ) : (
             <Dropdown.Root>
               <Dropdown.Trigger asChild>
-                <button className="flex w-full items-center gap-3 rounded-xl p-2.5 bg-bg-white-0 shadow-sm border border-stroke-soft-200 transition-all hover:shadow-md">
+                <button className="flex w-full items-center gap-3 rounded-xl p-2.5 transition-all hover:bg-bg-soft-200/50">
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-base to-primary-dark">
                     <span className="text-label-sm text-white font-bold">
                       {currentOrganization.name.charAt(0).toUpperCase()}
@@ -393,8 +391,7 @@ export function Sidebar({
             onClick={onCreateOrganization}
             className={cn(
               'flex w-full items-center gap-3 rounded-xl p-2.5 transition-all',
-              'bg-transparent border border-dashed border-stroke-soft-200',
-              'hover:bg-bg-white-0 hover:border-stroke-sub-300 hover:shadow-sm',
+              'hover:bg-bg-soft-200/50',
               collapsed && 'justify-center'
             )}
           >
@@ -413,6 +410,9 @@ export function Sidebar({
         )}
       </div>
 
+      {/* Engraved Divider - creates carved/inset appearance */}
+      <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_rgba(255,255,255,0.8)]" />
+
       {/* Main Navigation */}
       <nav className="flex-1 overflow-y-auto p-3">
         {/* Main Section Label */}
@@ -429,6 +429,9 @@ export function Sidebar({
           ))}
         </ul>
       </nav>
+
+      {/* Engraved Divider */}
+      <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_rgba(255,255,255,0.8)]" />
 
       {/* Footer Navigation */}
       <div className="p-3">
