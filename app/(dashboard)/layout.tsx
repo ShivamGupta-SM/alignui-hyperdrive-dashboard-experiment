@@ -136,7 +136,7 @@ export default function DashboardLayout({
           {/* Placeholder sidebar - hidden on mobile */}
           <div className="hidden lg:block w-[280px] shrink-0" />
           {/* Main Content Card */}
-          <div className="flex flex-1 flex-col overflow-hidden bg-bg-white-0 lg:rounded-2xl lg:shadow-custom-md">
+          <div className="flex flex-1 flex-col overflow-hidden bg-bg-white-0 lg:rounded-2xl lg:border lg:border-stroke-soft-200 lg:shadow-sm">
             {/* Placeholder header */}
             <div className="h-16 border-b border-stroke-soft-200" />
             {/* Page Content */}
@@ -192,7 +192,8 @@ export default function DashboardLayout({
         </div>
 
         {/* Main Content Card - Floating sheet on desktop */}
-        <div className="flex flex-1 flex-col overflow-hidden min-w-0 bg-bg-white-0 lg:rounded-2xl lg:shadow-custom-md">
+        {/* Spec: white card with border, rounded corners, subtle shadow */}
+        <div className="flex flex-1 flex-col overflow-hidden min-w-0 bg-bg-white-0 lg:rounded-2xl lg:border lg:border-stroke-soft-200 lg:shadow-sm">
         {/* Header */}
         <Header
           unreadNotifications={3}

@@ -147,9 +147,10 @@ export function Sidebar({
         className={cn(
           'group relative flex items-center gap-3 rounded-xl px-3 py-2.5',
           'text-label-sm transition-all duration-200 ease-out',
+          // Spec: Active = "floating pill" with bg-white, shadow-sm, 1px border
           active
-            ? 'bg-bg-white-0 text-text-strong-950 font-medium shadow-sm ring-1 ring-stroke-soft-200/50'
-            : 'text-text-sub-600 hover:bg-bg-white-0/60 hover:text-text-strong-950 hover:shadow-sm'
+            ? 'bg-bg-white-0 text-text-strong-950 font-medium shadow-sm border border-stroke-soft-200'
+            : 'text-text-sub-600 hover:bg-bg-white-0 hover:text-text-strong-950 hover:shadow-sm hover:border hover:border-stroke-soft-200 border border-transparent'
         )}
       >
         {/* Animated active indicator bar */}
@@ -248,8 +249,8 @@ export function Sidebar({
                 <button 
                   className={cn(
                     'flex w-full items-center justify-center rounded-xl p-2 transition-all',
-                    'bg-bg-white-0/80 shadow-sm ring-1 ring-inset ring-stroke-soft-200/60',
-                    'hover:bg-bg-white-0 hover:shadow-md hover:ring-stroke-soft-200',
+                    'bg-bg-white-0 shadow-sm border border-stroke-soft-200',
+                    'hover:shadow-md',
                   )}
                 >
                   <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-base to-primary-dark">
@@ -318,7 +319,7 @@ export function Sidebar({
           ) : (
             <Dropdown.Root>
               <Dropdown.Trigger asChild>
-                <button className="flex w-full items-center gap-3 rounded-xl p-2.5 bg-bg-white-0/80 shadow-sm ring-1 ring-inset ring-stroke-soft-200/60 transition-all hover:bg-bg-white-0 hover:shadow-md hover:ring-stroke-soft-200">
+                <button className="flex w-full items-center gap-3 rounded-xl p-2.5 bg-bg-white-0 shadow-sm border border-stroke-soft-200 transition-all hover:shadow-md">
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-base to-primary-dark">
                     <span className="text-label-sm text-white font-bold">
                       {currentOrganization.name.charAt(0).toUpperCase()}
@@ -397,8 +398,8 @@ export function Sidebar({
             onClick={onCreateOrganization}
             className={cn(
               'flex w-full items-center gap-3 rounded-xl p-2.5 transition-all',
-              'bg-transparent ring-1 ring-dashed ring-stroke-soft-200/80',
-              'hover:bg-bg-white-0/60 hover:ring-stroke-sub-300 hover:shadow-sm',
+              'bg-transparent border border-dashed border-stroke-soft-200',
+              'hover:bg-bg-white-0 hover:border-stroke-sub-300 hover:shadow-sm',
               collapsed && 'justify-center'
             )}
           >
