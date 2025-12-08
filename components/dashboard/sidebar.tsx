@@ -148,9 +148,10 @@ export function Sidebar({
           'group relative flex items-center gap-3 rounded-xl px-3 py-2.5',
           'text-label-sm transition-all duration-200 ease-out',
           // Spec: Active = "floating pill" with bg-white, shadow-sm, 1px border
+          // Added: Keel-style inner highlight for 3D tactile effect
           active
-            ? 'bg-bg-white-0 text-text-strong-950 font-medium shadow-sm border border-stroke-soft-200'
-            : 'text-text-sub-600 hover:bg-bg-white-0 hover:text-text-strong-950 hover:shadow-sm hover:border hover:border-stroke-soft-200 border border-transparent'
+            ? 'bg-bg-white-0 text-text-strong-950 font-medium border border-stroke-soft-200 [box-shadow:var(--shadow-keel-active)]'
+            : 'text-text-sub-600 hover:bg-bg-white-0 hover:text-text-strong-950 hover:border hover:border-stroke-soft-200 hover:[box-shadow:var(--shadow-keel-button)] border border-transparent'
         )}
       >
         {/* Animated active indicator bar */}

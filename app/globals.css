@@ -179,22 +179,23 @@
   --color-black-alpha-16: oklch(0.00% 0.0000 0 / 16%);
   --color-black-alpha-10: oklch(0.00% 0.0000 0 / 10%);
 
-  /* AlignUI Dynamic Neutral Colors */
-  --color-neutral-950: var(--color-slate-950);
-  --color-neutral-900: var(--color-slate-900);
-  --color-neutral-800: var(--color-slate-800);
-  --color-neutral-700: var(--color-slate-700);
-  --color-neutral-600: var(--color-slate-600);
-  --color-neutral-500: var(--color-slate-500);
-  --color-neutral-400: var(--color-slate-400);
-  --color-neutral-300: var(--color-slate-300);
-  --color-neutral-200: var(--color-slate-200);
-  --color-neutral-100: var(--color-slate-100);
-  --color-neutral-50: var(--color-slate-50);
-  --color-neutral-0: var(--color-slate-0);
-  --color-neutral-alpha-24: var(--color-slate-alpha-24);
-  --color-neutral-alpha-16: var(--color-slate-alpha-16);
-  --color-neutral-alpha-10: var(--color-slate-alpha-10);
+  /* AlignUI Dynamic Neutral Colors - Using ZINC for cool industrial metal look */
+  /* Designer spec: Zinc provides the Linear/Attio/Keel aesthetic */
+  --color-neutral-950: oklch(18.9% 0.008 285.63);  /* zinc-950 */
+  --color-neutral-900: oklch(24.1% 0.009 285.70);  /* zinc-900 */
+  --color-neutral-800: oklch(34.4% 0.014 285.68);  /* zinc-800 */
+  --color-neutral-700: oklch(45.0% 0.016 285.77);  /* zinc-700 */
+  --color-neutral-600: oklch(55.2% 0.014 285.99);  /* zinc-600 */
+  --color-neutral-500: oklch(62.9% 0.012 286.12);  /* zinc-500 */
+  --color-neutral-400: oklch(69.8% 0.010 286.22);  /* zinc-400 */
+  --color-neutral-300: oklch(77.7% 0.006 286.44);  /* zinc-300 */
+  --color-neutral-200: oklch(85.3% 0.005 286.48);  /* zinc-200 - stroke-soft-200 */
+  --color-neutral-100: oklch(92.2% 0.003 286.78);  /* zinc-100 */
+  --color-neutral-50: oklch(96.4% 0.001 287.30);   /* zinc-50 - bg-weak-50 */
+  --color-neutral-0: oklch(100.00% 0.0000 0);      /* white */
+  --color-neutral-alpha-24: oklch(69.8% 0.010 286.22 / 24%);
+  --color-neutral-alpha-16: oklch(69.8% 0.010 286.22 / 16%);
+  --color-neutral-alpha-10: oklch(69.8% 0.010 286.22 / 10%);
 
   /* AlignUI Dynamic Primary Colors */
   --color-primary-dark: var(--color-blue-800);
@@ -463,6 +464,40 @@
   
   /* Engraved/Inset sidebar shadow - creates recessed carved effect */
   --shadow-sidebar-inset: inset 0 2px 6px 0 rgba(0, 0, 0, 0.06), inset 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+
+  /* "Keel" Button Inner Highlight - Creates 3D tactile/engraved effect */
+  /* Designer spec: Add white inset highlight to top edge of interactive elements */
+  --shadow-keel-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  --shadow-keel-button: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-keel-active: inset 0 1px 0 0 rgba(255, 255, 255, 0.15), 0 1px 3px 0 rgba(0, 0, 0, 0.08);
+
+  /* Semantic Pastel Colors for Status Badges */
+  /* Designer spec: bg-{color}-50, text-{color}-700, border-{color}-200 */
+  
+  /* Emerald/Green Pastel (Active, Success, Strong) */
+  --color-pastel-green-bg: oklch(96.24% 0.0329 162.30);     /* emerald-50 */
+  --color-pastel-green-text: oklch(56.44% 0.1364 153.55);   /* emerald-700 */
+  --color-pastel-green-border: oklch(92.75% 0.0637 161.76); /* emerald-200 */
+  
+  /* Red Pastel (Churned, Error, Weak) */
+  --color-pastel-red-bg: oklch(95.63% 0.0218 14.06);        /* red-50 */
+  --color-pastel-red-text: oklch(55.60% 0.2038 23.58);      /* red-700 */
+  --color-pastel-red-border: oklch(86.61% 0.0727 13.39);    /* red-200 */
+  
+  /* Yellow/Amber Pastel (Warning, Pending, Medium) */
+  --color-pastel-yellow-bg: oklch(96.81% 0.0409 90.24);     /* yellow-50 */
+  --color-pastel-yellow-text: oklch(71.22% 0.1322 83.92);   /* yellow-700 */
+  --color-pastel-yellow-border: oklch(94.75% 0.0605 87.41); /* yellow-200 */
+  
+  /* Blue Pastel (Info, In Progress) */
+  --color-pastel-blue-bg: oklch(95.77% 0.0199 267.29);      /* blue-50 */
+  --color-pastel-blue-text: oklch(47.07% 0.2134 266.52);    /* blue-700 */
+  --color-pastel-blue-border: oklch(87.13% 0.0627 264.17);  /* blue-200 */
+  
+  /* Gray Pastel (Neutral, Inactive) */
+  --color-pastel-gray-bg: oklch(96.4% 0.001 287.30);        /* zinc-50 */
+  --color-pastel-gray-text: oklch(45.0% 0.016 285.77);      /* zinc-700 */
+  --color-pastel-gray-border: oklch(85.3% 0.005 286.48);    /* zinc-200 */
 
   /* AlignUI Border Radius System - Dynamic from tokens.ts */
   

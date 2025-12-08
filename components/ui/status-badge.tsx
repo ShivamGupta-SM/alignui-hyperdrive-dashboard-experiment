@@ -30,6 +30,10 @@ export const statusBadgeVariants = tv({
         root: 'bg-bg-white-0 text-text-sub-600 ring-1 ring-inset ring-stroke-soft-200',
       },
       light: {},
+      // Designer spec: Semantic Pastels - bg-{color}-50, text-{color}-700, border-{color}-200
+      pastel: {
+        root: 'rounded-full border shadow-none',
+      },
     },
     status: {
       completed: {
@@ -48,9 +52,31 @@ export const statusBadgeVariants = tv({
         icon: 'text-faded-base',
         dot: 'text-faded-base',
       },
+      // New semantic statuses for pastel variant
+      active: {
+        icon: 'text-[var(--color-pastel-green-text)]',
+        dot: 'text-[var(--color-pastel-green-text)]',
+      },
+      churned: {
+        icon: 'text-[var(--color-pastel-red-text)]',
+        dot: 'text-[var(--color-pastel-red-text)]',
+      },
+      weak: {
+        icon: 'text-[var(--color-pastel-red-text)]',
+        dot: 'text-[var(--color-pastel-red-text)]',
+      },
+      medium: {
+        icon: 'text-[var(--color-pastel-yellow-text)]',
+        dot: 'text-[var(--color-pastel-yellow-text)]',
+      },
+      strong: {
+        icon: 'text-[var(--color-pastel-green-text)]',
+        dot: 'text-[var(--color-pastel-green-text)]',
+      },
     },
   },
   compoundVariants: [
+    // Light variant compounds
     {
       variant: 'light',
       status: 'completed',
@@ -77,6 +103,70 @@ export const statusBadgeVariants = tv({
       status: 'disabled',
       class: {
         root: 'bg-faded-lighter text-text-sub-600',
+      },
+    },
+    // Pastel variant compounds - Designer spec: Semantic pastels for tactile UI
+    {
+      variant: 'pastel',
+      status: 'active',
+      class: {
+        root: 'bg-[var(--color-pastel-green-bg)] text-[var(--color-pastel-green-text)] border-[var(--color-pastel-green-border)]',
+      },
+    },
+    {
+      variant: 'pastel',
+      status: 'completed',
+      class: {
+        root: 'bg-[var(--color-pastel-green-bg)] text-[var(--color-pastel-green-text)] border-[var(--color-pastel-green-border)]',
+      },
+    },
+    {
+      variant: 'pastel',
+      status: 'strong',
+      class: {
+        root: 'bg-[var(--color-pastel-green-bg)] text-[var(--color-pastel-green-text)] border-[var(--color-pastel-green-border)]',
+      },
+    },
+    {
+      variant: 'pastel',
+      status: 'churned',
+      class: {
+        root: 'bg-[var(--color-pastel-red-bg)] text-[var(--color-pastel-red-text)] border-[var(--color-pastel-red-border)]',
+      },
+    },
+    {
+      variant: 'pastel',
+      status: 'failed',
+      class: {
+        root: 'bg-[var(--color-pastel-red-bg)] text-[var(--color-pastel-red-text)] border-[var(--color-pastel-red-border)]',
+      },
+    },
+    {
+      variant: 'pastel',
+      status: 'weak',
+      class: {
+        root: 'bg-[var(--color-pastel-red-bg)] text-[var(--color-pastel-red-text)] border-[var(--color-pastel-red-border)]',
+      },
+    },
+    {
+      variant: 'pastel',
+      status: 'pending',
+      class: {
+        root: 'bg-[var(--color-pastel-yellow-bg)] text-[var(--color-pastel-yellow-text)] border-[var(--color-pastel-yellow-border)]',
+      },
+    },
+    {
+      variant: 'pastel',
+      status: 'medium',
+      class: {
+        root: 'bg-[var(--color-pastel-yellow-bg)] text-[var(--color-pastel-yellow-text)] border-[var(--color-pastel-yellow-border)]',
+      },
+    },
+    {
+      variant: 'pastel',
+      status: 'disabled',
+      class: {
+        root: 'bg-[var(--color-pastel-gray-bg)] text-[var(--color-pastel-gray-text)] border-[var(--color-pastel-gray-border)]',
       },
     },
   ],

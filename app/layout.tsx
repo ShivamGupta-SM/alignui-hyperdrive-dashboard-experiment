@@ -36,8 +36,8 @@ export default function RootLayout({
                 "antialiased",
                 // Industry standard: responsive background for inset layout
                 // Mobile: white background (content fills screen)
-                // Desktop: grey shell background (shows around inset content)
-                "bg-bg-white-0 lg:bg-bg-weak-50 dark:bg-zinc-900 dark:lg:bg-zinc-950"
+                // Desktop: zinc-100 shell for visible tactile contrast
+                "bg-bg-white-0 lg:bg-zinc-100 dark:bg-zinc-900 dark:lg:bg-zinc-950"
             )}
         >
             <body className="text-text-strong-950 font-sans">
