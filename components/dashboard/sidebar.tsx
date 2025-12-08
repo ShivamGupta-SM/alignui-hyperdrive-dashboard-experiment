@@ -145,11 +145,11 @@ export function Sidebar({
         href={item.href}
         onClick={onMobileClose}
         className={cn(
-          'group relative flex items-center gap-3 rounded-10 px-3 py-2.5',
-          'text-label-sm transition duration-200 ease-out',
+          'group relative flex items-center gap-3 rounded-xl px-3 py-2.5',
+          'text-label-sm transition-all duration-200 ease-out',
           active
-            ? 'bg-bg-weak-50 text-text-strong-950 font-medium'
-            : 'text-text-sub-600 hover:bg-bg-weak-50 hover:text-text-strong-950'
+            ? 'bg-bg-white-0 text-text-strong-950 font-medium shadow-sm ring-1 ring-stroke-soft-200/50'
+            : 'text-text-sub-600 hover:bg-bg-white-0/60 hover:text-text-strong-950 hover:shadow-sm'
         )}
       >
         {/* Animated active indicator bar */}
@@ -204,8 +204,8 @@ export function Sidebar({
     <aside
       className={cn(
         'flex h-full flex-col',
-        // Mobile: white background for overlay, Desktop: transparent
-        'bg-bg-white-0 lg:bg-transparent',
+        // Mobile: white background for overlay, Desktop: subtle frosted look
+        'bg-bg-white-0 lg:bg-gradient-to-b lg:from-bg-weak-50/30 lg:to-transparent',
         'transition-all duration-300',
         collapsed ? 'w-[72px]' : 'w-[280px]'
       )}
@@ -245,8 +245,9 @@ export function Sidebar({
               <Dropdown.Trigger asChild>
                 <button 
                   className={cn(
-                    'flex w-full items-center justify-center rounded-xl p-2 transition-colors',
-                    'border border-stroke-soft-200 hover:bg-bg-weak-50',
+                    'flex w-full items-center justify-center rounded-xl p-2 transition-all',
+                    'bg-bg-white-0/80 shadow-sm ring-1 ring-inset ring-stroke-soft-200/60',
+                    'hover:bg-bg-white-0 hover:shadow-md hover:ring-stroke-soft-200',
                   )}
                 >
                   <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-base to-primary-dark">
@@ -315,7 +316,7 @@ export function Sidebar({
           ) : (
             <Dropdown.Root>
               <Dropdown.Trigger asChild>
-                <button className="flex w-full items-center gap-3 rounded-xl p-2 border border-stroke-soft-200 transition-colors hover:bg-bg-weak-50">
+                <button className="flex w-full items-center gap-3 rounded-xl p-2.5 bg-bg-white-0/80 shadow-sm ring-1 ring-inset ring-stroke-soft-200/60 transition-all hover:bg-bg-white-0 hover:shadow-md hover:ring-stroke-soft-200">
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-base to-primary-dark">
                     <span className="text-label-sm text-white font-bold">
                       {currentOrganization.name.charAt(0).toUpperCase()}
@@ -393,8 +394,9 @@ export function Sidebar({
           <button
             onClick={onCreateOrganization}
             className={cn(
-              'flex w-full items-center gap-3 rounded-xl p-2 transition-colors',
-              'border border-dashed border-stroke-soft-200 hover:bg-bg-weak-50 hover:border-stroke-strong-950',
+              'flex w-full items-center gap-3 rounded-xl p-2.5 transition-all',
+              'bg-transparent ring-1 ring-dashed ring-stroke-soft-200/80',
+              'hover:bg-bg-white-0/60 hover:ring-stroke-sub-300 hover:shadow-sm',
               collapsed && 'justify-center'
             )}
           >
