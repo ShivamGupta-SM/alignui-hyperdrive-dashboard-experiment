@@ -246,8 +246,8 @@ export function Sidebar({
                     'hover:bg-bg-soft-200/50',
                   )}
                 >
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-base to-primary-dark">
-                    <span className="text-label-sm text-white font-bold">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-soft-200">
+                    <span className="text-label-sm text-text-sub-600 font-semibold">
                       {currentOrganization.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -313,8 +313,8 @@ export function Sidebar({
             <Dropdown.Root>
               <Dropdown.Trigger asChild>
                 <button className="flex w-full items-center gap-3 rounded-xl p-2.5 transition-all hover:bg-bg-soft-200/50">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-base to-primary-dark">
-                    <span className="text-label-sm text-white font-bold">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-bg-soft-200">
+                    <span className="text-label-sm text-text-sub-600 font-semibold">
                       {currentOrganization.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -342,8 +342,8 @@ export function Sidebar({
                         onClick={() => onOrganizationChange?.(org)}
                         className="flex items-start gap-3 py-3"
                       >
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-base to-primary-dark">
-                          <span className="text-label-sm text-white font-bold">
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-bg-soft-200">
+                          <span className="text-label-sm text-text-sub-600 font-semibold">
                             {org.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
@@ -430,7 +430,7 @@ export function Sidebar({
         </ul>
       </nav>
 
-      {/* Engraved Divider */}
+      {/* Engraved Divider between Scrollable Nav and Fixed Footer */}
       <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_rgba(255,255,255,0.8)]" />
 
       {/* Footer Navigation */}
