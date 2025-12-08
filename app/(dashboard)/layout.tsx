@@ -131,26 +131,28 @@ export default function DashboardLayout({
   // Don't render until mounted to prevent hydration mismatch
   if (!mounted) {
     return (
-      <div className="flex h-screen overflow-hidden bg-bg-white-0">
-        {/* Placeholder sidebar - hidden on mobile */}
-        <div className="hidden lg:block w-[280px] border-r border-stroke-soft-200 bg-bg-white-0" />
-        {/* Main Content */}
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Placeholder header */}
-          <div className="h-16 border-b border-stroke-soft-200 bg-bg-white-0" />
-          {/* Page Content */}
-          <main className="flex-1 overflow-y-auto">
-            <div className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-              {children}
-            </div>
-          </main>
+      <div className="h-screen p-0 lg:p-2 xl:p-3">
+        <div className="flex h-full gap-0 lg:gap-2 xl:gap-3">
+          {/* Placeholder sidebar - hidden on mobile */}
+          <div className="hidden lg:block w-[280px] shrink-0" />
+          {/* Main Content Card */}
+          <div className="flex flex-1 flex-col overflow-hidden bg-bg-white-0 lg:rounded-2xl lg:shadow-custom-md">
+            {/* Placeholder header */}
+            <div className="h-16 border-b border-stroke-soft-200" />
+            {/* Page Content */}
+            <main className="flex-1 overflow-y-auto">
+              <div className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+                {children}
+              </div>
+            </main>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-bg-white-0">
+    <div className="h-screen p-0 lg:p-2 xl:p-3">
       {/* Mobile Sidebar Overlay */}
       {mobileSidebarOpen && (
         <div
@@ -160,15 +162,19 @@ export default function DashboardLayout({
         />
       )}
 
-      {/* Sidebar - Desktop: always visible, Mobile: overlay */}
-      <div
-        className={cn(
-          // Mobile: fixed overlay
-          'fixed inset-y-0 left-0 z-50 lg:relative lg:z-auto',
-          'transform transition-transform duration-300 ease-in-out lg:transform-none',
-          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        )}
-      >
+      {/* Flex container for sidebar and content */}
+      <div className="flex h-full gap-0 lg:gap-2 xl:gap-3">
+        {/* Sidebar - Desktop: visible in flow, Mobile: fixed overlay */}
+        <div
+          className={cn(
+            // Mobile: fixed overlay
+            'fixed inset-y-0 left-0 z-50',
+            // Desktop: relative, in flow
+            'lg:relative lg:z-auto lg:shrink-0',
+            'transform transition-transform duration-300 ease-in-out lg:transform-none',
+            mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          )}
+        >
         <Sidebar
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
@@ -183,10 +189,10 @@ export default function DashboardLayout({
           onSignOut={handleSignOut}
           onMobileClose={() => setMobileSidebarOpen(false)}
         />
-      </div>
+        </div>
 
-      {/* Main Content */}
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+        {/* Main Content Card - Floating sheet on desktop */}
+        <div className="flex flex-1 flex-col overflow-hidden min-w-0 bg-bg-white-0 lg:rounded-2xl lg:shadow-custom-md">
         {/* Header */}
         <Header
           unreadNotifications={3}
@@ -206,6 +212,7 @@ export default function DashboardLayout({
             {children}
           </div>
         </main>
+        </div>
       </div>
 
       {/* Notifications Drawer */}

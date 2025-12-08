@@ -32,7 +32,7 @@ export default function RootLayout({
             suppressHydrationWarning
             className={cn(inter.variable, geistMono.variable, "antialiased")}
         >
-            <body className="bg-bg-white-0 text-text-strong-950 font-sans">
+            <body className="bg-bg-weak-50 text-text-strong-950 font-sans">
                 <Providers>{children}</Providers>
             </body>
         </html>

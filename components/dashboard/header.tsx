@@ -41,7 +41,7 @@ export function Header({
   user,
 }: HeaderProps) {
   return (
-    <header className="relative flex h-14 sm:h-16 items-center justify-between border-b border-stroke-soft-200 bg-bg-white-0 px-4 sm:px-6">
+    <header className="relative flex h-14 sm:h-16 items-center justify-between border-b border-stroke-soft-200 px-4 sm:px-6">
       {/* Left: Mobile Menu Toggle + Desktop Collapse Toggle + Search */}
       <div className="flex items-center gap-2">
         {/* Mobile Menu Toggle - Only visible on mobile */}

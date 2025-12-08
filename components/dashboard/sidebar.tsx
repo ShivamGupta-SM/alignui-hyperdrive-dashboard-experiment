@@ -203,14 +203,16 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        'flex h-screen flex-col border-r border-stroke-soft-200 bg-bg-white-0',
+        'flex h-full flex-col',
+        // Mobile: white background for overlay, Desktop: transparent
+        'bg-bg-white-0 lg:bg-transparent',
         'transition-all duration-300',
         collapsed ? 'w-[72px]' : 'w-[280px]'
       )}
     >
       {/* Logo Section - h-16 to match header height */}
       <div className={cn(
-        "flex h-14 sm:h-16 items-center border-b border-stroke-soft-200",
+        "flex h-14 sm:h-16 items-center",
         collapsed ? "justify-center px-2" : "justify-between px-5"
       )}>
         <Link href="/dashboard" onClick={onMobileClose} className="flex items-center">
@@ -235,7 +237,6 @@ export function Sidebar({
 
       {/* Organization Switcher */}
       <div className={cn(
-        "border-b border-stroke-soft-200",
         collapsed ? "px-2 py-3" : "px-3 py-3"
       )}>
         {currentOrganization ? (
@@ -430,7 +431,7 @@ export function Sidebar({
       </nav>
 
       {/* Footer Navigation */}
-      <div className="border-t border-stroke-soft-200 p-3">
+      <div className="p-3">
         {/* Settings Section Label */}
         {!collapsed && (
           <p className="mb-2 px-3 py-1 text-subheading-xs font-semibold uppercase text-text-soft-400">

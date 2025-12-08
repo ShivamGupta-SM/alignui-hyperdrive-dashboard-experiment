@@ -223,10 +223,10 @@ export function FormSkeleton() {
 // Sidebar Skeleton
 export function SidebarSkeleton() {
   return (
-    <div className="flex h-screen w-[280px] flex-col border-r border-stroke-soft-200 bg-bg-white-0 p-3">
+    <div className="flex h-full w-[280px] flex-col p-3">
       {/* Org Switcher */}
       <div className="flex items-center gap-3 p-2 mb-4">
-        <Skeleton className="size-9 rounded-full" />
+        <Skeleton className="size-9 rounded-lg" />
         <div className="flex-1">
           <Skeleton className="h-4 w-24 mb-1" />
           <Skeleton className="h-3 w-16" />
@@ -246,7 +246,7 @@ export function SidebarSkeleton() {
       <div className="flex-1" />
 
       {/* Footer Nav */}
-      <div className="border-t border-stroke-soft-200 pt-3 space-y-1">
+      <div className="pt-3 space-y-1">
         {Array.from({ length: 2 }).map((_, i) => (
           <div key={i} className="flex items-center gap-3 px-3 py-2.5">
             <Skeleton className="size-5" />
