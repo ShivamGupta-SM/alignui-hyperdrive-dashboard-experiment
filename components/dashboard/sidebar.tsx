@@ -204,8 +204,10 @@ export function Sidebar({
     <aside
       className={cn(
         'flex h-full flex-col',
-        // Mobile: white background for overlay, Desktop: subtle frosted look
-        'bg-bg-white-0 lg:bg-gradient-to-b lg:from-bg-weak-50/30 lg:to-transparent',
+        // Mobile: white background for overlay
+        'bg-bg-white-0',
+        // Desktop: subtle inset effect with gradient - no visible box
+        'lg:bg-gradient-to-b lg:from-neutral-100/60 lg:via-neutral-50/30 lg:to-transparent',
         'transition-all duration-300',
         collapsed ? 'w-[72px]' : 'w-[280px]'
       )}
