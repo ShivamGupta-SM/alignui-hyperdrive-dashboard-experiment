@@ -132,7 +132,7 @@ export default function DashboardLayout({
   if (!mounted) {
     return (
       <div className="h-screen p-0 lg:p-2 xl:p-3">
-        <div className="flex h-full gap-0 lg:gap-2 xl:gap-3">
+        <div className="flex h-full">
           {/* Placeholder sidebar - hidden on mobile */}
           <div className="hidden lg:block w-[280px] shrink-0" />
           {/* Main Content Card */}
@@ -163,7 +163,7 @@ export default function DashboardLayout({
       )}
 
       {/* Flex container for sidebar and content */}
-      <div className="flex h-full gap-0 lg:gap-2 xl:gap-3">
+      <div className="flex h-full">
         {/* Sidebar - Desktop: visible in flow, Mobile: fixed overlay */}
         <div
           className={cn(

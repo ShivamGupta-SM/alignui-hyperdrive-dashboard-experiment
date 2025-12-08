@@ -30,9 +30,17 @@ export default function RootLayout({
         <html
             lang="en"
             suppressHydrationWarning
-            className={cn(inter.variable, geistMono.variable, "antialiased")}
+            className={cn(
+                inter.variable, 
+                geistMono.variable, 
+                "antialiased",
+                // Industry standard: responsive background for inset layout
+                // Mobile: white background (content fills screen)
+                // Desktop: grey shell background (shows around inset content)
+                "bg-bg-white-0 lg:bg-bg-weak-50 dark:bg-zinc-900 dark:lg:bg-zinc-950"
+            )}
         >
-            <body className="bg-bg-weak-50 text-text-strong-950 font-sans">
+            <body className="text-text-strong-950 font-sans">
                 <Providers>{children}</Providers>
             </body>
         </html>
