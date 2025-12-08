@@ -154,13 +154,6 @@ export function Sidebar({
             : 'text-text-sub-600 hover:bg-bg-white-0 hover:text-text-strong-950 hover:border hover:border-stroke-soft-200 hover:[box-shadow:var(--shadow-keel-button)] border border-transparent'
         )}
       >
-        {/* Animated active indicator bar */}
-        <div
-          className={cn(
-            'absolute top-1/2 -left-3 h-5 w-1 origin-left -translate-y-1/2 rounded-r-full bg-primary-base transition duration-200 ease-out',
-            active ? 'scale-100' : 'scale-0'
-          )}
-        />
         <Icon 
           className={cn(
             'size-5 shrink-0 transition duration-200 ease-out',
@@ -206,11 +199,11 @@ export function Sidebar({
     <aside
       className={cn(
         'flex h-full flex-col',
-        // Keel/Attio/Octolane style: Sidebar is also a white floating card
-        // Mobile: white background for overlay sheet
-        // Desktop: white card with rounded corners, border, shadow
-        'bg-bg-white-0',
-        'lg:rounded-2xl lg:border lg:border-stroke-soft-200 lg:shadow-sm',
+        // Keel style: Sidebar is TRANSPARENT, sits on gray shell
+        // Only nav items become white pills when active
+        // Mobile: white background for overlay
+        // Desktop: transparent (blends with gray shell)
+        'bg-bg-white-0 lg:bg-transparent',
         'transition-all duration-300',
         collapsed ? 'w-[72px]' : 'w-[280px]'
       )}

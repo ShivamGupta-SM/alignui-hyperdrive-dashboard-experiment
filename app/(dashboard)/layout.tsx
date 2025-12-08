@@ -132,9 +132,9 @@ export default function DashboardLayout({
   if (!mounted) {
     return (
       <div className="h-screen p-0 lg:p-3 bg-zinc-100">
-        <div className="flex h-full gap-0 lg:gap-3">
-          {/* Placeholder sidebar - hidden on mobile */}
-          <div className="hidden lg:block w-[280px] shrink-0 bg-bg-white-0 lg:rounded-2xl lg:border lg:border-stroke-soft-200 lg:shadow-sm" />
+        <div className="flex h-full">
+          {/* Placeholder sidebar - transparent on gray shell */}
+          <div className="hidden lg:block w-[280px] shrink-0" />
           {/* Main Content Card */}
           <div className="flex flex-1 flex-col overflow-hidden bg-bg-white-0 lg:rounded-2xl lg:border lg:border-stroke-soft-200 lg:shadow-sm">
             {/* Placeholder header */}
@@ -162,8 +162,8 @@ export default function DashboardLayout({
         />
       )}
 
-      {/* Flex container for sidebar and content - with gap on desktop */}
-      <div className="flex h-full gap-0 lg:gap-3">
+      {/* Flex container for sidebar and content */}
+      <div className="flex h-full">
         {/* Sidebar - Desktop: visible in flow, Mobile: fixed overlay */}
         <div
           className={cn(
