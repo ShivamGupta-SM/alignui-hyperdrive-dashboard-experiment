@@ -1,0 +1,232 @@
+---
+description: Project-specific conventions, file structure, and coding standards
+globs: ["**/*.ts", "**/*.tsx"]
+alwaysApply: true
+---
+
+# Project Conventions
+
+This is a Next.js 16 dashboard application using the AlignUI design system with Tailwind CSS v4.
+
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router, React Server Components)
+- **Styling**: Tailwind CSS v4 (CSS-first configuration)
+- **Design System**: AlignUI with OKLCH colors
+- **Language**: TypeScript (strict mode)
+- **Package Manager**: npm/pnpm
+
+## Project Structure
+
+```
+├── app/                    # Next.js App Router
+│   ├── layout.tsx          # Root layout
+│   ├── page.tsx            # Home page
+│   ├── globals.css         # Tailwind v4 theme & global styles
+│   ├── providers.tsx       # Client providers wrapper
+│   ├── dashboard/          # Dashboard routes
+│   │   ├── page.tsx
+│   │   └── components/     # Dashboard-specific components
+│   ├── auth/               # Authentication routes
+│   └── api/                # API routes
+├── components/
+│   ├── ui/                 # Reusable UI components (AlignUI)
+│   └── claude-generated-components/  # AI-generated components
+├── hooks/                  # Custom React hooks
+├── lib/                    # Utilities and configurations
+│   ├── auth/               # Authentication logic
+│   └── utils.ts            # Helper functions
+└── docs/                   # Documentation
+    ├── brand/              # Brand guidelines
+    ├── dashboard-final/    # Dashboard specs
+    └── guides/             # Development guides
+```
+
+## Naming Conventions
+
+### Files
+- **Components**: `kebab-case.tsx` (e.g., `user-profile.tsx`)
+- **Hooks**: `use-kebab-case.ts` (e.g., `use-local-storage.ts`)
+- **Utilities**: `kebab-case.ts` (e.g., `form-utils.ts`)
+- **Types**: `kebab-case.ts` or colocate with component
+
+### Components
+- **PascalCase**: `UserProfile`, `DashboardSidebar`
+- **Descriptive names**: Prefer `UserProfileCard` over `Card`
+
+### Variables & Functions
+- **camelCase**: `getUserData`, `isLoading`, `handleClick`
+- **Boolean prefixes**: `is`, `has`, `should`, `can`
+
+### Constants
+- **SCREAMING_SNAKE_CASE**: `API_BASE_URL`, `MAX_RETRY_COUNT`
+
+## Import Order
+
+```tsx
+// 1. React and Next.js
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
+
+// 2. Third-party libraries
+import { motion } from 'framer-motion'
+import { z } from 'zod'
+
+// 3. Internal aliases (@/)
+import { Button } from '@/components/ui/button'
+import { useApi } from '@/hooks/use-api'
+import { cn } from '@/lib/utils'
+
+// 4. Relative imports
+import { DashboardHeader } from './dashboard-header'
+
+// 5. Types (use type imports)
+import type { User } from '@/lib/types'
+```
+
+## Component Patterns
+
+### File Structure
+```tsx
+// 1. Directive (if needed)
+'use client'
+
+// 2. Imports
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import type { User } from '@/lib/types'
+
+// 3. Types/Interfaces
+interface UserCardProps {
+  user: User
+  onSelect?: (user: User) => void
+}
+
+// 4. Component
+export function UserCard({ user, onSelect }: UserCardProps) {
+  // Hooks first
+  const [isHovered, setIsHovered] = useState(false)
+  
+  // Handlers
+  const handleClick = () => onSelect?.(user)
+  
+  // Render
+  return (
+    <div onClick={handleClick}>
+      {user.name}
+    </div>
+  )
+}
+```
+
+### Export Patterns
+- **Named exports** for components: `export function Button()`
+- **Default exports** only for pages: `export default function Page()`
+
+## Styling Guidelines
+
+### Use Tailwind Classes
+```tsx
+// ✅ Good - Tailwind classes
+<div className="flex items-center gap-4 p-4 rounded-10 bg-bg-white-0">
+
+// ❌ Bad - Inline styles
+<div style={{ display: 'flex', padding: '16px' }}>
+```
+
+### Use AlignUI Semantic Tokens
+```tsx
+// ✅ Good - Semantic tokens
+<p className="text-text-strong-950">Primary text</p>
+<p className="text-text-sub-600">Secondary text</p>
+
+// ❌ Bad - Raw colors
+<p className="text-gray-900">Primary text</p>
+```
+
+### Conditional Classes with `cn()`
+```tsx
+import { cn } from '@/lib/utils'
+
+<button
+  className={cn(
+    'px-4 py-2 rounded-10 transition-colors',
+    variant === 'primary' && 'bg-primary-base text-white',
+    variant === 'secondary' && 'bg-bg-soft-200 text-text-strong-950',
+    disabled && 'opacity-50 cursor-not-allowed'
+  )}
+>
+```
+
+## Error Handling
+
+### Server Actions
+```tsx
+'use server'
+
+type ActionResult<T> = 
+  | { success: true; data: T }
+  | { success: false; error: string }
+
+export async function createItem(formData: FormData): Promise<ActionResult<Item>> {
+  try {
+    // Validate
+    const result = schema.safeParse(Object.fromEntries(formData))
+    if (!result.success) {
+      return { success: false, error: 'Validation failed' }
+    }
+    
+    // Process
+    const item = await db.item.create({ data: result.data })
+    return { success: true, data: item }
+  } catch (error) {
+    console.error('createItem error:', error)
+    return { success: false, error: 'Failed to create item' }
+  }
+}
+```
+
+### Client Components
+```tsx
+'use client'
+
+export function DataDisplay() {
+  const { data, error, isLoading } = useApi(fetchData)
+  
+  if (isLoading) return <Skeleton />
+  if (error) return <ErrorMessage error={error} />
+  if (!data) return <EmptyState />
+  
+  return <DataView data={data} />
+}
+```
+
+## Performance Guidelines
+
+1. **Prefer Server Components** - Default to RSC, use `'use client'` only when needed
+2. **Use `loading.tsx`** - For route-level loading states
+3. **Use `Suspense`** - For component-level streaming
+4. **Optimize Images** - Always use `next/image`
+5. **Lazy Load** - Use `dynamic()` for heavy client components
+
+## Accessibility
+
+1. **Semantic HTML** - Use appropriate elements (`button`, `nav`, `main`)
+2. **ARIA Labels** - Add when semantic HTML isn't sufficient
+3. **Keyboard Navigation** - Ensure all interactive elements are focusable
+4. **Color Contrast** - AlignUI tokens ensure WCAG compliance
+5. **Focus Indicators** - Use focus shadows from design system
+
+## Git Commit Messages
+
+```
+type(scope): description
+
+feat(dashboard): add analytics chart component
+fix(auth): resolve session expiration issue
+refactor(ui): simplify button variants
+docs(readme): update installation instructions
+```
+
+Types: `feat`, `fix`, `refactor`, `docs`, `style`, `test`, `chore`

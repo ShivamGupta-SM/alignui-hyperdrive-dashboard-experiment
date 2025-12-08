@@ -1,0 +1,325 @@
+---
+inclusion: manual
+---
+# Next.js 16 Development Rules
+
+You are an expert Next.js 16 developer. Follow these patterns and best practices.
+
+## Core Principles
+
+- **App Router First**: Always use the App Router with React Server Components
+- **Cache Components**: Use explicit `"use cache"` directive for opt-in caching
+- **Turbopack Default**: Turbopack is the default bundler in v16
+- **React 19.2**: Leverage View Transitions, `useEffectEvent`, and Activity
+
+## File Conventions
+
+```
+app/
+├── layout.tsx          # Root layout (required)
+├── page.tsx            # Home page (/)
+├── loading.tsx         # Loading UI with Suspense
+├── error.tsx           # Error boundary (must be 'use client')
+├── not-found.tsx       # 404 UI
+├── global-error.tsx    # Global error boundary
+```
+
+## Server Components (Default)
+
+All components are Server Components by default. Use them for:
+- Data fetching directly in components
+- Accessing backend resources
+- Keeping secrets on server
+- Reducing client JavaScript
+
+```tsx
+// app/posts/page.tsx - Server Component (default)
+async function getPosts() {
+  const res = await fetch('https://api.example.com/posts')
+  return res.json()
+}
+
+export default async function PostsPage() {
+  const posts = await getPosts()
+  return (
+    <ul>
+      {posts.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  )
+}
+```
+
+## Client Components
+
+Use `'use client'` only when necessary:
+- Interactivity (onClick, onChange)
+- Browser APIs (localStorage, window)
+- React hooks (useState, useEffect, useRef)
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+
+export default function Counter() {
+  const [count, setCount] = useState(0)
+  return (
+    <button onClick={() => setCount(count + 1)}>
+      Count: {count}
+    </button>
+  )
+}
+```
+
+## Cache Components (v16 Feature)
+
+Use `"use cache"` for explicit, opt-in caching:
+
+```tsx
+// File-level caching
+'use cache'
+
+export default async function ProductsPage() {
+  const products = await getProducts()
+  return <ProductList products={products} />
+}
+```
+
+```tsx
+// Function-level caching with tags and lifetime
+import { cacheLife, cacheTag } from 'next/cache'
+
+async function getProducts() {
+  'use cache'
+  cacheTag('products')
+  cacheLife('hours') // Built-in profiles: seconds, minutes, hours, days, weeks, max
+  return await db.products.findMany()
+}
+```
+
+### Cache Variants
+
+- `'use cache'` - Standard caching, cannot access runtime APIs directly
+- `'use cache: remote'` - For caching after calling runtime APIs
+- `'use cache: private'` - For user-specific cached data
+
+## Dynamic Routes (Async Params)
+
+**CRITICAL**: In v16, `params` and `searchParams` must be awaited:
+
+```tsx
+// app/blog/[slug]/page.tsx
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}) {
+  const { slug } = await params // Must await in v16!
+  const post = await getPost(slug)
+  return <article>{post.title}</article>
+}
+```
+
+## Server Actions
+
+Define with `'use server'` directive:
+
+```tsx
+// app/actions.ts
+'use server'
+
+import { revalidateTag, updateTag } from 'next/cache'
+import { redirect } from 'next/navigation'
+
+export async function createPost(formData: FormData) {
+  const title = formData.get('title') as string
+  await db.post.create({ data: { title } })
+  
+  updateTag('posts') // Immediate invalidation
+  redirect('/posts')
+}
+```
+
+## Revalidation Methods
+
+| Method | Use Case |
+|--------|----------|
+| `revalidateTag()` | Background revalidation (stale-while-revalidate) |
+| `updateTag()` | Immediate invalidation (Server Actions only) |
+| `revalidatePath()` | Revalidate all data for a path |
+| `refresh()` | Refresh client router (uncached data only) |
+
+## Layouts
+
+```tsx
+// app/layout.tsx
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: { default: 'My App', template: '%s | My App' },
+  description: 'My app description',
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  )
+}
+```
+
+## Parallel Routes
+
+**IMPORTANT**: All slots require `default.tsx` in v16:
+
+```tsx
+// app/@analytics/default.tsx
+import { notFound } from 'next/navigation'
+
+export default function Default() {
+  return notFound() // or return null
+}
+```
+
+## Loading & Streaming
+
+```tsx
+// app/dashboard/loading.tsx
+export default function Loading() {
+  return (
+    <div className="animate-pulse">
+      <div className="h-8 bg-gray-200 rounded w-1/4 mb-4" />
+    </div>
+  )
+}
+```
+
+Use Suspense for granular streaming:
+
+```tsx
+import { Suspense } from 'react'
+
+export default function Page() {
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <Suspense fallback={<StatsSkeleton />}>
+        <Stats />
+      </Suspense>
+    </div>
+  )
+}
+```
+
+## Error Handling
+
+```tsx
+'use client'
+
+// app/dashboard/error.tsx
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string }
+  reset: () => void
+}) {
+  return (
+    <div>
+      <h2>Something went wrong!</h2>
+      <button onClick={() => reset()}>Try again</button>
+    </div>
+  )
+}
+```
+
+## Navigation
+
+```tsx
+import Link from 'next/link'
+
+// Prefetching enabled by default
+<Link href="/about">About</Link>
+<Link href="/about" prefetch={false}>About (no prefetch)</Link>
+```
+
+```tsx
+'use client'
+
+import { useRouter } from 'next/navigation'
+
+export function NavigateButton() {
+  const router = useRouter()
+  return (
+    <button onClick={() => router.push('/dashboard')}>Go</button>
+  )
+}
+```
+
+## Image Optimization
+
+```tsx
+import Image from 'next/image'
+
+// Basic usage
+<Image src="/hero.png" alt="Hero" width={1200} height={600} priority />
+
+// Fill mode
+<div className="relative h-64 w-full">
+  <Image src="/hero.png" alt="Hero" fill className="object-cover" />
+</div>
+```
+
+## Route Handlers
+
+```tsx
+// app/api/posts/route.ts
+import { NextResponse } from 'next/server'
+
+export async function GET() {
+  const posts = await db.post.findMany()
+  return NextResponse.json(posts)
+}
+
+export async function POST(request: Request) {
+  const body = await request.json()
+  const post = await db.post.create({ data: body })
+  return NextResponse.json(post, { status: 201 })
+}
+```
+
+## TypeScript Best Practices
+
+```tsx
+import type { Metadata, ResolvingMetadata } from 'next'
+
+type Props = {
+  params: Promise<{ slug: string }>
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
+
+export async function generateMetadata(
+  { params }: Props,
+  parent: ResolvingMetadata
+): Promise<Metadata> {
+  const { slug } = await params
+  const post = await getPost(slug)
+  return { title: post.title }
+}
+```
+
+## Breaking Changes from v15
+
+- All request APIs (`params`, `searchParams`, `cookies()`, `headers()`) must be awaited
+- `middleware.ts` replaced by `proxy.ts`
+- All parallel route slots require `default.tsx`
+- Turbopack is now default (use `--webpack` to opt out)
+- `next lint` command removed
+- `images.domains` deprecated (use `remotePatterns`)
