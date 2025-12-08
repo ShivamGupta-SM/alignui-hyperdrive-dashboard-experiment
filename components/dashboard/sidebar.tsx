@@ -206,10 +206,11 @@ export function Sidebar({
     <aside
       className={cn(
         'flex h-full flex-col',
-        // Industry standard: 
+        // Keel/Attio/Octolane style: Sidebar is also a white floating card
         // Mobile: white background for overlay sheet
-        // Desktop: transparent (inherits grey shell background)
-        'bg-bg-white-0 lg:bg-transparent',
+        // Desktop: white card with rounded corners, border, shadow
+        'bg-bg-white-0',
+        'lg:rounded-2xl lg:border lg:border-stroke-soft-200 lg:shadow-sm',
         'transition-all duration-300',
         collapsed ? 'w-[72px]' : 'w-[280px]'
       )}
