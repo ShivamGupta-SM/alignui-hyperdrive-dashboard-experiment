@@ -232,6 +232,9 @@ export function Sidebar({
         {/* Metallic logo temporarily disabled - visit /dashboard/metallic-demo to test */}
       </div>
 
+      {/* Engraved Divider */}
+      <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_rgba(255,255,255,0.8)]" />
+
       {/* Organization Switcher */}
       <div className={cn(
         collapsed ? "px-2 py-3" : "px-3 py-3"
