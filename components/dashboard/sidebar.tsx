@@ -11,28 +11,28 @@ import * as Tooltip from '@/components/ui/tooltip'
 import * as Dropdown from '@/components/ui/dropdown'
 import { Logo, LogoIcon } from '@/components/ui/logo'
 import {
-  RiDashboardLine,
-  RiMegaphoneLine,
-  RiUserFollowLine,
-  RiShoppingBag3Line,
-  RiWallet3Line,
-  RiFileList3Line,
-  RiTeamLine,
-  RiSettings4Line,
-  RiQuestionLine,
-  RiArrowDownSLine,
-  RiArrowRightSLine,
-  RiExpandUpDownLine,
-  RiCheckLine,
-  RiAddLine,
-  RiUserLine,
-  RiLockLine,
-  RiMoonLine,
-  RiSunLine,
-  RiLogoutBoxLine,
-  RiMoreLine,
-  RiCloseLine,
-} from '@remixicon/react'
+  HomeIcon,
+  MegaphoneIcon,
+  UserPlusIcon,
+  ShoppingBagIcon,
+  WalletIcon,
+  DocumentTextIcon,
+  UserGroupIcon,
+  Cog6ToothIcon,
+  QuestionMarkCircleIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ChevronUpDownIcon,
+  CheckIcon,
+  PlusIcon,
+  UserIcon,
+  LockClosedIcon,
+  MoonIcon,
+  SunIcon,
+  ArrowRightOnRectangleIcon,
+  EllipsisHorizontalIcon,
+  XMarkIcon,
+} from '@heroicons/react/20/solid'
 import type { Organization, User } from '@/lib/types'
 import { ORGANIZATION_STATUS_CONFIG } from '@/lib/constants'
 
@@ -56,44 +56,44 @@ const navigation = [
     id: 'dashboard',
     label: 'Dashboard',
     href: '/dashboard',
-    icon: RiDashboardLine,
+    icon: HomeIcon,
   },
   {
     id: 'campaigns',
     label: 'Campaigns',
     href: '/dashboard/campaigns',
-    icon: RiMegaphoneLine,
+    icon: MegaphoneIcon,
   },
   {
     id: 'enrollments',
     label: 'Enrollments',
     href: '/dashboard/enrollments',
-    icon: RiUserFollowLine,
+    icon: UserPlusIcon,
     hasBadge: true,
   },
   {
     id: 'products',
     label: 'Products',
     href: '/dashboard/products',
-    icon: RiShoppingBag3Line,
+    icon: ShoppingBagIcon,
   },
   {
     id: 'wallet',
     label: 'Wallet',
     href: '/dashboard/wallet',
-    icon: RiWallet3Line,
+    icon: WalletIcon,
   },
   {
     id: 'invoices',
     label: 'Invoices',
     href: '/dashboard/invoices',
-    icon: RiFileList3Line,
+    icon: DocumentTextIcon,
   },
   {
     id: 'team',
     label: 'Team',
     href: '/dashboard/team',
-    icon: RiTeamLine,
+    icon: UserGroupIcon,
   },
 ]
 
@@ -102,13 +102,13 @@ const footerNavigation = [
     id: 'settings',
     label: 'Settings',
     href: '/dashboard/settings',
-    icon: RiSettings4Line,
+    icon: Cog6ToothIcon,
   },
   {
     id: 'help',
     label: 'Help & Support',
     href: '/dashboard/help',
-    icon: RiQuestionLine,
+    icon: QuestionMarkCircleIcon,
   },
 ]
 
@@ -169,7 +169,7 @@ export function Sidebar({
                 </Badge.Root>
               )}
               {active && (
-                <RiArrowRightSLine className="size-5 text-text-sub-600" />
+                <ChevronRightIcon className="size-5 text-text-sub-600" />
               )}
             </div>
           </>
@@ -226,14 +226,14 @@ export function Sidebar({
             className="lg:hidden flex h-8 w-8 items-center justify-center rounded-8 text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
             aria-label="Close sidebar"
           >
-            <RiCloseLine className="size-5" />
+            <XMarkIcon className="size-5" />
           </button>
         )}
         {/* Metallic logo temporarily disabled - visit /dashboard/metallic-demo to test */}
       </div>
 
-      {/* Engraved Divider */}
-      <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_rgba(255,255,255,0.8)]" />
+      {/* Engraved Divider - inset effect with highlight below */}
+      <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_var(--color-bg-white-0)]" />
 
       {/* Organization Switcher */}
       <div className={cn(
@@ -279,7 +279,7 @@ export function Sidebar({
                             <span className="text-label-sm text-text-strong-950 truncate">
                               {org.name}
                             </span>
-                            {isSelected && <RiCheckLine className="size-4 text-primary-base shrink-0" />}
+                            {isSelected && <CheckIcon className="size-4 text-primary-base shrink-0" />}
                           </div>
                           <div className="text-paragraph-xs text-text-sub-600 truncate">
                             {org.slug}
@@ -307,7 +307,7 @@ export function Sidebar({
                 <Dropdown.Separator />
 
                 <Dropdown.Item onClick={onCreateOrganization}>
-                  <Dropdown.ItemIcon as={RiAddLine} />
+                  <Dropdown.ItemIcon as={PlusIcon} />
                   Create New Organization
                 </Dropdown.Item>
               </Dropdown.Content>
@@ -329,7 +329,7 @@ export function Sidebar({
                       {currentOrganization.slug}
                     </span>
                   </div>
-                  <RiExpandUpDownLine className="size-4 shrink-0 text-text-soft-400" />
+                  <ChevronUpDownIcon className="size-4 shrink-0 text-text-soft-400" />
                 </button>
               </Dropdown.Trigger>
               <Dropdown.Content align="start" className="w-72">
@@ -355,7 +355,7 @@ export function Sidebar({
                             <span className="text-label-sm text-text-strong-950 truncate">
                               {org.name}
                             </span>
-                            {isSelected && <RiCheckLine className="size-4 text-primary-base shrink-0" />}
+                            {isSelected && <CheckIcon className="size-4 text-primary-base shrink-0" />}
                           </div>
                           <div className="text-paragraph-xs text-text-sub-600 truncate">
                             {org.slug}
@@ -383,7 +383,7 @@ export function Sidebar({
                 <Dropdown.Separator />
 
                 <Dropdown.Item onClick={onCreateOrganization}>
-                  <Dropdown.ItemIcon as={RiAddLine} />
+                  <Dropdown.ItemIcon as={PlusIcon} />
                   Create New Organization
                 </Dropdown.Item>
               </Dropdown.Content>
@@ -402,7 +402,7 @@ export function Sidebar({
               "flex shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-stroke-soft-200",
               collapsed ? "size-8" : "size-9"
             )}>
-              <RiAddLine className={cn("text-text-sub-600", collapsed ? "size-4" : "size-5")} />
+              <PlusIcon className={cn("text-text-sub-600", collapsed ? "size-4" : "size-5")} />
             </div>
             {!collapsed && (
               <span className="text-label-sm text-text-sub-600">
@@ -413,8 +413,8 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Engraved Divider - creates carved/inset appearance */}
-      <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_rgba(255,255,255,0.8)]" />
+      {/* Engraved Divider - inset effect with highlight below */}
+      <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_var(--color-bg-white-0)]" />
 
       {/* Main Navigation */}
       <nav className="flex-1 overflow-y-auto p-3">
@@ -433,8 +433,8 @@ export function Sidebar({
         </ul>
       </nav>
 
-      {/* Engraved Divider between Scrollable Nav and Fixed Footer */}
-      <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_rgba(255,255,255,0.8)]" />
+      {/* Divider between Scrollable Nav and Fixed Footer - inset effect */}
+      <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_var(--color-bg-white-0)]" />
 
       {/* Footer Navigation */}
       <div className="p-3">
@@ -507,7 +507,7 @@ function UserProfileMenu({
               {user.email}
             </div>
           </div>
-          <RiMoreLine className="size-5 text-text-sub-600 shrink-0" />
+          <EllipsisHorizontalIcon className="size-5 text-text-sub-600 shrink-0" />
         </>
       )}
     </button>
@@ -544,18 +544,18 @@ function UserProfileMenu({
       <Dropdown.Group>
         <Dropdown.Item asChild>
           <Link href="/dashboard/profile">
-            <Dropdown.ItemIcon as={RiUserLine} />
+            <Dropdown.ItemIcon as={UserIcon} />
             My Profile
           </Link>
         </Dropdown.Item>
         <Dropdown.Item asChild>
           <Link href="/dashboard/security">
-            <Dropdown.ItemIcon as={RiLockLine} />
+            <Dropdown.ItemIcon as={LockClosedIcon} />
             Change Password
           </Link>
         </Dropdown.Item>
         <Dropdown.Item onClick={onToggleDarkMode}>
-          <Dropdown.ItemIcon as={isDarkMode ? RiSunLine : RiMoonLine} />
+          <Dropdown.ItemIcon as={isDarkMode ? SunIcon : MoonIcon} />
           {isDarkMode ? 'Light Mode' : 'Dark Mode'}
         </Dropdown.Item>
       </Dropdown.Group>
@@ -564,7 +564,7 @@ function UserProfileMenu({
 
       {/* Sign Out */}
       <Dropdown.Item onClick={onSignOut} className="text-error-base">
-        <Dropdown.ItemIcon as={RiLogoutBoxLine} />
+        <Dropdown.ItemIcon as={ArrowRightOnRectangleIcon} />
         Sign Out
       </Dropdown.Item>
     </Dropdown.Content>

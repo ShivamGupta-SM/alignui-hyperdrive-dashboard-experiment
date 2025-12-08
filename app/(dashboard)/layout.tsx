@@ -131,7 +131,7 @@ export default function DashboardLayout({
   // Don't render until mounted to prevent hydration mismatch
   if (!mounted) {
     return (
-      <div className="h-screen p-0 lg:p-3 bg-zinc-100">
+      <div className="h-screen p-0 lg:p-3 bg-bg-weak-50">
         <div className="flex h-full">
           {/* Placeholder sidebar - transparent on gray shell */}
           <div className="hidden lg:block w-[280px] shrink-0" />
@@ -152,7 +152,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="h-screen p-0 lg:p-3 bg-zinc-100">
+    <div className="h-screen p-0 lg:p-3 bg-bg-weak-50">
       {/* Mobile Sidebar Overlay */}
       {mobileSidebarOpen && (
         <div

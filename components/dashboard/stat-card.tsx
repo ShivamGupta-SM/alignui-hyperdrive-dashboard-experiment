@@ -4,6 +4,8 @@ import * as React from 'react'
 import Link from 'next/link'
 import { cn } from '@/utils/cn'
 
+import { WalletIcon } from '@heroicons/react/24/outline'
+
 // Simple, clean stat card with minimal information
 interface SimpleStatCardProps {
   icon: React.ReactNode
@@ -113,10 +115,7 @@ export function WalletCard({
         'flex size-10 items-center justify-center rounded-full mb-3',
         isLowBalance ? 'bg-warning-base text-white' : 'bg-white/20 text-white'
       )}>
-        <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3" />
-          <path d="M16 12h5v4h-5a2 2 0 0 1 0-4z" />
-        </svg>
+        <WalletIcon className="size-5" />
       </div>
       
       {/* Value */}
@@ -353,13 +352,6 @@ export function WalletStatCard({
   )
 }
 
-function WalletIcon() {
-  return (
-    <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3" />
-      <path d="M16 12h5v4h-5a2 2 0 0 1 0-4z" />
-    </svg>
-  )
-}
+
 
 export { statCardVariants }

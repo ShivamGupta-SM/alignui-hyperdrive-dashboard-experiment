@@ -6,20 +6,20 @@ import * as Badge from '@/components/ui/badge'
 import * as ProgressBar from '@/components/ui/progress-bar'
 import * as Dropdown from '@/components/ui/dropdown'
 import { 
-  RiMoreLine, 
-  RiBarChartBoxLine, 
-  RiFileCopyLine,
-  RiPauseLine,
-  RiPlayLine,
-  RiStopLine,
-  RiCheckLine,
-  RiArchiveLine,
-  RiCloseLine,
-  RiCalendarLine,
-  RiUserLine,
-  RiArrowRightSLine,
-  RiImage2Line,
-} from '@remixicon/react'
+  EllipsisHorizontalIcon, 
+  ChartBarIcon, 
+  DocumentDuplicateIcon,
+  PauseIcon,
+  PlayIcon,
+  StopIcon,
+  CheckIcon,
+  ArchiveBoxIcon,
+  XMarkIcon,
+  CalendarIcon,
+  UserIcon,
+  ChevronRightIcon,
+  PhotoIcon,
+} from '@heroicons/react/24/outline'
 import type { Campaign, CampaignStatus } from '@/lib/types'
 import { CAMPAIGN_STATUS_CONFIG } from '@/lib/constants'
 
@@ -84,39 +84,39 @@ export function CampaignCard({
 
     switch (campaign.status) {
       case 'draft':
-        if (onEdit) actions.push({ label: 'Edit', icon: RiBarChartBoxLine, onClick: onEdit })
-        if (onSubmitForApproval) actions.push({ label: 'Submit for Approval', icon: RiCheckLine, onClick: onSubmitForApproval })
-        if (onDelete) actions.push({ label: 'Delete', icon: RiCloseLine, onClick: onDelete, destructive: true })
+        if (onEdit) actions.push({ label: 'Edit', icon: ChartBarIcon, onClick: onEdit })
+        if (onSubmitForApproval) actions.push({ label: 'Submit for Approval', icon: CheckIcon, onClick: onSubmitForApproval })
+        if (onDelete) actions.push({ label: 'Delete', icon: XMarkIcon, onClick: onDelete, destructive: true })
         break
       case 'pending_approval':
         break
       case 'approved':
-        if (onManage) actions.push({ label: 'Activate', icon: RiPlayLine, onClick: onManage })
-        if (onCancel) actions.push({ label: 'Cancel', icon: RiCloseLine, onClick: onCancel, destructive: true })
+        if (onManage) actions.push({ label: 'Activate', icon: PlayIcon, onClick: onManage })
+        if (onCancel) actions.push({ label: 'Cancel', icon: XMarkIcon, onClick: onCancel, destructive: true })
         break
       case 'active':
-        if (onPause) actions.push({ label: 'Pause', icon: RiPauseLine, onClick: onPause })
-        if (onEnd) actions.push({ label: 'End Campaign', icon: RiStopLine, onClick: onEnd })
+        if (onPause) actions.push({ label: 'Pause', icon: PauseIcon, onClick: onPause })
+        if (onEnd) actions.push({ label: 'End Campaign', icon: StopIcon, onClick: onEnd })
         break
       case 'paused':
-        if (onResume) actions.push({ label: 'Resume', icon: RiPlayLine, onClick: onResume })
-        if (onEnd) actions.push({ label: 'End Campaign', icon: RiStopLine, onClick: onEnd })
-        if (onCancel) actions.push({ label: 'Cancel', icon: RiCloseLine, onClick: onCancel, destructive: true })
+        if (onResume) actions.push({ label: 'Resume', icon: PlayIcon, onClick: onResume })
+        if (onEnd) actions.push({ label: 'End Campaign', icon: StopIcon, onClick: onEnd })
+        if (onCancel) actions.push({ label: 'Cancel', icon: XMarkIcon, onClick: onCancel, destructive: true })
         break
       case 'ended':
-        if (onComplete) actions.push({ label: 'Complete', icon: RiCheckLine, onClick: onComplete })
-        if (onArchive) actions.push({ label: 'Archive', icon: RiArchiveLine, onClick: onArchive })
+        if (onComplete) actions.push({ label: 'Complete', icon: CheckIcon, onClick: onComplete })
+        if (onArchive) actions.push({ label: 'Archive', icon: ArchiveBoxIcon, onClick: onArchive })
         break
       case 'completed':
-        if (onArchive) actions.push({ label: 'Archive', icon: RiArchiveLine, onClick: onArchive })
+        if (onArchive) actions.push({ label: 'Archive', icon: ArchiveBoxIcon, onClick: onArchive })
         break
       case 'archived':
-        if (onDuplicate) actions.push({ label: 'Duplicate', icon: RiFileCopyLine, onClick: onDuplicate })
+        if (onDuplicate) actions.push({ label: 'Duplicate', icon: DocumentDuplicateIcon, onClick: onDuplicate })
         break
     }
 
     if (onDuplicate && campaign.status !== 'archived') {
-      actions.push({ label: 'Duplicate', icon: RiFileCopyLine, onClick: onDuplicate })
+      actions.push({ label: 'Duplicate', icon: DocumentDuplicateIcon, onClick: onDuplicate })
     }
 
     return actions
@@ -142,7 +142,7 @@ export function CampaignCard({
               />
             ) : (
               <div className="size-14 rounded-xl bg-bg-weak-50 flex items-center justify-center">
-                <RiImage2Line className="size-6 text-text-soft-400" />
+                <PhotoIcon className="size-6 text-text-soft-400" />
               </div>
             )}
           </div>
@@ -169,7 +169,7 @@ export function CampaignCard({
                 <Dropdown.Root>
                   <Dropdown.Trigger asChild>
                     <button className="flex size-7 shrink-0 items-center justify-center rounded-lg text-text-soft-400 hover:text-text-strong-950 hover:bg-bg-weak-50">
-                      <RiMoreLine className="size-5" />
+                      <EllipsisHorizontalIcon className="size-5" />
                     </button>
                   </Dropdown.Trigger>
                   <Dropdown.Content align="end">
@@ -193,11 +193,11 @@ export function CampaignCard({
             {/* Meta Info */}
             <div className="flex items-center gap-3 mt-2 text-paragraph-xs text-text-sub-600">
               <span className="flex items-center gap-1">
-                <RiCalendarLine className="size-3.5 text-text-soft-400" />
+                <CalendarIcon className="size-3.5 text-text-soft-400" />
                 {formatDate(campaign.startDate)} - {formatDate(campaign.endDate)}
               </span>
               <span className="flex items-center gap-1">
-                <RiUserLine className="size-3.5 text-text-soft-400" />
+                <UserIcon className="size-3.5 text-text-soft-400" />
                 {campaign.currentEnrollments}/{campaign.maxEnrollments}
               </span>
             </div>
@@ -237,7 +237,7 @@ export function CampaignCard({
           className="flex items-center gap-0.5 text-label-sm text-primary-base hover:text-primary-darker font-medium"
         >
           View
-          <RiArrowRightSLine className="size-4" />
+          <ChevronRightIcon className="size-4" />
         </button>
       </div>
     </div>
@@ -271,7 +271,7 @@ export function CampaignListItem({
         />
       ) : (
         <div className="size-10 rounded-lg bg-bg-weak-50 flex items-center justify-center">
-          <RiImage2Line className="size-4 text-text-soft-400" />
+          <PhotoIcon className="size-4 text-text-soft-400" />
         </div>
       )}
       
