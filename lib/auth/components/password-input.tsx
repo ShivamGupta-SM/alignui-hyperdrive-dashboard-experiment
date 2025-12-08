@@ -1,6 +1,6 @@
 "use client"
 
-import { RiEyeLine, RiEyeOffLine } from "@remixicon/react"
+import { EyeIcon, EyeSlashIcon } from "@heroicons/react/20/solid"
 import { type ComponentProps, useState } from "react"
 
 import { cn } from "../lib/utils"
@@ -38,7 +38,7 @@ export function PasswordInput({
                         variant="ghost"
                         onClick={() => setIsVisible(!isVisible)}
                     >
-                        {isVisible ? <RiEyeLine size={20} /> : <RiEyeOffLine size={20} />}
+                        {isVisible ? <EyeIcon className="size-5" /> : <EyeSlashIcon className="size-5" />}
                     </Button>
 
                     <style>{`

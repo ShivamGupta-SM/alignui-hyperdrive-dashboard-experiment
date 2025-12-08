@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { BetterFetchOption } from "better-auth/react"
-import { RiLoader4Line, RiDeleteBinLine, RiUploadCloud2Line } from "@remixicon/react"
+import { ArrowPathIcon, TrashIcon, CloudArrowUpIcon } from "@heroicons/react/20/solid"
 import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -489,7 +489,7 @@ export function SignUpForm({
                                                     onClick={openFileDialog}
                                                     disabled={uploadingAvatar}
                                                 >
-                                                    <RiUploadCloud2Line size={20} />
+                                                    <CloudArrowUpIcon className="size-5" />
                                                     {localization.UPLOAD_AVATAR}
                                                 </DropdownMenuItem>
 
@@ -503,7 +503,7 @@ export function SignUpForm({
                                                         }
                                                         variant="destructive"
                                                     >
-                                                        <RiDeleteBinLine size={20} />
+                                                        <TrashIcon className="size-5" />
                                                         {
                                                             localization.DELETE_AVATAR
                                                         }
@@ -519,7 +519,7 @@ export function SignUpForm({
                                             disabled={uploadingAvatar}
                                         >
                                             {uploadingAvatar && (
-                                                <RiLoader4Line className="animate-spin" size={20} />
+                                                <ArrowPathIcon className="animate-spin size-5" />
                                             )}
 
                                             {localization.UPLOAD}
@@ -824,7 +824,7 @@ export function SignUpForm({
                     )}
                 >
                     {isSubmitting ? (
-                        <RiLoader4Line className="animate-spin" size={20} />
+                        <ArrowPathIcon className="animate-spin size-5" />
                     ) : (
                         localization.SIGN_UP_ACTION
                     )}

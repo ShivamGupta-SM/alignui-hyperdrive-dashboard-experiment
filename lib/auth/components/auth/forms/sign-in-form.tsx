@@ -3,7 +3,7 @@
 
 import type { BetterFetchOption } from "@better-fetch/fetch"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { RiLoader4Line } from "@remixicon/react"
+import { ArrowPathIcon } from "@heroicons/react/20/solid"
 import { useContext, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -284,7 +284,7 @@ export function SignInForm({
                     )}
                 >
                     {isSubmitting ? (
-                        <RiLoader4Line className="animate-spin" size={20} />
+                        <ArrowPathIcon className="animate-spin size-5" />
                     ) : (
                         localization.SIGN_IN_ACTION
                     )}

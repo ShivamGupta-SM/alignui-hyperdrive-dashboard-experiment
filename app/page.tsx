@@ -2,7 +2,8 @@ import Link from 'next/link'
 import * as Button from '@/components/ui/button'
 import { FeaturedCard } from '@/components/claude-generated-components/featured-card'
 import { FeaturedIcon } from '@/components/claude-generated-components/featured-icon'
-import { RiArrowRightLine, RiBarChartBoxLine, RiCheckDoubleLine, RiWallet3Line } from '@remixicon/react'
+import { ArrowRightIcon } from '@heroicons/react/20/solid'
+import { ChartBarIcon, CheckBadgeIcon, WalletIcon } from '@heroicons/react/24/outline'
 
 export default function Home() {
   return (
@@ -54,7 +55,7 @@ export default function Home() {
             <Button.Root variant="primary" size="medium" asChild className="w-full sm:w-auto">
               <Link href="/sign-up">
                 Start Free Trial
-                <Button.Icon as={RiArrowRightLine} />
+                <Button.Icon as={ArrowRightIcon} />
               </Link>
             </Button.Root>
             <Button.Root variant="basic" size="medium" asChild className="w-full sm:w-auto">
@@ -67,17 +68,17 @@ export default function Home() {
           {/* Features Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-12 sm:mt-16">
             <FeatureCard
-              icon={<FeaturedIcon icon={RiBarChartBoxLine} color="primary" size="medium" />}
+              icon={<FeaturedIcon icon={ChartBarIcon} color="primary" size="medium" />}
               title="Campaign Management"
               description="Create and manage influencer campaigns with ease. Track enrollments and approvals in real-time."
             />
             <FeatureCard
-              icon={<FeaturedIcon icon={RiCheckDoubleLine} color="success" size="medium" />}
+              icon={<FeaturedIcon icon={CheckBadgeIcon} color="success" size="medium" />}
               title="OCR Verification"
               description="Automated order verification using OCR technology. Review submissions with confidence."
             />
             <FeatureCard
-              icon={<FeaturedIcon icon={RiWallet3Line} color="primary" size="medium" />}
+              icon={<FeaturedIcon icon={WalletIcon} color="primary" size="medium" />}
               title="Wallet & Billing"
               description="Transparent billing with hold-based payments. Fund your wallet and manage payouts."
             />

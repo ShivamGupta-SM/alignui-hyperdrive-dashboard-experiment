@@ -6,7 +6,7 @@ import { useContext } from 'react';
 import { AuthUIContext, UserAvatar } from '@/lib/auth';
 import * as Button from '@/components/ui/button';
 import { Logo } from '@/components/ui/logo';
-import { RiDashboardLine } from '@remixicon/react';
+import { HomeIcon } from '@heroicons/react/20/solid';
 
 const DynamicThemeSwitch = dynamic(() => import('./theme-switch'), {
   ssr: false,
@@ -39,7 +39,7 @@ export default function Header() {
             <div className='flex items-center gap-2'>
               <Button.Root variant='primary' size='small' asChild>
                 <Link href='/dashboard'>
-                  <Button.Icon as={RiDashboardLine} />
+                  <Button.Icon as={HomeIcon} />
                   Dashboard
                 </Link>
               </Button.Root>

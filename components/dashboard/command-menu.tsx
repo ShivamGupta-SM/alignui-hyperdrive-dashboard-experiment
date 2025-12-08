@@ -4,19 +4,18 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import * as Command from '@/components/ui/command-menu'
 import {
-  RiAddLine,
-  RiShoppingBag3Line,
-  RiUserAddLine,
-  RiWallet3Line,
-  RiDashboardLine,
-  RiMegaphoneLine,
-  RiUserFollowLine,
-  RiFileList3Line,
-  RiTeamLine,
-  RiSettings4Line,
-  RiSearchLine,
-  RiTimeLine,
-} from '@remixicon/react'
+  PlusIcon,
+  ShoppingBagIcon,
+  UserPlusIcon,
+  WalletIcon,
+  HomeIcon,
+  MegaphoneIcon,
+  DocumentTextIcon,
+  UserGroupIcon,
+  Cog6ToothIcon,
+  MagnifyingGlassIcon,
+  ClockIcon,
+} from '@heroicons/react/20/solid'
 
 interface CommandMenuProps {
   open: boolean
@@ -58,7 +57,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
 
       {/* Search Input */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-stroke-soft-200 group/cmd-input">
-        <RiSearchLine className="size-5 text-text-soft-400" />
+        <MagnifyingGlassIcon className="size-5 text-text-soft-400" />
         <Command.Input
           placeholder="Search or type a command..."
           value={search}
@@ -73,22 +72,22 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
         {/* Quick Actions */}
         <Command.Group heading="Quick Actions">
           <Command.Item onSelect={() => handleSelect('/dashboard/campaigns/create')}>
-            <Command.ItemIcon as={RiAddLine} />
+            <Command.ItemIcon as={PlusIcon} />
             <span className="flex-1">Create new campaign</span>
             <kbd className="text-paragraph-xs text-text-soft-400">⌘N</kbd>
           </Command.Item>
           <Command.Item onSelect={() => handleSelect('/dashboard/products/new')}>
-            <Command.ItemIcon as={RiShoppingBag3Line} />
+            <Command.ItemIcon as={ShoppingBagIcon} />
             <span className="flex-1">Add new product</span>
             <kbd className="text-paragraph-xs text-text-soft-400">⌘P</kbd>
           </Command.Item>
           <Command.Item onSelect={() => handleAction('invite-team')}>
-            <Command.ItemIcon as={RiUserAddLine} />
+            <Command.ItemIcon as={UserPlusIcon} />
             <span className="flex-1">Invite team member</span>
             <kbd className="text-paragraph-xs text-text-soft-400">⌘I</kbd>
           </Command.Item>
           <Command.Item onSelect={() => handleAction('fund-wallet')}>
-            <Command.ItemIcon as={RiWallet3Line} />
+            <Command.ItemIcon as={WalletIcon} />
             <span className="flex-1">Add funds to wallet</span>
             <kbd className="text-paragraph-xs text-text-soft-400">⌘F</kbd>
           </Command.Item>
@@ -97,32 +96,32 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
         {/* Navigation */}
         <Command.Group heading="Navigation">
           <Command.Item onSelect={() => handleSelect('/dashboard')}>
-            <Command.ItemIcon as={RiDashboardLine} />
+            <Command.ItemIcon as={HomeIcon} />
             <span className="flex-1">Go to Dashboard</span>
             <kbd className="text-paragraph-xs text-text-soft-400">⌘1</kbd>
           </Command.Item>
           <Command.Item onSelect={() => handleSelect('/dashboard/campaigns')}>
-            <Command.ItemIcon as={RiMegaphoneLine} />
+            <Command.ItemIcon as={MegaphoneIcon} />
             <span className="flex-1">Go to Campaigns</span>
             <kbd className="text-paragraph-xs text-text-soft-400">⌘2</kbd>
           </Command.Item>
           <Command.Item onSelect={() => handleSelect('/dashboard/enrollments')}>
-            <Command.ItemIcon as={RiUserFollowLine} />
+            <Command.ItemIcon as={UserPlusIcon} />
             <span className="flex-1">Go to Enrollments</span>
             <kbd className="text-paragraph-xs text-text-soft-400">⌘3</kbd>
           </Command.Item>
           <Command.Item onSelect={() => handleSelect('/dashboard/products')}>
-            <Command.ItemIcon as={RiShoppingBag3Line} />
+            <Command.ItemIcon as={ShoppingBagIcon} />
             <span className="flex-1">Go to Products</span>
             <kbd className="text-paragraph-xs text-text-soft-400">⌘4</kbd>
           </Command.Item>
           <Command.Item onSelect={() => handleSelect('/dashboard/wallet')}>
-            <Command.ItemIcon as={RiWallet3Line} />
+            <Command.ItemIcon as={WalletIcon} />
             <span className="flex-1">Go to Wallet</span>
             <kbd className="text-paragraph-xs text-text-soft-400">⌘5</kbd>
           </Command.Item>
           <Command.Item onSelect={() => handleSelect('/dashboard/settings')}>
-            <Command.ItemIcon as={RiSettings4Line} />
+            <Command.ItemIcon as={Cog6ToothIcon} />
             <span className="flex-1">Go to Settings</span>
             <kbd className="text-paragraph-xs text-text-soft-400">⌘,</kbd>
           </Command.Item>
@@ -131,17 +130,17 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
         {/* Recent */}
         <Command.Group heading="Recent">
           <Command.Item onSelect={() => handleSelect('/dashboard/campaigns/1')}>
-            <Command.ItemIcon as={RiMegaphoneLine} />
+            <Command.ItemIcon as={MegaphoneIcon} />
             <span className="flex-1">Summer Sale Campaign</span>
             <span className="text-paragraph-xs text-text-soft-400">Campaign</span>
           </Command.Item>
           <Command.Item onSelect={() => handleSelect('/dashboard/enrollments/1')}>
-            <Command.ItemIcon as={RiUserFollowLine} />
+            <Command.ItemIcon as={UserPlusIcon} />
             <span className="flex-1">Rahul Mehta - Enrollment</span>
             <span className="text-paragraph-xs text-text-soft-400">Enrollment</span>
           </Command.Item>
           <Command.Item onSelect={() => handleSelect('/dashboard/products/1')}>
-            <Command.ItemIcon as={RiShoppingBag3Line} />
+            <Command.ItemIcon as={ShoppingBagIcon} />
             <span className="flex-1">Wireless Earbuds Max</span>
             <span className="text-paragraph-xs text-text-soft-400">Product</span>
           </Command.Item>
