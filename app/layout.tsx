@@ -36,7 +36,7 @@ export default function RootLayout({
                 "antialiased",
                 // Basement reveal pattern: gray shell background on all viewports
                 // The content sits on top as a white sheet
-                "bg-zinc-100 dark:bg-zinc-950"
+                "bg-bg-weak-50"
             )}
         >
             <body className="text-text-strong-950 font-sans">

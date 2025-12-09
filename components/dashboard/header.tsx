@@ -52,20 +52,14 @@ export function Header({
   
   const isDark = mounted && resolvedTheme === 'dark'
 
-  // Common button styles with conditional dark mode support
+  // Common button styles with semantic tokens
   const iconButtonStyles = cn(
     "flex items-center justify-center rounded-full shadow-sm ring-1 transition-all duration-200 hover:shadow-md active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2",
-    isDark
-      ? "bg-slate-800 text-slate-400 ring-slate-700 hover:text-white"
-      : "bg-white text-text-sub-600 ring-slate-200/80 hover:text-text-strong-950"
+    "bg-bg-white-0 text-text-sub-600 ring-stroke-soft-200 hover:text-text-strong-950"
   )
   
   return (
-    <header className={cn(
-      "relative flex h-14 sm:h-16 items-center justify-between px-3 sm:px-4 lg:px-6 transition-colors duration-200",
-      "lg:border-b",
-      isDark ? "lg:border-slate-700/50" : "lg:border-slate-200/80"
-    )}>
+    <header className="relative flex h-14 sm:h-16 items-center justify-between px-3 sm:px-4 lg:px-6 transition-colors duration-200 lg:border-b lg:border-stroke-soft-200">
       {/* Left: Mobile Menu Toggle + Desktop Collapse Toggle + Search */}
       <div className="flex items-center gap-1.5 sm:gap-2">
         {/* Mobile Menu Toggle - Only visible on mobile */}

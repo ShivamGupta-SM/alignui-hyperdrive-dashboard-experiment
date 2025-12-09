@@ -147,11 +147,11 @@ export function Sidebar({
           // Premium active state with dark mode
           active
             ? (isDarkMode 
-                ? 'bg-slate-800 text-white font-medium shadow-sm ring-1 ring-slate-700' 
-                : 'bg-white text-text-strong-950 font-medium shadow-sm ring-1 ring-slate-200/80')
+                ? 'bg-primary-base text-white font-medium shadow-sm ring-1 ring-primary-base' 
+                : 'bg-bg-white-0 text-text-strong-950 font-medium shadow-sm ring-1 ring-stroke-soft-200')
             : (isDarkMode
-                ? 'text-slate-300 hover:bg-slate-800/60 hover:text-white hover:ring-slate-700/50 hover:shadow-sm hover:ring-1'
-                : 'text-text-strong-950 hover:bg-white/60 hover:text-text-strong-950 hover:shadow-sm hover:ring-1 hover:ring-slate-200/50'),
+                ? 'text-white hover:bg-primary-base/80 hover:text-white hover:ring-primary-base/50 hover:shadow-sm hover:ring-1'
+                : 'text-text-strong-950 hover:bg-bg-weak-50 hover:text-text-strong-950 hover:shadow-sm hover:ring-1 hover:ring-stroke-soft-200/50'),
           // Collapsed: fixed size centered, Expanded: normal padding
           collapsed ? 'justify-center size-11' : 'gap-3 px-3 py-2.5'
         )}
@@ -225,7 +225,7 @@ export function Sidebar({
       </div>
 
       {/* Engraved Divider - Only visible on desktop */}
-      <div className="hidden lg:block mx-3 h-px bg-slate-200/60 dark:bg-slate-700/60" />
+      <div className="hidden lg:block mx-3 h-px bg-stroke-soft-200/60" />
 
 
       {/* Organization Switcher */}
@@ -241,13 +241,13 @@ export function Sidebar({
       </div>
 
       {/* Engraved Divider */}
-      <div className="mx-3 h-px bg-slate-200/60 dark:bg-slate-700/60" />
+      <div className="mx-3 h-px bg-stroke-soft-200/60" />
 
       {/* Main Navigation */}
       <nav className="flex-1 overflow-y-auto p-3">
         {/* Main Section Label */}
         {!collapsed && (
-          <p className="mb-2 px-3 py-1 text-subheading-xs font-semibold uppercase text-text-soft-400 dark:text-text-sub-600">
+          <p className="mb-2 px-3 py-1 text-subheading-xs font-semibold uppercase text-text-soft-400">
             Main
           </p>
         )}
@@ -261,13 +261,13 @@ export function Sidebar({
       </nav>
 
       {/* Engraved Divider */}
-      <div className="mx-3 h-px bg-slate-200/60 dark:bg-slate-700/60" />
+      <div className="mx-3 h-px bg-stroke-soft-200/60" />
 
       {/* Footer Navigation */}
       <div className="p-3">
         {/* Settings Section Label */}
         {!collapsed && (
-          <p className="mb-2 px-3 py-1 text-subheading-xs font-semibold uppercase text-text-soft-400 dark:text-text-sub-600">
+          <p className="mb-2 px-3 py-1 text-subheading-xs font-semibold uppercase text-text-soft-400">
             Settings
           </p>
         )}
@@ -314,8 +314,8 @@ function UserProfileMenu({
     <button
       className={cn(
         'mt-3 flex items-center rounded-xl transition-all duration-200',
-        'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:shadow-sm',
-        'border border-transparent hover:border-slate-200/60 dark:hover:border-slate-700/60',
+        'hover:bg-bg-weak-50 hover:shadow-sm',
+        'border border-transparent hover:border-stroke-soft-200/60',
         collapsed ? 'justify-center size-11' : 'w-full gap-3 p-2'
       )}
     >
@@ -328,10 +328,10 @@ function UserProfileMenu({
       {!collapsed && (
         <>
           <div className="flex-1 min-w-0 text-left">
-            <div className={cn("text-label-sm truncate", isDarkMode ? "text-white" : "text-text-strong-950")}>
+            <div className="text-label-sm truncate text-text-strong-950">
               {user.name || 'User'}
             </div>
-            <div className={cn("text-paragraph-xs truncate", isDarkMode ? "text-slate-400" : "text-text-sub-600")}>
+            <div className="text-paragraph-xs truncate text-text-sub-600">
               {user.email}
             </div>
           </div>
@@ -446,24 +446,21 @@ function OrganizationSwitcher({
       <button
         onClick={onCreateOrganization}
         className={cn(
-          'flex items-center gap-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-600',
-          'bg-white/80 dark:bg-slate-800/80 transition-all duration-200',
-          'hover:bg-white dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-500 hover:shadow-sm',
+          'flex items-center gap-3 rounded-xl border border-dashed border-stroke-soft-200',
+          'bg-bg-white-0/80 transition-all duration-200',
+          'hover:bg-bg-white-0 hover:border-stroke-sub-300 hover:shadow-sm',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base',
           collapsed ? 'justify-center size-11' : 'w-full p-2.5'
         )}
       >
         {collapsed ? (
-          <Plus weight="bold" className={cn("size-5", isDarkMode ? "text-slate-300" : "text-text-sub-600")} />
+          <Plus weight="bold" className="size-5 text-text-sub-600" />
         ) : (
           <>
-            <div className={cn(
-              "flex size-10 shrink-0 items-center justify-center rounded-full",
-              isDarkMode ? "bg-white/10" : "bg-bg-soft-200"
-            )}>
-              <Plus weight="bold" className={cn("size-5", isDarkMode ? "text-slate-300" : "text-text-sub-600")} />
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-soft-200">
+              <Plus weight="bold" className="size-5 text-text-sub-600" />
             </div>
-            <span className={cn("text-label-sm", isDarkMode ? "text-slate-300" : "text-text-sub-600")}>Create Organization</span>
+            <span className="text-label-sm text-text-sub-600">Create Organization</span>
           </>
         )}
       </button>
@@ -475,32 +472,32 @@ function OrganizationSwitcher({
       type="button"
       className={cn(
         'flex items-center rounded-xl',
-        'border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800',
+        'border border-stroke-soft-200 bg-bg-white-0',
         'cursor-pointer transition-all duration-200',
-        'hover:bg-slate-50 dark:hover:bg-slate-700 hover:shadow-sm',
+        'hover:bg-bg-weak-50 hover:shadow-sm',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base',
         collapsed ? 'justify-center size-11' : 'w-full gap-3 p-2.5 pr-3'
       )}
     >
       {collapsed ? (
-        <span className={cn("text-label-sm font-semibold", isDarkMode ? "text-white" : "text-text-strong-950")}>
+        <span className="text-label-sm font-semibold text-text-strong-950">
           {currentOrganization.name.charAt(0).toUpperCase()}
         </span>
       ) : (
         <>
           <div className={cn(
             "flex size-10 shrink-0 items-center justify-center rounded-full",
-            isDarkMode ? "bg-white/10" : "bg-bg-soft-200"
+            "bg-bg-soft-200"
           )}>
-            <span className={cn("text-label-sm font-semibold", isDarkMode ? "text-white" : "text-text-strong-950")}>
+            <span className="text-label-sm font-semibold text-text-strong-950">
               {currentOrganization.name.charAt(0).toUpperCase()}
             </span>
           </div>
           <div className="flex min-w-0 flex-1 flex-col text-left">
-            <span className={cn("truncate text-label-sm font-semibold", isDarkMode ? "text-white" : "text-text-strong-950")}>
+            <span className="truncate text-label-sm font-semibold text-text-strong-950">
               {currentOrganization.name}
             </span>
-            <span className={cn("truncate text-paragraph-xs", isDarkMode ? "text-slate-400" : "text-text-sub-600")}>
+            <span className="truncate text-paragraph-xs text-text-sub-600">
               {currentOrganization.slug}
             </span>
           </div>

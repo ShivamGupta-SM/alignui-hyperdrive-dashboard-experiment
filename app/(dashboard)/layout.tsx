@@ -189,12 +189,12 @@ function DashboardLayoutInner({
   // Don't render until mounted to prevent hydration mismatch
   if (!mounted) {
     return (
-      <div className="h-screen p-0 lg:p-3 bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+      <div className="h-screen p-0 lg:p-3 bg-gradient-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200">
         <div className="flex h-full">
           {/* Placeholder sidebar - transparent on gray shell */}
           <div className="hidden lg:block w-[280px] shrink-0" />
           {/* Main Content Card */}
-          <div className="flex flex-1 flex-col overflow-hidden bg-white dark:bg-slate-900 lg:rounded-2xl lg:border lg:border-slate-200/80 dark:lg:border-slate-700/50 lg:shadow-md lg:ring-1 lg:ring-black/[0.03] dark:lg:ring-white/[0.03]">
+          <div className="flex flex-1 flex-col overflow-hidden bg-bg-white-0 lg:rounded-2xl lg:border lg:border-stroke-soft-200 lg:shadow-md lg:ring-1 lg:ring-black/[0.03] dark:lg:ring-white/[0.03]">
             {/* Placeholder header */}
             <div className="h-16 border-b border-stroke-soft-200" />
             {/* Page Content */}
@@ -212,12 +212,7 @@ function DashboardLayoutInner({
 
 
   return (
-    <div className={cn(
-      "h-screen lg:p-3 bg-gradient-to-br transition-colors duration-200",
-      isDark 
-        ? "from-slate-900 via-slate-900 to-slate-800" 
-        : "from-slate-100 via-gray-50 to-slate-100"
-    )}>
+      <div className="h-screen lg:p-3 bg-gradient-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 transition-colors duration-200">
       {/* ============================================ */}
       {/* DESKTOP LAYOUT - Traditional Inset Sidebar */}
       {/* ============================================ */}
@@ -244,7 +239,7 @@ function DashboardLayoutInner({
           {/* Breadcrumbs - On gray shell, above content card (Desktop only) */}
           {autoBreadcrumbs.length > 0 && (
             <nav 
-              className="flex items-center gap-1 px-1 pt-1 pb-2" 
+              className="flex items-center gap-1 px-3 sm:px-4 lg:px-6 pt-1 pb-2" 
               aria-label="Breadcrumb"
             >
               {autoBreadcrumbs.map((item, index) => {
@@ -252,15 +247,12 @@ function DashboardLayoutInner({
                 return (
                   <React.Fragment key={index}>
                     {index > 0 && (
-                      <span className={cn("text-[11px] mx-0.5", isDark ? "text-slate-600" : "text-text-soft-400/60")}>/</span>
+                      <span className="text-[11px] mx-0.5 text-text-soft-400/60">/</span>
                     )}
                     {item.href && !isLast ? (
                       <a 
                         href={item.href}
-                        className={cn(
-                          "text-[13px] hover:text-primary-base transition-colors duration-150",
-                          isDark ? "text-slate-400 hover:text-white" : "text-text-sub-600"
-                        )}
+                        className="text-[13px] text-text-sub-600 hover:text-primary-base transition-colors duration-150"
                       >
                         {item.label}
                       </a>
@@ -268,8 +260,8 @@ function DashboardLayoutInner({
                       <span className={cn(
                         "text-[13px]",
                         isLast 
-                          ? (isDark ? "text-white" : "text-text-strong-950") + " font-medium"
-                          : (isDark ? "text-slate-400" : "text-text-sub-600")
+                          ? "text-text-strong-950 font-medium"
+                          : "text-text-sub-600"
                       )}>
                         {item.label}
                       </span>
@@ -281,12 +273,7 @@ function DashboardLayoutInner({
           )}
 
           {/* Content Card */}
-          <div className={cn(
-            "flex flex-1 flex-col overflow-hidden rounded-2xl border shadow-md ring-1 transition-all duration-200",
-            isDark
-              ? "bg-slate-900 border-slate-700/50 ring-white/[0.03]"
-              : "bg-white border-slate-200/80 ring-black/[0.03]"
-          )}>
+          <div className="flex flex-1 flex-col overflow-hidden rounded-2xl bg-bg-white-0 border border-stroke-soft-200 shadow-md ring-1 ring-black/[0.03] dark:ring-white/[0.03] transition-all duration-200">
             <Header
               unreadNotifications={3}
               onNotificationsClick={() => setNotificationsOpen(true)}
@@ -352,7 +339,7 @@ function DashboardLayoutInner({
           <div
             className={cn(
               "relative z-10 flex flex-col h-full",
-              "bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700/50 shadow-md ring-1 ring-black/[0.03] dark:ring-white/[0.03]",
+              "bg-bg-white-0 rounded-2xl border border-stroke-soft-200 shadow-md ring-1 ring-black/[0.03] dark:ring-white/[0.03]",
               "transition-all duration-300 ease-out",
               // When sidebar is open, slide content down (70% to show more peek)
               mobileSidebarOpen 

@@ -812,7 +812,7 @@ export function CreditLimitRequestModal({
           </div>
 
           <div className="flex items-start gap-2 text-paragraph-xs text-text-soft-400">
-            <RiInformationLine className="size-4 shrink-0" />
+            <Info className="size-4 shrink-0" />
             <span>
               Credit limit increases are reviewed within 2-3 business days. You'll receive an email notification once a decision is made.
             </span>
@@ -934,4 +934,5 @@ export function InviteTeamMemberModal({
     </Modal.Root>
   )
 }
+
 

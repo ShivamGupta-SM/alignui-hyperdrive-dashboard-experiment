@@ -414,3 +414,4 @@ export function NoWalletTransactionsEmptyState({ onAddFunds }: NoWalletTransacti
   )
 }
 
+
