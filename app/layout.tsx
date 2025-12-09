@@ -4,6 +4,7 @@ import localFont from "next/font/local"
 import "./globals.css"
 import { cn } from "@/utils/cn"
 import { Providers } from "./providers"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const inter = FontSans({
     subsets: ["latin"],
@@ -48,6 +49,7 @@ export default function RootLayout({
         >
             <body className="text-text-strong-950 font-sans overscroll-none">
                 <Providers>{children}</Providers>
+                <SpeedInsights />
             </body>
         </html>
     )
