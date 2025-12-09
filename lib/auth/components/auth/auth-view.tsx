@@ -1,6 +1,6 @@
 "use client"
 
-import { RiArrowLeftLine } from "@remixicon/react"
+import { ArrowLeft } from "@phosphor-icons/react"
 import { type ReactNode, useContext, useEffect, useState } from "react"
 import { useIsHydrated } from "../../hooks/use-hydrated"
 import { AuthUIContext } from "../../lib/auth-ui-provider"
@@ -346,7 +346,7 @@ export function AuthView({
                     ) : view === "SIGN_UP" ? (
                         localization.ALREADY_HAVE_AN_ACCOUNT
                     ) : (
-                        <RiArrowLeftLine className="size-3" size={20} />
+                        <ArrowLeft className="size-3" size={20} />
                     )}
 
                     {view === "SIGN_IN" ||

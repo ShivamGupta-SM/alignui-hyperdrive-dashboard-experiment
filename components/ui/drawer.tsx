@@ -5,7 +5,7 @@
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { RiCloseLine } from '@remixicon/react';
+import { X } from '@phosphor-icons/react';
 
 import * as CompactButton from '@/components/ui/compact-button';
 import { cn } from '@/utils/cn';
@@ -100,7 +100,7 @@ function DrawerHeader({
       {showCloseButton && (
         <DrawerClose asChild>
           <CompactButton.Root variant='ghost' size='large' aria-label='Close drawer'>
-            <CompactButton.Icon as={RiCloseLine} />
+            <CompactButton.Icon as={X} />
           </CompactButton.Root>
         </DrawerClose>
       )}

@@ -1,13 +1,13 @@
 // @ts-nocheck - Vendored library with complex type dependencies
 "use client"
 import {
-    RiExpandUpDownLine,
-    RiLoginBoxLine,
-    RiLogoutBoxLine,
-    RiAddCircleLine,
-    RiSettings4Line,
-    RiUserAddLine
-} from "@remixicon/react"
+    CaretUpDown,
+    SignIn,
+    SignOut,
+    PlusCircle,
+    Gear,
+    UserPlus
+} from "@phosphor-icons/react"
 import {
     type ComponentProps,
     Fragment,
@@ -229,7 +229,7 @@ export function UserButton({
                                 localization={localization}
                             />
 
-                            <RiExpandUpDownLine className="ml-auto" size={20} />
+                            <CaretUpDown className="ml-auto" size={20} />
                         </Button>
                     ))}
             </DropdownMenuTrigger>
@@ -297,7 +297,7 @@ export function UserButton({
                             <DropdownMenuItem
                                 className={classNames?.content?.menuItem}
                             >
-                                <RiLoginBoxLine size={20} />
+                                <SignIn size={20} />
 
                                 {localization.SIGN_IN}
                             </DropdownMenuItem>
@@ -308,7 +308,7 @@ export function UserButton({
                                 <DropdownMenuItem
                                     className={classNames?.content?.menuItem}
                                 >
-                                    <RiUserAddLine size={20} />
+                                    <UserPlus size={20} />
 
                                     {localization.SIGN_UP}
                                 </DropdownMenuItem>
@@ -324,7 +324,7 @@ export function UserButton({
                                 <DropdownMenuItem
                                     className={classNames?.content?.menuItem}
                                 >
-                                    <RiSettings4Line size={20} />
+                                    <Gear size={20} />
 
                                     {localization.SETTINGS}
                                 </DropdownMenuItem>
@@ -335,7 +335,7 @@ export function UserButton({
                             <DropdownMenuItem
                                 className={classNames?.content?.menuItem}
                             >
-                                <RiLogoutBoxLine size={20} />
+                                <SignOut size={20} />
 
                                 {localization.SIGN_OUT}
                             </DropdownMenuItem>
@@ -402,7 +402,7 @@ export function UserButton({
                             <DropdownMenuItem
                                 className={classNames?.content?.menuItem}
                             >
-                                <RiAddCircleLine size={20} />
+                                <PlusCircle size={20} />
 
                                 {localization.ADD_ACCOUNT}
                             </DropdownMenuItem>

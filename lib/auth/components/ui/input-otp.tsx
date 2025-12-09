@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import * as AlignDigitInput from "@/components/ui/digit-input"
-import { RiSubtractLine } from "@remixicon/react"
+import { Minus } from "@phosphor-icons/react"
 import { cn } from "../../lib/utils"
 
 // AlignUI DigitInput uses react-otp-input which has a different API
@@ -99,7 +99,7 @@ function InputOTPSlot({
 function InputOTPSeparator({ ...props }: React.HTMLAttributes<HTMLDivElement>) {
     return (
         <div role="separator" className="text-text-soft-400" {...props}>
-            <RiSubtractLine size={20} />
+            <Minus size={20} />
         </div>
     )
 }

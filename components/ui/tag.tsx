@@ -4,7 +4,7 @@ import * as React from 'react';
 import { tv, type VariantProps } from '@/utils/tv';
 import { recursiveCloneChildren } from '@/utils/recursive-clone-children';
 import { Slot } from '@radix-ui/react-slot';
-import { RiCloseFill } from '@remixicon/react';
+import { X } from '@phosphor-icons/react';
 import { PolymorphicComponentProps } from '@/utils/polymorphic';
 
 const TAG_ROOT_NAME = 'TagRoot';
@@ -156,7 +156,7 @@ const TagDismissButton = React.forwardRef<
           <TagDismissIcon
             variant={variant}
             disabled={disabled}
-            as={RiCloseFill}
+            as={X}
           />
         )}
       </Component>

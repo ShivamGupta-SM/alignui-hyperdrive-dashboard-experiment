@@ -1,6 +1,6 @@
 "use client"
 
-import { RiLoader4Line } from "@remixicon/react"
+import { CircleNotch } from "@phosphor-icons/react"
 import type { ComponentProps, ReactNode } from "react"
 import { useFormState } from "react-hook-form"
 
@@ -46,7 +46,7 @@ export function SettingsActionButton({
             onClick={onClick}
             {...props}
         >
-            {isSubmitting && <RiLoader4Line className="animate-spin" size={20} />}
+            {isSubmitting && <CircleNotch className="animate-spin" size={20} />}
             {actionLabel}
         </Button>
     )

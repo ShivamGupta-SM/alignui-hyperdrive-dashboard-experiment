@@ -1,9 +1,7 @@
 import Link from 'next/link'
 import * as Button from '@/components/ui/button'
-import { FeaturedCard } from '@/components/claude-generated-components/featured-card'
 import { FeaturedIcon } from '@/components/claude-generated-components/featured-icon'
-import { ArrowRightIcon } from '@heroicons/react/20/solid'
-import { ChartBarIcon, CheckBadgeIcon, WalletIcon } from '@heroicons/react/24/outline'
+import { ArrowRight, ChartBar, SealCheck, Wallet } from '@phosphor-icons/react/dist/ssr'
 
 export default function Home() {
   return (
@@ -55,7 +53,7 @@ export default function Home() {
             <Button.Root variant="primary" size="medium" asChild className="w-full sm:w-auto">
               <Link href="/sign-up">
                 Start Free Trial
-                <Button.Icon as={ArrowRightIcon} />
+                <Button.Icon as={ArrowRight} />
               </Link>
             </Button.Root>
             <Button.Root variant="basic" size="medium" asChild className="w-full sm:w-auto">
@@ -68,17 +66,17 @@ export default function Home() {
           {/* Features Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-12 sm:mt-16">
             <FeatureCard
-              icon={<FeaturedIcon icon={ChartBarIcon} color="primary" size="medium" />}
+              icon={<FeaturedIcon icon={ChartBar} color="primary" size="medium" />}
               title="Campaign Management"
               description="Create and manage influencer campaigns with ease. Track enrollments and approvals in real-time."
             />
             <FeatureCard
-              icon={<FeaturedIcon icon={CheckBadgeIcon} color="success" size="medium" />}
+              icon={<FeaturedIcon icon={SealCheck} color="success" size="medium" />}
               title="OCR Verification"
               description="Automated order verification using OCR technology. Review submissions with confidence."
             />
             <FeatureCard
-              icon={<FeaturedIcon icon={WalletIcon} color="primary" size="medium" />}
+              icon={<FeaturedIcon icon={Wallet} color="primary" size="medium" />}
               title="Wallet & Billing"
               description="Transparent billing with hold-based payments. Fund your wallet and manage payouts."
             />

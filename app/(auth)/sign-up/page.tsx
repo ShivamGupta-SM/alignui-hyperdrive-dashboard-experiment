@@ -9,7 +9,7 @@ import * as ProgressBar from '@/components/ui/progress-bar'
 import * as Divider from '@/components/ui/divider'
 import * as Hint from '@/components/ui/hint'
 import { Callout } from '@/components/ui/callout'
-import { RiGoogleFill, RiEyeLine, RiEyeOffLine, RiInformationLine } from '@remixicon/react'
+import { GoogleLogo, Eye, EyeSlash, Info } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 
 export default function SignUpPage() {
@@ -139,9 +139,9 @@ export default function SignUpPage() {
                   className="text-text-soft-400 hover:text-text-sub-600"
                 >
                   {showPassword ? (
-                    <RiEyeOffLine className="size-5" />
+                    <EyeSlash className="size-5" />
                   ) : (
-                    <RiEyeLine className="size-5" />
+                    <Eye className="size-5" />
                   )}
                 </button>
               </Input.Wrapper>
@@ -165,7 +165,7 @@ export default function SignUpPage() {
               </div>
             )}
             <Hint.Root>
-              <Hint.Icon as={RiInformationLine} />
+              <Hint.Icon as={Info} />
               Use 8+ characters with uppercase, number, and special character
             </Hint.Root>
           </div>
@@ -187,9 +187,9 @@ export default function SignUpPage() {
                   className="text-text-soft-400 hover:text-text-sub-600"
                 >
                   {showConfirmPassword ? (
-                    <RiEyeOffLine className="size-5" />
+                    <EyeSlash className="size-5" />
                   ) : (
-                    <RiEyeLine className="size-5" />
+                    <Eye className="size-5" />
                   )}
                 </button>
               </Input.Wrapper>
@@ -225,7 +225,7 @@ export default function SignUpPage() {
           onClick={handleGoogleSignUp}
           disabled={isLoading}
         >
-          <Button.Icon as={RiGoogleFill} />
+          <Button.Icon as={GoogleLogo} />
           Continue with Google
         </Button.Root>
 

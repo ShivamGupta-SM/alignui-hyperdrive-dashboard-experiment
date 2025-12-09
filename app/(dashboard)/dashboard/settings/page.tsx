@@ -11,22 +11,22 @@ import * as Divider from '@/components/ui/divider'
 import * as TabMenuVertical from '@/components/ui/tab-menu-vertical'
 import { Callout } from '@/components/ui/callout'
 import {
-  RiBuilding2Line,
-  RiBankLine,
-  RiFileList3Line,
-  RiVerifiedBadgeLine,
-  RiAddLine,
-  RiDeleteBinLine,
-  RiEditLine,
-  RiArrowRightLine,
-  RiShieldCheckLine,
-  RiNotification3Line,
-  RiUploadCloud2Line,
-  RiCheckLine,
-  RiCloseLine,
-  RiMoreLine,
-  RiExternalLinkLine,
-} from '@remixicon/react'
+  Buildings,
+  Bank,
+  FileText,
+  SealCheck,
+  Plus,
+  Trash,
+  PencilSimple,
+  ArrowRight,
+  ShieldCheck,
+  Bell,
+  CloudArrowUp,
+  Check,
+  X,
+  DotsThree,
+  ArrowSquareOut,
+} from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 
 // Settings sections configuration
@@ -34,27 +34,27 @@ const settingsSections = [
   {
     id: 'organization',
     label: 'Organization',
-    icon: RiBuilding2Line,
+    icon: Buildings,
   },
   {
     id: 'billing',
     label: 'Billing & Payments',
-    icon: RiBankLine,
+    icon: Bank,
   },
   {
     id: 'gst',
     label: 'GST & Tax',
-    icon: RiFileList3Line,
+    icon: FileText,
   },
   {
     id: 'notifications',
     label: 'Notifications',
-    icon: RiNotification3Line,
+    icon: Bell,
   },
   {
     id: 'security',
     label: 'Security',
-    icon: RiShieldCheckLine,
+    icon: ShieldCheck,
   },
 ]
 
@@ -125,7 +125,7 @@ export default function SettingsPage() {
                     <TabMenuVertical.Trigger key={section.id} value={section.id}>
                       <TabMenuVertical.Icon as={section.icon} />
                       <span>{section.label}</span>
-                      <TabMenuVertical.ArrowIcon as={RiArrowRightLine} className="ml-auto" />
+                      <TabMenuVertical.ArrowIcon as={ArrowRight} className="ml-auto" />
                     </TabMenuVertical.Trigger>
                   ))}
                 </TabMenuVertical.List>
@@ -225,17 +225,17 @@ function OrganizationSection() {
                 <Avatar.Image src={mockOrganization.logo} alt={mockOrganization.name} />
               </Avatar.Root>
               <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                <RiUploadCloud2Line className="size-6 text-white" />
+                <CloudArrowUp className="size-6 text-white" />
               </div>
             </div>
             <div className="flex-1">
               <div className="flex flex-wrap gap-2">
                 <Button.Root variant="basic" size="small">
-                  <Button.Icon as={RiUploadCloud2Line} />
+                  <Button.Icon as={CloudArrowUp} />
                   Upload New
                 </Button.Root>
                 <Button.Root variant="ghost" size="small">
-                  <Button.Icon as={RiDeleteBinLine} />
+                  <Button.Icon as={Trash} />
                   Remove
                 </Button.Root>
               </div>
@@ -331,7 +331,7 @@ function OrganizationSection() {
           <div>
             {saved && (
               <span className="flex items-center gap-1.5 text-label-sm text-success-base">
-                <RiCheckLine className="size-4" />
+                <Check className="size-4" />
                 Changes saved successfully
               </span>
             )}
@@ -386,7 +386,7 @@ function BillingSection() {
             </Card.Description>
           </div>
           <Button.Root variant="primary" size="small">
-            <Button.Icon as={RiAddLine} />
+            <Button.Icon as={Plus} />
             Add Account
           </Button.Root>
         </Card.Header>
@@ -412,7 +412,7 @@ function BillingSection() {
             </Card.Description>
           </div>
           <Button.Root variant="ghost" size="small">
-            <Button.Icon as={RiEditLine} />
+            <Button.Icon as={PencilSimple} />
             Edit
           </Button.Root>
         </Card.Header>
@@ -437,14 +437,14 @@ function BillingSection() {
           <Button.Root variant="basic" size="small" asChild>
             <a href="/dashboard/invoices">
               View All Invoices
-              <Button.Icon as={RiExternalLinkLine} />
+              <Button.Icon as={ArrowSquareOut} />
             </a>
           </Button.Root>
         </Card.Header>
         <Card.Content className="pt-4">
           <div className="text-center py-8">
             <div className="flex size-14 mx-auto items-center justify-center rounded-full bg-bg-weak-50 mb-3">
-              <RiBankLine className="size-6 text-text-soft-400" />
+              <Bank className="size-6 text-text-soft-400" />
             </div>
             <p className="text-label-sm text-text-sub-600">No payment history yet</p>
             <p className="text-paragraph-xs text-text-soft-400 mt-1">
@@ -463,7 +463,7 @@ function BankAccountCard({ account }: { account: typeof mockBankAccounts[0] }) {
     <div className="flex items-center justify-between py-3">
       <div className="flex items-center gap-4">
         <div className="flex size-12 items-center justify-center rounded-full bg-gradient-to-br from-primary-base/10 to-primary-base/5">
-          <RiBankLine className="size-5 text-primary-base" />
+          <Bank className="size-5 text-primary-base" />
         </div>
         <div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -478,7 +478,7 @@ function BankAccountCard({ account }: { account: typeof mockBankAccounts[0] }) {
             )}
             {account.isVerified && (
               <Badge.Root color="green" variant="light" size="small">
-                <RiVerifiedBadgeLine className="size-3 mr-0.5" />
+                <SealCheck className="size-3 mr-0.5" />
                 Verified
               </Badge.Root>
             )}
@@ -495,7 +495,7 @@ function BankAccountCard({ account }: { account: typeof mockBankAccounts[0] }) {
           </Button.Root>
         )}
         <Button.Root variant="ghost" size="xsmall">
-          <Button.Icon as={RiMoreLine} />
+          <Button.Icon as={DotsThree} />
         </Button.Root>
       </div>
     </div>
@@ -516,7 +516,7 @@ function GstSection() {
               <Card.Title>GST Details</Card.Title>
               {mockGstDetails.isVerified && (
                 <Badge.Root color="green" variant="light" size="small">
-                  <RiVerifiedBadgeLine className="size-3 mr-1" />
+                  <SealCheck className="size-3 mr-1" />
                   Verified
                 </Badge.Root>
               )}
@@ -556,7 +556,7 @@ function GstSection() {
 
       {/* Info Callout */}
       <Callout variant="neutral" size="sm">
-        <RiShieldCheckLine className="size-4 text-text-sub-600 shrink-0" />
+        <ShieldCheck className="size-4 text-text-sub-600 shrink-0" />
         <span>
           GST details are verified during onboarding and cannot be modified. 
           Contact <a href="mailto:support@hypedrive.com" className="text-primary-base hover:underline">support@hypedrive.com</a> if you need to update these details.
@@ -695,7 +695,7 @@ function SecuritySection() {
           <div className="p-4 rounded-12 bg-bg-weak-50">
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-full bg-success-lighter">
-                <RiShieldCheckLine className="size-5 text-success-base" />
+                <ShieldCheck className="size-5 text-success-base" />
               </div>
               <div>
                 <p className="text-label-sm text-text-strong-950">Password is secure</p>

@@ -2,7 +2,7 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
-import { RiLoader4Line, RiDeleteBinLine, RiUploadCloud2Line } from "@remixicon/react"
+import { CircleNotch, Trash, CloudArrowUp } from "@phosphor-icons/react"
 import {
     type ComponentProps,
     useContext,
@@ -278,7 +278,7 @@ export function CreateOrganizationDialog({
                                                         onClick={openFileDialog}
                                                         disabled={logoPending}
                                                     >
-                                                        <RiUploadCloud2Line size={20} />
+                                                        <CloudArrowUp size={20} />
 
                                                         {
                                                             localization.UPLOAD_LOGO
@@ -293,7 +293,7 @@ export function CreateOrganizationDialog({
                                                             }
                                                             variant="destructive"
                                                         >
-                                                            <RiDeleteBinLine size={20} />
+                                                            <Trash size={20} />
 
                                                             {
                                                                 localization.DELETE_LOGO
@@ -310,7 +310,7 @@ export function CreateOrganizationDialog({
                                                 type="button"
                                             >
                                                 {logoPending && (
-                                                    <RiLoader4Line className="animate-spin" size={20} />
+                                                    <CircleNotch className="animate-spin" size={20} />
                                                 )}
 
                                                 {localization.UPLOAD}
@@ -391,7 +391,7 @@ export function CreateOrganizationDialog({
                                 disabled={isSubmitting}
                             >
                                 {isSubmitting && (
-                                    <RiLoader4Line className="animate-spin" size={20} />
+                                    <CircleNotch className="animate-spin" size={20} />
                                 )}
 
                                 {localization.CREATE_ORGANIZATION}

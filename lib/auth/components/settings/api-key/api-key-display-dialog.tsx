@@ -1,6 +1,6 @@
 "use client"
 
-import { RiCheckLine, RiFileCopyLine } from "@remixicon/react"
+import { Check, Copy } from "@phosphor-icons/react"
 import { type ComponentProps, useContext, useState } from "react"
 
 import { AuthUIContext } from "../../../lib/auth-ui-provider"
@@ -81,12 +81,12 @@ export function ApiKeyDisplayDialog({
                     >
                         {copied ? (
                             <>
-                                <RiCheckLine className={classNames?.icon} size={20} />
+                                <Check className={classNames?.icon} size={20} />
                                 {localization.COPIED_TO_CLIPBOARD}
                             </>
                         ) : (
                             <>
-                                <RiFileCopyLine className={classNames?.icon} size={20} />
+                                <Copy className={classNames?.icon} size={20} />
                                 {localization.COPY_TO_CLIPBOARD}
                             </>
                         )}

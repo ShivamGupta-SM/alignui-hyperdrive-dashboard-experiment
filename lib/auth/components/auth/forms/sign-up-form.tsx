@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { BetterFetchOption } from "better-auth/react"
-import { ArrowPathIcon, TrashIcon, CloudArrowUpIcon } from "@heroicons/react/20/solid"
+import { CircleNotch, Trash, CloudArrowUp } from "@phosphor-icons/react"
 import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -489,7 +489,7 @@ export function SignUpForm({
                                                     onClick={openFileDialog}
                                                     disabled={uploadingAvatar}
                                                 >
-                                                    <CloudArrowUpIcon className="size-5" />
+                                                    <CloudArrowUp className="size-5" />
                                                     {localization.UPLOAD_AVATAR}
                                                 </DropdownMenuItem>
 
@@ -503,7 +503,7 @@ export function SignUpForm({
                                                         }
                                                         variant="destructive"
                                                     >
-                                                        <TrashIcon className="size-5" />
+                                                        <Trash className="size-5" />
                                                         {
                                                             localization.DELETE_AVATAR
                                                         }
@@ -519,7 +519,7 @@ export function SignUpForm({
                                             disabled={uploadingAvatar}
                                         >
                                             {uploadingAvatar && (
-                                                <ArrowPathIcon className="animate-spin size-5" />
+                                                <CircleNotch className="animate-spin size-5" />
                                             )}
 
                                             {localization.UPLOAD}

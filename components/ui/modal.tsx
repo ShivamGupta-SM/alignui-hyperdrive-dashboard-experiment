@@ -7,7 +7,7 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import * as CompactButton from '@/components/ui/compact-button';
 import { cn } from '@/utils/cn';
 import { tv, type VariantProps } from '@/utils/tv';
-import { type RemixiconComponentType, RiCloseLine } from '@remixicon/react';
+import { X, type Icon as PhosphorIcon } from '@phosphor-icons/react';
 
 const modalVariants = tv({
   slots: {
@@ -152,7 +152,7 @@ const ModalContent = React.forwardRef<
                     )}
                     aria-label='Close modal'
                   >
-                    <CompactButton.Icon as={RiCloseLine} />
+                    <CompactButton.Icon as={X} />
                   </CompactButton.Root>
                 </ModalClose>
               )}
@@ -173,7 +173,7 @@ function ModalHeader({
   description,
   ...rest
 }: React.HTMLAttributes<HTMLDivElement> & {
-  icon?: RemixiconComponentType;
+  icon?: PhosphorIcon;
   title?: string;
   description?: string;
 }) {

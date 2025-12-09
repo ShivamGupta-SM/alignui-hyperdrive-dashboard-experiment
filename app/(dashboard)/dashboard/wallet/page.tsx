@@ -10,15 +10,17 @@ import * as Textarea from '@/components/ui/textarea'
 import * as ProgressCircle from '@/components/ui/progress-circle'
 import { Callout } from '@/components/ui/callout'
 import {
-  RiAddLine,
-  RiDownloadLine,
-  RiWallet3Line,
-  RiArrowUpLine,
-  RiFileCopyLine,
-  RiCheckLine,
-  RiBankCardLine,
-  RiExchangeDollarLine,
-} from '@remixicon/react'
+  Plus,
+  DownloadSimple,
+  Wallet,
+  ArrowUp,
+  ArrowDown,
+  Copy,
+  Check,
+  CreditCard,
+  CurrencyCircleDollar,
+  Clock,
+} from '@phosphor-icons/react/dist/ssr'
 import { VisaIcon, MastercardIcon, AmexIcon, DiscoverIcon, PaypalIcon, UnionPayIcon } from '@/components/claude-generated-components/payment-icons'
 import { cn } from '@/utils/cn'
 import type { Transaction, ActiveHold, WalletBalance } from '@/lib/types'
@@ -138,14 +140,14 @@ export default function WalletPage() {
   const getTransactionStatus = (type: Transaction['type']) => {
     switch (type) {
       case 'credit':
-      case 'hold_voided':
       case 'refund':
+      case 'hold_voided':
         return 'completed' as const
       case 'hold_created':
         return 'pending' as const
       case 'hold_committed':
       case 'withdrawal':
-        return 'failed' as const
+        return 'disabled' as const
       default:
         return 'disabled' as const
     }
@@ -154,28 +156,27 @@ export default function WalletPage() {
   const totalHeld = mockActiveHolds.reduce((acc, h) => acc + h.holdAmount, 0)
 
   const handleExport = () => {
-    // TODO: Implement export functionality
     console.log('Exporting transactions...')
   }
 
   return (
     <div className="space-y-5 sm:space-y-6">
       {/* Page Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Wallet</h1>
           <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
             Manage your balance and transactions
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button.Root variant="basic" size="small" onClick={() => setIsCreditRequestModalOpen(true)} className="hidden sm:inline-flex">
-            <Button.Icon as={RiArrowUpLine} />
-            Request Credit
+          <Button.Root variant="basic" size="small" onClick={() => setIsCreditRequestModalOpen(true)} className="flex-1 sm:flex-none">
+            <Button.Icon as={ArrowUp} />
+            <span className="sm:inline">Request Credit</span>
           </Button.Root>
-          <Button.Root variant="primary" size="small" onClick={() => setIsFundModalOpen(true)}>
-            <Button.Icon as={RiAddLine} />
-            Fund Wallet
+          <Button.Root variant="primary" size="small" onClick={() => setIsFundModalOpen(true)} className="flex-1 sm:flex-none">
+            <Button.Icon as={Plus} />
+            <span className="sm:inline">Fund Wallet</span>
           </Button.Root>
         </div>
       </div>
@@ -188,27 +189,27 @@ export default function WalletPage() {
       )}
 
       {/* Balance Overview - Hero Section */}
-      <div className="rounded-2xl bg-gradient-to-br from-primary-base to-primary-darker p-5 sm:p-8 text-white">
-        <div className="flex items-start justify-between mb-5 sm:mb-6">
+      <div className="rounded-2xl bg-gradient-to-br from-primary-base to-primary-darker p-5 sm:p-8 text-white shadow-lg">
+        <div className="flex items-start justify-between mb-6">
           <div>
-            <p className="text-paragraph-sm text-white/70 mb-1">Total Balance</p>
-            <h2 className="text-title-h3 sm:text-title-h1 font-bold tracking-tight">
+            <p className="text-paragraph-sm text-white/80 mb-1.5">Total Balance</p>
+            <h2 className="text-title-h2 sm:text-[42px] font-bold tracking-tight leading-none">
               {formatCurrency(mockWalletBalance.availableBalance + mockWalletBalance.heldAmount)}
             </h2>
           </div>
-          <div className="flex size-10 sm:size-12 items-center justify-center rounded-full bg-white/10">
-            <RiWallet3Line className="size-5 sm:size-6" />
+          <div className="flex size-11 sm:size-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
+            <Wallet weight="fill" className="size-5 sm:size-6" />
           </div>
         </div>
         
-        <div className="grid grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 gap-6 pt-5 border-t border-white/15">
           <div>
-            <p className="text-paragraph-xs text-white/60 mb-1">Available</p>
-            <p className="text-label-lg sm:text-title-h4 font-semibold">{formatCurrency(mockWalletBalance.availableBalance)}</p>
+            <p className="text-[11px] text-white/60 uppercase tracking-wider mb-1">Available</p>
+            <p className="text-label-lg sm:text-title-h5 font-semibold">{formatCurrency(mockWalletBalance.availableBalance)}</p>
           </div>
           <div>
-            <p className="text-paragraph-xs text-white/60 mb-1">Held</p>
-            <p className="text-label-lg sm:text-title-h4 font-semibold">{formatCurrency(mockWalletBalance.heldAmount)}</p>
+            <p className="text-[11px] text-white/60 uppercase tracking-wider mb-1">On Hold</p>
+            <p className="text-label-lg sm:text-title-h5 font-semibold">{formatCurrency(mockWalletBalance.heldAmount)}</p>
           </div>
         </div>
       </div>
@@ -216,12 +217,12 @@ export default function WalletPage() {
       {/* Credit & Payment Info Row */}
       <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
         {/* Credit Limit Card */}
-        <div className="rounded-xl bg-bg-white-0 p-4 sm:p-5 ring-1 ring-inset ring-stroke-soft-200">
-          <div className="flex items-start justify-between mb-4">
-            <div>
+        <div className="rounded-xl bg-bg-white-0 p-4 sm:p-5 ring-1 ring-inset ring-stroke-soft-200 flex flex-col">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <div className="flex size-8 items-center justify-center rounded-full bg-information-lighter text-information-base">
-                  <RiArrowUpLine className="size-4" />
+                <div className="flex size-8 items-center justify-center rounded-full bg-information-lighter text-information-base shrink-0">
+                  <ArrowUp weight="bold" className="size-4" />
                 </div>
                 <span className="text-label-sm text-text-sub-600">Credit Limit</span>
               </div>
@@ -229,17 +230,17 @@ export default function WalletPage() {
                 {formatCurrency(mockWalletBalance.creditLimit)}
               </p>
             </div>
-            <ProgressCircle.Root value={creditUtilization} size="48" className="hidden sm:flex">
+            <ProgressCircle.Root value={creditUtilization} size="48" className="shrink-0">
               <span className="text-label-xs text-text-strong-950 font-semibold">{creditUtilization}%</span>
             </ProgressCircle.Root>
           </div>
-          <div className="flex items-center justify-between pt-3 border-t border-stroke-soft-200">
+          <div className="flex items-center justify-between pt-3 border-t border-stroke-soft-200 mt-auto">
             <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">
               {formatCurrency(mockWalletBalance.creditUtilized)} utilized
             </p>
             <button 
               onClick={() => setIsCreditRequestModalOpen(true)}
-              className="text-label-xs font-medium text-primary-base hover:text-primary-darker transition-colors"
+              className="text-label-xs font-medium text-primary-base hover:text-primary-darker transition-colors shrink-0"
             >
               Increase →
             </button>
@@ -247,14 +248,14 @@ export default function WalletPage() {
         </div>
 
         {/* Payment Methods Card */}
-        <div className="rounded-xl bg-bg-white-0 p-4 sm:p-5 ring-1 ring-inset ring-stroke-soft-200">
+        <div className="rounded-xl bg-bg-white-0 p-4 sm:p-5 ring-1 ring-inset ring-stroke-soft-200 flex flex-col">
           <div className="flex items-center gap-2 mb-3 sm:mb-4">
-            <div className="flex size-8 items-center justify-center rounded-full bg-bg-soft-200 text-text-sub-600">
-              <RiBankCardLine className="size-4" />
+            <div className="flex size-8 items-center justify-center rounded-full bg-bg-soft-200 text-text-sub-600 shrink-0">
+              <CreditCard weight="duotone" className="size-4" />
             </div>
             <span className="text-label-sm text-text-sub-600">Payment Methods</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 opacity-70 hover:opacity-100 transition-opacity">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 opacity-70 hover:opacity-100 transition-opacity">
             <VisaIcon className="h-5 sm:h-6 w-auto" />
             <MastercardIcon className="h-5 sm:h-6 w-auto" />
             <AmexIcon className="h-5 sm:h-6 w-auto" />
@@ -262,7 +263,7 @@ export default function WalletPage() {
             <PaypalIcon className="h-5 sm:h-6 w-auto" />
             <UnionPayIcon className="h-5 sm:h-6 w-auto" />
           </div>
-          <p className="text-paragraph-xs text-text-soft-400 mt-2 sm:mt-3">
+          <p className="text-paragraph-xs text-text-soft-400 mt-auto pt-2 sm:pt-3">
             Instant credit on bank transfer
           </p>
         </div>
@@ -275,9 +276,9 @@ export default function WalletPage() {
           {/* Transaction Header */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-label-md text-text-strong-950">Transactions</h2>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
               <Select.Root value={transactionFilter} onValueChange={setTransactionFilter} size="small">
-                <Select.Trigger className="flex-1 sm:flex-none sm:w-40">
+                <Select.Trigger className="min-w-[140px] flex-1 sm:flex-none sm:w-40">
                   <Select.Value placeholder="All Transactions" />
                 </Select.Trigger>
                 <Select.Content>
@@ -288,8 +289,8 @@ export default function WalletPage() {
                   <Select.Item value="hold_voided">Holds Released</Select.Item>
                 </Select.Content>
               </Select.Root>
-              <Button.Root variant="basic" size="small" onClick={handleExport}>
-                <Button.Icon as={RiDownloadLine} />
+              <Button.Root variant="basic" size="small" onClick={handleExport} className="shrink-0">
+                <Button.Icon as={DownloadSimple} />
                 <span className="hidden sm:inline">Export</span>
               </Button.Root>
             </div>
@@ -306,15 +307,15 @@ export default function WalletPage() {
                     key={transaction.id} 
                     className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-bg-weak-50 transition-colors"
                   >
-                    {/* Icon */}
+                    {/* Icon - Down arrow for credits (money in), Up arrow for debits (money out) */}
                     <div className={cn(
                       "flex size-10 sm:size-11 items-center justify-center rounded-full shrink-0",
-                      isCredit ? "bg-success-lighter" : "bg-bg-soft-200"
+                      isCredit ? "bg-success-lighter" : "bg-warning-lighter"
                     )}>
                       {isCredit ? (
-                        <RiArrowUpLine className={cn("size-5 rotate-180", isCredit ? "text-success-base" : "text-text-sub-600")} />
+                        <ArrowDown weight="bold" className="size-5 text-success-base" />
                       ) : (
-                        <RiArrowUpLine className="size-5 text-text-sub-600" />
+                        <ArrowUp weight="bold" className="size-5 text-warning-base" />
                       )}
                     </div>
 
@@ -329,19 +330,19 @@ export default function WalletPage() {
                             <span className="text-paragraph-xs text-text-soft-400">
                               {formatDate(transaction.createdAt)} • {formatTime(transaction.createdAt)}
                             </span>
-                            <StatusBadge.Root status={getTransactionStatus(transaction.type)} variant="light" className="hidden sm:inline-flex">
+                            <StatusBadge.Root status={getTransactionStatus(transaction.type)} variant="stroke" className="hidden sm:inline-flex">
                               {config.label}
                             </StatusBadge.Root>
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
+                        <div className="text-right shrink-0 min-w-[100px]">
                           <p className={cn(
                             "text-label-md font-semibold tabular-nums",
                             isCredit ? "text-success-base" : "text-text-strong-950"
                           )}>
                             {config.sign}{formatCurrency(transaction.amount)}
                           </p>
-                          <StatusBadge.Root status={getTransactionStatus(transaction.type)} variant="light" className="sm:hidden mt-1">
+                          <StatusBadge.Root status={getTransactionStatus(transaction.type)} variant="stroke" className="sm:hidden mt-1 inline-flex">
                             {config.label}
                           </StatusBadge.Root>
                         </div>
@@ -355,7 +356,7 @@ export default function WalletPage() {
             {filteredTransactions.length === 0 && (
               <div className="p-12 text-center">
                 <div className="size-12 mx-auto mb-3 rounded-full bg-bg-soft-200 flex items-center justify-center">
-                  <RiExchangeDollarLine className="size-6 text-text-soft-400" />
+                  <CurrencyCircleDollar weight="duotone" className="size-6 text-text-soft-400" />
                 </div>
                 <p className="text-label-sm text-text-strong-950">No transactions</p>
                 <p className="text-paragraph-xs text-text-sub-600 mt-1">
@@ -382,7 +383,7 @@ export default function WalletPage() {
             <div className="flex items-center justify-between p-3 sm:p-4 border-b border-stroke-soft-200 bg-bg-weak-50">
               <div className="flex items-center gap-3">
                 <div className="size-10 sm:size-11 rounded-full bg-warning-lighter flex items-center justify-center text-warning-base shrink-0">
-                  <RiExchangeDollarLine className="size-5" />
+                  <CurrencyCircleDollar weight="duotone" className="size-5" />
                 </div>
                 <div>
                   <p className="text-paragraph-xs text-text-sub-600">Total Held</p>
@@ -400,9 +401,9 @@ export default function WalletPage() {
                   key={hold.campaignId} 
                   className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-bg-weak-50 transition-colors"
                 >
-                  {/* Icon */}
-                  <div className="flex size-10 sm:size-11 items-center justify-center rounded-full bg-bg-soft-200 shrink-0">
-                    <RiArrowUpLine className="size-5 text-text-sub-600" />
+                  {/* Icon - Up arrow for holds (money held/out) */}
+                  <div className="flex size-10 sm:size-11 items-center justify-center rounded-full bg-warning-lighter shrink-0">
+                    <ArrowUp weight="bold" className="size-5 text-warning-base" />
                   </div>
 
                   {/* Content */}
@@ -416,7 +417,7 @@ export default function WalletPage() {
                           {hold.enrollmentCount} pending enrollments
                         </p>
                       </div>
-                      <p className="text-label-md text-warning-base font-semibold tabular-nums shrink-0">
+                      <p className="text-label-md text-text-strong-950 font-semibold tabular-nums shrink-0 min-w-[60px] text-right">
                         {formatCurrencyShort(hold.holdAmount)}
                       </p>
                     </div>
@@ -428,7 +429,7 @@ export default function WalletPage() {
             {mockActiveHolds.length === 0 && (
               <div className="p-12 text-center">
                 <div className="size-12 mx-auto mb-3 rounded-full bg-bg-soft-200 flex items-center justify-center">
-                  <RiExchangeDollarLine className="size-6 text-text-soft-400" />
+                  <CurrencyCircleDollar weight="duotone" className="size-6 text-text-soft-400" />
                 </div>
                 <p className="text-label-sm text-text-strong-950">No active holds</p>
                 <p className="text-paragraph-xs text-text-sub-600 mt-1">
@@ -476,7 +477,7 @@ function FundWalletModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
 
           <div className="rounded-lg bg-bg-weak-50 p-4 space-y-3">
             <div className="flex items-center gap-2 mb-3">
-              <RiBankCardLine className="size-4 text-text-soft-400" />
+              <CreditCard weight="duotone" className="size-4 text-text-soft-400" />
               <h3 className="text-label-sm text-text-strong-950">Virtual Account Details</h3>
             </div>
             
@@ -491,7 +492,7 @@ function FundWalletModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
                 <div className="flex items-center gap-2">
                   <span className="text-label-sm text-text-strong-950 font-mono">{bankDetails.accountNumber}</span>
                   <button onClick={() => handleCopy(bankDetails.accountNumber, 'account')} className="text-text-soft-400 hover:text-text-sub-600">
-                    {copied === 'account' ? <RiCheckLine className="size-4 text-success-base" /> : <RiFileCopyLine className="size-4" />}
+                    {copied === 'account' ? <Check weight="bold" className="size-4 text-success-base" /> : <Copy className="size-4" />}
                   </button>
                 </div>
               </div>
@@ -501,7 +502,7 @@ function FundWalletModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
                 <div className="flex items-center gap-2">
                   <span className="text-label-sm text-text-strong-950 font-mono">{bankDetails.ifscCode}</span>
                   <button onClick={() => handleCopy(bankDetails.ifscCode, 'ifsc')} className="text-text-soft-400 hover:text-text-sub-600">
-                    {copied === 'ifsc' ? <RiCheckLine className="size-4 text-success-base" /> : <RiFileCopyLine className="size-4" />}
+                    {copied === 'ifsc' ? <Check weight="bold" className="size-4 text-success-base" /> : <Copy className="size-4" />}
                   </button>
                 </div>
               </div>

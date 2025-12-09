@@ -6,7 +6,7 @@ import * as Avatar from '@/components/ui/avatar'
 import * as Badge from '@/components/ui/badge'
 import * as Button from '@/components/ui/button'
 import * as Checkbox from '@/components/ui/checkbox'
-import { RiExternalLinkLine, RiTimeLine, RiVerifiedBadgeLine, RiMoneyDollarCircleLine, RiInformationLine } from '@remixicon/react'
+import { ArrowSquareOut, Clock, SealCheck, CurrencyCircleDollar, Info } from '@phosphor-icons/react'
 import type { Enrollment, EnrollmentStatus } from '@/lib/types'
 import { ENROLLMENT_STATUS_CONFIG } from '@/lib/constants'
 
@@ -87,12 +87,12 @@ export function EnrollmentCard({
                 {enrollment.shopper?.name || 'Unknown Shopper'}
               </span>
               {enrollment.shopper && enrollment.shopper.approvalRate >= 90 && (
-                <RiVerifiedBadgeLine className="size-4 text-success-base" />
+                <SealCheck className="size-4 text-success-base" weight="duotone" />
               )}
             </div>
             <Badge.Root
               color={statusConfig.color as 'gray' | 'blue' | 'green' | 'orange' | 'red' | 'yellow'}
-              variant="light"
+              variant="lighter"
               size="small"
             >
               {statusConfig.label}
@@ -123,12 +123,12 @@ export function EnrollmentCard({
             )}>
               {enrollment.ocrData.isVerified ? (
                 <>
-                  <RiVerifiedBadgeLine className="size-3.5" />
+                  <SealCheck className="size-3.5" weight="duotone" />
                   <span>OCR Verified ({enrollment.ocrData.confidence}% confidence)</span>
                 </>
               ) : (
                 <>
-                  <RiTimeLine className="size-3.5" />
+                  <Clock className="size-3.5" weight="duotone" />
                   <span>Pending verification</span>
                 </>
               )}
@@ -238,7 +238,7 @@ export function EnrollmentTableRow({
         </span>
       </td>
       <td className="py-3 px-4">
-        <Badge.Root color={statusConfig.color as 'gray' | 'blue' | 'green' | 'orange' | 'red' | 'yellow'} variant="light" size="small">
+        <Badge.Root color={statusConfig.color as 'gray' | 'blue' | 'green' | 'orange' | 'red' | 'yellow'} variant="lighter" size="small">
           {statusConfig.label}
         </Badge.Root>
       </td>
@@ -284,7 +284,7 @@ export function BillingBreakdown({
   return (
     <div className={cn('rounded-20 bg-bg-weak-50 p-4', className)}>
       <h4 className="flex items-center gap-2 text-label-sm text-text-strong-950 mb-3">
-        <RiMoneyDollarCircleLine className="size-4 text-primary-base" />
+        <CurrencyCircleDollar className="size-4 text-primary-base" weight="duotone" />
         Your Billing for this Enrollment
       </h4>
 
@@ -321,7 +321,7 @@ export function BillingBreakdown({
       </div>
 
       <div className="mt-3 flex items-center gap-1.5 text-paragraph-xs text-text-soft-400">
-        <RiInformationLine className="size-3.5" />
+        <Info className="size-3.5" weight="duotone" />
         Shopper payouts are determined and managed by Hypedrive platform.
       </div>
     </div>

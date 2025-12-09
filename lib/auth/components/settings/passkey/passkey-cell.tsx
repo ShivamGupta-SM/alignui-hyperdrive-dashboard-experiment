@@ -1,6 +1,6 @@
 "use client"
 
-import { RiFingerprintLine, RiLoader4Line } from "@remixicon/react"
+import { Fingerprint, CircleNotch } from "@phosphor-icons/react"
 import { useContext, useState } from "react"
 
 import { AuthUIContext } from "../../../lib/auth-ui-provider"
@@ -89,7 +89,7 @@ export function PasskeyCell({
                 )}
             >
                 <div className="flex items-center gap-3">
-                    <RiFingerprintLine
+                    <Fingerprint
                         className={cn("size-4", classNames?.icon)}
                     />
                     <span className="text-sm">
@@ -108,7 +108,7 @@ export function PasskeyCell({
                     variant="outline"
                     onClick={handleDeletePasskey}
                 >
-                    {isLoading && <RiLoader4Line className="animate-spin" />}
+                    {isLoading && <CircleNotch className="animate-spin" size={20} />}
 
                     {localization.DELETE}
                 </Button>

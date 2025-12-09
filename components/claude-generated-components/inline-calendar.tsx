@@ -6,7 +6,7 @@
 import * as React from 'react';
 import { tv } from '@/utils/tv';
 import { cn } from '@/utils/cn';
-import { RiArrowLeftSLine, RiArrowRightSLine } from '@remixicon/react';
+import { CaretLeft, CaretRight } from '@phosphor-icons/react/dist/ssr';
 
 const INLINE_CALENDAR_NAME = 'InlineCalendar';
 
@@ -414,7 +414,7 @@ const InlineCalendar = React.forwardRef<HTMLDivElement, InlineCalendarProps>(
             onClick={handlePrevMonth}
             aria-label='Previous month'
           >
-            <RiArrowLeftSLine className='size-5' />
+            <CaretLeft weight="bold" className='size-5' />
           </button>
           <span className={styles.headerTitle()} aria-live='polite'>
             {MONTHS[currentMonth]} {currentYear}
@@ -425,7 +425,7 @@ const InlineCalendar = React.forwardRef<HTMLDivElement, InlineCalendarProps>(
             onClick={handleNextMonth}
             aria-label='Next month'
           >
-            <RiArrowRightSLine className='size-5' />
+            <CaretRight weight="bold" className='size-5' />
           </button>
         </div>
 

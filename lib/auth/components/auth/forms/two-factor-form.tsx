@@ -3,7 +3,7 @@
 
 import type { BetterFetchError } from "@better-fetch/fetch"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { RiLoader4Line, RiQrCodeLine, RiSendPlaneLine } from "@remixicon/react"
+import { CircleNotch, QrCode, PaperPlaneRight } from "@phosphor-icons/react"
 import { useContext, useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import QRCode from "react-qr-code"
@@ -312,7 +312,7 @@ export function TwoFactorForm({
                             )}
                         >
                             {isSubmitting && (
-                                <RiLoader4Line className="animate-spin" size={20} />
+                                <CircleNotch className="animate-spin" size={20} />
                             )}
                             {localization.TWO_FACTOR_ACTION}
                         </Button>
@@ -334,9 +334,9 @@ export function TwoFactorForm({
                             )}
                         >
                             {isSendingOtp ? (
-                                <RiLoader4Line className="animate-spin" size={20} />
+                                <CircleNotch className="animate-spin" size={20} />
                             ) : (
-                                <RiSendPlaneLine className={classNames?.icon} size={20} />
+                                <PaperPlaneRight className={classNames?.icon} size={20} />
                             )}
 
                             {localization.RESEND_CODE}
@@ -355,7 +355,7 @@ export function TwoFactorForm({
                             onClick={() => setMethod("otp")}
                             disabled={isSubmitting}
                         >
-                            <RiSendPlaneLine className={classNames?.icon} size={20} />
+                            <PaperPlaneRight className={classNames?.icon} size={20} />
                             {localization.SEND_VERIFICATION_CODE}
                         </Button>
                     )}
@@ -371,7 +371,7 @@ export function TwoFactorForm({
                             onClick={() => setMethod("totp")}
                             disabled={isSubmitting}
                         >
-                            <RiQrCodeLine className={classNames?.icon} size={20} />
+                            <QrCode className={classNames?.icon} size={20} />
                             {localization.CONTINUE_WITH_AUTHENTICATOR}
                         </Button>
                     )}

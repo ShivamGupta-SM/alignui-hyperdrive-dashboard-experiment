@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { BetterFetchOption } from "better-auth/react"
-import { RiLoader4Line } from "@remixicon/react"
+import { CircleNotch } from "@phosphor-icons/react"
 import { useContext, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -162,7 +162,7 @@ export function ForgotPasswordForm({
                     )}
                 >
                     {isSubmitting ? (
-                        <RiLoader4Line className="animate-spin" size={20} />
+                        <CircleNotch className="animate-spin" size={20} />
                     ) : (
                         localization.FORGOT_PASSWORD_ACTION
                     )}

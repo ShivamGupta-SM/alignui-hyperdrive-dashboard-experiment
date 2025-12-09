@@ -5,7 +5,7 @@ import { tv, type VariantProps } from '@/utils/tv';
 import type { PolymorphicComponentProps } from '@/utils/polymorphic';
 import { recursiveCloneChildren } from '@/utils/recursive-clone-children';
 import { cn } from '@/utils/cn';
-import { RiArrowRightSLine } from '@remixicon/react';
+import { CaretRight } from '@phosphor-icons/react';
 import { Slot } from '@radix-ui/react-slot';
 
 const VERTICAL_STEPPER_ROOT_NAME = 'VerticalStepperRoot';
@@ -35,7 +35,7 @@ function VerticalStepperArrow<T extends React.ElementType>({
   as,
   ...rest
 }: PolymorphicComponentProps<T>) {
-  const Component = as || RiArrowRightSLine;
+  const Component = as || CaretRight;
 
   return (
     <Component

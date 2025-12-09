@@ -3,7 +3,17 @@
 import * as React from 'react';
 import { tv, type VariantProps } from '@/utils/tv';
 import { cn } from '@/utils/cn';
-import { RiArrowUpLine, RiArrowDownLine, RiSubtractLine } from '@remixicon/react';
+import { ArrowUp, ArrowDown, Minus } from '@phosphor-icons/react';
+
+type DeltaType = 'increase' | 'decrease' | 'unchanged' | 'moderateIncrease' | 'moderateDecrease';
+
+const deltaIcons: Record<DeltaType, React.ElementType> = {
+  increase: ArrowUp,
+  decrease: ArrowDown,
+  unchanged: Minus,
+  moderateIncrease: ArrowUp,
+  moderateDecrease: ArrowDown,
+};
 
 const metricVariants = tv({
   slots: {
@@ -58,8 +68,6 @@ const metricVariants = tv({
 
 type MetricVariantProps = VariantProps<typeof metricVariants>;
 
-type DeltaType = 'increase' | 'decrease' | 'unchanged' | 'moderateIncrease' | 'moderateDecrease';
-
 interface MetricProps
   extends React.HTMLAttributes<HTMLDivElement>,
     MetricVariantProps {
@@ -76,14 +84,6 @@ const deltaColors: Record<DeltaType, string> = {
   unchanged: 'text-text-sub-600',
   moderateIncrease: 'text-warning-base',
   moderateDecrease: 'text-warning-base',
-};
-
-const deltaIcons: Record<DeltaType, React.ElementType> = {
-  increase: RiArrowUpLine,
-  decrease: RiArrowDownLine,
-  unchanged: RiSubtractLine,
-  moderateIncrease: RiArrowUpLine,
-  moderateDecrease: RiArrowDownLine,
 };
 
 function Metric({

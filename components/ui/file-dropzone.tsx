@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react"
 import { useDropzone, type Accept, type FileRejection } from "react-dropzone"
 import { cn } from "@/utils/cn"
-import { RiUploadCloud2Line, RiCloseLine, RiFileTextLine, RiImageLine } from "@remixicon/react"
+import { CloudArrowUp, X, FileText, Image } from "@phosphor-icons/react/dist/ssr"
 import * as Button from "@/components/ui/button"
 
 interface FileDropzoneProps {
@@ -83,7 +83,7 @@ export function FileDropzone({
                 <input {...getInputProps()} />
                 <div className="flex flex-col items-center gap-2 text-center">
                     <div className="flex size-12 items-center justify-center rounded-full bg-bg-weak-50">
-                        <RiUploadCloud2Line className="size-6 text-text-sub-600" />
+                        <CloudArrowUp weight="duotone" className="size-6 text-text-sub-600" />
                     </div>
                     <div>
                         <p className="text-label-sm font-medium text-text-strong-950">
@@ -119,9 +119,9 @@ export function FileDropzone({
                         >
                             <div className="flex size-10 items-center justify-center rounded-lg bg-bg-weak-50">
                                 {file.type.startsWith("image/") ? (
-                                    <RiImageLine className="size-5 text-text-sub-600" />
+                                    <Image weight="duotone" className="size-5 text-text-sub-600" />
                                 ) : (
-                                    <RiFileTextLine className="size-5 text-text-sub-600" />
+                                    <FileText weight="duotone" className="size-5 text-text-sub-600" />
                                 )}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -137,7 +137,7 @@ export function FileDropzone({
                                 size="xsmall"
                                 onClick={() => removeFile(index)}
                             >
-                                <Button.Icon as={RiCloseLine} />
+                                <Button.Icon as={X} />
                             </Button.Root>
                         </div>
                     ))}
@@ -198,7 +198,7 @@ export function ImageDropzone({
                     className="absolute right-2 top-2"
                     onClick={clearPreview}
                 >
-                    <Button.Icon as={RiCloseLine} />
+                    <Button.Icon as={X} />
                 </Button.Root>
             </div>
         )

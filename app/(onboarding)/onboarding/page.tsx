@@ -13,14 +13,14 @@ import * as Hint from '@/components/ui/hint'
 import { Callout } from '@/components/ui/callout'
 import * as ProgressCircle from '@/components/ui/progress-circle'
 import {
-  RiArrowLeftLine,
-  RiArrowRightLine,
-  RiCheckLine,
-  RiVerifiedBadgeLine,
-  RiTimeLine,
-  RiUploadCloud2Line,
-  RiInformationLine,
-} from '@remixicon/react'
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  SealCheck,
+  Clock,
+  CloudArrowUp,
+  Info,
+} from '@phosphor-icons/react'
 import { cn } from '@/utils/cn'
 import { BUSINESS_TYPE_OPTIONS, INDUSTRY_CATEGORY_OPTIONS, INDIAN_STATES } from '@/lib/constants'
 import type { OrganizationDraft, BusinessType, IndustryCategory } from '@/lib/types'
@@ -192,7 +192,7 @@ export default function OnboardingPage() {
                 className={currentStep > step.value ? 'cursor-pointer' : ''}
               >
                 <HorizontalStepper.ItemIndicator>
-                  {currentStep > step.value ? <RiCheckLine className="size-4" /> : step.value}
+                  {currentStep > step.value ? <Check className="size-4" weight="bold" /> : step.value}
                 </HorizontalStepper.ItemIndicator>
                 {step.label}
               </HorizontalStepper.Item>
@@ -239,7 +239,7 @@ export default function OnboardingPage() {
           <div>
             {currentStep > 1 && (
               <Button.Root variant="basic" onClick={handleBack}>
-                <Button.Icon as={RiArrowLeftLine} />
+                <Button.Icon as={ArrowLeft} />
                 Back
               </Button.Root>
             )}
@@ -252,7 +252,7 @@ export default function OnboardingPage() {
                 disabled={!canProceed()}
               >
                 Continue
-                <Button.Icon as={RiArrowRightLine} />
+                <Button.Icon as={ArrowRight} />
               </Button.Root>
             ) : (
               <Button.Root
@@ -306,7 +306,7 @@ function Step1BasicInfo({ formData, updateBasicInfo }: Step1Props) {
           Logo
         </label>
         <FileUpload.Root htmlFor="org-logo">
-          <FileUpload.Icon as={RiUploadCloud2Line} />
+          <FileUpload.Icon as={CloudArrowUp} />
           <FileUpload.Button>Choose file</FileUpload.Button>
           <p className="text-paragraph-xs text-text-soft-400">
             PNG or JPG, max 2MB
@@ -349,7 +349,7 @@ function Step1BasicInfo({ formData, updateBasicInfo }: Step1Props) {
           rows={3}
         />
         <Hint.Root>
-          <Hint.Icon as={RiInformationLine} />
+          <Hint.Icon as={Info} />
           This will be visible to shoppers on your campaigns
         </Hint.Root>
       </div>
@@ -565,7 +565,7 @@ function Step3Verification({
               </Input.Wrapper>
             </Input.Root>
             <Hint.Root>
-              <Hint.Icon as={RiInformationLine} />
+              <Hint.Icon as={Info} />
               15-character GSTIN format
             </Hint.Root>
           </div>
@@ -613,7 +613,7 @@ function Step3Verification({
               </Input.Wrapper>
             </Input.Root>
             <Hint.Root>
-              <Hint.Icon as={RiInformationLine} />
+              <Hint.Icon as={Info} />
               10-character PAN format
             </Hint.Root>
           </div>
@@ -628,7 +628,7 @@ function Step3Verification({
 
         {formData.verification?.panVerified && (
           <div className="mt-3 flex items-center gap-2 text-success-base text-label-sm">
-            <RiVerifiedBadgeLine className="size-4" />
+            <SealCheck className="size-4" weight="duotone" />
             PAN Verified
           </div>
         )}
@@ -747,11 +747,11 @@ function Step4Review({ formData, onEdit }: Step4Props) {
               <span className="text-text-strong-950 font-mono">{formData.verification?.gstNumber || '-'}</span>
               {formData.verification?.gstVerified ? (
                 <span className="flex items-center gap-1 text-success-base text-label-xs">
-                  <RiVerifiedBadgeLine className="size-3.5" /> Verified
+                  <SealCheck className="size-3.5" weight="duotone" /> Verified
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-text-soft-400 text-label-xs">
-                  <RiTimeLine className="size-3.5" /> Not Verified
+                  <Clock className="size-3.5" /> Not Verified
                 </span>
               )}
             </div>
@@ -762,7 +762,7 @@ function Step4Review({ formData, onEdit }: Step4Props) {
               <span className="text-text-strong-950 font-mono">{formData.verification?.panNumber || '-'}</span>
               {formData.verification?.panVerified ? (
                 <span className="flex items-center gap-1 text-success-base text-label-xs">
-                  <RiVerifiedBadgeLine className="size-3.5" /> Verified
+                  <SealCheck className="size-3.5" weight="duotone" /> Verified
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-text-soft-400 text-label-xs">

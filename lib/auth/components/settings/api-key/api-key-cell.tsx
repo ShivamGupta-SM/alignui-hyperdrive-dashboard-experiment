@@ -1,6 +1,6 @@
 "use client"
 
-import { RiKey2Line } from "@remixicon/react"
+import { Key } from "@phosphor-icons/react"
 import { useContext, useState } from "react"
 
 import { useLang } from "../../../hooks/use-lang"
@@ -60,7 +60,7 @@ export function ApiKeyCell({
                     classNames?.cell
                 )}
             >
-                <RiKey2Line
+                <Key
                     className={cn("size-4 flex-shrink-0", classNames?.icon)}
                 />
 

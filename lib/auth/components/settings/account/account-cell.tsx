@@ -2,12 +2,12 @@
 
 import type { Session, User } from "better-auth"
 import {
-    RiMore2Line,
-    RiLoader4Line,
-    RiLogoutBoxLine,
-    RiRepeat2Line,
-    RiUserUnfollowLine
-} from "@remixicon/react"
+    DotsThree,
+    CircleNotch,
+    SignOut,
+    ArrowsLeftRight,
+    UserMinus
+} from "@phosphor-icons/react"
 import { useContext, useState } from "react"
 
 import { AuthUIContext } from "../../../lib/auth-ui-provider"
@@ -123,9 +123,9 @@ export function AccountCell({
                         variant="outline"
                     >
                         {isLoading ? (
-                            <RiLoader4Line className="animate-spin" size={20} />
+                            <CircleNotch className="animate-spin" size={20} />
                         ) : (
-                            <RiMore2Line className={classNames?.icon} size={20} />
+                            <DotsThree className={classNames?.icon} size={20} />
                         )}
                     </Button>
                 </DropdownMenuTrigger>
@@ -133,7 +133,7 @@ export function AccountCell({
                 <DropdownMenuContent>
                     {!isCurrentSession && (
                         <DropdownMenuItem onClick={handleSetActiveSession}>
-                            <RiRepeat2Line className={classNames?.icon} size={20} />
+                            <ArrowsLeftRight className={classNames?.icon} size={20} />
 
                             {localization.SWITCH_ACCOUNT}
                         </DropdownMenuItem>
@@ -151,9 +151,9 @@ export function AccountCell({
                         variant="destructive"
                     >
                         {isCurrentSession ? (
-                            <RiLogoutBoxLine className={classNames?.icon} size={20} />
+                            <SignOut className={classNames?.icon} size={20} />
                         ) : (
-                            <RiUserUnfollowLine className={classNames?.icon} size={20} />
+                            <UserMinus className={classNames?.icon} size={20} />
                         )}
 
                         {isCurrentSession

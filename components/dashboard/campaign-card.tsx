@@ -6,20 +6,20 @@ import * as Badge from '@/components/ui/badge'
 import * as ProgressBar from '@/components/ui/progress-bar'
 import * as Dropdown from '@/components/ui/dropdown'
 import { 
-  EllipsisHorizontalIcon, 
-  ChartBarIcon, 
-  DocumentDuplicateIcon,
-  PauseIcon,
-  PlayIcon,
-  StopIcon,
-  CheckIcon,
-  ArchiveBoxIcon,
-  XMarkIcon,
-  CalendarIcon,
-  UserIcon,
-  ChevronRightIcon,
-  PhotoIcon,
-} from '@heroicons/react/24/outline'
+  DotsThree, 
+  ChartBar, 
+  Copy,
+  Pause,
+  Play,
+  Stop,
+  Check,
+  Archive,
+  X,
+  Calendar,
+  User,
+  CaretRight,
+  Image as ImageIcon,
+} from '@phosphor-icons/react'
 import type { Campaign, CampaignStatus } from '@/lib/types'
 import { CAMPAIGN_STATUS_CONFIG } from '@/lib/constants'
 
@@ -84,39 +84,39 @@ export function CampaignCard({
 
     switch (campaign.status) {
       case 'draft':
-        if (onEdit) actions.push({ label: 'Edit', icon: ChartBarIcon, onClick: onEdit })
-        if (onSubmitForApproval) actions.push({ label: 'Submit for Approval', icon: CheckIcon, onClick: onSubmitForApproval })
-        if (onDelete) actions.push({ label: 'Delete', icon: XMarkIcon, onClick: onDelete, destructive: true })
+        if (onEdit) actions.push({ label: 'Edit', icon: ChartBar, onClick: onEdit })
+        if (onSubmitForApproval) actions.push({ label: 'Submit for Approval', icon: Check, onClick: onSubmitForApproval })
+        if (onDelete) actions.push({ label: 'Delete', icon: X, onClick: onDelete, destructive: true })
         break
       case 'pending_approval':
         break
       case 'approved':
-        if (onManage) actions.push({ label: 'Activate', icon: PlayIcon, onClick: onManage })
-        if (onCancel) actions.push({ label: 'Cancel', icon: XMarkIcon, onClick: onCancel, destructive: true })
+        if (onManage) actions.push({ label: 'Activate', icon: Play, onClick: onManage })
+        if (onCancel) actions.push({ label: 'Cancel', icon: X, onClick: onCancel, destructive: true })
         break
       case 'active':
-        if (onPause) actions.push({ label: 'Pause', icon: PauseIcon, onClick: onPause })
-        if (onEnd) actions.push({ label: 'End Campaign', icon: StopIcon, onClick: onEnd })
+        if (onPause) actions.push({ label: 'Pause', icon: Pause, onClick: onPause })
+        if (onEnd) actions.push({ label: 'End Campaign', icon: Stop, onClick: onEnd })
         break
       case 'paused':
-        if (onResume) actions.push({ label: 'Resume', icon: PlayIcon, onClick: onResume })
-        if (onEnd) actions.push({ label: 'End Campaign', icon: StopIcon, onClick: onEnd })
-        if (onCancel) actions.push({ label: 'Cancel', icon: XMarkIcon, onClick: onCancel, destructive: true })
+        if (onResume) actions.push({ label: 'Resume', icon: Play, onClick: onResume })
+        if (onEnd) actions.push({ label: 'End Campaign', icon: Stop, onClick: onEnd })
+        if (onCancel) actions.push({ label: 'Cancel', icon: X, onClick: onCancel, destructive: true })
         break
       case 'ended':
-        if (onComplete) actions.push({ label: 'Complete', icon: CheckIcon, onClick: onComplete })
-        if (onArchive) actions.push({ label: 'Archive', icon: ArchiveBoxIcon, onClick: onArchive })
+        if (onComplete) actions.push({ label: 'Complete', icon: Check, onClick: onComplete })
+        if (onArchive) actions.push({ label: 'Archive', icon: Archive, onClick: onArchive })
         break
       case 'completed':
-        if (onArchive) actions.push({ label: 'Archive', icon: ArchiveBoxIcon, onClick: onArchive })
+        if (onArchive) actions.push({ label: 'Archive', icon: Archive, onClick: onArchive })
         break
       case 'archived':
-        if (onDuplicate) actions.push({ label: 'Duplicate', icon: DocumentDuplicateIcon, onClick: onDuplicate })
+        if (onDuplicate) actions.push({ label: 'Duplicate', icon: Copy, onClick: onDuplicate })
         break
     }
 
     if (onDuplicate && campaign.status !== 'archived') {
-      actions.push({ label: 'Duplicate', icon: DocumentDuplicateIcon, onClick: onDuplicate })
+      actions.push({ label: 'Duplicate', icon: Copy, onClick: onDuplicate })
     }
 
     return actions
@@ -128,9 +128,9 @@ export function CampaignCard({
   const showStats = ['active', 'paused', 'ended', 'completed'].includes(campaign.status)
 
   return (
-    <div className="flex flex-col h-full rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden hover:ring-stroke-sub-300">
-      {/* Main Content */}
-      <div className="flex-1 p-4 min-h-[140px]">
+    <div className="flex flex-col h-full rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden hover:ring-stroke-sub-300 hover:shadow-sm transition-all">
+      {/* Header - Campaign Identity */}
+      <div className="p-4 pb-3">
         <div className="flex gap-3">
           {/* Product Thumbnail */}
           <div className="shrink-0">
@@ -138,38 +138,41 @@ export function CampaignCard({
               <img 
                 src={productImage} 
                 alt="Product" 
-                className="size-14 rounded-xl object-cover bg-bg-weak-50"
+                className="size-14 rounded-xl object-contain bg-bg-weak-50 p-1.5 ring-1 ring-inset ring-stroke-soft-200"
               />
             ) : (
-              <div className="size-14 rounded-xl bg-bg-weak-50 flex items-center justify-center">
-                <PhotoIcon className="size-6 text-text-soft-400" />
+              <div className="size-14 rounded-xl bg-bg-weak-50 flex items-center justify-center ring-1 ring-inset ring-stroke-soft-200">
+                <ImageIcon className="size-6 text-text-soft-400" />
               </div>
             )}
           </div>
 
-          {/* Content */}
+          {/* Title & Badge */}
           <div className="flex-1 min-w-0">
-            {/* Title & Actions */}
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <h3 className="text-label-md text-text-strong-950 font-semibold truncate leading-tight">
+                <h3 className="text-label-md text-text-strong-950 font-semibold truncate">
                   {campaign.title}
                 </h3>
-                <Badge.Root
-                  color={getStatusBadgeColor()}
-                  variant="lighter"
-                  size="small"
-                  className="mt-1"
-                >
-                  {statusConfig.label}
-                </Badge.Root>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <Badge.Root
+                    color={getStatusBadgeColor()}
+                    variant="lighter"
+                    size="small"
+                  >
+                    {statusConfig.label}
+                  </Badge.Root>
+                  <span className="text-paragraph-xs text-text-soft-400">
+                    {formatDate(campaign.startDate)} – {formatDate(campaign.endDate)}
+                  </span>
+                </div>
               </div>
               
               {actions.length > 0 && (
                 <Dropdown.Root>
                   <Dropdown.Trigger asChild>
-                    <button className="flex size-7 shrink-0 items-center justify-center rounded-lg text-text-soft-400 hover:text-text-strong-950 hover:bg-bg-weak-50">
-                      <EllipsisHorizontalIcon className="size-5" />
+                    <button className="flex size-7 shrink-0 items-center justify-center rounded-lg text-text-soft-400 hover:text-text-strong-950 hover:bg-bg-weak-50 -mr-1">
+                      <DotsThree weight="bold" className="size-5" />
                     </button>
                   </Dropdown.Trigger>
                   <Dropdown.Content align="end">
@@ -189,44 +192,74 @@ export function CampaignCard({
                 </Dropdown.Root>
               )}
             </div>
+          </div>
+        </div>
+      </div>
 
-            {/* Meta Info */}
-            <div className="flex items-center gap-3 mt-2 text-paragraph-xs text-text-sub-600">
-              <span className="flex items-center gap-1">
-                <CalendarIcon className="size-3.5 text-text-soft-400" />
-                {formatDate(campaign.startDate)} - {formatDate(campaign.endDate)}
-              </span>
-              <span className="flex items-center gap-1">
-                <UserIcon className="size-3.5 text-text-soft-400" />
-                {campaign.currentEnrollments}/{campaign.maxEnrollments}
+      {/* Stats Section - Key Metrics */}
+      {showStats && (
+        <div className="px-4 pb-4">
+          <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-bg-weak-50">
+            <div className="text-center">
+              <div className="text-title-h6 text-text-strong-950 font-semibold">
+                {campaign.currentEnrollments}
+              </div>
+              <div className="text-[10px] text-text-soft-400 uppercase tracking-wide">Enrolled</div>
+            </div>
+            <div className="text-center border-x border-stroke-soft-200">
+              <div className="text-title-h6 text-warning-base font-semibold">
+                {campaign.pendingCount}
+              </div>
+              <div className="text-[10px] text-text-soft-400 uppercase tracking-wide">Pending</div>
+            </div>
+            <div className="text-center">
+              <div className="text-title-h6 text-success-base font-semibold">
+                {campaign.approvedCount}
+              </div>
+              <div className="text-[10px] text-text-soft-400 uppercase tracking-wide">Approved</div>
+            </div>
+          </div>
+          
+          {/* Progress Bar - integrated */}
+          {showProgress && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-paragraph-xs text-text-sub-600">Capacity</span>
+                <span className="text-label-xs text-text-strong-950 font-medium">{campaign.currentEnrollments}/{campaign.maxEnrollments}</span>
+              </div>
+              <ProgressBar.Root value={progress} size="sm" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Non-stats state - for draft/pending campaigns */}
+      {!showStats && (
+        <div className="px-4 pb-4 flex-1">
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-weak-50">
+            <div className="flex items-center gap-2">
+              <User className="size-4 text-text-soft-400" />
+              <span className="text-paragraph-sm text-text-sub-600">
+                <span className="font-medium text-text-strong-950">{campaign.maxEnrollments}</span> max enrollments
               </span>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Progress Bar */}
-        {showProgress && (
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-paragraph-xs text-text-soft-400">Enrollment Progress</span>
-              <span className="text-label-xs text-text-sub-600">{progress}%</span>
-            </div>
-            <ProgressBar.Root value={progress} size="sm" />
-          </div>
-        )}
-      </div>
-
-      {/* Footer - Always visible with consistent content */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-bg-weak-50 border-t border-stroke-soft-200">
-        <div className="text-paragraph-xs">
-          {showStats ? (
-            <span className="text-text-sub-600">
-              <span className="text-warning-base font-medium">{campaign.pendingCount}</span> pending · <span className="text-success-base font-medium">{campaign.approvedCount}</span> approved
-            </span>
-          ) : campaign.status === 'draft' ? (
+      {/* Footer */}
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-t border-stroke-soft-200 mt-auto">
+        <div className="text-paragraph-xs min-w-0">
+          {campaign.status === 'draft' ? (
             <span className="text-warning-base font-medium">Complete setup to launch</span>
           ) : campaign.status === 'pending_approval' ? (
             <span className="text-information-base font-medium">Under review</span>
+          ) : campaign.status === 'active' ? (
+            <span className="text-success-base font-medium">Accepting enrollments</span>
+          ) : campaign.status === 'paused' ? (
+            <span className="text-text-soft-400 font-medium">Paused</span>
+          ) : campaign.status === 'completed' ? (
+            <span className="text-text-sub-600">Campaign ended</span>
           ) : (
             <span className="text-text-soft-400">—</span>
           )}
@@ -234,10 +267,10 @@ export function CampaignCard({
         
         <button 
           onClick={onView} 
-          className="flex items-center gap-0.5 text-label-sm text-primary-base hover:text-primary-darker font-medium"
+          className="flex items-center gap-0.5 text-label-sm text-primary-base hover:text-primary-darker font-medium shrink-0"
         >
-          View
-          <ChevronRightIcon className="size-4" />
+          View Details
+          <CaretRight weight="bold" className="size-4" />
         </button>
       </div>
     </div>
@@ -271,7 +304,7 @@ export function CampaignListItem({
         />
       ) : (
         <div className="size-10 rounded-lg bg-bg-weak-50 flex items-center justify-center">
-          <PhotoIcon className="size-4 text-text-soft-400" />
+          <ImageIcon className="size-4 text-text-soft-400" />
         </div>
       )}
       

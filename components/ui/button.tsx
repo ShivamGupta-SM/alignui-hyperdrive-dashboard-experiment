@@ -4,7 +4,7 @@
 
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
-import { RiLoader4Line } from '@remixicon/react';
+import { CircleNotch } from '@phosphor-icons/react';
 import type { PolymorphicComponentProps } from '@/utils/polymorphic';
 import { recursiveCloneChildren } from '@/utils/recursive-clone-children';
 import { tv, type VariantProps } from '@/utils/tv';
@@ -164,7 +164,7 @@ const ButtonRoot = React.forwardRef<HTMLButtonElement, ButtonRootProps>(
       >
         {isLoading ? (
           <>
-            <RiLoader4Line className={spinner({ class: 'size-5' })} aria-hidden="true" />
+            <CircleNotch className={spinner({ class: 'size-5' })} aria-hidden="true" />
             {loadingText && <span className="relative z-10">{loadingText}</span>}
             {!loadingText && <span className="sr-only">Loading</span>}
           </>

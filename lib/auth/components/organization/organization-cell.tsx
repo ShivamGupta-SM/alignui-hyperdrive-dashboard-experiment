@@ -2,7 +2,7 @@
 "use client"
 
 import type { Organization } from "better-auth/plugins/organization"
-import { RiMore2Line, RiLoader4Line, RiLogoutBoxLine, RiSettings4Line } from "@remixicon/react"
+import { DotsThree, CircleNotch, SignOut, Gear } from "@phosphor-icons/react"
 import { useCallback, useContext, useMemo, useState } from "react"
 
 import { AuthUIContext } from "../../lib/auth-ui-provider"
@@ -121,9 +121,9 @@ export function OrganizationCell({
                             variant="outline"
                         >
                             {isManagingOrganization ? (
-                                <RiLoader4Line className="animate-spin" size={20} />
+                                <CircleNotch className="animate-spin" size={20} />
                             ) : (
-                                <RiMore2Line className={classNames?.icon} size={20} />
+                                <DotsThree className={classNames?.icon} size={20} />
                             )}
                         </Button>
                     </DropdownMenuTrigger>
@@ -133,7 +133,7 @@ export function OrganizationCell({
                             onClick={handleManageOrganization}
                             disabled={isManagingOrganization}
                         >
-                            <RiSettings4Line className={classNames?.icon} size={20} />
+                            <Gear className={classNames?.icon} size={20} />
 
                             {localization.MANAGE_ORGANIZATION}
                         </DropdownMenuItem>
@@ -142,7 +142,7 @@ export function OrganizationCell({
                             onClick={() => setIsLeaveDialogOpen(true)}
                             variant="destructive"
                         >
-                            <RiLogoutBoxLine className={classNames?.icon} size={20} />
+                            <SignOut className={classNames?.icon} size={20} />
 
                             {localization.LEAVE_ORGANIZATION}
                         </DropdownMenuItem>

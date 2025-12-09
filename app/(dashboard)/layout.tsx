@@ -7,10 +7,12 @@ import { Header } from '@/components/dashboard/header'
 import { NotificationsDrawer } from '@/components/dashboard/notifications-drawer'
 import { CommandMenu } from '@/components/dashboard/command-menu'
 import { SettingsPanel } from '@/components/dashboard/settings-panel'
+import { BreadcrumbProvider, useBreadcrumbItems } from '@/contexts/breadcrumb-context'
 import { useLocalStorage } from '@/hooks/use-local-storage'
 import { useSignOut } from '@/hooks/use-sign-out'
 import { useTheme } from 'next-themes'
 import { cn } from '@/utils/cn'
+import { useEffect, useState } from 'react'
 import type { Organization } from '@/lib/types'
 
 // Mock data - replace with actual data fetching
@@ -61,15 +63,71 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
+  return (
+    <BreadcrumbProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </BreadcrumbProvider>
+  )
+}
+
+function DashboardLayoutInner({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const router = useRouter()
   const pathname = usePathname()
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
   const [sidebarCollapsed, setSidebarCollapsed, , isHydrated] = useLocalStorage('sidebar-collapsed', false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false)
   const [notificationsOpen, setNotificationsOpen] = React.useState(false)
   const [commandMenuOpen, setCommandMenuOpen] = React.useState(false)
   const [settingsPanelOpen, setSettingsPanelOpen] = React.useState(false)
   const [currentOrganization, setCurrentOrganization] = React.useState(mockOrganizations[0])
+  
+  // Get breadcrumbs from context (set by pages), or auto-generate from pathname
+  const contextBreadcrumbs = useBreadcrumbItems()
+  
+  // Auto-generate breadcrumbs from pathname when not set by page
+  const autoBreadcrumbs = React.useMemo(() => {
+    if (contextBreadcrumbs.length > 0) return contextBreadcrumbs
+    
+    // Generate from pathname
+    const segments = pathname.split('/').filter(Boolean)
+    const items: { label: string; href?: string }[] = []
+    
+    let currentPath = ''
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i]
+      currentPath += `/${segment}`
+      
+      // Skip 'dashboard' prefix in display but keep in path
+      if (segment === 'dashboard' && i === 0) {
+        items.push({ label: 'Dashboard', href: '/dashboard' })
+        continue
+      }
+      
+      // Format segment name (capitalize, replace hyphens with spaces)
+      const label = segment
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')
+      
+      // Dynamic route segments (e.g., [id]) - just show as "Details" or skip
+      if (segment.startsWith('[') || /^\d+$/.test(segment)) {
+        items.push({ label: 'Details' })
+      } else {
+        const isLast = i === segments.length - 1
+        items.push({ 
+          label, 
+          href: isLast ? undefined : currentPath 
+        })
+      }
+    }
+    
+    return items
+  }, [pathname, contextBreadcrumbs])
   
   // Prevent hydration mismatch by using consistent initial state
   const [mounted, setMounted] = React.useState(false)
@@ -131,12 +189,12 @@ export default function DashboardLayout({
   // Don't render until mounted to prevent hydration mismatch
   if (!mounted) {
     return (
-      <div className="h-screen p-0 lg:p-3 bg-bg-weak-50">
+      <div className="h-screen p-0 lg:p-3 bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
         <div className="flex h-full">
           {/* Placeholder sidebar - transparent on gray shell */}
           <div className="hidden lg:block w-[280px] shrink-0" />
           {/* Main Content Card */}
-          <div className="flex flex-1 flex-col overflow-hidden bg-bg-white-0 lg:rounded-2xl lg:border lg:border-stroke-soft-200 lg:shadow-sm">
+          <div className="flex flex-1 flex-col overflow-hidden bg-white dark:bg-slate-900 lg:rounded-2xl lg:border lg:border-slate-200/80 dark:lg:border-slate-700/50 lg:shadow-md lg:ring-1 lg:ring-black/[0.03] dark:lg:ring-white/[0.03]">
             {/* Placeholder header */}
             <div className="h-16 border-b border-stroke-soft-200" />
             {/* Page Content */}
@@ -151,71 +209,180 @@ export default function DashboardLayout({
     )
   }
 
-  return (
-    <div className="h-screen p-0 lg:p-3 bg-bg-weak-50">
-      {/* Mobile Sidebar Overlay */}
-      {mobileSidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-overlay lg:hidden"
-          onClick={() => setMobileSidebarOpen(false)}
-          aria-hidden="true"
-        />
-      )}
 
-      {/* Flex container for sidebar and content */}
-      <div className="flex h-full">
-        {/* Sidebar - Desktop: visible in flow, Mobile: fixed overlay */}
-        <div
-          className={cn(
-            // Mobile: fixed overlay
-            'fixed inset-y-0 left-0 z-50',
-            // Desktop: relative, in flow
-            'lg:relative lg:z-auto lg:shrink-0',
-            'transform transition-transform duration-300 ease-in-out lg:transform-none',
-            mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-          )}
-        >
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onCollapsedChange={setSidebarCollapsed}
-          pendingEnrollments={45}
-          organizations={mockOrganizations}
-          currentOrganization={currentOrganization}
-          onOrganizationChange={handleOrganizationChange}
-          onCreateOrganization={handleCreateOrganization}
-          user={mockUser}
-          isDarkMode={theme === 'dark'}
-          onToggleDarkMode={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          onSignOut={handleSignOut}
-          onMobileClose={() => setMobileSidebarOpen(false)}
-        />
+
+  return (
+    <div className={cn(
+      "h-screen lg:p-3 bg-gradient-to-br transition-colors duration-200",
+      isDark 
+        ? "from-slate-900 via-slate-900 to-slate-800" 
+        : "from-slate-100 via-gray-50 to-slate-100"
+    )}>
+      {/* ============================================ */}
+      {/* DESKTOP LAYOUT - Traditional Inset Sidebar */}
+      {/* ============================================ */}
+      <div className="hidden lg:flex h-full">
+        {/* Sidebar - Desktop: visible in flow */}
+        <div className="shrink-0">
+          <Sidebar
+            collapsed={sidebarCollapsed}
+            onCollapsedChange={setSidebarCollapsed}
+            pendingEnrollments={45}
+            organizations={mockOrganizations}
+            currentOrganization={currentOrganization}
+            onOrganizationChange={handleOrganizationChange}
+            onCreateOrganization={handleCreateOrganization}
+            user={mockUser}
+            isDarkMode={resolvedTheme === 'dark'}
+            onToggleDarkMode={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+            onSignOut={handleSignOut}
+          />
         </div>
 
-        {/* Main Content Card - Floating sheet on desktop */}
-        {/* Spec: white card with border, rounded corners, subtle shadow */}
-        <div className="flex flex-1 flex-col overflow-hidden min-w-0 bg-bg-white-0 lg:rounded-2xl lg:border lg:border-stroke-soft-200 lg:shadow-sm">
-        {/* Header */}
-        <Header
-          unreadNotifications={3}
-          onNotificationsClick={() => setNotificationsOpen(true)}
-          onCommandMenuClick={() => setCommandMenuOpen(true)}
-          sidebarCollapsed={sidebarCollapsed}
-          onSidebarCollapsedChange={setSidebarCollapsed}
-          onMobileMenuClick={handleMobileSidebarToggle}
-          isMobileSidebarOpen={mobileSidebarOpen}
-          onSettingsClick={() => setSettingsPanelOpen(true)}
-          user={mockUser}
-        />
+        {/* Main Area - Desktop */}
+        <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+          {/* Breadcrumbs - On gray shell, above content card (Desktop only) */}
+          {autoBreadcrumbs.length > 0 && (
+            <nav 
+              className="flex items-center gap-1 px-1 pt-1 pb-2" 
+              aria-label="Breadcrumb"
+            >
+              {autoBreadcrumbs.map((item, index) => {
+                const isLast = index === autoBreadcrumbs.length - 1
+                return (
+                  <React.Fragment key={index}>
+                    {index > 0 && (
+                      <span className={cn("text-[11px] mx-0.5", isDark ? "text-slate-600" : "text-text-soft-400/60")}>/</span>
+                    )}
+                    {item.href && !isLast ? (
+                      <a 
+                        href={item.href}
+                        className={cn(
+                          "text-[13px] hover:text-primary-base transition-colors duration-150",
+                          isDark ? "text-slate-400 hover:text-white" : "text-text-sub-600"
+                        )}
+                      >
+                        {item.label}
+                      </a>
+                    ) : (
+                      <span className={cn(
+                        "text-[13px]",
+                        isLast 
+                          ? (isDark ? "text-white" : "text-text-strong-950") + " font-medium"
+                          : (isDark ? "text-slate-400" : "text-text-sub-600")
+                      )}>
+                        {item.label}
+                      </span>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </nav>
+          )}
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-            {children}
+          {/* Content Card */}
+          <div className={cn(
+            "flex flex-1 flex-col overflow-hidden rounded-2xl border shadow-md ring-1 transition-all duration-200",
+            isDark
+              ? "bg-slate-900 border-slate-700/50 ring-white/[0.03]"
+              : "bg-white border-slate-200/80 ring-black/[0.03]"
+          )}>
+            <Header
+              unreadNotifications={3}
+              onNotificationsClick={() => setNotificationsOpen(true)}
+              onCommandMenuClick={() => setCommandMenuOpen(true)}
+              sidebarCollapsed={sidebarCollapsed}
+              onSidebarCollapsedChange={setSidebarCollapsed}
+              onSettingsClick={() => setSettingsPanelOpen(true)}
+              user={mockUser}
+            />
+            <main className="flex-1 overflow-y-auto">
+              <div className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+                {children}
+              </div>
+            </main>
           </div>
-        </main>
         </div>
       </div>
 
+      {/* ============================================ */}
+      {/* MOBILE LAYOUT - Basement Reveal Pattern */}
+      {/* Header and sidebar on gray shell (transparent), content as floating sheet */}
+      {/* ============================================ */}
+      <div className="lg:hidden flex flex-col h-full">
+        {/* Mobile Header - Transparent on gray shell, only elements have bg */}
+        <div className="shrink-0 px-2 pt-2">
+          <Header
+            unreadNotifications={3}
+            onNotificationsClick={() => setNotificationsOpen(true)}
+            onCommandMenuClick={() => setCommandMenuOpen(true)}
+            onMobileMenuClick={handleMobileSidebarToggle}
+            isMobileSidebarOpen={mobileSidebarOpen}
+            onSettingsClick={() => setSettingsPanelOpen(true)}
+            user={mockUser}
+          />
+        </div>
+
+        {/* Content Area - Relative container for basement reveal */}
+        <div className="flex-1 relative overflow-hidden p-2 pt-2">
+          {/* Basement Layer - Sidebar (underneath content) */}
+          <div 
+            className={cn(
+              "absolute inset-2 z-0",
+              "transition-opacity duration-300",
+              mobileSidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+            )}
+          >
+            <Sidebar
+              collapsed={false}
+              pendingEnrollments={45}
+              organizations={mockOrganizations}
+              currentOrganization={currentOrganization}
+              onOrganizationChange={handleOrganizationChange}
+              onCreateOrganization={handleCreateOrganization}
+              user={mockUser}
+              isDarkMode={theme === 'dark'}
+              onToggleDarkMode={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              onSignOut={handleSignOut}
+              onMobileClose={() => setMobileSidebarOpen(false)}
+            />
+          </div>
+
+          {/* Content Sheet - Inset floating card, slides down to reveal sidebar */}
+          <div
+            className={cn(
+              "relative z-10 flex flex-col h-full",
+              "bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700/50 shadow-md ring-1 ring-black/[0.03] dark:ring-white/[0.03]",
+              "transition-all duration-300 ease-out",
+              // When sidebar is open, slide content down (70% to show more peek)
+              mobileSidebarOpen 
+                ? "translate-y-[70%] scale-[0.96] shadow-2xl" 
+                : "translate-y-0 scale-100"
+            )}
+          >
+            {/* Page Content */}
+            <main className="flex-1 overflow-y-auto rounded-2xl">
+              <div className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+                {children}
+              </div>
+            </main>
+          </div>
+
+          {/* Tap outside to close - when sidebar is open */}
+          {mobileSidebarOpen && (
+            <div
+              className="absolute inset-x-2 bottom-2 z-20 h-[30%]"
+              onClick={() => setMobileSidebarOpen(false)}
+              aria-hidden="true"
+            />
+          )}
+        </div>
+      </div>
+
+      {/* ============================================ */}
+      {/* SHARED OVERLAYS */}
+      {/* ============================================ */}
+      
       {/* Notifications Drawer */}
       <NotificationsDrawer
         open={notificationsOpen}

@@ -5,21 +5,21 @@ import Link from 'next/link'
 import * as Button from '@/components/ui/button'
 import * as EmptyState from '@/components/claude-generated-components/empty-state'
 import {
-  RiRocketLine,
-  RiMegaphoneLine,
-  RiCheckLine,
-  RiShoppingBag3Line,
-  RiTeamLine,
-  RiSearchLine,
-  RiWallet3Line,
-  RiFileList3Line,
-  RiAddLine,
-  RiUserFollowLine,
-  RiInboxLine,
-  RiErrorWarningLine,
-  RiWifiOffLine,
-  RiLockLine,
-} from '@remixicon/react'
+  Rocket,
+  Megaphone,
+  Check,
+  ShoppingBag,
+  UsersThree,
+  MagnifyingGlass,
+  Wallet,
+  FileText,
+  Plus,
+  UserPlus,
+  Tray,
+  WarningCircle,
+  WifiSlash,
+  Lock,
+} from '@phosphor-icons/react'
 
 // ============================================
 // Welcome Empty State (New Organization)
@@ -30,7 +30,7 @@ export function WelcomeEmptyState() {
     <EmptyState.Root size="large">
       <EmptyState.Header>
         <EmptyState.Icon color="primary">
-          <RiRocketLine className="size-full" />
+          <Rocket className="size-full" weight="duotone" />
         </EmptyState.Icon>
       </EmptyState.Header>
       <EmptyState.Content>
@@ -56,13 +56,13 @@ export function WelcomeEmptyState() {
       <EmptyState.Footer>
         <Button.Root variant="basic" asChild>
           <Link href="/dashboard/wallet">
-            <Button.Icon as={RiWallet3Line} />
+            <Button.Icon as={Wallet} />
             Fund Wallet
           </Link>
         </Button.Root>
         <Button.Root variant="primary" asChild>
           <Link href="/dashboard/campaigns/create">
-            <Button.Icon as={RiAddLine} />
+            <Button.Icon as={Plus} />
             Create Campaign
           </Link>
         </Button.Root>
@@ -80,7 +80,7 @@ export function NoCampaignsEmptyState() {
     <EmptyState.Root size="large">
       <EmptyState.Header>
         <EmptyState.Icon color="gray">
-          <RiMegaphoneLine className="size-full" />
+          <Megaphone className="size-full" weight="duotone" />
         </EmptyState.Icon>
       </EmptyState.Header>
       <EmptyState.Content>
@@ -92,7 +92,7 @@ export function NoCampaignsEmptyState() {
       <EmptyState.Footer>
         <Button.Root variant="primary" asChild>
           <Link href="/dashboard/campaigns/create">
-            <Button.Icon as={RiAddLine} />
+            <Button.Icon as={Plus} />
             Create First Campaign
           </Link>
         </Button.Root>
@@ -110,7 +110,7 @@ export function NoPendingEnrollmentsEmptyState() {
     <EmptyState.Root size="large">
       <EmptyState.Header>
         <EmptyState.Icon color="success">
-          <RiCheckLine className="size-full" />
+          <Check className="size-full" weight="bold" />
         </EmptyState.Icon>
       </EmptyState.Header>
       <EmptyState.Content>
@@ -137,7 +137,7 @@ export function NoProductsEmptyState() {
     <EmptyState.Root size="large">
       <EmptyState.Header>
         <EmptyState.Icon color="gray">
-          <RiShoppingBag3Line className="size-full" />
+          <ShoppingBag className="size-full" weight="duotone" />
         </EmptyState.Icon>
       </EmptyState.Header>
       <EmptyState.Content>
@@ -149,7 +149,7 @@ export function NoProductsEmptyState() {
       <EmptyState.Footer>
         <Button.Root variant="primary" asChild>
           <Link href="/dashboard/products/new">
-            <Button.Icon as={RiAddLine} />
+            <Button.Icon as={Plus} />
             Add First Product
           </Link>
         </Button.Root>
@@ -171,7 +171,7 @@ export function NoTeamMembersEmptyState({ onInvite }: NoTeamMembersEmptyStatePro
     <EmptyState.Root size="large">
       <EmptyState.Header>
         <EmptyState.Icon color="gray">
-          <RiTeamLine className="size-full" />
+          <UsersThree className="size-full" weight="duotone" />
         </EmptyState.Icon>
       </EmptyState.Header>
       <EmptyState.Content>
@@ -182,7 +182,7 @@ export function NoTeamMembersEmptyState({ onInvite }: NoTeamMembersEmptyStatePro
       </EmptyState.Content>
       <EmptyState.Footer>
         <Button.Root variant="primary" onClick={onInvite}>
-          <Button.Icon as={RiAddLine} />
+          <Button.Icon as={Plus} />
           Invite First Member
         </Button.Root>
       </EmptyState.Footer>
@@ -209,7 +209,7 @@ export function NoSearchResultsEmptyState({
     <EmptyState.Root size="medium">
       <EmptyState.Header>
         <EmptyState.Icon color="gray">
-          <RiSearchLine className="size-full" />
+          <MagnifyingGlass className="size-full" weight="duotone" />
         </EmptyState.Icon>
       </EmptyState.Header>
       <EmptyState.Content>
@@ -243,7 +243,7 @@ export function NoInvoicesEmptyState() {
     <EmptyState.Root size="large">
       <EmptyState.Header>
         <EmptyState.Icon color="gray">
-          <RiFileList3Line className="size-full" />
+          <FileText className="size-full" weight="duotone" />
         </EmptyState.Icon>
       </EmptyState.Header>
       <EmptyState.Content>
@@ -270,7 +270,7 @@ export function NoNotificationsEmptyState() {
     <EmptyState.Root size="medium">
       <EmptyState.Header showPattern={false}>
         <EmptyState.Icon color="gray">
-          <RiInboxLine className="size-full" />
+          <Tray className="size-full" weight="duotone" />
         </EmptyState.Icon>
       </EmptyState.Header>
       <EmptyState.Content>
@@ -302,7 +302,7 @@ export function ErrorEmptyState({
     <EmptyState.Root size="large">
       <EmptyState.Header>
         <EmptyState.Icon color="error">
-          <RiErrorWarningLine className="size-full" />
+          <WarningCircle className="size-full" weight="duotone" />
         </EmptyState.Icon>
       </EmptyState.Header>
       <EmptyState.Content>
@@ -333,7 +333,7 @@ export function NetworkErrorEmptyState({ onRetry }: NetworkErrorEmptyStateProps)
     <EmptyState.Root size="large">
       <EmptyState.Header>
         <EmptyState.Icon color="warning">
-          <RiWifiOffLine className="size-full" />
+          <WifiSlash className="size-full" weight="duotone" />
         </EmptyState.Icon>
       </EmptyState.Header>
       <EmptyState.Content>
@@ -362,7 +362,7 @@ export function PermissionDeniedEmptyState() {
     <EmptyState.Root size="large">
       <EmptyState.Header>
         <EmptyState.Icon color="error">
-          <RiLockLine className="size-full" />
+          <Lock className="size-full" weight="duotone" />
         </EmptyState.Icon>
       </EmptyState.Header>
       <EmptyState.Content>
@@ -393,7 +393,7 @@ export function NoWalletTransactionsEmptyState({ onAddFunds }: NoWalletTransacti
     <EmptyState.Root size="medium">
       <EmptyState.Header>
         <EmptyState.Icon color="gray">
-          <RiWallet3Line className="size-full" />
+          <Wallet className="size-full" weight="duotone" />
         </EmptyState.Icon>
       </EmptyState.Header>
       <EmptyState.Content>
@@ -405,7 +405,7 @@ export function NoWalletTransactionsEmptyState({ onAddFunds }: NoWalletTransacti
       {onAddFunds && (
         <EmptyState.Footer>
           <Button.Root variant="primary" onClick={onAddFunds}>
-            <Button.Icon as={RiAddLine} />
+            <Button.Icon as={Plus} />
             Add Funds
           </Button.Root>
         </EmptyState.Footer>

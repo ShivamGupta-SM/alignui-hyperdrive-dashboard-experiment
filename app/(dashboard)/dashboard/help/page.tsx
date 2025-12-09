@@ -6,18 +6,18 @@ import * as Button from '@/components/ui/button'
 import * as Input from '@/components/ui/input'
 import * as Accordion from '@/components/ui/accordion'
 import {
-  RiSearchLine,
-  RiBookOpenLine,
-  RiVideoLine,
-  RiCodeSSlashLine,
-  RiQuestionLine,
-  RiTeamLine,
-  RiMailLine,
-  RiPhoneLine,
-  RiMessage2Line,
-  RiArrowRightLine,
-  RiExternalLinkLine,
-} from '@remixicon/react'
+  MagnifyingGlass,
+  BookOpen,
+  VideoCamera,
+  Code,
+  Question,
+  UsersThree,
+  Envelope,
+  Phone,
+  ChatCircle,
+  ArrowRight,
+  ArrowSquareOut,
+} from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 
 const quickLinks = [
@@ -25,21 +25,21 @@ const quickLinks = [
     id: 'getting-started',
     title: 'Getting Started',
     description: 'Learn the basics of using Hypedrive',
-    icon: RiBookOpenLine,
+    icon: BookOpen,
     href: '/docs/getting-started',
   },
   {
     id: 'video-tutorials',
     title: 'Video Tutorials',
     description: 'Step-by-step video walkthroughs',
-    icon: RiVideoLine,
+    icon: VideoCamera,
     href: '/docs/tutorials',
   },
   {
     id: 'api-docs',
     title: 'API Documentation',
     description: 'Integration guides for developers',
-    icon: RiCodeSSlashLine,
+    icon: Code,
     href: '/docs/api',
     external: true,
   },
@@ -47,14 +47,14 @@ const quickLinks = [
     id: 'faqs',
     title: 'FAQs',
     description: 'Common questions answered',
-    icon: RiQuestionLine,
+    icon: Question,
     href: '#faqs',
   },
   {
     id: 'community',
     title: 'Community Forum',
     description: 'Ask the community',
-    icon: RiTeamLine,
+    icon: UsersThree,
     href: 'https://community.hypedrive.com',
     external: true,
   },
@@ -62,7 +62,7 @@ const quickLinks = [
     id: 'contact',
     title: 'Contact Support',
     description: 'Get personal help',
-    icon: RiMailLine,
+    icon: Envelope,
     href: '#contact',
   },
 ]
@@ -191,7 +191,7 @@ export default function HelpPage() {
       <div className="max-w-xl mx-auto">
         <Input.Root>
           <Input.Wrapper>
-            <Input.Icon as={RiSearchLine} />
+            <Input.Icon as={MagnifyingGlass} />
             <Input.El
               placeholder="Search for help..."
               value={searchQuery}
@@ -202,7 +202,7 @@ export default function HelpPage() {
       </div>
 
       {/* Quick Links */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
         <h2 className="text-label-md text-text-strong-950 mb-4">Quick Links</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {quickLinks.map((link) => {
@@ -219,14 +219,14 @@ export default function HelpPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-label-sm text-text-strong-950">{link.title}</span>
                     {isExternal && (
-                      <RiExternalLinkLine className="size-3.5 text-text-soft-400" />
+                      <ArrowSquareOut className="size-3.5 text-text-soft-400" />
                     )}
                   </div>
                   <p className="text-paragraph-xs text-text-sub-600 mt-0.5">
                     {link.description}
                   </p>
                 </div>
-                <RiArrowRightLine className="size-5 text-text-soft-400 group-hover:text-text-sub-600 transition-colors shrink-0" />
+                <ArrowRight className="size-5 text-text-soft-400 group-hover:text-text-sub-600 transition-colors shrink-0" />
               </div>
             )
 
@@ -256,12 +256,12 @@ export default function HelpPage() {
       </div>
 
       {/* FAQs */}
-      <div id="faqs" className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+      <div id="faqs" className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
         <h2 className="text-label-md text-text-strong-950 mb-4">Frequently Asked Questions</h2>
         
         {filteredFaqs.length === 0 ? (
           <div className="text-center py-8">
-            <RiSearchLine className="size-12 text-text-soft-400 mx-auto mb-4" />
+            <MagnifyingGlass weight="duotone" className="size-12 text-text-soft-400 mx-auto mb-4" />
             <p className="text-paragraph-sm text-text-sub-600">
               No results found for "{searchQuery}"
             </p>
@@ -275,19 +275,16 @@ export default function HelpPage() {
             </Button.Root>
           </div>
         ) : (
-          <Accordion.Root type="single" collapsible className="space-y-2">
+          <Accordion.Root type="single" collapsible className="space-y-3">
             {filteredFaqs.map((faq) => (
               <Accordion.Item key={faq.id} value={faq.id}>
-                <Accordion.Header>
-                  <Accordion.Trigger>
-                    <Accordion.Arrow />
-                    {faq.question}
-                  </Accordion.Trigger>
-                </Accordion.Header>
-                <Accordion.Content>
-                  <div className="whitespace-pre-line">
-                    {faq.answer}
-                  </div>
+                <Accordion.Trigger>
+                  <Accordion.Icon as={Question} />
+                  {faq.question}
+                  <Accordion.Arrow />
+                </Accordion.Trigger>
+                <Accordion.Content className="pl-[30px]">
+                  <div className="whitespace-pre-line">{faq.answer}</div>
                 </Accordion.Content>
               </Accordion.Item>
             ))}
@@ -304,12 +301,12 @@ export default function HelpPage() {
       </div>
 
       {/* Contact Support */}
-      <div id="contact" className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+      <div id="contact" className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
         <h2 className="text-label-md text-text-strong-950 mb-4">Contact Support</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="flex items-center gap-4 p-4 rounded-10 bg-bg-weak-50">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-white-0">
-              <RiMailLine className="size-5 text-text-sub-600" />
+              <Envelope weight="duotone" className="size-5 text-text-sub-600" />
             </div>
             <div>
               <div className="text-label-sm text-text-strong-950">Email</div>
@@ -323,7 +320,7 @@ export default function HelpPage() {
           </div>
           <div className="flex items-center gap-4 p-4 rounded-10 bg-bg-weak-50">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-white-0">
-              <RiPhoneLine className="size-5 text-text-sub-600" />
+              <Phone weight="duotone" className="size-5 text-text-sub-600" />
             </div>
             <div>
               <div className="text-label-sm text-text-strong-950">Phone</div>
@@ -337,7 +334,7 @@ export default function HelpPage() {
           </div>
           <div className="flex items-center gap-4 p-4 rounded-10 bg-bg-weak-50">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-white-0">
-              <RiMessage2Line className="size-5 text-text-sub-600" />
+              <ChatCircle weight="duotone" className="size-5 text-text-sub-600" />
             </div>
             <div>
               <div className="text-label-sm text-text-strong-950">Live Chat</div>
@@ -349,7 +346,7 @@ export default function HelpPage() {
         </div>
         <div className="mt-6 text-center">
           <Button.Root variant="primary">
-            <Button.Icon as={RiMessage2Line} />
+            <Button.Icon as={ChatCircle} />
             Start Live Chat
           </Button.Root>
         </div>

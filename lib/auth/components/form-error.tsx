@@ -1,6 +1,6 @@
 "use client"
 
-import { RiErrorWarningLine } from "@remixicon/react"
+import { WarningCircle } from "@phosphor-icons/react"
 import { useFormState } from "react-hook-form"
 
 import { cn } from "../lib/utils"
@@ -19,7 +19,7 @@ export function FormError({ title, classNames }: FormErrorProps) {
 
     return (
         <Alert variant="destructive" className={cn(classNames?.error)}>
-            <RiErrorWarningLine className="self-center" size={16} />
+            <WarningCircle className="self-center" size={16} />
             <AlertTitle>{title || "Error"}</AlertTitle>
             <AlertDescription>{errors.root.message}</AlertDescription>
         </Alert>

@@ -1,4 +1,4 @@
-import { RiLockLine, RiMailLine } from "@remixicon/react"
+import { Lock, Envelope } from "@phosphor-icons/react"
 import { useContext } from "react"
 
 import { AuthUIContext } from "../../lib/auth-ui-provider"
@@ -40,9 +40,9 @@ export function EmailOTPButton({
             }
         >
             {view === "EMAIL_OTP" ? (
-                <RiLockLine className={classNames?.form?.icon} size={20} />
+                <Lock className={classNames?.form?.icon} size={20} />
             ) : (
-                <RiMailLine className={classNames?.form?.icon} size={20} />
+                <Envelope className={classNames?.form?.icon} size={20} />
             )}
             {localization.SIGN_IN_WITH}{" "}
             {view === "EMAIL_OTP"

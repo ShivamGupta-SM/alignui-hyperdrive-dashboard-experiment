@@ -9,15 +9,15 @@ import * as Select from '@/components/ui/select'
 import * as Checkbox from '@/components/ui/checkbox'
 import * as Radio from '@/components/ui/radio'
 import {
-  RiAlertLine,
-  RiInformationLine,
-  RiCheckLine,
-  RiCloseLine,
-  RiDeleteBinLine,
-  RiMoneyDollarCircleLine,
-  RiBankLine,
-  RiQrCodeLine,
-} from '@remixicon/react'
+  Warning,
+  Info,
+  Check,
+  X,
+  Trash,
+  CurrencyCircleDollar,
+  Bank,
+  QrCode,
+} from '@phosphor-icons/react'
 import { cn } from '@/utils/cn'
 import { REJECTION_REASONS } from '@/lib/constants'
 
@@ -135,7 +135,7 @@ export function ApproveEnrollmentModal({
         <Modal.Header>
           <div className="flex flex-col items-center text-center">
             <div className="flex size-12 items-center justify-center rounded-full bg-success-lighter mb-4">
-              <RiCheckLine className="size-6 text-success-base" />
+              <Check weight="bold" className="size-6 text-success-base" />
             </div>
             <Modal.Title>Confirm Approval</Modal.Title>
             <Modal.Description className="mt-2">
@@ -238,7 +238,7 @@ export function RejectEnrollmentModal({
         </Modal.Header>
         <Modal.Body className="space-y-4">
           <div className="rounded-10 bg-warning-lighter p-3 text-paragraph-sm text-warning-base">
-            <RiAlertLine className="inline-block size-4 mr-2" />
+            <Warning weight="duotone" className="inline-block size-4 mr-2" />
             This action cannot be undone. The shopper will be notified and the hold amount will be released.
           </div>
 
@@ -563,7 +563,7 @@ export function AddFundsModal({
 
           <div className="rounded-10 bg-bg-weak-50 p-4 text-center">
             <div className="flex size-32 mx-auto items-center justify-center rounded-10 bg-white border border-stroke-soft-200 mb-3">
-              <RiQrCodeLine className="size-16 text-text-soft-400" />
+              <QrCode weight="duotone" className="size-16 text-text-soft-400" />
             </div>
             <p className="text-paragraph-sm text-text-sub-600">
               Scan with any UPI app to pay {amount ? formatCurrency(Number(amount)) : '₹0'}
@@ -682,7 +682,7 @@ export function WithdrawalModal({
                     <Radio.Item value={account.id} className="mt-0.5" />
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <RiBankLine className="size-4 text-text-sub-600" />
+                        <Bank weight="duotone" className="size-4 text-text-sub-600" />
                         <span className="text-label-sm text-text-strong-950">
                           {account.bankName} - ****{account.accountNumber.slice(-4)}
                         </span>

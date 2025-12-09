@@ -6,7 +6,7 @@
 import * as React from 'react';
 import { tv, type VariantProps } from '@/utils/tv';
 import { cn } from '@/utils/cn';
-import { RiCloseLine } from '@remixicon/react';
+import { X } from '@phosphor-icons/react/dist/ssr';
 
 const FEATURED_CARD_NAME = 'FeaturedCard';
 const FEATURED_CARD_PROGRESS_BAR_NAME = 'FeaturedCardProgressBar';
@@ -126,7 +126,7 @@ const FeaturedCardProgressBar = React.forwardRef<
             onClick={onDismiss}
             aria-label='Close'
           >
-            <RiCloseLine className='size-4' />
+            <X weight="bold" className='size-4' />
           </button>
         )}
 
@@ -226,7 +226,7 @@ const FeaturedCardProgressCircle = React.forwardRef<
             onClick={onDismiss}
             aria-label='Close'
           >
-            <RiCloseLine className='size-4' />
+            <X weight="bold" className='size-4' />
           </button>
         )}
 
@@ -333,7 +333,7 @@ const FeaturedCard = React.forwardRef<HTMLDivElement, FeaturedCardProps>(
             onClick={onDismiss}
             aria-label='Close'
           >
-            <RiCloseLine className='size-4' />
+            <X weight="bold" className='size-4' />
           </button>
         )}
 

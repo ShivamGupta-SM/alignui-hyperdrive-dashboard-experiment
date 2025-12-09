@@ -1,6 +1,6 @@
 "use client"
 
-import { EyeIcon, EyeSlashIcon } from "@heroicons/react/20/solid"
+import { Eye, EyeSlash } from "@phosphor-icons/react"
 import { type ComponentProps, useState } from "react"
 
 import { cn } from "../lib/utils"
@@ -38,7 +38,7 @@ export function PasswordInput({
                         variant="ghost"
                         onClick={() => setIsVisible(!isVisible)}
                     >
-                        {isVisible ? <EyeIcon className="size-5" /> : <EyeSlashIcon className="size-5" />}
+                        {isVisible ? <Eye className="size-5" /> : <EyeSlash className="size-5" />}
                     </Button>
 
                     <style>{`

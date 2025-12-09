@@ -1,7 +1,7 @@
 "use client"
 
 import type { Organization } from "better-auth/plugins/organization"
-import { RiDeleteBinLine, RiUploadCloud2Line } from "@remixicon/react"
+import { Trash, CloudArrowUp } from "@phosphor-icons/react"
 import {
     type ComponentProps,
     useContext,
@@ -285,7 +285,7 @@ function OrganizationLogoForm({
                             onClick={openFileDialog}
                             disabled={loading || !hasPermission?.success}
                         >
-                            <RiUploadCloud2Line size={20} />
+                            <CloudArrowUp size={20} />
 
                             {localization.UPLOAD_LOGO}
                         </DropdownMenuItem>
@@ -296,7 +296,7 @@ function OrganizationLogoForm({
                                 disabled={loading || !hasPermission?.success}
                                 variant="destructive"
                             >
-                                <RiDeleteBinLine size={20} />
+                                <Trash size={20} />
 
                                 {localization.DELETE_LOGO}
                             </DropdownMenuItem>

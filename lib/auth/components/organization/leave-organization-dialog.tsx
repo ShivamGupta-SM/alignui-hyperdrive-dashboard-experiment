@@ -2,7 +2,7 @@
 "use client"
 
 import type { Organization } from "better-auth/plugins/organization"
-import { RiLoader4Line } from "@remixicon/react"
+import { CircleNotch } from "@phosphor-icons/react"
 import { type ComponentProps, useContext, useMemo, useState } from "react"
 
 import { AuthUIContext } from "../../lib/auth-ui-provider"
@@ -145,7 +145,7 @@ export function LeaveOrganizationDialog({
                         )}
                         disabled={isLeaving}
                     >
-                        {isLeaving && <RiLoader4Line className="animate-spin" size={20} />}
+                        {isLeaving && <CircleNotch className="animate-spin" size={20} />}
 
                         {localization.LEAVE_ORGANIZATION}
                     </Button>

@@ -3,7 +3,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { BetterFetchOption } from "better-auth/react"
-import { RiLoader4Line } from "@remixicon/react"
+import { CircleNotch } from "@phosphor-icons/react"
 import { useContext, useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -168,7 +168,7 @@ function EmailForm({
                     )}
                 >
                     {isSubmitting ? (
-                        <RiLoader4Line className="animate-spin" size={20} />
+                        <CircleNotch className="animate-spin" size={20} />
                     ) : (
                         localization.EMAIL_OTP_SEND_ACTION
                     )}
@@ -303,7 +303,7 @@ export function OTPForm({
                             classNames?.primaryButton
                         )}
                     >
-                        {isSubmitting && <RiLoader4Line className="animate-spin" size={20} />}
+                        {isSubmitting && <CircleNotch className="animate-spin" size={20} />}
                         {localization.EMAIL_OTP_VERIFY_ACTION}
                     </Button>
                 </div>

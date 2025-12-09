@@ -1,7 +1,7 @@
 "use client"
 
 import type { Organization } from "better-auth/plugins/organization"
-import { RiBuilding2Line } from "@remixicon/react"
+import { Buildings } from "@phosphor-icons/react"
 import { type ComponentProps, useContext, useMemo } from "react"
 
 import { AuthUIContext } from "../../lib/auth-ui-provider"
@@ -111,7 +111,7 @@ export function OrganizationLogo({
                 className={cn("text-text-strong-950", classNames?.fallback)}
                 delayMs={src ? 600 : undefined}
             >
-                <RiBuilding2Line
+                <Buildings
                     className={cn(classNames?.fallbackIcon)}
                     size="50%"
                 />

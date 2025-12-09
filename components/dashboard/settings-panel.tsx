@@ -10,24 +10,24 @@ import * as Divider from '@/components/ui/divider'
 import * as Input from '@/components/ui/input'
 import * as Select from '@/components/ui/select'
 import {
-  RiCloseLine,
-  RiArrowLeftLine,
-  RiArrowRightSLine,
-  RiUserLine,
-  RiLockLine,
-  RiNotification3Line,
-  RiMoonLine,
-  RiSunLine,
-  RiBuilding2Line,
-  RiTeamLine,
-  RiBankCardLine,
-  RiQuestionLine,
-  RiBookOpenLine,
-  RiCustomerService2Line,
-  RiLogoutBoxLine,
-  RiCheckLine,
-  RiAddLine,
-} from '@remixicon/react'
+  X,
+  ArrowLeft,
+  CaretRight,
+  User,
+  Lock,
+  Bell,
+  Moon,
+  Sun,
+  Buildings,
+  UsersThree,
+  CreditCard,
+  Question,
+  BookOpen,
+  Headset,
+  SignOut,
+  Check,
+  Plus,
+} from '@phosphor-icons/react'
 
 interface SettingsPanelProps {
   open: boolean
@@ -97,9 +97,11 @@ export function SettingsPanel({
       <div
         className={cn(
           // Base positioning and styling
-          'fixed inset-y-0 right-0 z-50 flex flex-col bg-bg-white-0 shadow-2xl overflow-hidden',
-          // Width: full on mobile, max-w-sm on larger screens
-          'w-full sm:max-w-sm',
+          'fixed z-50 flex flex-col bg-bg-white-0 shadow-2xl overflow-hidden',
+          // Mobile: full screen
+          'inset-0',
+          // Desktop: positioned right with margin from edges, rounded corners on all sides
+          'sm:inset-y-3 sm:right-3 sm:left-auto sm:w-[400px] sm:rounded-2xl',
           // Animation
           'transform transition-transform duration-300 ease-in-out',
           open ? 'translate-x-0' : 'translate-x-full',
@@ -155,43 +157,47 @@ function MainSettingsPanel({
 }: MainSettingsPanelProps) {
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-stroke-soft-200 px-5 py-4">
-        <h2 className="text-label-lg text-text-strong-950 font-semibold">Settings</h2>
-        <button
+      {/* Header - Consistent with notifications drawer */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-stroke-soft-200">
+        <div className="flex items-center gap-3">
+          <Avatar.Root size="40" color="blue" className="ring-2 ring-primary-base/20">
+            {user.avatar ? (
+              <Avatar.Image src={user.avatar} alt={user.name} />
+            ) : (
+              <span className="text-label-md font-semibold">
+                {user.name.charAt(0).toUpperCase()}
+              </span>
+            )}
+          </Avatar.Root>
+          <div>
+            <h2 className="text-label-md text-text-strong-950">{user.name}</h2>
+            <p className="text-paragraph-xs text-text-sub-600">{user.email}</p>
+          </div>
+        </div>
+        <button 
           onClick={onClose}
-          className="flex size-8 items-center justify-center rounded-8 text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
-          aria-label="Close settings"
+          className="size-8 rounded-lg flex items-center justify-center text-text-sub-600 hover:bg-bg-weak-50 hover:text-text-strong-950 transition-colors"
         >
-          <RiCloseLine className="size-5" />
+          <X className="size-5" weight="bold" />
         </button>
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        {/* User Profile Card */}
-        <div className="p-5">
-          <div className="flex items-center gap-4 rounded-16 bg-gradient-to-br from-primary-base/5 to-purple-500/5 p-4 ring-1 ring-inset ring-stroke-soft-200">
-            <Avatar.Root size="56" color="blue">
-              {user.avatar ? (
-                <Avatar.Image src={user.avatar} alt={user.name} />
-              ) : (
-                <span className="text-title-h5 font-semibold">
-                  {user.name.charAt(0).toUpperCase()}
-                </span>
-              )}
-            </Avatar.Root>
-            <div className="min-w-0 flex-1">
-              <h3 className="truncate text-label-md text-text-strong-950 font-medium">
-                {user.name}
-              </h3>
-              <p className="truncate text-paragraph-sm text-text-sub-600">
-                {user.email}
-              </p>
-              <p className="truncate text-paragraph-xs text-text-soft-400 mt-0.5">
-                {user.role || 'Admin'} • {organization?.name || 'Organization'}
+        {/* Quick Actions Card */}
+        <div className="p-4">
+          <div className="flex items-center gap-3 rounded-xl bg-gradient-to-br from-primary-base/5 to-purple-500/5 p-4 ring-1 ring-inset ring-stroke-soft-200">
+            <div className="flex-1 min-w-0">
+              <p className="text-paragraph-sm text-text-sub-600">
+                {user.role || 'Admin'} at <span className="font-medium text-text-strong-950">{organization?.name || 'Organization'}</span>
               </p>
             </div>
+            <button 
+              onClick={() => onMenuClick('org-settings')}
+              className="text-label-xs text-primary-base hover:text-primary-dark transition-colors shrink-0"
+            >
+              Manage →
+            </button>
           </div>
         </div>
 
@@ -200,26 +206,26 @@ function MainSettingsPanel({
           <SectionHeader>Account</SectionHeader>
           <div className="space-y-1">
             <MenuItem
-              icon={RiUserLine}
+              icon={User}
               label="My Profile"
               onClick={() => onMenuClick('profile')}
             />
             <MenuItem
-              icon={RiLockLine}
+              icon={Lock}
               label="Change Password"
               onClick={() => onMenuClick('password')}
             />
             <MenuItem
-              icon={RiNotification3Line}
+              icon={Bell}
               label="Notifications"
               onClick={() => onMenuClick('notifications')}
             />
             <div className="flex items-center justify-between rounded-10 px-3 py-2.5">
               <div className="flex items-center gap-3">
                 {isDarkMode ? (
-                  <RiMoonLine className="size-5 text-text-sub-600" />
+                  <Moon className="size-5 text-text-sub-600" weight="duotone" />
                 ) : (
-                  <RiSunLine className="size-5 text-text-sub-600" />
+                  <Sun className="size-5 text-text-sub-600" weight="duotone" />
                 )}
                 <span className="text-paragraph-sm text-text-strong-950">
                   Dark Mode
@@ -240,17 +246,17 @@ function MainSettingsPanel({
           <SectionHeader>Organization</SectionHeader>
           <div className="space-y-1">
             <MenuItem
-              icon={RiBuilding2Line}
+              icon={Buildings}
               label="Org Settings"
               onClick={() => onMenuClick('org-settings')}
             />
             <MenuItem
-              icon={RiTeamLine}
+              icon={UsersThree}
               label="Team Members"
               onClick={() => onMenuClick('team')}
             />
             <MenuItem
-              icon={RiBankCardLine}
+              icon={CreditCard}
               label="Billing"
               onClick={() => onMenuClick('billing')}
             />
@@ -264,18 +270,18 @@ function MainSettingsPanel({
           <SectionHeader>Support</SectionHeader>
           <div className="space-y-1">
             <MenuItem
-              icon={RiQuestionLine}
+              icon={Question}
               label="Help Center"
               onClick={() => onMenuClick('help')}
             />
             <MenuItem
-              icon={RiBookOpenLine}
+              icon={BookOpen}
               label="Documentation"
               href="https://docs.hypedrive.com"
               external
             />
             <MenuItem
-              icon={RiCustomerService2Line}
+              icon={Headset}
               label="Contact Support"
               onClick={() => onMenuClick('contact')}
             />
@@ -284,12 +290,12 @@ function MainSettingsPanel({
       </div>
 
       {/* Footer - Sign Out */}
-      <div className="border-t border-stroke-soft-200 p-5">
+      <div className="border-t border-stroke-soft-200 px-5 py-3">
         <button
           onClick={onSignOut}
-          className="flex w-full items-center justify-center gap-2 rounded-10 py-2.5 text-error-base transition-colors hover:bg-error-lighter"
+          className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-error-base transition-colors hover:bg-error-lighter active:scale-[0.99]"
         >
-          <RiLogoutBoxLine className="size-5" />
+          <SignOut className="size-5" weight="duotone" />
           <span className="text-label-sm font-medium">Sign Out</span>
         </button>
       </div>
@@ -326,20 +332,20 @@ function SubPanel({ type, onBack, onClose, isDarkMode }: SubPanelProps) {
       <div className="flex items-center gap-3 border-b border-stroke-soft-200 px-5 py-4">
         <button
           onClick={onBack}
-          className="flex size-8 items-center justify-center rounded-8 text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
+          className="size-8 rounded-lg flex items-center justify-center text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
           aria-label="Back"
         >
-          <RiArrowLeftLine className="size-5" />
+          <ArrowLeft className="size-5" weight="bold" />
         </button>
-        <h2 className="flex-1 text-label-lg text-text-strong-950 font-semibold">
+        <h2 className="flex-1 text-label-md text-text-strong-950">
           {titles[type!]}
         </h2>
         <button
           onClick={onClose}
-          className="flex size-8 items-center justify-center rounded-8 text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
+          className="size-8 rounded-lg flex items-center justify-center text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
           aria-label="Close"
         >
-          <RiCloseLine className="size-5" />
+          <X className="size-5" weight="bold" />
         </button>
       </div>
 
@@ -483,7 +489,7 @@ function NotificationsSubPanel() {
       <Button.Root variant="primary" className="w-full" onClick={handleSave}>
         {saved ? (
           <>
-            <RiCheckLine className="size-4" />
+            <Check className="size-4" weight="bold" />
             Saved!
           </>
         ) : (
@@ -617,7 +623,7 @@ function ContactSubPanel() {
   return (
     <div className="space-y-5">
       <div className="rounded-12 bg-bg-weak-50 p-4 text-center">
-        <RiCustomerService2Line className="size-10 text-primary-base mx-auto mb-2" />
+        <Headset className="size-10 text-primary-base mx-auto mb-2" weight="duotone" />
         <h4 className="text-label-md text-text-strong-950">Need Help?</h4>
         <p className="text-paragraph-sm text-text-sub-600 mt-1">
           Our support team is available 24/7
@@ -748,7 +754,7 @@ function TeamSubPanel() {
       <div className="flex items-center justify-between">
         <p className="text-paragraph-sm text-text-sub-600">3 team members</p>
         <Button.Root variant="primary" size="small">
-          <RiAddLine className="size-4" />
+          <Plus className="size-4" weight="bold" />
           Invite
         </Button.Root>
       </div>
@@ -795,7 +801,7 @@ function BillingSubPanel() {
           <span className="text-title-h5 font-semibold text-text-strong-950">₹25,000</span>
         </div>
         <Button.Root variant="basic" size="small" className="w-full">
-          <RiAddLine className="size-4" />
+          <Plus className="size-4" weight="bold" />
           Add Funds
         </Button.Root>
       </div>
@@ -806,7 +812,7 @@ function BillingSubPanel() {
         <div className="flex items-center justify-between rounded-12 bg-bg-weak-50 p-3">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-lg bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200">
-              <RiBankCardLine className="size-5 text-text-sub-600" />
+              <CreditCard className="size-5 text-text-sub-600" weight="duotone" />
             </div>
             <div>
               <p className="text-label-sm text-text-strong-950">•••• 4242</p>
@@ -860,16 +866,16 @@ function MenuItem({ icon: Icon, label, onClick, href, external }: MenuItemProps)
   const content = (
     <>
       <div className="flex items-center gap-3">
-        <Icon className="size-5 text-text-sub-600" />
+        <Icon className="size-5 text-text-sub-600" weight="duotone" />
         <span className="text-paragraph-sm text-text-strong-950">{label}</span>
       </div>
-      <RiArrowRightSLine className="size-5 text-text-soft-400" />
+      <CaretRight className="size-4 text-text-soft-400" />
     </>
   )
 
   const className = cn(
-    'flex w-full items-center justify-between rounded-10 px-3 py-2.5 transition-colors',
-    'hover:bg-bg-weak-50'
+    'flex w-full items-center justify-between rounded-xl px-3 py-2.5 transition-all',
+    'hover:bg-bg-weak-50 active:scale-[0.99]'
   )
 
   if (href) {

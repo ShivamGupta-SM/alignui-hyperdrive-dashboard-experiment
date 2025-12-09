@@ -12,21 +12,21 @@ import * as List from '@/components/ui/list'
 import { Metric, MetricGroup } from '@/components/ui/metric'
 import { getAvatarColor } from '@/utils/avatar-color'
 import {
-  RiUserLine,
-  RiLockLine,
-  RiBellLine,
-  RiDeviceLine,
-  RiUploadCloud2Line,
-  RiCheckLine,
-  RiComputerLine,
-  RiSmartphoneLine,
-  RiMacLine,
-  RiShieldCheckLine,
-  RiMailLine,
-  RiTimeLine,
-  RiAlertLine,
-  RiInformationLine,
-} from '@remixicon/react'
+  User as UserIcon,
+  Lock,
+  Bell,
+  Devices,
+  CloudArrowUp,
+  Check,
+  Desktop,
+  DeviceMobile,
+  Laptop,
+  ShieldCheck,
+  Envelope,
+  Clock,
+  Warning,
+  Info,
+} from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import type { User } from '@/lib/types'
 
@@ -44,7 +44,7 @@ const mockSessions = [
   {
     id: '1',
     device: 'Windows • Chrome',
-    icon: RiComputerLine,
+    icon: Desktop,
     ip: '103.21.xxx.xxx',
     location: 'Mumbai, India',
     lastActive: 'Just now',
@@ -54,7 +54,7 @@ const mockSessions = [
   {
     id: '2',
     device: 'iPhone • Safari',
-    icon: RiSmartphoneLine,
+    icon: DeviceMobile,
     ip: '103.21.xxx.xxx',
     location: 'Mumbai, India',
     lastActive: '2 hours ago',
@@ -64,7 +64,7 @@ const mockSessions = [
   {
     id: '3',
     device: 'MacOS • Firefox',
-    icon: RiMacLine,
+    icon: Laptop,
     ip: '49.36.xxx.xxx',
     location: 'Bengaluru, India',
     lastActive: '1 day ago',
@@ -91,7 +91,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Account Overview */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
         <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
           <Avatar.Root size="64" color={getAvatarColor(user.name)} className="shrink-0">
             {user.avatar ? (
@@ -117,19 +117,19 @@ export default function ProfilePage() {
         <TabMenu.Root value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
           <TabMenu.List className="min-w-max">
           <TabMenu.Trigger value="profile">
-            <RiUserLine className="size-4 mr-2" />
+            <UserIcon className="size-4 mr-2" />
             Profile
           </TabMenu.Trigger>
           <TabMenu.Trigger value="security">
-            <RiLockLine className="size-4 mr-2" />
+            <Lock className="size-4 mr-2" />
             Security
           </TabMenu.Trigger>
           <TabMenu.Trigger value="notifications">
-            <RiBellLine className="size-4 mr-2" />
+            <Bell className="size-4 mr-2" />
             Notifications
           </TabMenu.Trigger>
           <TabMenu.Trigger value="sessions">
-            <RiDeviceLine className="size-4 mr-2" />
+            <Devices className="size-4 mr-2" />
             Sessions
           </TabMenu.Trigger>
           </TabMenu.List>
@@ -163,7 +163,7 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
     setIsSaving(true)
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000))
-      setUser((prev) => ({ ...prev, name, email }))
+      setUser((prev: User) => ({ ...prev, name, email }))
     } finally {
       setIsSaving(false)
     }
@@ -172,7 +172,7 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Avatar Section */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-6">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-6">
         <h3 className="text-label-sm sm:text-label-md text-text-strong-950 mb-3 sm:mb-4">Profile Photo</h3>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
           <Avatar.Root size="80" color={getAvatarColor(user.name)} className="shrink-0">
@@ -184,7 +184,7 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
           </Avatar.Root>
           <div className="flex-1">
             <FileUpload.Root htmlFor="avatar-upload">
-              <FileUpload.Icon as={RiUploadCloud2Line} />
+              <FileUpload.Icon as={CloudArrowUp} />
               <FileUpload.Button>Change Photo</FileUpload.Button>
               <p className="text-paragraph-xs text-text-soft-400">
                 PNG or JPG, max 2MB
@@ -201,7 +201,7 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
       </div>
 
       {/* Personal Information - Using List */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-6">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-6">
         <h3 className="text-label-sm sm:text-label-md text-text-strong-950 mb-3 sm:mb-4">Personal Information</h3>
         <div className="space-y-4 max-w-md">
           <div>
@@ -231,7 +231,7 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
               </Input.Wrapper>
             </Input.Root>
             <div className="flex items-center gap-2 mt-2 p-2 rounded-10 bg-information-lighter">
-              <RiInformationLine className="size-4 text-information-base shrink-0" />
+              <Info className="size-4 text-information-base shrink-0" />
               <span className="text-paragraph-xs text-information-dark">
                 Changing your email will require verification
               </span>
@@ -271,7 +271,7 @@ function SecurityTab() {
   return (
     <div className="space-y-6">
       {/* Change Password */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
         <h3 className="text-label-md text-text-strong-950 mb-4">Change Password</h3>
         <div className="space-y-4 max-w-md">
           <div>
@@ -329,12 +329,12 @@ function SecurityTab() {
       </div>
 
       {/* Two-Factor Authentication - Using List */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
         <List.Root size="lg">
           <List.Item>
             <List.ItemIcon>
               <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10">
-                <RiShieldCheckLine className="size-5 text-primary-base" />
+                <ShieldCheck className="size-5 text-primary-base" />
               </div>
             </List.ItemIcon>
             <List.ItemContent>
@@ -352,7 +352,7 @@ function SecurityTab() {
         {twoFactorEnabled && (
           <div className="mt-4 pt-4 border-t border-stroke-soft-200">
             <StatusBadge.Root status="completed" variant="light">
-              <StatusBadge.Icon as={RiCheckLine} />
+              <StatusBadge.Icon as={Check} />
               2FA Enabled
             </StatusBadge.Root>
             <p className="text-paragraph-sm text-text-sub-600 mt-2">
@@ -388,10 +388,10 @@ function NotificationsTab() {
   return (
     <div className="space-y-6">
       {/* Email Notifications - Using List */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10">
-            <RiMailLine className="size-5 text-primary-base" />
+            <Envelope className="size-5 text-primary-base" />
           </div>
           <h3 className="text-label-md text-text-strong-950">Email Notifications</h3>
         </div>
@@ -405,7 +405,7 @@ function NotificationsTab() {
               <Switch.Root
                 checked={emailNotifications.newEnrollments}
                 onCheckedChange={(checked) =>
-                  setEmailNotifications((prev) => ({ ...prev, newEnrollments: checked }))
+                  setEmailNotifications((prev: any) => ({ ...prev, newEnrollments: checked }))
                 }
               />
             </List.ItemAction>
@@ -419,7 +419,7 @@ function NotificationsTab() {
               <Switch.Root
                 checked={emailNotifications.campaignApprovals}
                 onCheckedChange={(checked) =>
-                  setEmailNotifications((prev) => ({ ...prev, campaignApprovals: checked }))
+                  setEmailNotifications((prev: any) => ({ ...prev, campaignApprovals: checked }))
                 }
               />
             </List.ItemAction>
@@ -433,7 +433,7 @@ function NotificationsTab() {
               <Switch.Root
                 checked={emailNotifications.walletUpdates}
                 onCheckedChange={(checked) =>
-                  setEmailNotifications((prev) => ({ ...prev, walletUpdates: checked }))
+                  setEmailNotifications((prev: any) => ({ ...prev, walletUpdates: checked }))
                 }
               />
             </List.ItemAction>
@@ -447,7 +447,7 @@ function NotificationsTab() {
               <Switch.Root
                 checked={emailNotifications.weeklySummary}
                 onCheckedChange={(checked) =>
-                  setEmailNotifications((prev) => ({ ...prev, weeklySummary: checked }))
+                  setEmailNotifications((prev: any) => ({ ...prev, weeklySummary: checked }))
                 }
               />
             </List.ItemAction>
@@ -456,10 +456,10 @@ function NotificationsTab() {
       </div>
 
       {/* Push Notifications - Using List */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10">
-            <RiBellLine className="size-5 text-primary-base" />
+            <Bell className="size-5 text-primary-base" />
           </div>
           <h3 className="text-label-md text-text-strong-950">Push Notifications</h3>
         </div>
@@ -473,7 +473,7 @@ function NotificationsTab() {
               <Switch.Root
                 checked={pushNotifications.instantAlerts}
                 onCheckedChange={(checked) =>
-                  setPushNotifications((prev) => ({ ...prev, instantAlerts: checked }))
+                  setPushNotifications((prev: any) => ({ ...prev, instantAlerts: checked }))
                 }
               />
             </List.ItemAction>
@@ -487,7 +487,7 @@ function NotificationsTab() {
               <Switch.Root
                 checked={pushNotifications.dailyDigest}
                 onCheckedChange={(checked) =>
-                  setPushNotifications((prev) => ({ ...prev, dailyDigest: checked }))
+                  setPushNotifications((prev: any) => ({ ...prev, dailyDigest: checked }))
                 }
               />
             </List.ItemAction>
@@ -496,12 +496,12 @@ function NotificationsTab() {
       </div>
 
       {/* Quiet Hours */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
         <List.Root size="lg">
           <List.Item>
             <List.ItemIcon>
               <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10">
-                <RiTimeLine className="size-5 text-primary-base" />
+                <Clock className="size-5 text-primary-base" />
               </div>
             </List.ItemIcon>
             <List.ItemContent>
@@ -511,7 +511,7 @@ function NotificationsTab() {
             <List.ItemAction>
               <Switch.Root
                 checked={quietHours.enabled}
-                onCheckedChange={(checked) => setQuietHours((prev) => ({ ...prev, enabled: checked }))}
+                onCheckedChange={(checked) => setQuietHours((prev: any) => ({ ...prev, enabled: checked }))}
               />
             </List.ItemAction>
           </List.Item>
@@ -525,7 +525,7 @@ function NotificationsTab() {
                   <Input.El
                     type="time"
                     value={quietHours.from}
-                    onChange={(e) => setQuietHours((prev) => ({ ...prev, from: e.target.value }))}
+                    onChange={(e) => setQuietHours((prev: any) => ({ ...prev, from: e.target.value }))}
                   />
                 </Input.Wrapper>
               </Input.Root>
@@ -537,7 +537,7 @@ function NotificationsTab() {
                   <Input.El
                     type="time"
                     value={quietHours.to}
-                    onChange={(e) => setQuietHours((prev) => ({ ...prev, to: e.target.value }))}
+                    onChange={(e) => setQuietHours((prev: any) => ({ ...prev, to: e.target.value }))}
                   />
                 </Input.Wrapper>
               </Input.Root>
@@ -591,7 +591,7 @@ function SessionsTab({ sessions }: SessionsTabProps) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-label-md text-text-strong-950">Active Sessions</h3>
           <Button.Root
@@ -648,7 +648,7 @@ function SessionsTab({ sessions }: SessionsTabProps) {
         </List.Root>
 
         <div className="flex items-center gap-2 mt-4 pt-4 border-t border-stroke-soft-200 p-3 rounded-10 bg-warning-lighter">
-          <RiAlertLine className="size-4 text-warning-base shrink-0" />
+          <Warning className="size-4 text-warning-base shrink-0" />
           <span className="text-paragraph-xs text-warning-dark">
             If you see a device you don't recognize, revoke access immediately and change your password.
           </span>

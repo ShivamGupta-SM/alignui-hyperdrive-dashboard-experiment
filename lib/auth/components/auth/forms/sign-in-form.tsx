@@ -3,7 +3,7 @@
 
 import type { BetterFetchOption } from "@better-fetch/fetch"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ArrowPathIcon } from "@heroicons/react/20/solid"
+import { CircleNotch } from "@phosphor-icons/react"
 import { useContext, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -284,7 +284,7 @@ export function SignInForm({
                     )}
                 >
                     {isSubmitting ? (
-                        <ArrowPathIcon className="animate-spin size-5" />
+                        <CircleNotch className="animate-spin size-5" />
                     ) : (
                         localization.SIGN_IN_ACTION
                     )}

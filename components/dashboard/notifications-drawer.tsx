@@ -5,15 +5,18 @@ import { cn } from '@/utils/cn'
 import * as Drawer from '@/components/ui/drawer'
 import * as Button from '@/components/ui/button'
 import * as Badge from '@/components/ui/badge'
-import * as TabMenu from '@/components/ui/tab-menu-horizontal'
 import {
-  RiUserFollowLine,
-  RiCheckLine,
-  RiWallet3Line,
-  RiAlertLine,
-  RiTeamLine,
-  RiFileList3Line,
-} from '@remixicon/react'
+  UserPlus,
+  Check,
+  Wallet,
+  Warning,
+  UsersThree,
+  FileText,
+  BellSimple,
+  CheckCircle,
+  X,
+  DotsThree,
+} from '@phosphor-icons/react'
 import type { Notification, NotificationType } from '@/lib/types'
 
 interface NotificationsDrawerProps {
@@ -35,76 +38,112 @@ const mockNotifications: Notification[] = [
     actionUrl: '/dashboard/enrollments/1',
     actionLabel: 'Review Now',
     isRead: false,
-    createdAt: new Date(Date.now() - 2 * 60 * 1000), // 2 min ago
+    createdAt: new Date(Date.now() - 2 * 60 * 1000),
   },
   {
     id: '2',
     userId: '1',
     type: 'campaign_approved',
     title: 'Campaign Live!',
-    message: '"Winter Collection" is now active',
+    message: '"Winter Collection" is now active and accepting enrollments',
     actionUrl: '/dashboard/campaigns/1',
     actionLabel: 'View Campaign',
     isRead: false,
-    createdAt: new Date(Date.now() - 15 * 60 * 1000), // 15 min ago
+    createdAt: new Date(Date.now() - 15 * 60 * 1000),
   },
   {
     id: '3',
     userId: '1',
     type: 'wallet_credit',
-    title: 'Wallet Update',
-    message: '₹50,000 credited to your wallet',
+    title: 'Payment Received',
+    message: '₹50,000 has been credited to your wallet',
     actionUrl: '/dashboard/wallet',
     actionLabel: 'View Wallet',
     isRead: true,
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
+    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
   },
   {
     id: '4',
     userId: '1',
     type: 'wallet_low_balance',
-    title: 'Low Balance Warning',
-    message: 'Wallet below ₹10,000 - add funds to continue',
+    title: 'Low Balance Alert',
+    message: 'Wallet balance below ₹10,000. Add funds to prevent campaign pauses.',
     actionUrl: '/dashboard/wallet',
     actionLabel: 'Add Funds',
     isRead: true,
-    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 hours ago
+    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
   },
   {
     id: '5',
     userId: '1',
     type: 'team_member_joined',
     title: 'Team Update',
-    message: 'Sarah Wilson joined your team',
+    message: 'Sarah Wilson has joined your organization',
     actionUrl: '/dashboard/team',
     actionLabel: 'View Team',
     isRead: true,
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
   },
 ]
 
 const notificationIcons: Record<NotificationType, React.ElementType> = {
-  enrollment_new: RiUserFollowLine,
-  enrollment_approved: RiCheckLine,
-  enrollment_rejected: RiAlertLine,
-  campaign_approved: RiCheckLine,
-  campaign_rejected: RiAlertLine,
-  wallet_credit: RiWallet3Line,
-  wallet_low_balance: RiAlertLine,
-  team_member_joined: RiTeamLine,
-  invoice_generated: RiFileList3Line,
+  enrollment_new: UserPlus,
+  enrollment_approved: Check,
+  enrollment_rejected: Warning,
+  campaign_approved: CheckCircle,
+  campaign_rejected: Warning,
+  wallet_credit: Wallet,
+  wallet_low_balance: Warning,
+  team_member_joined: UsersThree,
+  invoice_generated: FileText,
 }
 
-const notificationColors: Record<NotificationType, string> = {
-  enrollment_new: 'bg-primary-lighter text-primary-base',
-  enrollment_approved: 'bg-success-lighter text-success-base',
-  enrollment_rejected: 'bg-error-lighter text-error-base',
-  campaign_approved: 'bg-success-lighter text-success-base',
-  campaign_rejected: 'bg-error-lighter text-error-base',
-  wallet_credit: 'bg-success-lighter text-success-base',
-  wallet_low_balance: 'bg-warning-lighter text-warning-base',
-  team_member_joined: 'bg-information-lighter text-information-base',
-  invoice_generated: 'bg-bg-weak-50 text-text-sub-600',
+const notificationStyles: Record<NotificationType, { bg: string; icon: string; border: string }> = {
+  enrollment_new: { 
+    bg: 'bg-primary-alpha-10', 
+    icon: 'text-primary-base',
+    border: 'border-primary-base/20'
+  },
+  enrollment_approved: { 
+    bg: 'bg-success-lighter', 
+    icon: 'text-success-base',
+    border: 'border-success-base/20'
+  },
+  enrollment_rejected: { 
+    bg: 'bg-error-lighter', 
+    icon: 'text-error-base',
+    border: 'border-error-base/20'
+  },
+  campaign_approved: { 
+    bg: 'bg-success-lighter', 
+    icon: 'text-success-base',
+    border: 'border-success-base/20'
+  },
+  campaign_rejected: { 
+    bg: 'bg-error-lighter', 
+    icon: 'text-error-base',
+    border: 'border-error-base/20'
+  },
+  wallet_credit: { 
+    bg: 'bg-success-lighter', 
+    icon: 'text-success-base',
+    border: 'border-success-base/20'
+  },
+  wallet_low_balance: { 
+    bg: 'bg-warning-lighter', 
+    icon: 'text-warning-base',
+    border: 'border-warning-base/20'
+  },
+  team_member_joined: { 
+    bg: 'bg-information-lighter', 
+    icon: 'text-information-base',
+    border: 'border-information-base/20'
+  },
+  invoice_generated: { 
+    bg: 'bg-bg-weak-50', 
+    icon: 'text-text-sub-600',
+    border: 'border-stroke-soft-200'
+  },
 }
 
 export function NotificationsDrawer({
@@ -167,120 +206,179 @@ export function NotificationsDrawer({
     const hours = Math.floor(diff / 3600000)
     const days = Math.floor(diff / 86400000)
 
-    if (minutes < 60) return `${minutes}m ago`
-    if (hours < 24) return `${hours}h ago`
-    return `${days}d ago`
+    if (minutes < 1) return 'Just now'
+    if (minutes < 60) return `${minutes}m`
+    if (hours < 24) return `${hours}h`
+    return `${days}d`
   }
 
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange}>
       <Drawer.Content>
-        <Drawer.Header>
-          <Drawer.Title>
-            Notifications
-            {unreadCount > 0 && (
-              <Badge.Root color="red" variant="light" size="small" className="ml-2">
-                {unreadCount}
-              </Badge.Root>
-            )}
-          </Drawer.Title>
-        </Drawer.Header>
+        {/* Custom Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stroke-soft-200">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-xl bg-gradient-to-br from-primary-base to-primary-dark flex items-center justify-center">
+              <BellSimple className="size-5 text-white" weight="fill" />
+            </div>
+            <div>
+              <h2 className="text-label-md text-text-strong-950">Notifications</h2>
+              <p className="text-paragraph-xs text-text-sub-600">
+                {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => onOpenChange(false)}
+            className="size-8 rounded-lg flex items-center justify-center text-text-sub-600 hover:bg-bg-weak-50 hover:text-text-strong-950 transition-colors"
+          >
+            <X className="size-5" weight="bold" />
+          </button>
+        </div>
 
-        <Drawer.Body className="flex flex-col">
-          {/* Filter Tabs */}
-          <div className="px-5 pb-4 border-b border-stroke-soft-200">
-            <TabMenu.Root value={filter} onValueChange={(v) => setFilter(v as 'all' | 'unread')}>
-              <TabMenu.List>
-                <TabMenu.Trigger value="all">All</TabMenu.Trigger>
-                <TabMenu.Trigger value="unread">
-                  Unread {unreadCount > 0 && `(${unreadCount})`}
-                </TabMenu.Trigger>
-              </TabMenu.List>
-            </TabMenu.Root>
+        <Drawer.Body className="flex flex-col p-0">
+          {/* Filter Pills */}
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-stroke-soft-200">
+            <button
+              onClick={() => setFilter('all')}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-label-sm transition-all",
+                filter === 'all' 
+                  ? "bg-text-strong-950 text-white" 
+                  : "bg-bg-weak-50 text-text-sub-600 hover:bg-bg-soft-200"
+              )}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setFilter('unread')}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-label-sm transition-all flex items-center gap-1.5",
+                filter === 'unread' 
+                  ? "bg-text-strong-950 text-white" 
+                  : "bg-bg-weak-50 text-text-sub-600 hover:bg-bg-soft-200"
+              )}
+            >
+              Unread
+              {unreadCount > 0 && (
+                <span className={cn(
+                  "size-5 rounded-full text-[11px] font-medium flex items-center justify-center",
+                  filter === 'unread' 
+                    ? "bg-white/20 text-white" 
+                    : "bg-error-base text-white"
+                )}>
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            
+            {unreadCount > 0 && (
+              <button
+                onClick={onMarkAllRead}
+                className="ml-auto text-label-xs text-primary-base hover:text-primary-dark transition-colors"
+              >
+                Mark all read
+              </button>
+            )}
           </div>
 
           {/* Notifications List */}
           <div className="flex-1 overflow-y-auto">
             {groupedNotifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 px-5 text-center">
-                <div className="size-12 rounded-full bg-bg-weak-50 flex items-center justify-center mb-3">
-                  <RiCheckLine className="size-6 text-text-soft-400" />
+              <div className="flex flex-col items-center justify-center py-16 px-5 text-center">
+                <div className="size-16 rounded-2xl bg-gradient-to-br from-bg-weak-50 to-bg-soft-200 flex items-center justify-center mb-4">
+                  <CheckCircle className="size-8 text-success-base" weight="duotone" />
                 </div>
-                <p className="text-label-md text-text-strong-950 mb-1">All caught up!</p>
-                <p className="text-paragraph-sm text-text-sub-600">
-                  No {filter === 'unread' ? 'unread ' : ''}notifications
+                <p className="text-label-md text-text-strong-950 mb-1">You're all caught up!</p>
+                <p className="text-paragraph-sm text-text-sub-600 max-w-[240px]">
+                  {filter === 'unread' 
+                    ? 'No unread notifications. Check back later for updates.'
+                    : 'No notifications yet. We\'ll notify you when something happens.'}
                 </p>
               </div>
             ) : (
               groupedNotifications.map((group) => (
                 <div key={group.label}>
-                  <div className="px-5 py-2 bg-bg-weak-50">
-                    <span className="text-label-xs text-text-sub-600 uppercase">
+                  {/* Group Header */}
+                  <div className="sticky top-0 px-5 py-2 bg-bg-white-0/90 backdrop-blur-sm border-b border-stroke-soft-200/50">
+                    <span className="text-label-xs text-text-soft-400 uppercase tracking-wider">
                       {group.label}
                     </span>
                   </div>
-                  {group.notifications.map((notification) => {
-                    const Icon = notificationIcons[notification.type]
-                    const colorClass = notificationColors[notification.type]
+                  
+                  {/* Notification Items */}
+                  <div className="px-3 py-2">
+                    {group.notifications.map((notification) => {
+                      const Icon = notificationIcons[notification.type]
+                      const styles = notificationStyles[notification.type]
 
-                    return (
-                      <button
-                        key={notification.id}
-                        onClick={() => onNotificationClick?.(notification)}
-                        className={cn(
-                          'w-full text-left px-5 py-4 border-b border-stroke-soft-200',
-                          'transition-colors hover:bg-bg-weak-50',
-                          !notification.isRead && 'bg-primary-alpha-10'
-                        )}
-                      >
-                        <div className="flex gap-3">
-                          <div className={cn('size-8 rounded-full flex items-center justify-center shrink-0', colorClass)}>
-                            <Icon className="size-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className="text-label-sm text-text-strong-950">
-                                {notification.title}
-                              </span>
-                              <span className="text-paragraph-xs text-text-soft-400 shrink-0">
-                                {formatTime(notification.createdAt)}
-                              </span>
-                            </div>
-                            <p className="text-paragraph-sm text-text-sub-600 mb-2">
-                              {notification.message}
-                            </p>
-                            {notification.actionLabel && (
-                              <span className="text-label-xs text-primary-base">
-                                {notification.actionLabel} →
-                              </span>
-                            )}
-                          </div>
-                          {!notification.isRead && (
-                            <div className="size-2 rounded-full bg-primary-base shrink-0 mt-2" />
+                      return (
+                        <button
+                          key={notification.id}
+                          onClick={() => onNotificationClick?.(notification)}
+                          className={cn(
+                            'w-full text-left p-3 rounded-xl mb-1 last:mb-0',
+                            'transition-all duration-200',
+                            'hover:bg-bg-weak-50 active:scale-[0.99]',
+                            !notification.isRead && 'bg-primary-alpha-5 hover:bg-primary-alpha-10'
                           )}
-                        </div>
-                      </button>
-                    )
-                  })}
+                        >
+                          <div className="flex gap-3">
+                            {/* Icon */}
+                            <div className={cn(
+                              'size-10 rounded-xl flex items-center justify-center shrink-0 border',
+                              styles.bg,
+                              styles.border
+                            )}>
+                              <Icon className={cn('size-5', styles.icon)} weight="duotone" />
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2 mb-0.5">
+                                <span className={cn(
+                                  "text-label-sm",
+                                  !notification.isRead ? "text-text-strong-950" : "text-text-sub-600"
+                                )}>
+                                  {notification.title}
+                                </span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-paragraph-xs text-text-soft-400">
+                                    {formatTime(notification.createdAt)}
+                                  </span>
+                                  {!notification.isRead && (
+                                    <span className="size-2 rounded-full bg-primary-base" />
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-paragraph-sm text-text-sub-600 line-clamp-2 mb-2">
+                                {notification.message}
+                              </p>
+                              {notification.actionLabel && (
+                                <span className="inline-flex items-center gap-1 text-label-xs text-primary-base hover:text-primary-dark transition-colors">
+                                  {notification.actionLabel}
+                                  <span className="text-xs">→</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               ))
             )}
           </div>
         </Drawer.Body>
 
-        {unreadCount > 0 && (
-          <Drawer.Footer>
-            <Button.Root
-              variant="basic"
-              className="w-full"
-              onClick={onMarkAllRead}
-            >
-              Mark All as Read
-            </Button.Root>
-          </Drawer.Footer>
-        )}
+        {/* Footer - Settings link */}
+        <div className="border-t border-stroke-soft-200 px-5 py-3">
+          <button className="w-full text-center text-label-sm text-text-sub-600 hover:text-text-strong-950 transition-colors py-2">
+            Notification Settings
+          </button>
+        </div>
       </Drawer.Content>
     </Drawer.Root>
   )
 }
-

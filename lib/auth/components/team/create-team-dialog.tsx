@@ -1,7 +1,7 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
-import { RiLoader4Line } from "@remixicon/react"
+import { CircleNotch } from "@phosphor-icons/react"
 import { type ComponentProps, useContext, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -182,7 +182,7 @@ export function CreateTeamDialog({
                                 disabled={isSubmitting || !organizationId}
                             >
                                 {isSubmitting && (
-                                    <RiLoader4Line className="animate-spin" size={20} />
+                                    <CircleNotch className="animate-spin" size={20} />
                                 )}
 
                                 {localization.CREATE_TEAM}

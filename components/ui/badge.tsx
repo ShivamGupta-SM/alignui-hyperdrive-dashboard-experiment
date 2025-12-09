@@ -7,7 +7,7 @@ import { tv, type VariantProps } from '@/utils/tv';
 import { recursiveCloneChildren } from '@/utils/recursive-clone-children';
 import type { PolymorphicComponentProps } from '@/utils/polymorphic';
 import { Slot } from '@radix-ui/react-slot';
-import { RiCloseLine } from '@remixicon/react';
+import { X } from '@phosphor-icons/react';
 import { cn } from '@/utils/cn';
 
 const BADGE_ROOT_NAME = 'BadgeRoot';
@@ -16,7 +16,10 @@ const BADGE_DOT_NAME = 'BadgeDot';
 
 export const badgeVariants = tv({
   slots: {
-    root: 'inline-flex items-center justify-center rounded-full leading-none transition duration-200 ease-out',
+    root: [
+      'inline-flex items-center justify-center rounded-full',
+      'font-medium transition duration-200 ease-out',
+    ],
     icon: 'shrink-0',
     dot: [
       // base
@@ -29,14 +32,14 @@ export const badgeVariants = tv({
   variants: {
     size: {
       small: {
-        root: 'h-5 gap-1 px-2 text-label-xs',
-        icon: '-mx-0.5 size-3.5',
-        dot: '-mx-1 size-3.5',
+        root: 'h-5 gap-1 px-2 text-[11px] leading-5',
+        icon: '-mx-0.5 size-3',
+        dot: '-mx-0.5 size-3',
       },
       medium: {
-        root: 'h-6 gap-1.5 px-2.5 text-label-sm',
-        icon: '-mx-0.5 size-4',
-        dot: '-mx-1 size-4',
+        root: 'h-6 gap-1.5 px-2.5 text-xs leading-6',
+        icon: '-mx-0.5 size-3.5',
+        dot: '-mx-0.5 size-3.5',
       },
     },
     variant: {
@@ -45,6 +48,7 @@ export const badgeVariants = tv({
       },
       light: {},
       lighter: {},
+      soft: {},
       stroke: {
         root: 'ring-1 ring-inset ring-current',
       },
@@ -290,6 +294,79 @@ export const badgeVariants = tv({
     },
     //#endregion
 
+    //#region variant=soft (modern alpha backgrounds with vibrant text)
+    {
+      variant: 'soft',
+      color: 'gray',
+      class: {
+        root: 'bg-neutral-alpha-10 text-text-sub-600',
+      },
+    },
+    {
+      variant: 'soft',
+      color: 'blue',
+      class: {
+        root: 'bg-blue-alpha-10 text-blue-600',
+      },
+    },
+    {
+      variant: 'soft',
+      color: 'orange',
+      class: {
+        root: 'bg-orange-alpha-10 text-orange-600',
+      },
+    },
+    {
+      variant: 'soft',
+      color: 'red',
+      class: {
+        root: 'bg-red-alpha-10 text-red-600',
+      },
+    },
+    {
+      variant: 'soft',
+      color: 'green',
+      class: {
+        root: 'bg-green-alpha-10 text-green-600',
+      },
+    },
+    {
+      variant: 'soft',
+      color: 'yellow',
+      class: {
+        root: 'bg-yellow-alpha-10 text-yellow-700',
+      },
+    },
+    {
+      variant: 'soft',
+      color: 'purple',
+      class: {
+        root: 'bg-purple-alpha-10 text-purple-600',
+      },
+    },
+    {
+      variant: 'soft',
+      color: 'sky',
+      class: {
+        root: 'bg-sky-alpha-10 text-sky-600',
+      },
+    },
+    {
+      variant: 'soft',
+      color: 'pink',
+      class: {
+        root: 'bg-pink-alpha-10 text-pink-600',
+      },
+    },
+    {
+      variant: 'soft',
+      color: 'teal',
+      class: {
+        root: 'bg-teal-alpha-10 text-teal-600',
+      },
+    },
+    //#endregion
+
     //#region variant=stroke
     {
       variant: 'stroke',
@@ -383,7 +460,7 @@ export const badgeVariants = tv({
     //#region disabled
     {
       disabled: true,
-      variant: ['stroke', 'filled', 'light', 'lighter'],
+      variant: ['stroke', 'filled', 'light', 'lighter', 'soft'],
       color: [
         'red',
         'gray',
@@ -545,7 +622,7 @@ function RemovableBadge({
         )}
         aria-label={removeAriaLabel}
       >
-        <RiCloseLine className="size-full" />
+        <X className="size-full" weight="bold" />
       </button>
     </div>
   );

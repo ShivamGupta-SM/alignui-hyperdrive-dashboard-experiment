@@ -11,18 +11,39 @@ import * as Checkbox from '@/components/ui/checkbox'
 import { Tracker } from '@/components/ui/tracker'
 import { getAvatarColor } from '@/utils/avatar-color'
 import {
-  RiSearchLine,
-  RiCheckLine,
-  RiCloseLine,
-  RiDownloadLine,
-  RiListCheck2,
-  RiLayoutGridLine,
-  RiArrowRightLine,
-  RiTimeLine,
-  RiUserLine,
-} from '@remixicon/react'
+  MagnifyingGlass,
+  Check,
+  X,
+  DownloadSimple,
+  ListChecks,
+  SquaresFour,
+  ArrowRight,
+  Clock,
+  User,
+  Warning,
+  Star,
+  Funnel,
+} from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import type { Enrollment, EnrollmentStatus, Campaign } from '@/lib/types'
+
+// Helper functions
+const getTimeAgo = (date: Date): string => {
+  const now = new Date()
+  const diffMs = now.getTime() - new Date(date).getTime()
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  if (diffHours < 1) return 'Just now'
+  if (diffHours < 24) return `${diffHours}h ago`
+  const diffDays = Math.floor(diffHours / 24)
+  if (diffDays === 1) return '1 day ago'
+  return `${diffDays} days ago`
+}
+
+const isOverdue = (date: Date): boolean => {
+  const now = new Date()
+  const diffMs = now.getTime() - new Date(date).getTime()
+  return diffMs > 48 * 60 * 60 * 1000 // >48 hours
+}
 
 // Mock data
 const mockEnrollments: Enrollment[] = [
@@ -214,13 +235,18 @@ function EnrollmentsContent() {
     return result
   }, [statusFilter, search])
 
-  const stats = React.useMemo(() => ({
-    total: mockEnrollments.length,
-    pending: mockEnrollments.filter(e => e.status === 'awaiting_review').length,
-    approved: mockEnrollments.filter(e => e.status === 'approved').length,
-    rejected: mockEnrollments.filter(e => e.status === 'rejected').length,
-    totalValue: mockEnrollments.reduce((acc, e) => acc + e.orderValue, 0),
-  }), [])
+  const stats = React.useMemo(() => {
+    const pendingEnrollments = mockEnrollments.filter(e => e.status === 'awaiting_review')
+    const overdueEnrollments = pendingEnrollments.filter(e => isOverdue(e.createdAt))
+    return {
+      total: mockEnrollments.length,
+      pending: pendingEnrollments.length,
+      overdue: overdueEnrollments.length,
+      approved: mockEnrollments.filter(e => e.status === 'approved').length,
+      rejected: mockEnrollments.filter(e => e.status === 'rejected').length,
+      totalValue: mockEnrollments.reduce((acc, e) => acc + e.orderValue, 0),
+    }
+  }, [])
 
   // Tracker data
   const trackerData = React.useMemo(() => {
@@ -273,6 +299,26 @@ function EnrollmentsContent() {
 
   return (
     <div className="space-y-4 sm:space-y-5">
+      {/* Overdue Alert */}
+      {stats.overdue > 0 && (
+        <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-error-lighter to-error-lighter/50 p-3 ring-1 ring-inset ring-error-base/20">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-error-base text-white">
+            <Warning weight="fill" className="size-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-label-sm text-error-base font-medium">
+              {stats.overdue} enrollment{stats.overdue > 1 ? 's' : ''} overdue
+            </p>
+            <p className="text-paragraph-xs text-text-sub-600 hidden sm:block">
+              Reviews pending for more than 48 hours
+            </p>
+          </div>
+          <Button.Root variant="error" size="xsmall" onClick={() => handleTabChange('awaiting_review')} className="shrink-0">
+            Review Now
+          </Button.Root>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
@@ -282,7 +328,7 @@ function EnrollmentsContent() {
           </p>
         </div>
         <Button.Root variant="basic" size="small" className="shrink-0">
-          <Button.Icon as={RiDownloadLine} />
+          <Button.Icon as={DownloadSimple} />
           <span className="hidden sm:inline">Export</span>
         </Button.Root>
       </div>
@@ -301,7 +347,7 @@ function EnrollmentsContent() {
           </span>
         </div>
         <Tracker data={trackerData} size="lg" className="mb-4" />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 pt-4 border-t border-stroke-soft-200">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 pt-4 border-t border-stroke-soft-200">
           <div>
             <span className="text-paragraph-xs text-text-soft-400 block">Total</span>
             <span className="text-label-lg text-text-strong-950 font-semibold">{stats.total}</span>
@@ -311,10 +357,14 @@ function EnrollmentsContent() {
             <span className="text-label-lg text-warning-base font-semibold">{stats.pending}</span>
           </div>
           <div>
+            <span className="text-paragraph-xs text-text-soft-400 block">Overdue</span>
+            <span className={cn("text-label-lg font-semibold", stats.overdue > 0 ? "text-error-base" : "text-text-soft-400")}>{stats.overdue}</span>
+          </div>
+          <div>
             <span className="text-paragraph-xs text-text-soft-400 block">Approved</span>
             <span className="text-label-lg text-success-base font-semibold">{stats.approved}</span>
           </div>
-          <div>
+          <div className="col-span-2 sm:col-span-1">
             <span className="text-paragraph-xs text-text-soft-400 block">Total Value</span>
             <span className="text-label-lg text-text-strong-950 font-semibold">{formatCurrency(stats.totalValue)}</span>
           </div>
@@ -356,7 +406,7 @@ function EnrollmentsContent() {
         {/* Search + View Toggle */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1 sm:flex-none">
-            <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-soft-400" />
+            <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-soft-400" />
             <input
               type="text"
               placeholder="Search..."
@@ -373,7 +423,7 @@ function EnrollmentsContent() {
                 viewMode === 'list' ? 'bg-bg-white-0 shadow-sm' : 'hover:bg-bg-soft-200'
               )}
             >
-              <RiListCheck2 className="size-4 text-text-sub-600" />
+              <ListChecks className="size-4 text-text-sub-600" />
             </button>
             <button
               onClick={() => setViewMode('compact')}
@@ -382,7 +432,7 @@ function EnrollmentsContent() {
                 viewMode === 'compact' ? 'bg-bg-white-0 shadow-sm' : 'hover:bg-bg-soft-200'
               )}
             >
-              <RiLayoutGridLine className="size-4 text-text-sub-600" />
+              <SquaresFour className="size-4 text-text-sub-600" />
             </button>
           </div>
         </div>
@@ -394,11 +444,11 @@ function EnrollmentsContent() {
           <span className="text-label-sm text-primary-base">{selectedIds.length} selected</span>
           <div className="flex items-center gap-2 ml-auto">
             <Button.Root variant="primary" size="xsmall">
-              <Button.Icon as={RiCheckLine} />
+              <Button.Icon as={Check} />
               Approve All
             </Button.Root>
             <Button.Root variant="basic" size="xsmall">
-              <Button.Icon as={RiCloseLine} />
+              <Button.Icon as={X} />
               Reject All
             </Button.Root>
           </div>
@@ -409,7 +459,7 @@ function EnrollmentsContent() {
       {filteredEnrollments.length === 0 ? (
         <div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-8 sm:p-12 text-center">
           <div className="size-12 mx-auto mb-4 rounded-full bg-success-lighter flex items-center justify-center">
-            <RiCheckLine className="size-6 text-success-base" />
+            <Check className="size-6 text-success-base" />
           </div>
           <h3 className="text-label-md text-text-strong-950 mb-1">All caught up!</h3>
           <p className="text-paragraph-sm text-text-sub-600">
@@ -463,15 +513,23 @@ interface EnrollmentListItemProps {
 
 function EnrollmentListItem({ enrollment, formatCurrency, selected, onSelect, onClick }: EnrollmentListItemProps) {
   const canSelect = enrollment.status === 'awaiting_review'
+  const enrollmentOverdue = enrollment.status === 'awaiting_review' && isOverdue(enrollment.createdAt)
+  const shopperRate = enrollment.shopper?.approvalRate ?? 0
+  const prevEnrollments = enrollment.shopper?.previousEnrollments ?? 0
+  const isTrustedShopper = shopperRate >= 90 && prevEnrollments >= 3
   
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-3 sm:p-4 transition-colors group",
-        selected && "ring-primary-base bg-primary-lighter"
+        "flex items-center gap-3 rounded-xl bg-bg-white-0 ring-1 ring-inset p-3 sm:p-4 transition-colors group",
+        selected 
+          ? "ring-primary-base bg-primary-lighter"
+          : enrollmentOverdue
+            ? "ring-error-base/50 bg-error-lighter/30"
+            : "ring-stroke-soft-200 hover:ring-stroke-sub-300"
       )}
     >
-      {/* Checkbox placeholder for alignment */}
+      {/* Checkbox */}
       <div className="w-5 shrink-0 flex items-center justify-center">
         {canSelect ? (
           <Checkbox.Root
@@ -484,26 +542,47 @@ function EnrollmentListItem({ enrollment, formatCurrency, selected, onSelect, on
       </div>
 
       {/* Clickable area */}
-      <button onClick={onClick} className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 text-left hover:opacity-80">
+      <button onClick={onClick} className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 text-left">
         {/* Avatar */}
-        <Avatar.Root size="40" color={getAvatarColor(enrollment.shopper?.name || '')} className="shrink-0">
-          {enrollment.shopper?.name?.charAt(0) || '?'}
-        </Avatar.Root>
+        <div className="relative shrink-0">
+          <Avatar.Root size="40" color={getAvatarColor(enrollment.shopper?.name || '')}>
+            {enrollment.shopper?.name?.charAt(0) || '?'}
+          </Avatar.Root>
+          {isTrustedShopper && (
+            <div className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full bg-success-base text-white flex items-center justify-center">
+              <Star weight="fill" className="size-2.5" />
+            </div>
+          )}
+        </div>
 
         {/* Main content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <span className="text-label-sm text-text-strong-950 truncate">
               {enrollment.shopper?.name}
             </span>
             <StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="light">
               {getStatusLabel(enrollment.status)}
             </StatusBadge.Root>
+            {enrollmentOverdue && (
+              <span className="flex items-center gap-0.5 text-[10px] font-medium text-error-base bg-error-base/10 px-1.5 py-0.5 rounded-full">
+                <Warning weight="fill" className="size-3" />
+                Overdue
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 text-paragraph-xs text-text-sub-600">
             <span className="truncate">{enrollment.campaign?.title}</span>
-            <span className="hidden sm:inline text-text-soft-400">•</span>
-            <span className="hidden sm:inline font-mono text-text-soft-400">{enrollment.orderId}</span>
+            <span className="text-text-soft-400">•</span>
+            <span className="text-text-soft-400">{getTimeAgo(enrollment.createdAt)}</span>
+            {prevEnrollments > 0 && (
+              <>
+                <span className="hidden sm:inline text-text-soft-400">•</span>
+                <span className="hidden sm:inline text-text-soft-400">
+                  {shopperRate}% rate · {prevEnrollments} prev
+                </span>
+              </>
+            )}
           </div>
         </div>
 
@@ -515,7 +594,7 @@ function EnrollmentListItem({ enrollment, formatCurrency, selected, onSelect, on
             </span>
             <span className="text-paragraph-xs text-text-sub-600 hidden sm:block">{enrollment.platform}</span>
           </div>
-          <RiArrowRightLine className="size-4 text-text-soft-400 group-hover:text-text-sub-600 transition-colors" />
+          <ArrowRight className="size-4 text-text-soft-400 group-hover:text-text-sub-600 transition-colors" />
         </div>
       </button>
     </div>

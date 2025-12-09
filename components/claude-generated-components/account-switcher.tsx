@@ -9,14 +9,14 @@ import { AvatarWithFallback } from '@/components/ui/avatar';
 import { tv } from '@/utils/tv';
 import { cn } from '@/utils/cn';
 import {
-  RiExpandUpDownLine,
-  RiUser3Line,
-  RiSettings4Line,
-  RiBookOpenLine,
-  RiLogoutBoxRLine,
-  RiAddLine,
-  RiCheckLine,
-} from '@remixicon/react';
+  CaretUpDown,
+  User,
+  Gear,
+  BookOpen,
+  SignOut,
+  Plus,
+  Check,
+} from '@phosphor-icons/react/dist/ssr';
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 
 const ACCOUNT_SWITCHER_NAME = 'AccountSwitcher';
@@ -193,9 +193,9 @@ type AccountSwitcherProps = React.HTMLAttributes<HTMLDivElement> & {
 };
 
 const defaultMenuItems: MenuItemConfig[] = [
-  { label: 'View profile', icon: <RiUser3Line className='size-5' />, shortcut: '⌘K→P' },
-  { label: 'Account settings', icon: <RiSettings4Line className='size-5' />, shortcut: '⌘S' },
-  { label: 'Documentation', icon: <RiBookOpenLine className='size-5' /> },
+  { label: 'View profile', icon: <User weight="duotone" className='size-5' />, shortcut: '⌘K→P' },
+  { label: 'Account settings', icon: <Gear weight="duotone" className='size-5' />, shortcut: '⌘S' },
+  { label: 'Documentation', icon: <BookOpen weight="duotone" className='size-5' /> },
 ];
 
 const AccountSwitcher = React.forwardRef<HTMLDivElement, AccountSwitcherProps>(
@@ -254,7 +254,7 @@ const AccountSwitcher = React.forwardRef<HTMLDivElement, AccountSwitcherProps>(
               </div>
 
               <span className={styles.expandIcon()} aria-hidden='true'>
-                <RiExpandUpDownLine className='size-4' />
+                <CaretUpDown weight="bold" className='size-4' />
               </span>
             </button>
           </DropdownMenuPrimitive.Trigger>
@@ -337,7 +337,7 @@ const AccountSwitcher = React.forwardRef<HTMLDivElement, AccountSwitcherProps>(
                           className={styles.accountItemRadio()}
                           data-selected={account.id === selectedAccountId}
                         >
-                          <RiCheckLine className='size-3 text-static-white' />
+                          <Check weight="bold" className='size-3 text-static-white' />
                         </div>
                       </DropdownMenuPrimitive.ItemIndicator>
                       {account.id !== selectedAccountId && (
@@ -358,7 +358,7 @@ const AccountSwitcher = React.forwardRef<HTMLDivElement, AccountSwitcherProps>(
                     className={styles.addButton()}
                     onSelect={onAddAccount}
                   >
-                    <RiAddLine className='size-4' />
+                    <Plus weight="bold" className='size-4' />
                     Add account
                   </DropdownMenuPrimitive.Item>
                 </div>
@@ -373,7 +373,7 @@ const AccountSwitcher = React.forwardRef<HTMLDivElement, AccountSwitcherProps>(
                   onSelect={onSignOut}
                 >
                   <div className='flex items-center gap-2'>
-                    <RiLogoutBoxRLine className='size-5 text-text-soft-400' />
+                    <SignOut weight="duotone" className='size-5 text-text-soft-400' />
                     <span className={styles.menuItemLabel()}>Sign out</span>
                   </div>
                   <kbd className={styles.menuItemShortcut()}>⌥⇧Q</kbd>

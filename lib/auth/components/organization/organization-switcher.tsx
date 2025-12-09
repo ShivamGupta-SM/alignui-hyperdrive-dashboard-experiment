@@ -3,11 +3,11 @@
 
 import type { Organization } from "better-auth/plugins/organization"
 import {
-    RiExpandUpDownLine,
-    RiLoginBoxLine,
-    RiAddCircleLine,
-    RiSettings4Line
-} from "@remixicon/react"
+    CaretUpDown,
+    SignIn,
+    PlusCircle,
+    Gear
+} from "@phosphor-icons/react"
 import {
     type ComponentProps,
     type ReactNode,
@@ -332,7 +332,7 @@ export function OrganizationSwitcher({
                                     />
                                 )}
 
-                                <RiExpandUpDownLine className="ml-auto" size={20} />
+                                <CaretUpDown className="ml-auto" size={20} />
                             </Button>
                         ))}
                 </DropdownMenuTrigger>
@@ -397,7 +397,7 @@ export function OrganizationSwitcher({
                                                 setDropdownOpen(false)
                                             }
                                         >
-                                            <RiSettings4Line size={16} />
+                                            <Gear size={16} />
                                         </Button>
                                     </Link>
                                 )}
@@ -493,7 +493,7 @@ export function OrganizationSwitcher({
                             className={cn(classNames?.content?.menuItem)}
                             onClick={() => setIsCreateOrgDialogOpen(true)}
                         >
-                            <RiAddCircleLine size={20} />
+                            <PlusCircle size={20} />
                             {localization.CREATE_ORGANIZATION}
                         </DropdownMenuItem>
                     ) : (
@@ -501,7 +501,7 @@ export function OrganizationSwitcher({
                             <DropdownMenuItem
                                 className={cn(classNames?.content?.menuItem)}
                             >
-                                <RiLoginBoxLine size={20} />
+                                <SignIn size={20} />
                                 {localization.SIGN_IN}
                             </DropdownMenuItem>
                         </Link>

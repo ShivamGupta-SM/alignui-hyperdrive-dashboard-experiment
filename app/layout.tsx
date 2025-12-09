@@ -34,10 +34,9 @@ export default function RootLayout({
                 inter.variable, 
                 geistMono.variable, 
                 "antialiased",
-                // Industry standard: responsive background for inset layout
-                // Mobile: white background (content fills screen)
-                // Desktop: zinc-100 shell for visible tactile contrast
-                "bg-bg-white-0 lg:bg-zinc-100 dark:bg-zinc-900 dark:lg:bg-zinc-950"
+                // Basement reveal pattern: gray shell background on all viewports
+                // The content sits on top as a white sheet
+                "bg-zinc-100 dark:bg-zinc-950"
             )}
         >
             <body className="text-text-strong-950 font-sans">

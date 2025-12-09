@@ -1,39 +1,36 @@
 'use client'
 
-import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/utils/cn'
-import * as Avatar from '@/components/ui/avatar'
 import { AvatarWithFallback } from '@/components/ui/avatar'
 import * as Badge from '@/components/ui/badge'
 import * as Tooltip from '@/components/ui/tooltip'
 import * as Dropdown from '@/components/ui/dropdown'
 import { Logo, LogoIcon } from '@/components/ui/logo'
 import {
-  HomeIcon,
-  MegaphoneIcon,
-  UserPlusIcon,
-  ShoppingBagIcon,
-  WalletIcon,
-  DocumentTextIcon,
-  UserGroupIcon,
-  Cog6ToothIcon,
-  QuestionMarkCircleIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  ChevronUpDownIcon,
-  CheckIcon,
-  PlusIcon,
-  UserIcon,
-  LockClosedIcon,
-  MoonIcon,
-  SunIcon,
-  ArrowRightOnRectangleIcon,
-  EllipsisHorizontalIcon,
-  XMarkIcon,
-} from '@heroicons/react/20/solid'
-import type { Organization, User } from '@/lib/types'
+  House,
+  Megaphone,
+  UserPlus,
+  ShoppingBag,
+  Wallet,
+  FileText,
+  UsersThree,
+  Gear,
+  Question,
+  CaretRight,
+  CaretUpDown,
+  Check,
+  Plus,
+  User,
+  Lock,
+  Moon,
+  Sun,
+  SignOut,
+  DotsThree,
+  X,
+} from '@phosphor-icons/react/dist/ssr'
+import type { Organization, User as UserType } from '@/lib/types'
 import { ORGANIZATION_STATUS_CONFIG } from '@/lib/constants'
 
 interface SidebarProps {
@@ -44,7 +41,7 @@ interface SidebarProps {
   currentOrganization?: Organization | null
   onOrganizationChange?: (org: Organization) => void
   onCreateOrganization?: () => void
-  user?: User | null
+  user?: UserType | null
   isDarkMode?: boolean
   onToggleDarkMode?: () => void
   onSignOut?: () => void
@@ -56,44 +53,44 @@ const navigation = [
     id: 'dashboard',
     label: 'Dashboard',
     href: '/dashboard',
-    icon: HomeIcon,
+    icon: House,
   },
   {
     id: 'campaigns',
     label: 'Campaigns',
     href: '/dashboard/campaigns',
-    icon: MegaphoneIcon,
+    icon: Megaphone,
   },
   {
     id: 'enrollments',
     label: 'Enrollments',
     href: '/dashboard/enrollments',
-    icon: UserPlusIcon,
+    icon: UserPlus,
     hasBadge: true,
   },
   {
     id: 'products',
     label: 'Products',
     href: '/dashboard/products',
-    icon: ShoppingBagIcon,
+    icon: ShoppingBag,
   },
   {
     id: 'wallet',
     label: 'Wallet',
     href: '/dashboard/wallet',
-    icon: WalletIcon,
+    icon: Wallet,
   },
   {
     id: 'invoices',
     label: 'Invoices',
     href: '/dashboard/invoices',
-    icon: DocumentTextIcon,
+    icon: FileText,
   },
   {
     id: 'team',
     label: 'Team',
     href: '/dashboard/team',
-    icon: UserGroupIcon,
+    icon: UsersThree,
   },
 ]
 
@@ -102,19 +99,18 @@ const footerNavigation = [
     id: 'settings',
     label: 'Settings',
     href: '/dashboard/settings',
-    icon: Cog6ToothIcon,
+    icon: Gear,
   },
   {
     id: 'help',
     label: 'Help & Support',
     href: '/dashboard/help',
-    icon: QuestionMarkCircleIcon,
+    icon: Question,
   },
 ]
 
 export function Sidebar({
   collapsed = false,
-  onCollapsedChange,
   pendingEnrollments = 0,
   organizations = [],
   currentOrganization,
@@ -145,18 +141,26 @@ export function Sidebar({
         href={item.href}
         onClick={onMobileClose}
         className={cn(
-          'group relative flex items-center gap-3 rounded-xl px-3 py-2.5',
+          'group relative flex items-center rounded-xl',
           'text-label-sm transition-all duration-200 ease-out',
-          // Keel-style: Subtle floating pill with soft shadow, minimal border
+          // Premium active state with dark mode
+          // Premium active state with dark mode
           active
-            ? 'bg-bg-white-0 text-text-strong-950 font-medium shadow-sm'
-            : 'text-text-sub-600 hover:bg-bg-white-0/80 hover:text-text-strong-950 hover:shadow-sm'
+            ? (isDarkMode 
+                ? 'bg-slate-800 text-white font-medium shadow-sm ring-1 ring-slate-700' 
+                : 'bg-white text-text-strong-950 font-medium shadow-sm ring-1 ring-slate-200/80')
+            : (isDarkMode
+                ? 'text-slate-300 hover:bg-slate-800/60 hover:text-white hover:ring-slate-700/50 hover:shadow-sm hover:ring-1'
+                : 'text-text-strong-950 hover:bg-white/60 hover:text-text-strong-950 hover:shadow-sm hover:ring-1 hover:ring-slate-200/50'),
+          // Collapsed: fixed size centered, Expanded: normal padding
+          collapsed ? 'justify-center size-11' : 'gap-3 px-3 py-2.5'
         )}
       >
         <Icon 
+          weight="duotone"
           className={cn(
             'size-5 shrink-0 transition duration-200 ease-out',
-            active ? 'text-primary-base' : 'text-text-sub-600 group-hover:text-text-sub-600'
+            active ? 'text-primary-base' : 'text-text-sub-600 group-hover:text-text-strong-950'
           )} 
         />
         {!collapsed && (
@@ -164,12 +168,12 @@ export function Sidebar({
             <span className="flex-1">{item.label}</span>
             <div className="flex items-center gap-1.5">
               {showBadge && (
-                <Badge.Root color="red" variant="light" size="small">
+                <Badge.Root color="red" variant="lighter" size="small">
                   {pendingEnrollments > 99 ? '99+' : pendingEnrollments}
                 </Badge.Root>
               )}
               {active && (
-                <ChevronRightIcon className="size-5 text-text-sub-600" />
+                <CaretRight weight="bold" className="size-5 text-text-sub-600" />
               )}
             </div>
           </>
@@ -198,19 +202,18 @@ export function Sidebar({
     <aside
       className={cn(
         'flex h-full flex-col',
-        // Keel style: Sidebar is TRANSPARENT, sits on gray shell
-        // Only nav items become white pills when active
-        // Mobile: white background for overlay
-        // Desktop: transparent (blends with gray shell)
-        'bg-bg-white-0 lg:bg-transparent',
+        // Both mobile and desktop: Transparent sidebar on gray shell
+        // Individual elements (nav items, org switcher) have their own backgrounds
+        'w-full lg:w-auto',
+        'bg-transparent',
         'transition-all duration-300',
-        collapsed ? 'w-[72px]' : 'w-[280px]'
+        collapsed ? 'lg:w-[72px]' : 'lg:w-[280px]'
       )}
     >
-      {/* Logo Section - h-16 to match header height */}
+      {/* Logo Section - Only visible on desktop (mobile has logo in header) */}
       <div className={cn(
-        "flex h-14 sm:h-16 items-center",
-        collapsed ? "justify-center px-2" : "justify-between px-5"
+        "hidden lg:flex h-14 sm:h-16 items-center",
+        collapsed ? "justify-center px-2" : "px-5"
       )}>
         <Link href="/dashboard" onClick={onMobileClose} className="flex items-center">
           {collapsed ? (
@@ -219,208 +222,32 @@ export function Sidebar({
             <Logo width={130} height={28} />
           )}
         </Link>
-        {/* Mobile Close Button - Only visible on mobile when sidebar is open */}
-        {!collapsed && onMobileClose && (
-          <button
-            onClick={onMobileClose}
-            className="lg:hidden flex h-8 w-8 items-center justify-center rounded-8 text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
-            aria-label="Close sidebar"
-          >
-            <XMarkIcon className="size-5" />
-          </button>
-        )}
-        {/* Metallic logo temporarily disabled - visit /dashboard/metallic-demo to test */}
       </div>
 
-      {/* Engraved Divider - inset effect with highlight below */}
-      <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_var(--color-bg-white-0)]" />
+      {/* Engraved Divider - Only visible on desktop */}
+      <div className="hidden lg:block mx-3 h-px bg-slate-200/60 dark:bg-slate-700/60" />
+
 
       {/* Organization Switcher */}
-      <div className={cn(
-        collapsed ? "px-2 py-3" : "px-3 py-3"
-      )}>
-        {currentOrganization ? (
-          collapsed ? (
-            <Dropdown.Root>
-              <Dropdown.Trigger asChild>
-                <button 
-                  className={cn(
-                    'flex w-full items-center justify-center rounded-xl p-2 transition-all',
-                    'hover:bg-bg-soft-200/50',
-                  )}
-                >
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-soft-200">
-                    <span className="text-label-sm text-text-sub-600 font-semibold">
-                      {currentOrganization.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                </button>
-              </Dropdown.Trigger>
-              <Dropdown.Content align="start" side="right" className="w-72">
-                <Dropdown.Group>
-                  <Dropdown.Label>Your Organizations</Dropdown.Label>
-                  {organizations.map((org) => {
-                    const statusConfig = ORGANIZATION_STATUS_CONFIG[org.status]
-                    const isSelected = org.id === currentOrganization?.id
-
-                    return (
-                      <Dropdown.Item
-                        key={org.id}
-                        onClick={() => onOrganizationChange?.(org)}
-                        className="flex items-start gap-3 py-3"
-                      >
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-base">
-                          <span className="text-label-sm text-white font-bold">
-                            {org.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-label-sm text-text-strong-950 truncate">
-                              {org.name}
-                            </span>
-                            {isSelected && <CheckIcon className="size-4 text-primary-base shrink-0" />}
-                          </div>
-                          <div className="text-paragraph-xs text-text-sub-600 truncate">
-                            {org.slug}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge.Root
-                              color={statusConfig.color === 'green' ? 'green' : statusConfig.color === 'yellow' ? 'yellow' : 'gray'} 
-                              variant="light"
-                              size="small"
-                            >
-                              {statusConfig.label}
-                            </Badge.Root>
-                            {org.status === 'approved' && (
-                              <span className="text-paragraph-xs text-text-soft-400">
-                                {org.campaignCount} campaigns
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </Dropdown.Item>
-                    )
-                  })}
-                </Dropdown.Group>
-
-                <Dropdown.Separator />
-
-                <Dropdown.Item onClick={onCreateOrganization}>
-                  <Dropdown.ItemIcon as={PlusIcon} />
-                  Create New Organization
-                </Dropdown.Item>
-              </Dropdown.Content>
-            </Dropdown.Root>
-          ) : (
-            <Dropdown.Root>
-              <Dropdown.Trigger asChild>
-                <button className="flex w-full items-center gap-3 rounded-xl p-2.5 transition-all hover:bg-bg-soft-200/50">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-bg-soft-200">
-                    <span className="text-label-sm text-text-sub-600 font-semibold">
-                      {currentOrganization.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col items-start">
-                    <span className="text-label-sm font-semibold text-text-strong-950 truncate">
-                      {currentOrganization.name}
-                    </span>
-                    <span className="text-paragraph-xs text-text-sub-600 truncate">
-                      {currentOrganization.slug}
-                    </span>
-                  </div>
-                  <ChevronUpDownIcon className="size-4 shrink-0 text-text-soft-400" />
-                </button>
-              </Dropdown.Trigger>
-              <Dropdown.Content align="start" className="w-72">
-                <Dropdown.Group>
-                  <Dropdown.Label>Your Organizations</Dropdown.Label>
-                  {organizations.map((org) => {
-                    const statusConfig = ORGANIZATION_STATUS_CONFIG[org.status]
-                    const isSelected = org.id === currentOrganization?.id
-
-                    return (
-                      <Dropdown.Item
-                        key={org.id}
-                        onClick={() => onOrganizationChange?.(org)}
-                        className="flex items-start gap-3 py-3"
-                      >
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-bg-soft-200">
-                          <span className="text-label-sm text-text-sub-600 font-semibold">
-                            {org.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-label-sm text-text-strong-950 truncate">
-                              {org.name}
-                            </span>
-                            {isSelected && <CheckIcon className="size-4 text-primary-base shrink-0" />}
-                          </div>
-                          <div className="text-paragraph-xs text-text-sub-600 truncate">
-                            {org.slug}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge.Root
-                              color={statusConfig.color === 'green' ? 'green' : statusConfig.color === 'yellow' ? 'yellow' : 'gray'} 
-                              variant="light"
-                              size="small"
-                            >
-                              {statusConfig.label}
-                            </Badge.Root>
-                            {org.status === 'approved' && (
-                              <span className="text-paragraph-xs text-text-soft-400">
-                                {org.campaignCount} campaigns
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </Dropdown.Item>
-                    )
-                  })}
-                </Dropdown.Group>
-
-                <Dropdown.Separator />
-
-                <Dropdown.Item onClick={onCreateOrganization}>
-                  <Dropdown.ItemIcon as={PlusIcon} />
-                  Create New Organization
-                </Dropdown.Item>
-              </Dropdown.Content>
-            </Dropdown.Root>
-          )
-        ) : (
-          <button
-            onClick={onCreateOrganization}
-            className={cn(
-              'flex w-full items-center gap-3 rounded-xl p-2.5 transition-all',
-              'hover:bg-bg-soft-200/50',
-              collapsed && 'justify-center'
-            )}
-          >
-            <div className={cn(
-              "flex shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-stroke-soft-200",
-              collapsed ? "size-8" : "size-9"
-            )}>
-              <PlusIcon className={cn("text-text-sub-600", collapsed ? "size-4" : "size-5")} />
-            </div>
-            {!collapsed && (
-              <span className="text-label-sm text-text-sub-600">
-                Create Organization
-              </span>
-            )}
-          </button>
-        )}
+      <div className="px-3 py-3">
+        <OrganizationSwitcher
+          organizations={organizations}
+          currentOrganization={currentOrganization}
+          onOrganizationChange={onOrganizationChange}
+          onCreateOrganization={onCreateOrganization}
+          collapsed={collapsed}
+          isDarkMode={isDarkMode}
+        />
       </div>
 
-      {/* Engraved Divider - inset effect with highlight below */}
-      <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_var(--color-bg-white-0)]" />
+      {/* Engraved Divider */}
+      <div className="mx-3 h-px bg-slate-200/60 dark:bg-slate-700/60" />
 
       {/* Main Navigation */}
       <nav className="flex-1 overflow-y-auto p-3">
         {/* Main Section Label */}
         {!collapsed && (
-          <p className="mb-2 px-3 py-1 text-subheading-xs font-semibold uppercase text-text-soft-400">
+          <p className="mb-2 px-3 py-1 text-subheading-xs font-semibold uppercase text-text-soft-400 dark:text-text-sub-600">
             Main
           </p>
         )}
@@ -433,14 +260,14 @@ export function Sidebar({
         </ul>
       </nav>
 
-      {/* Divider between Scrollable Nav and Fixed Footer - inset effect */}
-      <div className="mx-3 h-px bg-stroke-soft-200 shadow-[0_1px_0_0_var(--color-bg-white-0)]" />
+      {/* Engraved Divider */}
+      <div className="mx-3 h-px bg-slate-200/60 dark:bg-slate-700/60" />
 
       {/* Footer Navigation */}
       <div className="p-3">
         {/* Settings Section Label */}
         {!collapsed && (
-          <p className="mb-2 px-3 py-1 text-subheading-xs font-semibold uppercase text-text-soft-400">
+          <p className="mb-2 px-3 py-1 text-subheading-xs font-semibold uppercase text-text-soft-400 dark:text-text-sub-600">
             Settings
           </p>
         )}
@@ -469,7 +296,7 @@ export function Sidebar({
 
 // User Profile Menu Component
 interface UserProfileMenuProps {
-  user: User
+  user: UserType
   collapsed: boolean
   isDarkMode?: boolean
   onToggleDarkMode?: () => void
@@ -486,28 +313,29 @@ function UserProfileMenu({
   const trigger = (
     <button
       className={cn(
-        'mt-3 flex w-full items-center gap-3 rounded-10 p-2 transition-colors',
-        'hover:bg-bg-weak-50',
-        collapsed && 'justify-center'
+        'mt-3 flex items-center rounded-xl transition-all duration-200',
+        'hover:bg-white/60 dark:hover:bg-slate-800/60 hover:shadow-sm',
+        'border border-transparent hover:border-slate-200/60 dark:hover:border-slate-700/60',
+        collapsed ? 'justify-center size-11' : 'w-full gap-3 p-2'
       )}
     >
       <AvatarWithFallback
         src={user.avatar}
         name={user.name || user.email}
-        size="40"
+        size={collapsed ? '32' : '40'}
         color="blue"
       />
       {!collapsed && (
         <>
           <div className="flex-1 min-w-0 text-left">
-            <div className="text-label-sm text-text-strong-950 truncate">
+            <div className={cn("text-label-sm truncate", isDarkMode ? "text-white" : "text-text-strong-950")}>
               {user.name || 'User'}
             </div>
-            <div className="text-paragraph-xs text-text-sub-600 truncate">
+            <div className={cn("text-paragraph-xs truncate", isDarkMode ? "text-slate-400" : "text-text-sub-600")}>
               {user.email}
             </div>
           </div>
-          <EllipsisHorizontalIcon className="size-5 text-text-sub-600 shrink-0" />
+          <DotsThree weight="bold" className="size-5 text-text-sub-600 shrink-0" />
         </>
       )}
     </button>
@@ -544,18 +372,18 @@ function UserProfileMenu({
       <Dropdown.Group>
         <Dropdown.Item asChild>
           <Link href="/dashboard/profile">
-            <Dropdown.ItemIcon as={UserIcon} />
+            <Dropdown.ItemIcon as={User} />
             My Profile
           </Link>
         </Dropdown.Item>
         <Dropdown.Item asChild>
           <Link href="/dashboard/security">
-            <Dropdown.ItemIcon as={LockClosedIcon} />
+            <Dropdown.ItemIcon as={Lock} />
             Change Password
           </Link>
         </Dropdown.Item>
         <Dropdown.Item onClick={onToggleDarkMode}>
-          <Dropdown.ItemIcon as={isDarkMode ? SunIcon : MoonIcon} />
+          <Dropdown.ItemIcon as={isDarkMode ? Sun : Moon} />
           {isDarkMode ? 'Light Mode' : 'Dark Mode'}
         </Dropdown.Item>
       </Dropdown.Group>
@@ -564,7 +392,7 @@ function UserProfileMenu({
 
       {/* Sign Out */}
       <Dropdown.Item onClick={onSignOut} className="text-error-base">
-        <Dropdown.ItemIcon as={ArrowRightOnRectangleIcon} />
+        <Dropdown.ItemIcon as={SignOut} />
         Sign Out
       </Dropdown.Item>
     </Dropdown.Content>
@@ -594,3 +422,194 @@ function UserProfileMenu({
   )
 }
 
+
+// Organization Switcher Component - Based on AccountSwitcher patterns
+interface OrganizationSwitcherProps {
+  organizations: Organization[]
+  currentOrganization?: Organization | null
+  onOrganizationChange?: (org: Organization) => void
+  onCreateOrganization?: () => void
+  collapsed?: boolean
+  isDarkMode?: boolean
+}
+
+function OrganizationSwitcher({
+  organizations,
+  currentOrganization,
+  onOrganizationChange,
+  onCreateOrganization,
+  collapsed = false,
+  isDarkMode,
+}: OrganizationSwitcherProps) {
+  if (!currentOrganization) {
+    return (
+      <button
+        onClick={onCreateOrganization}
+        className={cn(
+          'flex items-center gap-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-600',
+          'bg-white/80 dark:bg-slate-800/80 transition-all duration-200',
+          'hover:bg-white dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-500 hover:shadow-sm',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base',
+          collapsed ? 'justify-center size-11' : 'w-full p-2.5'
+        )}
+      >
+        {collapsed ? (
+          <Plus weight="bold" className={cn("size-5", isDarkMode ? "text-slate-300" : "text-text-sub-600")} />
+        ) : (
+          <>
+            <div className={cn(
+              "flex size-10 shrink-0 items-center justify-center rounded-full",
+              isDarkMode ? "bg-white/10" : "bg-bg-soft-200"
+            )}>
+              <Plus weight="bold" className={cn("size-5", isDarkMode ? "text-slate-300" : "text-text-sub-600")} />
+            </div>
+            <span className={cn("text-label-sm", isDarkMode ? "text-slate-300" : "text-text-sub-600")}>Create Organization</span>
+          </>
+        )}
+      </button>
+    )
+  }
+
+  const triggerContent = (
+    <button
+      type="button"
+      className={cn(
+        'flex items-center rounded-xl',
+        'border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800',
+        'cursor-pointer transition-all duration-200',
+        'hover:bg-slate-50 dark:hover:bg-slate-700 hover:shadow-sm',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base',
+        collapsed ? 'justify-center size-11' : 'w-full gap-3 p-2.5 pr-3'
+      )}
+    >
+      {collapsed ? (
+        <span className={cn("text-label-sm font-semibold", isDarkMode ? "text-white" : "text-text-strong-950")}>
+          {currentOrganization.name.charAt(0).toUpperCase()}
+        </span>
+      ) : (
+        <>
+          <div className={cn(
+            "flex size-10 shrink-0 items-center justify-center rounded-full",
+            isDarkMode ? "bg-white/10" : "bg-bg-soft-200"
+          )}>
+            <span className={cn("text-label-sm font-semibold", isDarkMode ? "text-white" : "text-text-strong-950")}>
+              {currentOrganization.name.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col text-left">
+            <span className={cn("truncate text-label-sm font-semibold", isDarkMode ? "text-white" : "text-text-strong-950")}>
+              {currentOrganization.name}
+            </span>
+            <span className={cn("truncate text-paragraph-xs", isDarkMode ? "text-slate-400" : "text-text-sub-600")}>
+              {currentOrganization.slug}
+            </span>
+          </div>
+          <CaretUpDown weight="bold" className="size-4 shrink-0 text-text-soft-400" />
+        </>
+      )}
+    </button>
+  )
+
+  const dropdownContent = (
+    <Dropdown.Content
+      align="start"
+      side={collapsed ? 'right' : 'bottom'}
+      sideOffset={8}
+      className="w-72"
+    >
+      {/* Switch Organization Section */}
+      <Dropdown.Group>
+        <Dropdown.Label>Switch organization</Dropdown.Label>
+        <div className="flex flex-col gap-0.5 px-1.5">
+          {organizations.map((org) => {
+            const statusConfig = ORGANIZATION_STATUS_CONFIG[org.status]
+            const isSelected = org.id === currentOrganization?.id
+
+            return (
+              <button
+                key={org.id}
+                type="button"
+                onClick={() => onOrganizationChange?.(org)}
+                className={cn(
+                  'relative flex w-full items-center gap-3 rounded-md px-2 py-2',
+                  'cursor-pointer transition-colors duration-150 outline-none',
+                  'hover:bg-bg-weak-50 focus:bg-bg-weak-50',
+                  isSelected && 'bg-bg-weak-50'
+                )}
+              >
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-soft-200">
+                  <span className="text-label-xs font-semibold text-text-strong-950">
+                    {org.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col text-left">
+                  <span className="truncate text-label-sm font-medium text-text-strong-950">
+                    {org.name}
+                  </span>
+                  <div className="flex items-center gap-1 text-paragraph-xs text-text-sub-600">
+                    <span className="truncate">
+                      {org.slug}
+                    </span>
+                    {org.status === 'approved' && org.campaignCount !== undefined && (
+                      <span className="shrink-0 whitespace-nowrap">
+                        · {org.campaignCount} campaigns
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {isSelected ? (
+                  <div className="flex size-5 items-center justify-center rounded-full bg-primary-base">
+                    <Check weight="bold" className="size-3 text-white" />
+                  </div>
+                ) : (
+                  <div className="size-5 rounded-full border border-stroke-soft-200" />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </Dropdown.Group>
+
+      {/* Add Organization Button */}
+      <div className="px-2 pt-1 pb-2">
+        <button
+          type="button"
+          onClick={onCreateOrganization}
+          className={cn(
+            'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2',
+            'text-label-sm font-semibold text-text-sub-600',
+            'border border-stroke-soft-200',
+            'cursor-pointer transition-colors duration-150',
+            'hover:bg-bg-weak-50 hover:text-text-strong-950'
+          )}
+        >
+          <Plus weight="bold" className="size-4" />
+          Add organization
+        </button>
+      </div>
+    </Dropdown.Content>
+  )
+
+  if (collapsed) {
+    return (
+      <Dropdown.Root>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Dropdown.Trigger asChild>{triggerContent}</Dropdown.Trigger>
+          </Tooltip.Trigger>
+          <Tooltip.Content side="right">
+            {currentOrganization.name}
+          </Tooltip.Content>
+        </Tooltip.Root>
+        {dropdownContent}
+      </Dropdown.Root>
+    )
+  }
+
+  return (
+    <Dropdown.Root>
+      <Dropdown.Trigger asChild>{triggerContent}</Dropdown.Trigger>
+      {dropdownContent}
+    </Dropdown.Root>
+  )
+}

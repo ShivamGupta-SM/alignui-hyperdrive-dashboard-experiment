@@ -7,7 +7,7 @@ import * as React from 'react';
 import Image from 'next/image';
 import { tv, type VariantProps } from '@/utils/tv';
 import { cn } from '@/utils/cn';
-import { RiTimeLine, RiMapPinLine, RiUser3Line, RiVideoOnLine } from '@remixicon/react';
+import { Clock, MapPin, User, VideoCamera } from '@phosphor-icons/react/dist/ssr';
 
 const MEETING_CARD_NAME = 'MeetingCard';
 const MEETING_CARD_LIST_NAME = 'MeetingCardList';
@@ -177,7 +177,7 @@ const MeetingCard = React.forwardRef<HTMLDivElement, MeetingCardProps>(
 
           {/* Time */}
           <div className={styles.time()}>
-            <RiTimeLine className={styles.timeIcon()} aria-hidden='true' />
+            <Clock weight="duotone" className={styles.timeIcon()} aria-hidden='true' />
             <span>
               {startTime}
               {endTime && ` - ${endTime}`}
@@ -189,13 +189,13 @@ const MeetingCard = React.forwardRef<HTMLDivElement, MeetingCardProps>(
             <div className={styles.meta()}>
               {location && (
                 <div className={styles.metaItem()}>
-                  <RiMapPinLine className={styles.metaIcon()} aria-hidden='true' />
+                  <MapPin weight="duotone" className={styles.metaIcon()} aria-hidden='true' />
                   <span>{location}</span>
                 </div>
               )}
               {attendees !== undefined && (
                 <div className={styles.metaItem()}>
-                  <RiUser3Line className={styles.metaIcon()} aria-hidden='true' />
+                  <User weight="duotone" className={styles.metaIcon()} aria-hidden='true' />
                   <span>
                     {attendees} {attendees === 1 ? 'attendee' : 'attendees'}
                   </span>
@@ -203,7 +203,7 @@ const MeetingCard = React.forwardRef<HTMLDivElement, MeetingCardProps>(
               )}
               {isVideoCall && (
                 <div className={styles.metaItem()}>
-                  <RiVideoOnLine className={styles.metaIcon()} aria-hidden='true' />
+                  <VideoCamera weight="duotone" className={styles.metaIcon()} aria-hidden='true' />
                   <span>Video call</span>
                 </div>
               )}
@@ -324,7 +324,7 @@ function ActivityCard({
         <p className={styles.title()}>{title}</p>
         <p className={styles.description()}>{description}</p>
         <div className={styles.time()}>
-          <RiTimeLine className='size-3' aria-hidden='true' />
+          <Clock weight="duotone" className='size-3' aria-hidden='true' />
           <span>{time}</span>
         </div>
       </div>

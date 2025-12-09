@@ -1,6 +1,6 @@
 "use client"
 
-import { RiMenuLine } from "@remixicon/react"
+import { List } from "@phosphor-icons/react"
 import { useContext, useMemo } from "react"
 import { useAuthenticate } from "../../hooks/use-authenticate"
 import { AuthUIContext } from "../../lib/auth-ui-provider"
@@ -111,7 +111,7 @@ export function AccountView({
                     <Drawer>
                         <DrawerTrigger asChild>
                             <Button variant="outline">
-                                <RiMenuLine size={20} />
+                                <List size={20} />
                             </Button>
                         </DrawerTrigger>
                         <DrawerContent>

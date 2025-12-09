@@ -4,7 +4,7 @@
 
 import * as React from 'react';
 import useEmblaCarousel, { type UseEmblaCarouselType } from 'embla-carousel-react';
-import { RiArrowLeftSLine, RiArrowRightSLine } from '@remixicon/react';
+import { CaretLeft, CaretRight } from '@phosphor-icons/react/dist/ssr';
 import { tv } from '@/utils/tv';
 import { cn } from '@/utils/cn';
 import { Slot } from '@radix-ui/react-slot';
@@ -258,7 +258,7 @@ const CarouselPrevTrigger = React.forwardRef<HTMLButtonElement, CarouselTriggerP
         aria-label='Previous slide'
         {...rest}
       >
-        {children ?? <RiArrowLeftSLine className='size-5' />}
+        {children ?? <CaretLeft weight="bold" className='size-5' />}
       </Component>
     );
   },
@@ -280,7 +280,7 @@ const CarouselNextTrigger = React.forwardRef<HTMLButtonElement, CarouselTriggerP
         aria-label='Next slide'
         {...rest}
       >
-        {children ?? <RiArrowRightSLine className='size-5' />}
+        {children ?? <CaretRight weight="bold" className='size-5' />}
       </Component>
     );
   },

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import * as Button from '@/components/ui/button'
-import { RiArrowLeftLine } from '@remixicon/react'
+import { ArrowLeft } from '@phosphor-icons/react/dist/ssr'
 
 export default function PrivacyPage() {
   return (
@@ -9,7 +9,7 @@ export default function PrivacyPage() {
         <div className="container mx-auto max-w-4xl px-6 py-4">
           <Button.Root variant="ghost" size="small" asChild>
             <Link href="/">
-              <Button.Icon as={RiArrowLeftLine} />
+              <Button.Icon as={ArrowLeft} />
               Back to Home
             </Link>
           </Button.Root>

@@ -14,7 +14,7 @@ import { Tracker } from '@/components/ui/tracker'
 import { Metric } from '@/components/ui/metric'
 import * as EmptyState from '@/components/claude-generated-components/empty-state'
 import { Callout } from '@/components/ui/callout'
-import { RiAddLine, RiMegaphoneLine, RiFilterLine, RiLightbulbLine, RiInformationLine } from '@remixicon/react'
+import { Plus, Megaphone, Funnel, Lightbulb, Info, Play, Clock, User, Wallet } from '@phosphor-icons/react'
 import type { Campaign, CampaignStatus } from '@/lib/types'
 
 // Mock data
@@ -164,9 +164,15 @@ const statusTabs = [
 
 // Stats summary
 const getStats = (campaigns: Campaign[]) => {
+  const now = new Date()
+  const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+  const activeCampaigns = campaigns.filter(c => c.status === 'active')
+  const endingSoon = activeCampaigns.filter(c => new Date(c.endDate) <= sevenDaysFromNow)
+  
   return {
     total: campaigns.length,
-    active: campaigns.filter(c => c.status === 'active').length,
+    active: activeCampaigns.length,
+    endingSoon: endingSoon.length,
     draft: campaigns.filter(c => c.status === 'draft').length,
     pending: campaigns.filter(c => c.status === 'pending_approval').length,
     completed: campaigns.filter(c => c.status === 'completed').length,
@@ -228,6 +234,7 @@ function CampaignsContent() {
   return (
     <Tooltip.Provider>
       <div className="space-y-4 sm:space-y-5">
+
         {/* Page Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
@@ -237,29 +244,60 @@ function CampaignsContent() {
             </p>
           </div>
           <Button.Root variant="primary" size="small" onClick={() => router.push('/dashboard/campaigns/create')} className="shrink-0">
-            <Button.Icon as={RiAddLine} />
+            <Button.Icon as={Plus} />
             <span className="hidden sm:inline">Create Campaign</span>
             <span className="sm:hidden">Create</span>
           </Button.Root>
         </div>
 
-        {/* Stats Overview - Compact cards */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-          <div className="flex flex-col rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200">
-            <span className="text-paragraph-xs text-text-soft-400 mb-0.5">Total</span>
-            <span className="text-label-lg sm:text-title-h5 text-text-strong-950 font-semibold">{stats.total}</span>
+        {/* Stats Overview - Responsive grid */}
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-4">
+          <div className="flex items-center gap-3 rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-bg-weak-50 text-text-sub-600">
+              <Megaphone weight="duotone" className="size-4" />
+            </div>
+            <div>
+              <span className="block text-paragraph-xs text-text-soft-400">Total</span>
+              <span className="text-label-lg sm:text-title-h5 text-text-strong-950 font-semibold">{stats.total}</span>
+            </div>
           </div>
-          <div className="flex flex-col rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200">
-            <span className="text-paragraph-xs text-text-soft-400 mb-0.5">Active</span>
-            <span className="text-label-lg sm:text-title-h5 text-success-base font-semibold">{stats.active}</span>
+          <div className="flex items-center gap-3 rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-success-lighter text-success-base">
+              <Play weight="fill" className="size-4" />
+            </div>
+            <div>
+              <span className="block text-paragraph-xs text-text-soft-400">Active</span>
+              <span className="text-label-lg sm:text-title-h5 text-success-base font-semibold">{stats.active}</span>
+            </div>
           </div>
-          <div className="flex flex-col rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200">
-            <span className="text-paragraph-xs text-text-soft-400 mb-0.5">Enrollments</span>
-            <span className="text-label-lg sm:text-title-h5 text-text-strong-950 font-semibold">{stats.totalEnrollments.toLocaleString()}</span>
+          <div className={cn(
+            "flex items-center gap-3 rounded-xl p-3 sm:p-4 ring-1 ring-inset",
+            stats.endingSoon > 0 
+              ? "bg-warning-lighter/50 ring-warning-base/20" 
+              : "bg-bg-white-0 ring-stroke-soft-200"
+          )}>
+            <div className={cn(
+              "flex size-9 items-center justify-center rounded-lg",
+              stats.endingSoon > 0 ? "bg-warning-base text-white" : "bg-bg-weak-50 text-text-sub-600"
+            )}>
+              <Clock weight="fill" className="size-4" />
+            </div>
+            <div>
+              <span className="block text-paragraph-xs text-text-soft-400">Ending Soon</span>
+              <span className={cn(
+                "text-label-lg sm:text-title-h5 font-semibold",
+                stats.endingSoon > 0 ? "text-warning-base" : "text-text-soft-400"
+              )}>{stats.endingSoon}</span>
+            </div>
           </div>
-          <div className="flex flex-col rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200">
-            <span className="text-paragraph-xs text-text-soft-400 mb-0.5">Payout</span>
-            <span className="text-label-lg sm:text-title-h5 text-text-strong-950 font-semibold">{formatCurrency(stats.totalPayout)}</span>
+          <div className="flex items-center gap-3 rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-information-lighter text-information-base">
+              <User weight="fill" className="size-4" />
+            </div>
+            <div>
+              <span className="block text-paragraph-xs text-text-soft-400">Enrollments</span>
+              <span className="text-label-lg sm:text-title-h5 text-text-strong-950 font-semibold">{stats.totalEnrollments.toLocaleString()}</span>
+            </div>
           </div>
         </div>
 
@@ -307,7 +345,7 @@ function CampaignsContent() {
           <EmptyState.Root size="large">
             <EmptyState.Header>
               <EmptyState.Icon color="gray">
-                <RiMegaphoneLine className="size-full" />
+                <Megaphone weight="duotone" className="size-full" />
               </EmptyState.Icon>
             </EmptyState.Header>
             <EmptyState.Content>
@@ -323,7 +361,7 @@ function CampaignsContent() {
               {statusFilter === 'all' ? (
                 <Button.Root variant="primary" asChild>
                   <Link href="/dashboard/campaigns/create">
-                    <Button.Icon as={RiAddLine} />
+                    <Button.Icon as={Plus} />
                     Create First Campaign
                   </Link>
                 </Button.Root>
@@ -337,7 +375,7 @@ function CampaignsContent() {
             </EmptyState.Footer>
           </EmptyState.Root>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 items-stretch">
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3 items-stretch">
             {filteredCampaigns.map((campaign) => (
               <CampaignCard
                 key={campaign.id}
@@ -373,7 +411,7 @@ function CampaignsLoading() {
         </div>
         <div className="h-10 w-40 bg-bg-weak-50 rounded-10 animate-pulse" />
       </div>
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5">
         <div className="h-3 w-full bg-bg-weak-50 rounded animate-pulse mb-4" />
         <div className="grid grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
@@ -381,7 +419,7 @@ function CampaignsLoading() {
           ))}
         </div>
       </div>
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4">
         <div className="flex gap-2">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="h-10 w-24 bg-bg-weak-50 rounded-10 animate-pulse" />
@@ -390,7 +428,7 @@ function CampaignsLoading() {
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-64 bg-bg-weak-50 rounded-20 animate-pulse" />
+          <div key={i} className="h-64 bg-bg-weak-50 rounded-xl animate-pulse" />
         ))}
       </div>
     </div>

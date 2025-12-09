@@ -5,7 +5,7 @@ import Link from 'next/link'
 import * as Button from '@/components/ui/button'
 import * as Input from '@/components/ui/input'
 import { Callout } from '@/components/ui/callout'
-import { RiArrowLeftLine, RiMailLine } from '@remixicon/react'
+import { ArrowLeft, Envelope } from '@phosphor-icons/react/dist/ssr'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = React.useState('')
@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
       <header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
         <Button.Root variant="ghost" size="small" asChild>
           <Link href="/sign-in">
-            <Button.Icon as={RiArrowLeftLine} />
+            <Button.Icon as={ArrowLeft} />
             Back to Sign In
           </Link>
         </Button.Root>
@@ -44,7 +44,7 @@ export default function ForgotPasswordPage() {
           <div className="rounded-20 bg-bg-white-0 p-8 ring-1 ring-inset ring-stroke-soft-200 shadow-regular">
             <div className="mb-8 text-center">
               <div className="flex size-12 items-center justify-center rounded-full bg-primary-lighter mx-auto mb-4">
-                <RiMailLine className="size-6 text-primary-base" />
+                <Envelope weight="duotone" className="size-6 text-primary-base" />
               </div>
               <h1 className="text-title-h4 text-text-strong-950 mb-2">Forgot Password?</h1>
               <p className="text-paragraph-sm text-text-sub-600">

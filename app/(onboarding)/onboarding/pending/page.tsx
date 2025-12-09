@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import * as Button from '@/components/ui/button'
-import { RiMailLine, RiTimeLine, RiCustomerService2Line } from '@remixicon/react'
+import { Envelope, Clock, Headset } from '@phosphor-icons/react/dist/ssr'
 
 export default function PendingApprovalPage() {
   return (
@@ -10,7 +10,7 @@ export default function PendingApprovalPage() {
       <div className="rounded-20 bg-bg-white-0 p-8 ring-1 ring-inset ring-stroke-soft-200 shadow-regular">
         {/* Icon */}
         <div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter mx-auto mb-6">
-          <RiTimeLine className="size-8 text-warning-base" />
+          <Clock weight="duotone" className="size-8 text-warning-base" />
         </div>
 
         {/* Title */}
@@ -54,7 +54,7 @@ export default function PendingApprovalPage() {
 
         {/* Contact Info */}
         <div className="flex items-center justify-center gap-2 text-paragraph-sm text-text-sub-600 mb-6">
-          <RiMailLine className="size-4" />
+          <Envelope weight="duotone" className="size-4" />
           <span>We&apos;ll notify you at your registered email</span>
         </div>
 
@@ -65,7 +65,7 @@ export default function PendingApprovalPage() {
           </Button.Root>
           <Button.Root variant="basic" className="w-full" asChild>
             <a href="mailto:support@hypedrive.com">
-              <Button.Icon as={RiCustomerService2Line} />
+              <Button.Icon as={Headset} />
               Contact Support
             </a>
           </Button.Root>

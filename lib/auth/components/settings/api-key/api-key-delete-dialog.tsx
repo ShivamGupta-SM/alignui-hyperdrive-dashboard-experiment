@@ -1,6 +1,6 @@
 "use client"
 
-import { RiKey2Line, RiLoader4Line } from "@remixicon/react"
+import { Key, CircleNotch } from "@phosphor-icons/react"
 import { type ComponentProps, useContext, useState } from "react"
 
 import { useLang } from "../../../hooks/use-lang"
@@ -113,7 +113,7 @@ export function ApiKeyDeleteDialog({
                         classNames?.cell
                     )}
                 >
-                    <RiKey2Line className={cn("size-4", classNames?.icon)} size={20} />
+                    <Key className={cn("size-4", classNames?.icon)} size={20} />
 
                     <div className="flex flex-col">
                         <div className="flex items-center gap-2">
@@ -157,7 +157,7 @@ export function ApiKeyDeleteDialog({
                             classNames?.destructiveButton
                         )}
                     >
-                        {isLoading && <RiLoader4Line className="animate-spin" size={20} />}
+                        {isLoading && <CircleNotch className="animate-spin" size={20} />}
                         {localization.DELETE}
                     </Button>
                 </DialogFooter>

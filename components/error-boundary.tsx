@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import * as Button from '@/components/ui/button'
-import { RiRefreshLine, RiHome2Line, RiErrorWarningLine } from '@remixicon/react'
+import { ArrowClockwise, House, WarningCircle } from '@phosphor-icons/react'
 
 interface ErrorBoundaryProps {
   children: React.ReactNode
@@ -48,7 +48,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       return (
         <div className="flex min-h-[400px] flex-col items-center justify-center p-8">
           <div className="flex size-16 items-center justify-center rounded-full bg-error-lighter mb-6">
-            <RiErrorWarningLine className="size-8 text-error-base" />
+            <WarningCircle className="size-8 text-error-base" weight="duotone" />
           </div>
           <h2 className="text-title-h5 text-text-strong-950 mb-2">Something went wrong</h2>
           <p className="text-paragraph-sm text-text-sub-600 text-center max-w-md mb-6">
@@ -63,12 +63,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
           )}
           <div className="flex items-center gap-3">
             <Button.Root variant="primary" onClick={this.handleRetry}>
-              <Button.Icon as={RiRefreshLine} />
+              <Button.Icon as={ArrowClockwise} />
               Try Again
             </Button.Root>
             <Button.Root variant="basic" asChild>
               <a href="/dashboard">
-                <Button.Icon as={RiHome2Line} />
+                <Button.Icon as={House} />
                 Go to Dashboard
               </a>
             </Button.Root>
@@ -104,7 +104,7 @@ export function ErrorFallback({
       aria-live="assertive"
     >
       <div className="flex size-14 items-center justify-center rounded-full bg-error-lighter mb-4">
-        <RiErrorWarningLine className="size-7 text-error-base" aria-hidden="true" />
+        <WarningCircle className="size-7 text-error-base" weight="duotone" aria-hidden="true" />
       </div>
       <h3 className="text-label-lg text-text-strong-950 mb-2">{title}</h3>
       <p className="text-paragraph-sm text-text-sub-600 text-center max-w-sm mb-4">
@@ -119,7 +119,7 @@ export function ErrorFallback({
       )}
       {resetErrorBoundary && (
         <Button.Root variant="primary" onClick={resetErrorBoundary}>
-          <Button.Icon as={RiRefreshLine} />
+          <Button.Icon as={ArrowClockwise} />
           Try Again
         </Button.Root>
       )}
@@ -144,7 +144,7 @@ export function PageError({ error, reset }: PageErrorProps) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-8 bg-bg-white-0">
       <div className="flex size-20 items-center justify-center rounded-full bg-error-lighter mb-8">
-        <RiErrorWarningLine className="size-10 text-error-base" aria-hidden="true" />
+        <WarningCircle className="size-10 text-error-base" weight="duotone" aria-hidden="true" />
       </div>
       <h1 className="text-title-h4 text-text-strong-950 mb-3">Oops! Something went wrong</h1>
       <p className="text-paragraph-md text-text-sub-600 text-center max-w-lg mb-8">
@@ -165,12 +165,12 @@ export function PageError({ error, reset }: PageErrorProps) {
       )}
       <div className="flex items-center gap-4">
         <Button.Root variant="primary" size="medium" onClick={reset}>
-          <Button.Icon as={RiRefreshLine} />
+          <Button.Icon as={ArrowClockwise} />
           Try Again
         </Button.Root>
         <Button.Root variant="basic" size="medium" asChild>
           <a href="/dashboard">
-            <Button.Icon as={RiHome2Line} />
+            <Button.Icon as={House} />
             Go to Dashboard
           </a>
         </Button.Root>

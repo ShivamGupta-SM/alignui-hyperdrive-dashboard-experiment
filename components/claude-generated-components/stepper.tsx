@@ -6,7 +6,7 @@
 import * as React from 'react';
 import { tv, type VariantProps } from '@/utils/tv';
 import { cn } from '@/utils/cn';
-import { RiCheckLine } from '@remixicon/react';
+import { Check } from '@phosphor-icons/react/dist/ssr';
 import { recursiveCloneChildren } from '@/utils/recursive-clone-children';
 
 const STEPPER_ROOT_NAME = 'StepperRoot';
@@ -315,7 +315,7 @@ function StepperIndicator({
 
   const renderContent = () => {
     if (status === 'completed') {
-      return completedIcon || <RiCheckLine className='size-5' />;
+      return completedIcon || <Check weight="bold" className='size-5' />;
     }
     if (status === 'error' && errorIcon) {
       return errorIcon;

@@ -5,12 +5,12 @@ import * as Alert from '@/components/ui/alert';
 import { cn } from '@/utils/cn';
 import * as NotificationPrimitives from '@radix-ui/react-toast';
 import {
-  RiAlertFill,
-  RiCheckboxCircleFill,
-  RiErrorWarningFill,
-  RiInformationFill,
-  RiMagicFill,
-} from '@remixicon/react';
+  Warning,
+  CheckCircle,
+  WarningCircle,
+  Info,
+  MagicWand,
+} from '@phosphor-icons/react';
 
 const NotificationProvider = NotificationPrimitives.Provider;
 const NotificationAction = NotificationPrimitives.Action;
@@ -60,28 +60,14 @@ const Notification = React.forwardRef<
     }: NotificationProps,
     forwardedRef,
   ) => {
-    let Icon: React.ElementType;
-
-    switch (status) {
-      case 'success':
-        Icon = RiCheckboxCircleFill;
-        break;
-      case 'warning':
-        Icon = RiAlertFill;
-        break;
-      case 'error':
-        Icon = RiErrorWarningFill;
-        break;
-      case 'information':
-        Icon = RiInformationFill;
-        break;
-      case 'feature':
-        Icon = RiMagicFill;
-        break;
-      default:
-        Icon = RiErrorWarningFill;
-        break;
-    }
+    const statusIcons: Record<string, React.ElementType> = {
+      success: CheckCircle,
+      warning: Warning,
+      error: WarningCircle,
+      information: Info,
+      feature: MagicWand,
+    };
+    const Icon = statusIcons[status || ''] || WarningCircle;
 
     return (
       <NotificationPrimitives.Root

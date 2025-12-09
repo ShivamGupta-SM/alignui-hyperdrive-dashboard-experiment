@@ -2,7 +2,7 @@
 "use client"
 
 import type { Organization } from "better-auth/plugins/organization"
-import { RiMore2Line, RiLoader4Line, RiCloseLine } from "@remixicon/react"
+import { DotsThree, CircleNotch, X } from "@phosphor-icons/react"
 import { useContext, useMemo, useState } from "react"
 import { useLang } from "../../hooks/use-lang"
 import { AuthUIContext } from "../../lib/auth-ui-provider"
@@ -147,9 +147,9 @@ export function InvitationCell({
                         variant="outline"
                     >
                         {isLoading ? (
-                            <RiLoader4Line className="animate-spin" size={20} />
+                            <CircleNotch className="animate-spin" size={20} />
                         ) : (
-                            <RiMore2Line className={classNames?.icon} size={20} />
+                            <DotsThree className={classNames?.icon} size={20} />
                         )}
                     </Button>
                 </DropdownMenuTrigger>
@@ -162,7 +162,7 @@ export function InvitationCell({
                         disabled={isLoading}
                         variant="destructive"
                     >
-                        <RiCloseLine className={classNames?.icon} size={20} />
+                        <X className={classNames?.icon} size={20} />
 
                         {localization.CANCEL_INVITATION}
                     </DropdownMenuItem>

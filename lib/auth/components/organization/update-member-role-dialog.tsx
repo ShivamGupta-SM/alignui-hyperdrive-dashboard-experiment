@@ -3,7 +3,7 @@
 
 import type { User } from "better-auth"
 import type { Member } from "better-auth/plugins/organization"
-import { RiLoader4Line } from "@remixicon/react"
+import { CircleNotch } from "@phosphor-icons/react"
 import { type ComponentProps, useContext, useMemo, useState } from "react"
 import { AuthUIContext } from "../../lib/auth-ui-provider"
 import { cn, getLocalizedError } from "../../lib/utils"
@@ -208,7 +208,7 @@ export function UpdateMemberRoleDialog({
                         )}
                         disabled={isUpdating}
                     >
-                        {isUpdating && <RiLoader4Line className="animate-spin" size={20} />}
+                        {isUpdating && <CircleNotch className="animate-spin" size={20} />}
 
                         {localization.UPDATE_ROLE}
                     </Button>

@@ -7,7 +7,7 @@ import * as React from 'react';
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import { cn } from '@/utils/cn';
 import { tv, type VariantProps } from '@/utils/tv';
-import { RiArrowRightSLine, RiCheckLine } from '@remixicon/react';
+import { CaretRight, Check } from '@phosphor-icons/react';
 import { PolymorphicComponentProps } from '@/utils/polymorphic';
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
@@ -205,7 +205,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
   >
     {children}
     <span className='flex-1' />
-    <DropdownItemIcon as={RiArrowRightSLine} />
+    <DropdownItemIcon as={CaretRight} />
   </DropdownMenuPrimitive.SubTrigger>
 ));
 DropdownMenuSubTrigger.displayName = 'DropdownMenuSubTrigger';
@@ -265,7 +265,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   >
     <span className="absolute left-2 flex size-5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        <RiCheckLine className="size-4 text-primary-base" aria-hidden="true" />
+        <Check weight="bold" className="size-4 text-primary-base" aria-hidden="true" />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     <span className="flex-1">{children}</span>

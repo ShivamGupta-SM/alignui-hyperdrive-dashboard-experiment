@@ -9,7 +9,7 @@ import * as Checkbox from '@/components/ui/checkbox'
 import * as Divider from '@/components/ui/divider'
 import { Callout } from '@/components/ui/callout'
 import { signInSchema, type SignInFormData } from '@/lib/validations'
-import { RiGoogleFill, RiEyeLine, RiEyeOffLine, RiErrorWarningLine } from '@remixicon/react'
+import { GoogleLogo, Eye, EyeSlash, WarningCircle } from '@phosphor-icons/react'
 
 export default function SignInPage() {
   const router = useRouter()
@@ -135,7 +135,7 @@ export default function SignInPage() {
             </Input.Root>
             {touched.email && errors.email && (
               <p id="email-error" className="flex items-center gap-1 mt-1.5 text-paragraph-xs text-error-base" role="alert">
-                <RiErrorWarningLine className="size-3.5" />
+                <WarningCircle weight="fill" className="size-3.5" />
                 {errors.email}
               </p>
             )}
@@ -164,16 +164,16 @@ export default function SignInPage() {
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
-                    <RiEyeOffLine className="size-5" />
+                    <EyeSlash className="size-5" />
                   ) : (
-                    <RiEyeLine className="size-5" />
+                    <Eye className="size-5" />
                   )}
                 </button>
               </Input.Wrapper>
             </Input.Root>
             {touched.password && errors.password && (
               <p id="password-error" className="flex items-center gap-1 mt-1.5 text-paragraph-xs text-error-base" role="alert">
-                <RiErrorWarningLine className="size-3.5" />
+                <WarningCircle weight="fill" className="size-3.5" />
                 {errors.password}
               </p>
             )}
@@ -220,7 +220,7 @@ export default function SignInPage() {
           onClick={handleGoogleSignIn}
           disabled={isLoading}
         >
-          <Button.Icon as={RiGoogleFill} />
+          <Button.Icon as={GoogleLogo} />
           Continue with Google
         </Button.Root>
 

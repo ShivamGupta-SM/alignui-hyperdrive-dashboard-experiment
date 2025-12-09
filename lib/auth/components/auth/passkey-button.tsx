@@ -1,5 +1,5 @@
 // @ts-nocheck - Vendored library with complex type dependencies
-import { RiFingerprintLine } from "@remixicon/react"
+import { Fingerprint } from "@phosphor-icons/react"
 import { useContext } from "react"
 
 import { useOnSuccessTransition } from "../../hooks/use-success-transition"
@@ -85,7 +85,7 @@ export function PasskeyButton({
             variant="secondary"
             onClick={signInPassKey}
         >
-            <RiFingerprintLine />
+            <Fingerprint />
             {localization.SIGN_IN_WITH} {localization.PASSKEY}
         </Button>
     )

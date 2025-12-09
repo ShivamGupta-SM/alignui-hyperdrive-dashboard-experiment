@@ -3,7 +3,7 @@
 
 import type { Account } from "better-auth"
 import type { SocialProvider } from "better-auth/social-providers"
-import { RiLoader4Line } from "@remixicon/react"
+import { CircleNotch } from "@phosphor-icons/react"
 import { useContext, useState } from "react"
 import { AuthUIContext } from "../../../lib/auth-ui-provider"
 import type { Provider } from "../../../lib/social-providers"
@@ -132,7 +132,7 @@ export function ProviderCell({
                 variant={account ? "outline" : "default"}
                 onClick={account ? handleUnlink : handleLink}
             >
-                {isLoading && <RiLoader4Line className="animate-spin" size={20} />}
+                {isLoading && <CircleNotch className="animate-spin" size={20} />}
                 {account ? localization.UNLINK : localization.LINK}
             </Button>
         </Card>

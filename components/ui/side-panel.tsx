@@ -4,7 +4,7 @@
 
 import * as React from 'react'
 import { cn } from '@/utils/cn'
-import { RiCloseLine } from '@remixicon/react'
+import { X } from '@phosphor-icons/react'
 import * as Button from '@/components/ui/button'
 
 interface SidePanelContextValue {
@@ -102,8 +102,8 @@ function SidePanelContent({ children, className, side = 'right' }: SidePanelCont
       <div
         className={cn(
           'fixed top-0 z-50 h-full w-full bg-bg-white-0 shadow-xl transition-transform duration-300 ease-out sm:w-[480px]',
-          side === 'right' && 'right-0',
-          side === 'left' && 'left-0',
+          side === 'right' && 'right-0 sm:rounded-l-2xl',
+          side === 'left' && 'left-0 sm:rounded-r-2xl',
           open
             ? 'translate-x-0'
             : side === 'right'
@@ -139,7 +139,7 @@ function SidePanelHeader({ children, className }: SidePanelHeaderProps) {
         size="small"
         onClick={() => onOpenChange(false)}
       >
-        <Button.Icon as={RiCloseLine} />
+        <Button.Icon as={X} />
       </Button.Root>
     </div>
   )

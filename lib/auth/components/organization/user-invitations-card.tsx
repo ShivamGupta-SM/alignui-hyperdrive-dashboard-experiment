@@ -1,7 +1,7 @@
 // @ts-nocheck - Vendored library with complex type dependencies
 "use client"
 
-import { RiCheckLine, RiMore2Line, RiLoader4Line, RiCloseLine } from "@remixicon/react"
+import { Check, DotsThree, CircleNotch, X } from "@phosphor-icons/react"
 import { useContext, useMemo, useState } from "react"
 import { useLang } from "../../hooks/use-lang"
 import { AuthUIContext } from "../../lib/auth-ui-provider"
@@ -231,9 +231,9 @@ function UserInvitationRow({
                             variant="outline"
                         >
                             {isLoading ? (
-                                <RiLoader4Line className="animate-spin" size={20} />
+                                <CircleNotch className="animate-spin" size={20} />
                             ) : (
-                                <RiMore2Line className={classNames?.icon} size={20} />
+                                <DotsThree className={classNames?.icon} size={20} />
                             )}
                         </Button>
                     </DropdownMenuTrigger>
@@ -245,7 +245,7 @@ function UserInvitationRow({
                             onClick={handleAccept}
                             disabled={isLoading}
                         >
-                            <RiCheckLine className={classNames?.icon} size={20} />
+                            <Check className={classNames?.icon} size={20} />
 
                             {localization.ACCEPT}
                         </DropdownMenuItem>
@@ -255,7 +255,7 @@ function UserInvitationRow({
                             disabled={isLoading}
                             variant="destructive"
                         >
-                            <RiCloseLine className={classNames?.icon} size={20} />
+                            <X className={classNames?.icon} size={20} />
 
                             {localization.REJECT}
                         </DropdownMenuItem>

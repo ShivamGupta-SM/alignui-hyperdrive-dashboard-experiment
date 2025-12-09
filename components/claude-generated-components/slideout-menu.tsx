@@ -4,7 +4,7 @@
 
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { RiCloseLine } from '@remixicon/react';
+import { X } from '@phosphor-icons/react/dist/ssr';
 import { tv, type VariantProps } from '@/utils/tv';
 import * as CompactButton from '@/components/ui/compact-button';
 
@@ -167,7 +167,7 @@ function SlideoutMenuHeader({
             size='large'
             aria-label='Close slideout menu'
           >
-            <CompactButton.Icon as={RiCloseLine} />
+            <CompactButton.Icon as={X} />
           </CompactButton.Root>
         </SlideoutMenuClose>
       )}

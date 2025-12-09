@@ -4,7 +4,7 @@ import * as React from 'react';
 
 import * as Divider from '@/components/ui/divider';
 import { cn } from '@/utils/cn';
-import { RiArrowUpLine, RiArrowDownLine, RiArrowUpDownLine } from '@remixicon/react';
+import { ArrowUp, ArrowDown, ArrowsDownUp } from '@phosphor-icons/react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const Table = React.forwardRef<
@@ -164,9 +164,9 @@ const TableSortableHead = React.forwardRef<HTMLTableCellElement, TableSortableHe
         <span className="flex items-center gap-1">
           {children}
           <span className="ml-auto shrink-0" aria-hidden="true">
-            {sortDirection === 'asc' && <RiArrowUpLine className="size-4 text-text-strong-950" />}
-            {sortDirection === 'desc' && <RiArrowDownLine className="size-4 text-text-strong-950" />}
-            {!sortDirection && <RiArrowUpDownLine className="size-4 text-text-soft-400" />}
+            {sortDirection === 'asc' && <ArrowUp className="size-4 text-text-strong-950" weight="bold" />}
+            {sortDirection === 'desc' && <ArrowDown className="size-4 text-text-strong-950" weight="bold" />}
+            {!sortDirection && <ArrowsDownUp className="size-4 text-text-soft-400" />}
           </span>
         </span>
       </th>

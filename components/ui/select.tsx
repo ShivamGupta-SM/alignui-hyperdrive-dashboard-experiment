@@ -7,7 +7,7 @@ import * as React from 'react';
 import * as SelectPrimitives from '@radix-ui/react-select';
 import * as ScrollAreaPrimitives from '@radix-ui/react-scroll-area';
 import { Slottable } from '@radix-ui/react-slot';
-import { RiArrowDownSLine, RiCheckLine, RiLoader4Line } from '@remixicon/react';
+import { CaretDown, Check, CircleNotch } from '@phosphor-icons/react';
 import { tv, type VariantProps } from '@/utils/tv';
 import { cn } from '@/utils/cn';
 import type { PolymorphicComponentProps } from '@/utils/polymorphic';
@@ -318,9 +318,9 @@ const SelectTrigger = React.forwardRef<
       <Slottable>{children}</Slottable>
       <SelectPrimitives.Icon asChild>
         {isLoading ? (
-          <RiLoader4Line className={cn(triggerArrow(), 'animate-spin')} aria-hidden="true" />
+          <CircleNotch className={cn(triggerArrow(), 'animate-spin')} aria-hidden="true" />
         ) : (
-          <RiArrowDownSLine className={triggerArrow()} aria-hidden="true" />
+          <CaretDown weight="bold" className={triggerArrow()} aria-hidden="true" />
         )}
       </SelectPrimitives.Icon>
     </SelectPrimitives.Trigger>
@@ -364,8 +364,8 @@ const SelectContent = React.forwardRef<
         className={cn(
           // base
           'relative z-50 overflow-hidden rounded-2xl bg-bg-white-0 shadow-regular-md ring-1 ring-inset ring-stroke-soft-200',
-          // widths
-          'min-w-[--radix-select-trigger-width] max-w-[max(var(--radix-select-trigger-width),320px)]',
+          // widths - match trigger width, with a minimum
+          'w-[var(--radix-select-trigger-width)] min-w-[200px]',
           // heights
           'max-h-[--radix-select-content-available-height]',
           // animation
@@ -444,7 +444,7 @@ const SelectItem = React.forwardRef<
         </span>
       </SelectPrimitives.ItemText>
       <SelectPrimitives.ItemIndicator asChild>
-        <RiCheckLine className='absolute right-2 top-1/2 size-5 shrink-0 -translate-y-1/2 text-text-sub-600' />
+        <Check weight="bold" className='absolute right-2 top-1/2 size-5 shrink-0 -translate-y-1/2 text-text-sub-600' />
       </SelectPrimitives.ItemIndicator>
     </SelectPrimitives.Item>
   );
@@ -506,7 +506,7 @@ function SelectLoading({
       aria-busy="true"
       {...rest}
     >
-      <RiLoader4Line className="size-4 animate-spin" aria-hidden="true" />
+      <CircleNotch className="size-4 animate-spin" aria-hidden="true" />
       {children}
     </div>
   );

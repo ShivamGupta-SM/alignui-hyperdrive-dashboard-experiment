@@ -1,7 +1,7 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
-import { RiLoader4Line } from "@remixicon/react"
+import { CircleNotch } from "@phosphor-icons/react"
 import { useContext, useEffect, useRef } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -209,7 +209,7 @@ export function ResetPasswordForm({
                     )}
                 >
                     {isSubmitting ? (
-                        <RiLoader4Line className="animate-spin" size={20} />
+                        <CircleNotch className="animate-spin" size={20} />
                     ) : (
                         localization.RESET_PASSWORD_ACTION
                     )}

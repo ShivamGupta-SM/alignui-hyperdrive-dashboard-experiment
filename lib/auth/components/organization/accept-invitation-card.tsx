@@ -1,7 +1,7 @@
 // @ts-nocheck - Vendored library with complex type dependencies
 "use client"
 
-import { RiCheckLine, RiLoader4Line, RiCloseLine } from "@remixicon/react"
+import { Check, CircleNotch, X } from "@phosphor-icons/react"
 import { useCallback, useContext, useEffect, useMemo, useState } from "react"
 
 import { useAuthenticate } from "../../hooks/use-authenticate"
@@ -291,9 +291,9 @@ function AcceptInvitationContent({
                         disabled={isProcessing}
                     >
                         {isRejecting ? (
-                            <RiLoader4Line className="animate-spin" size={20} />
+                            <CircleNotch className="animate-spin" size={20} />
                         ) : (
-                            <RiCloseLine size={20} />
+                            <X size={20} />
                         )}
 
                         {localization.REJECT}
@@ -308,9 +308,9 @@ function AcceptInvitationContent({
                         disabled={isProcessing}
                     >
                         {isAccepting ? (
-                            <RiLoader4Line className="animate-spin" size={20} />
+                            <CircleNotch className="animate-spin" size={20} />
                         ) : (
-                            <RiCheckLine size={20} />
+                            <Check size={20} />
                         )}
 
                         {localization.ACCEPT}

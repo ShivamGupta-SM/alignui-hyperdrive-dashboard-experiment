@@ -3,7 +3,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { Organization } from "better-auth/plugins/organization"
-import { RiLoader4Line } from "@remixicon/react"
+import { CircleNotch } from "@phosphor-icons/react"
 import { type ComponentProps, useContext } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -368,7 +368,7 @@ export function CreateApiKeyDialog({
                                 disabled={isSubmitting}
                             >
                                 {isSubmitting && (
-                                    <RiLoader4Line className="animate-spin" size={20} />
+                                    <CircleNotch className="animate-spin" size={20} />
                                 )}
 
                                 {localization.CREATE_API_KEY}

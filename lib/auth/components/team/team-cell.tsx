@@ -1,6 +1,6 @@
 "use client"
 
-import { RiGroupLine } from "@remixicon/react"
+import { Users } from "@phosphor-icons/react"
 import { useContext } from "react"
 
 import { AuthUIContext } from "../../lib/auth-ui-provider"
@@ -53,7 +53,7 @@ export function TeamCell({ classNames, team, localization }: TeamCellProps) {
                         opacity: 0.2
                     }}
                 >
-                    <RiGroupLine
+                    <Users
                         className="size-5"
                         size={20}
                         style={{ color: getTeamColor(teamIndex) }}

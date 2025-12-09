@@ -15,7 +15,7 @@ import {
 import { useState } from "react"
 import { cn } from "@/utils/cn"
 import * as Button from "@/components/ui/button"
-import { RiArrowLeftSLine, RiArrowRightSLine, RiArrowUpSLine, RiArrowDownSLine } from "@remixicon/react"
+import { CaretLeft, CaretRight, CaretUp, CaretDown } from "@phosphor-icons/react/dist/ssr"
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[]
@@ -92,8 +92,8 @@ export function DataTable<TData, TValue>({
                                                 {header.column.getCanSort() && (
                                                     <span className="text-text-soft-400">
                                                         {{
-                                                            asc: <RiArrowUpSLine className="size-4" />,
-                                                            desc: <RiArrowDownSLine className="size-4" />,
+                                                            asc: <CaretUp weight="bold" className="size-4" />,
+                                                            desc: <CaretDown weight="bold" className="size-4" />,
                                                         }[header.column.getIsSorted() as string] ?? null}
                                                     </span>
                                                 )}
@@ -151,7 +151,7 @@ export function DataTable<TData, TValue>({
                         onClick={() => table.previousPage()}
                         disabled={!table.getCanPreviousPage()}
                     >
-                        <Button.Icon as={RiArrowLeftSLine} />
+                        <Button.Icon as={CaretLeft} />
                         Previous
                     </Button.Root>
                     <Button.Root
@@ -161,7 +161,7 @@ export function DataTable<TData, TValue>({
                         disabled={!table.getCanNextPage()}
                     >
                         Next
-                        <Button.Icon as={RiArrowRightSLine} />
+                        <Button.Icon as={CaretRight} />
                     </Button.Root>
                 </div>
             </div>

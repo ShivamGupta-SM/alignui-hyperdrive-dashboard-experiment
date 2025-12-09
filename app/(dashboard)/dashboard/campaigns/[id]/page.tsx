@@ -5,42 +5,34 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import * as Button from '@/components/ui/button'
 import * as StatusBadge from '@/components/ui/status-badge'
-import * as Badge from '@/components/ui/badge'
 import * as TabMenu from '@/components/ui/tab-menu-horizontal'
 import * as Dropdown from '@/components/ui/dropdown'
 import * as ProgressBar from '@/components/ui/progress-bar'
 import * as List from '@/components/ui/list'
-import * as DataTable from '@/components/ui/data-table'
-import * as Breadcrumb from '@/components/ui/breadcrumb'
-import { StatCard } from '@/components/dashboard/stat-card'
 import { EnrollmentCard } from '@/components/dashboard/enrollment-card'
 import { Metric, MetricGroup } from '@/components/ui/metric'
-import { Tracker, TrackerWithLegend } from '@/components/ui/tracker'
+import { Tracker } from '@/components/ui/tracker'
 import { BarList } from '@/components/ui/bar-list'
-import { AlignBarChart, AlignLineChart } from '@/components/claude-generated-components/charts'
+import { AlignLineChart } from '@/components/claude-generated-components/charts'
 import { ConfirmationModal } from '@/components/dashboard/modals'
+import { useBreadcrumbs } from '@/contexts/breadcrumb-context'
 import {
-  RiArrowLeftLine,
-  RiArrowRightLine,
-  RiPauseCircleLine,
-  RiPlayCircleLine,
-  RiEditLine,
-  RiFileCopyLine,
-  RiStopCircleLine,
-  RiMoreLine,
-  RiDeleteBinLine,
-  RiUserFollowLine,
-  RiMoneyDollarCircleLine,
-  RiShoppingBag3Line,
-  RiTimeLine,
-  RiCheckDoubleLine,
-  RiInformationLine,
-  RiCalendarLine,
-  RiPercentLine,
-} from '@remixicon/react'
-import { cn } from '@/utils/cn'
+  ArrowLeft,
+  ArrowRight,
+  PauseCircle,
+  PlayCircle,
+  PencilSimple,
+  Copy,
+  StopCircle,
+  DotsThree,
+  Trash,
+  ShoppingBag,
+  Clock,
+  Info,
+  CalendarBlank,
+} from '@phosphor-icons/react/dist/ssr'
 import type { Campaign, CampaignStatus, Enrollment } from '@/lib/types'
-import { CAMPAIGN_STATUS_CONFIG, ENROLLMENT_STATUS_CONFIG } from '@/lib/constants'
+import { CAMPAIGN_STATUS_CONFIG } from '@/lib/constants'
 
 // Mock data
 const mockCampaign: Campaign = {
@@ -144,7 +136,12 @@ export default function CampaignDetailPage() {
 
   const statusConfig = CAMPAIGN_STATUS_CONFIG[campaign.status]
 
-  // Breadcrumb removed - will be added in return statement
+  // Set breadcrumbs in header
+  useBreadcrumbs([
+    { label: 'Dashboard', href: '/dashboard' },
+    { label: 'Campaigns', href: '/dashboard/campaigns' },
+    { label: campaign.title },
+  ])
 
   const formatCurrency = (amount: number) => {
     return `₹${amount.toLocaleString('en-IN')}`
@@ -232,19 +229,6 @@ export default function CampaignDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
-      <Breadcrumb.Root>
-        <Breadcrumb.Item asChild>
-          <Link href="/dashboard">Dashboard</Link>
-        </Breadcrumb.Item>
-        <Breadcrumb.ArrowIcon as={RiArrowRightLine} />
-        <Breadcrumb.Item asChild>
-          <Link href="/dashboard/campaigns">Campaigns</Link>
-        </Breadcrumb.Item>
-        <Breadcrumb.ArrowIcon as={RiArrowRightLine} />
-        <Breadcrumb.Item active>{campaign.title}</Breadcrumb.Item>
-      </Breadcrumb.Root>
-
       {/* Campaign Header Card */}
       <div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-6">
         {/* Top row: Back + Actions */}
@@ -253,7 +237,7 @@ export default function CampaignDetailPage() {
             onClick={() => router.back()}
             className="inline-flex items-center gap-1.5 text-text-sub-600 hover:text-text-strong-950 transition-colors"
           >
-            <RiArrowLeftLine className="size-4" />
+            <ArrowLeft weight="bold" className="size-4" />
             <span className="text-label-sm">Back</span>
           </button>
           
@@ -261,13 +245,13 @@ export default function CampaignDetailPage() {
           <div className="flex items-center gap-2">
             {campaign.status === 'active' && (
               <Button.Root variant="basic" size="xsmall" onClick={handlePause}>
-                <Button.Icon as={RiPauseCircleLine} />
+                <Button.Icon as={PauseCircle} />
                 <span className="hidden sm:inline">Pause</span>
               </Button.Root>
             )}
             {campaign.status === 'paused' && (
               <Button.Root variant="primary" size="xsmall" onClick={handleResume}>
-                <Button.Icon as={RiPlayCircleLine} />
+                <Button.Icon as={PlayCircle} />
                 <span className="hidden sm:inline">Resume</span>
               </Button.Root>
             )}
@@ -275,24 +259,24 @@ export default function CampaignDetailPage() {
               <>
                 <Button.Root variant="basic" size="xsmall" asChild>
                   <Link href={`/dashboard/campaigns/${campaign.id}/edit`}>
-                    <Button.Icon as={RiEditLine} />
+                    <Button.Icon as={PencilSimple} />
                     <span className="hidden sm:inline">Edit</span>
                   </Link>
                 </Button.Root>
                 <Dropdown.Root>
                   <Dropdown.Trigger asChild>
                     <Button.Root variant="basic" size="xsmall">
-                      <Button.Icon as={RiMoreLine} />
+                      <Button.Icon as={DotsThree} />
                     </Button.Root>
                   </Dropdown.Trigger>
                   <Dropdown.Content align="end">
                     <Dropdown.Item>
-                      <Dropdown.ItemIcon as={RiFileCopyLine} />
+                      <Dropdown.ItemIcon as={Copy} />
                       Duplicate
                     </Dropdown.Item>
                     <Dropdown.Separator />
                     <Dropdown.Item onClick={handleEnd} className="text-error-base">
-                      <Dropdown.ItemIcon as={RiStopCircleLine} />
+                      <Dropdown.ItemIcon as={StopCircle} />
                       End Campaign
                     </Dropdown.Item>
                   </Dropdown.Content>
@@ -319,15 +303,15 @@ export default function CampaignDetailPage() {
         {/* Meta info */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">
           <span className="flex items-center gap-1.5">
-            <RiShoppingBag3Line className="size-4 shrink-0" />
+            <ShoppingBag weight="duotone" className="size-4 shrink-0" />
             Nike Air Max 2024
           </span>
           <span className="flex items-center gap-1.5">
-            <RiCalendarLine className="size-4 shrink-0" />
+            <CalendarBlank weight="duotone" className="size-4 shrink-0" />
             {formatDate(campaign.startDate)} - {formatDate(campaign.endDate)}
           </span>
           <span className="flex items-center gap-1.5">
-            <RiTimeLine className="size-4 shrink-0" />
+            <Clock weight="duotone" className="size-4 shrink-0" />
             {getDaysRemaining()} days left
           </span>
         </div>
@@ -605,7 +589,7 @@ function OverviewTab({
         </div>
         
         <div className="flex items-start gap-2 mt-4 p-3 rounded-xl bg-information-lighter">
-          <RiInformationLine className="size-4 text-information-base shrink-0 mt-0.5" />
+          <Info weight="duotone" className="size-4 text-information-base shrink-0 mt-0.5" />
           <span className="text-paragraph-xs sm:text-paragraph-sm text-information-dark">
             Shopper payouts are determined and managed by Hypedrive platform.
           </span>
@@ -774,7 +758,7 @@ function SettingsTab({ campaign }: SettingsTabProps) {
             </div>
           </div>
           <Button.Root variant="error" size="small" className="w-full sm:w-auto">
-            <Button.Icon as={RiDeleteBinLine} />
+            <Button.Icon as={Trash} />
             Delete
           </Button.Root>
         </div>

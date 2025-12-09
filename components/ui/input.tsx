@@ -7,13 +7,13 @@ import { recursiveCloneChildren } from '@/utils/recursive-clone-children';
 import type { PolymorphicComponentProps } from '@/utils/polymorphic';
 import { Slot } from '@radix-ui/react-slot';
 import {
-  RiEyeLine,
-  RiEyeOffLine,
-  RiSearchLine,
-  RiAddLine,
-  RiSubtractLine,
-  RiCloseLine,
-} from '@remixicon/react';
+  Eye,
+  EyeSlash,
+  MagnifyingGlass,
+  Plus,
+  Minus,
+  X,
+} from '@phosphor-icons/react';
 
 const INPUT_ROOT_NAME = 'InputRoot';
 const INPUT_WRAPPER_NAME = 'InputWrapper';
@@ -388,9 +388,9 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
               tabIndex={-1}
             >
               {showPassword ? (
-                <RiEyeOffLine className="size-5" aria-hidden="true" />
+                <EyeSlash className="size-5" aria-hidden="true" />
               ) : (
-                <RiEyeLine className="size-5" aria-hidden="true" />
+                <Eye className="size-5" aria-hidden="true" />
               )}
             </button>
           )}
@@ -436,7 +436,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
       <div className={root({ class: className })}>
         <label className={wrapper()}>
           <div className={icon()} aria-hidden="true">
-            <RiSearchLine className="size-5" />
+            <MagnifyingGlass className="size-5" />
           </div>
           <input
             type="search"
@@ -455,7 +455,7 @@ const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
               aria-label="Clear search"
               tabIndex={-1}
             >
-              <RiCloseLine className="size-5" aria-hidden="true" />
+              <X className="size-5" aria-hidden="true" />
             </button>
           )}
         </label>
@@ -564,7 +564,7 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
               aria-label="Decrease value"
               tabIndex={-1}
             >
-              <RiSubtractLine className="size-4" aria-hidden="true" />
+              <Minus className="size-4" aria-hidden="true" />
             </button>
           )}
           <input
@@ -595,7 +595,7 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
               aria-label="Increase value"
               tabIndex={-1}
             >
-              <RiAddLine className="size-4" aria-hidden="true" />
+              <Plus className="size-4" aria-hidden="true" />
             </button>
           )}
         </label>

@@ -2,7 +2,7 @@
 
 import type { User } from "better-auth"
 import type { Member, Organization } from "better-auth/plugins/organization"
-import { RiMore2Line, RiUserSettingsLine, RiUserUnfollowLine } from "@remixicon/react"
+import { DotsThree, UserGear, UserMinus } from "@phosphor-icons/react"
 import { useContext, useState } from "react"
 
 import { AuthUIContext } from "../../lib/auth-ui-provider"
@@ -117,7 +117,7 @@ export function MemberCell({
                                     type="button"
                                     variant="outline"
                                 >
-                                    <RiMore2Line
+                                    <DotsThree
                                         className={classNames?.icon}
                                         size={20}
                                     />
@@ -133,7 +133,7 @@ export function MemberCell({
                                             setUpdateRoleDialogOpen(true)
                                         }
                                     >
-                                        <RiUserSettingsLine
+                                        <UserGear
                                             className={classNames?.icon}
                                             size={20}
                                         />
@@ -149,7 +149,7 @@ export function MemberCell({
                                     }
                                     variant="destructive"
                                 >
-                                    <RiUserUnfollowLine className={classNames?.icon} size={20} />
+                                    <UserMinus className={classNames?.icon} size={20} />
                                     {isSelf
                                         ? localization?.LEAVE_ORGANIZATION
                                         : localization?.REMOVE_MEMBER}

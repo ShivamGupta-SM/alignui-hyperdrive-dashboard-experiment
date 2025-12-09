@@ -3,7 +3,7 @@
 'use client';
 
 import * as React from 'react';
-import { RiArrowLeftSLine, RiArrowRightSLine } from '@remixicon/react';
+import { CaretLeft, CaretRight } from '@phosphor-icons/react';
 import { DayPicker } from 'react-day-picker';
 
 import { compactButtonVariants } from '@/components/ui/compact-button';
@@ -92,9 +92,9 @@ function Calendar({
       components={{
         Chevron: ({ orientation }) =>
           orientation === 'left' ? (
-            <RiArrowLeftSLine className='size-5' />
+            <CaretLeft className='size-5' weight='bold' />
           ) : (
-            <RiArrowRightSLine className='size-5' />
+            <CaretRight className='size-5' weight='bold' />
           ),
       }}
       {...rest}

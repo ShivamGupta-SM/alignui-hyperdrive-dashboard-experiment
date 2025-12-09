@@ -3,7 +3,7 @@
 'use client';
 
 import * as React from 'react';
-import { RiSearchLine } from '@remixicon/react';
+import { MagnifyingGlass } from '@phosphor-icons/react/dist/ssr';
 import { tv, type VariantProps } from '@/utils/tv';
 import { Slot } from '@radix-ui/react-slot';
 import type { PolymorphicComponentProps } from '@/utils/polymorphic';
@@ -249,7 +249,7 @@ const SidebarSearch = React.forwardRef<HTMLInputElement, SidebarSearchProps>(
 
     return (
       <div className={search({ class: className })}>
-        <RiSearchLine className={searchIcon()} />
+        <MagnifyingGlass weight="bold" className={searchIcon()} />
         <input
           ref={forwardedRef}
           type='search'

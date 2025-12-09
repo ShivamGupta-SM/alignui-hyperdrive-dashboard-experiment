@@ -17,18 +17,15 @@ import * as EmptyState from '@/components/claude-generated-components/empty-stat
 import * as AvatarGroup from '@/components/claude-generated-components/avatar-group'
 import { getAvatarColor } from '@/utils/avatar-color'
 import {
-  RiAddLine,
-  RiUserLine,
-  RiMailLine,
-  RiTimeLine,
-  RiDeleteBinLine,
-  RiTeamLine,
-  RiShieldUserLine,
-  RiUserSettingsLine,
-  RiEyeLine,
-  RiInformationLine,
-  RiAlertLine,
-} from '@remixicon/react'
+  Plus,
+  User,
+  Trash,
+  ShieldCheck,
+  UserGear,
+  Eye,
+  Info,
+  Warning,
+} from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import type { TeamMember, Invitation, UserRole } from '@/lib/types'
 import { ROLE_OPTIONS } from '@/lib/constants'
@@ -103,15 +100,15 @@ const getRoleStatus = (role: UserRole) => {
 const getRoleIcon = (role: UserRole) => {
   switch (role) {
     case 'owner':
-      return RiShieldUserLine
+      return ShieldCheck
     case 'admin':
-      return RiUserSettingsLine
+      return UserGear
     case 'manager':
-      return RiUserLine
+      return User
     case 'viewer':
-      return RiEyeLine
+      return Eye
     default:
-      return RiUserLine
+      return User
   }
 }
 
@@ -137,191 +134,281 @@ export default function TeamPage() {
   }), [])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-title-h4 text-text-strong-950">Team</h1>
-          <p className="text-paragraph-sm text-text-sub-600 mt-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Team</h1>
+          <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
             Manage team members and their roles
           </p>
         </div>
-        <Button.Root variant="primary" onClick={() => setIsInviteModalOpen(true)}>
-          <Button.Icon as={RiAddLine} />
-          Invite Member
+        <Button.Root variant="primary" size="small" onClick={() => setIsInviteModalOpen(true)} className="shrink-0">
+          <Button.Icon as={Plus} />
+          <span className="hidden sm:inline">Invite Member</span>
+          <span className="sm:hidden">Invite</span>
         </Button.Root>
       </div>
 
-      {/* Stats Overview */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex-1">
-          <MetricGroup columns={4}>
-            <Metric label="Total Members" value={stats.total} size="sm" />
-            <Metric label="Admins" value={stats.admins} size="sm" />
-            <Metric label="Managers" value={stats.managers} size="sm" />
-            <Metric 
-              label="Pending Invites" 
-              value={stats.pending} 
-              size="sm"
-              className={stats.pending > 0 ? '[&>div>span:last-child]:text-warning-base' : ''}
-            />
-          </MetricGroup>
+      {/* Stats Overview - Grid of Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* Total Members */}
+        <div className="rounded-xl bg-bg-white-0 p-4 ring-1 ring-inset ring-stroke-soft-200 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-primary-lighter">
+              <User weight="bold" className="size-4 text-primary-base" />
+            </div>
+            <span className="text-[10px] text-text-soft-400 uppercase tracking-wide">Members</span>
+          </div>
+          <p className="text-title-h5 text-text-strong-950 font-semibold">{stats.total}</p>
         </div>
-        <div className="md:w-auto">
-          <AvatarGroup.Root max={6} size="40">
-            {mockMembers.map((member) => (
-              <AvatarGroup.Item key={member.id}>
-                <Avatar.Root size="40" color={getAvatarColor(member.name)}>
-                  {member.name.charAt(0).toUpperCase()}
-                </Avatar.Root>
-              </AvatarGroup.Item>
-            ))}
-          </AvatarGroup.Root>
+
+        {/* Admins */}
+        <div className="rounded-xl bg-bg-white-0 p-4 ring-1 ring-inset ring-stroke-soft-200 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-success-lighter">
+              <ShieldCheck weight="bold" className="size-4 text-success-base" />
+            </div>
+            <span className="text-[10px] text-text-soft-400 uppercase tracking-wide">Admins</span>
+          </div>
+          <p className="text-title-h5 text-text-strong-950 font-semibold">{stats.admins}</p>
+        </div>
+
+        {/* Managers */}
+        <div className="rounded-xl bg-bg-white-0 p-4 ring-1 ring-inset ring-stroke-soft-200 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-information-lighter">
+              <UserGear weight="bold" className="size-4 text-information-base" />
+            </div>
+            <span className="text-[10px] text-text-soft-400 uppercase tracking-wide">Managers</span>
+          </div>
+          <p className="text-title-h5 text-text-strong-950 font-semibold">{stats.managers}</p>
+        </div>
+
+        {/* Pending Invites */}
+        <div className={cn(
+          "rounded-xl p-4 ring-1 ring-inset shadow-sm",
+          stats.pending > 0 
+            ? "bg-warning-lighter/50 ring-warning-base/20" 
+            : "bg-bg-white-0 ring-stroke-soft-200"
+        )}>
+          <div className="flex items-center gap-2 mb-2">
+            <div className={cn(
+              "flex size-8 items-center justify-center rounded-lg",
+              stats.pending > 0 ? "bg-warning-base text-white" : "bg-bg-soft-200"
+            )}>
+              <Plus weight="bold" className={cn("size-4", stats.pending > 0 ? "" : "text-text-sub-600")} />
+            </div>
+            <span className="text-[10px] text-text-soft-400 uppercase tracking-wide">Pending</span>
+          </div>
+          <p className={cn(
+            "text-title-h5 font-semibold",
+            stats.pending > 0 ? "text-warning-dark" : "text-text-strong-950"
+          )}>{stats.pending}</p>
         </div>
       </div>
 
-      {/* Team Members - Using List */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5">
-        <h2 className="text-label-md text-text-strong-950 mb-4">Team Members</h2>
-        <List.Root variant="divided" size="lg">
+      {/* Team Members */}
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-stroke-soft-200">
+          <h2 className="text-label-md text-text-strong-950">Team Members</h2>
+          <span className="text-paragraph-xs text-text-soft-400">{mockMembers.length} members</span>
+        </div>
+        <div className="divide-y divide-stroke-soft-200">
           {mockMembers.map((member) => {
             const isCurrentUser = member.id === currentUserId
             const isOwner = member.role === 'owner'
             const RoleIcon = getRoleIcon(member.role)
 
             return (
-              <List.Item key={member.id} className="py-4">
-                <List.ItemIcon>
+              <div key={member.id} className="p-4 hover:bg-bg-weak-50 transition-colors">
+                {/* Mobile Layout - Stacked */}
+                <div className="flex items-start gap-3 sm:hidden">
+                  <AvatarWithFallback
+                    src={member.avatar}
+                    name={member.name}
+                    size="40"
+                    color={getAvatarColor(member.name)}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-label-sm text-text-strong-950">{member.name}</span>
+                      {isCurrentUser && (
+                        <span className="text-[9px] text-text-soft-400 bg-bg-soft-200 px-1.5 py-0.5 rounded">You</span>
+                      )}
+                    </div>
+                    <p className="text-paragraph-xs text-text-sub-600">{member.email}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center gap-2">
+                        <StatusBadge.Root status={getRoleStatus(member.role)} variant="light">
+                          <StatusBadge.Icon as={RoleIcon} />
+                          {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                        </StatusBadge.Root>
+                        <span className="text-[10px] text-text-soft-400">
+                          {formatDate(member.joinedAt)}
+                        </span>
+                      </div>
+                      {!isCurrentUser && !isOwner && (
+                        <Button.Root
+                          variant="ghost"
+                          size="xsmall"
+                          onClick={() => {
+                            setSelectedMember(member)
+                            setIsRemoveModalOpen(true)
+                          }}
+                        >
+                          <Button.Icon as={Trash} />
+                        </Button.Root>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desktop Layout - Horizontal */}
+                <div className="hidden sm:flex sm:items-center sm:gap-4">
                   <AvatarWithFallback
                     src={member.avatar}
                     name={member.name}
                     size="48"
                     color={getAvatarColor(member.name)}
                   />
-                </List.ItemIcon>
-                <List.ItemContent>
-                  <div className="flex items-center gap-2">
-                    <List.ItemTitle>{member.name}</List.ItemTitle>
-                    {isCurrentUser && (
-                      <span className="text-paragraph-xs text-text-soft-400">(You)</span>
-                    )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-label-sm text-text-strong-950">{member.name}</span>
+                      {isCurrentUser && (
+                        <span className="text-[10px] text-text-soft-400 bg-bg-soft-200 px-1.5 py-0.5 rounded">You</span>
+                      )}
+                    </div>
+                    <p className="text-paragraph-xs text-text-sub-600">{member.email}</p>
+                    <span className="text-[10px] text-text-soft-400">Joined {formatDate(member.joinedAt)}</span>
                   </div>
-                  <List.ItemDescription>{member.email}</List.ItemDescription>
-                  <span className="text-paragraph-xs text-text-soft-400">
-                    Joined {formatDate(member.joinedAt)}
-                  </span>
-                </List.ItemContent>
-                <List.ItemAction>
-                  <div className="flex items-center gap-3">
-                    <StatusBadge.Root status={getRoleStatus(member.role)} variant="light">
-                      <StatusBadge.Icon as={RoleIcon} />
-                      {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                    </StatusBadge.Root>
-                    {!isCurrentUser && !isOwner && (
-                      <div className="flex items-center gap-2">
-                        <Select.Root
-                          value={member.role}
-                          onValueChange={() => {}}
-                        >
-                          <Select.Trigger className="w-32">
-                            <Select.Value />
-                          </Select.Trigger>
-                          <Select.Content>
-                            {ROLE_OPTIONS.filter((r) => r.value !== 'owner').map((option) => (
-                              <Select.Item key={option.value} value={option.value}>
-                                {option.label}
-                              </Select.Item>
-                            ))}
-                          </Select.Content>
-                        </Select.Root>
-                        <Button.Root
-                          variant="ghost"
-                          size="small"
-                          onClick={() => {
-                            setSelectedMember(member)
-                            setIsRemoveModalOpen(true)
-                          }}
-                        >
-                          <Button.Icon as={RiDeleteBinLine} />
-                        </Button.Root>
-                      </div>
-                    )}
-                  </div>
-                </List.ItemAction>
-              </List.Item>
+                  
+                  <StatusBadge.Root status={getRoleStatus(member.role)} variant="light" className="shrink-0">
+                    <StatusBadge.Icon as={RoleIcon} />
+                    {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                  </StatusBadge.Root>
+                  
+                  {!isCurrentUser && !isOwner && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Select.Root value={member.role} onValueChange={() => {}} size="small">
+                        <Select.Trigger className="w-28">
+                          <Select.Value />
+                        </Select.Trigger>
+                        <Select.Content>
+                          {ROLE_OPTIONS.filter((r) => r.value !== 'owner').map((option) => (
+                            <Select.Item key={option.value} value={option.value}>
+                              {option.label}
+                            </Select.Item>
+                          ))}
+                        </Select.Content>
+                      </Select.Root>
+                      <Button.Root
+                        variant="ghost"
+                        size="small"
+                        onClick={() => {
+                          setSelectedMember(member)
+                          setIsRemoveModalOpen(true)
+                        }}
+                      >
+                        <Button.Icon as={Trash} />
+                      </Button.Root>
+                    </div>
+                  )}
+                </div>
+              </div>
             )
           })}
-        </List.Root>
+        </div>
       </div>
 
       {/* Pending Invitations */}
       {mockInvitations.length > 0 && (
-        <div className="rounded-20 bg-warning-lighter ring-1 ring-inset ring-warning-light p-5">
-          <h2 className="text-label-md text-text-strong-950 mb-4">Pending Invitations</h2>
-          <List.Root size="md">
-            {mockInvitations.map((invitation) => (
-              <List.Item key={invitation.id} className="p-4 rounded-10 bg-bg-white-0">
-                  <List.ItemIcon>
-                    <AvatarWithFallback
-                      src={undefined}
-                      name={invitation.email}
-                      size="40"
-                      color="gray"
-                    />
-                  </List.ItemIcon>
-                <List.ItemContent>
-                  <List.ItemTitle>{invitation.email}</List.ItemTitle>
-                  <List.ItemDescription>
-                    Role: {invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1)} • 
-                    Sent: {formatDate(invitation.sentAt)} • 
-                    Expires: {formatDate(invitation.expiresAt)}
-                  </List.ItemDescription>
-                </List.ItemContent>
-                <List.ItemAction>
-                  <div className="flex items-center gap-2">
-                    <Button.Root variant="basic" size="small">
+        <div className="rounded-xl bg-gradient-to-r from-warning-lighter to-warning-lighter/50 ring-1 ring-inset ring-warning-base/20 overflow-hidden">
+          <div className="flex items-center justify-between p-4 border-b border-warning-light/50">
+            <div className="flex items-center gap-2">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-warning-base text-white">
+                <Plus weight="bold" className="size-4" />
+              </div>
+              <h2 className="text-label-md text-text-strong-950">Pending Invitations</h2>
+            </div>
+            <span className="text-paragraph-xs text-warning-dark">{mockInvitations.length} pending</span>
+          </div>
+          <div className="p-3">
+            <div className="space-y-2">
+              {mockInvitations.map((invitation) => (
+                <div key={invitation.id} className="flex items-center gap-3 sm:gap-4 p-3 rounded-lg bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200">
+                  <AvatarWithFallback
+                    src={undefined}
+                    name={invitation.email}
+                    size="40"
+                    color="gray"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-label-sm text-text-strong-950 truncate">{invitation.email}</p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-text-sub-600 mt-0.5">
+                      <span>Role: {invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1)}</span>
+                      <span className="hidden sm:inline">•</span>
+                      <span className="hidden sm:inline">Sent: {formatDate(invitation.sentAt)}</span>
+                      <span>•</span>
+                      <span className="text-warning-dark">Expires: {formatDate(invitation.expiresAt)}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button.Root variant="basic" size="xsmall">
                       Resend
                     </Button.Root>
-                    <Button.Root variant="ghost" size="small">
+                    <Button.Root variant="ghost" size="xsmall">
                       Cancel
                     </Button.Root>
                   </div>
-                </List.ItemAction>
-              </List.Item>
-            ))}
-          </List.Root>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Role Permissions - Using DataTable */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5">
-        <h2 className="text-label-md text-text-strong-950 mb-4">Role Permissions</h2>
-        <Table.Root>
-          <Table.Header>
-            <Table.Row>
-              <Table.Head>Role</Table.Head>
-              <Table.Head>Permissions</Table.Head>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
+      {/* Role Permissions */}
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-stroke-soft-200">
+          <h2 className="text-label-md text-text-strong-950">Role Permissions</h2>
+          <span className="text-paragraph-xs text-text-soft-400">{ROLE_OPTIONS.length} roles</span>
+        </div>
+        <div className="p-4">
+          <div className="space-y-2">
             {ROLE_OPTIONS.map((role) => {
               const RoleIcon = getRoleIcon(role.value)
               return (
-                <Table.Row key={role.value}>
-                  <Table.Cell>
-                    <StatusBadge.Root status={getRoleStatus(role.value)} variant="light">
-                      <StatusBadge.Icon as={RoleIcon} />
-                      {role.label}
-                    </StatusBadge.Root>
-                  </Table.Cell>
-                  <Table.Cell className="text-text-sub-600">
-                    {role.description}
-                  </Table.Cell>
-                </Table.Row>
+                <div key={role.value} className="flex items-center gap-3 p-3 rounded-lg bg-bg-weak-50">
+                  <div className={cn(
+                    "flex size-9 items-center justify-center rounded-lg shrink-0",
+                    role.value === 'owner' ? "bg-success-lighter" :
+                    role.value === 'admin' ? "bg-warning-lighter" :
+                    role.value === 'manager' ? "bg-information-lighter" : "bg-bg-soft-200"
+                  )}>
+                    <RoleIcon weight="bold" className={cn(
+                      "size-4",
+                      role.value === 'owner' ? "text-success-base" :
+                      role.value === 'admin' ? "text-warning-base" :
+                      role.value === 'manager' ? "text-information-base" : "text-text-sub-600"
+                    )} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-label-sm text-text-strong-950">{role.label}</span>
+                      {role.value === 'owner' && (
+                        <span className="text-[9px] uppercase tracking-wider text-success-base bg-success-lighter px-1.5 py-0.5 rounded font-medium">
+                          Full Access
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-paragraph-xs text-text-sub-600 mt-0.5">{role.description}</p>
+                  </div>
+                </div>
               )
             })}
-          </Table.Body>
-        </Table.Root>
+          </div>
+        </div>
       </div>
 
       {/* Invite Modal */}
@@ -436,7 +523,7 @@ function InviteMemberModal({ open, onOpenChange }: { open: boolean; onOpenChange
           </div>
 
           <div className="mt-4 flex items-center gap-2 p-3 rounded-10 bg-bg-weak-50">
-            <RiInformationLine className="size-4 text-text-sub-600 shrink-0" />
+            <Info className="size-4 text-text-sub-600 shrink-0" />
             <span className="text-paragraph-xs text-text-sub-600">
               Invite expires in 7 days
             </span>
@@ -491,7 +578,7 @@ function RemoveMemberModal({
         </Modal.Header>
         <Modal.Body>
           <div className="flex items-center gap-2 p-3 rounded-10 bg-warning-lighter mb-4">
-            <RiAlertLine className="size-4 text-warning-base shrink-0" />
+            <Warning className="size-4 text-warning-base shrink-0" />
             <span className="text-paragraph-sm text-warning-dark">
               Remove {member.name} from team?
             </span>

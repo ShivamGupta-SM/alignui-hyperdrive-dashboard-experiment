@@ -1,6 +1,6 @@
 "use client"
 
-import { RiDeleteBinLine, RiUploadCloud2Line } from "@remixicon/react"
+import { Trash, CloudArrowUp } from "@phosphor-icons/react"
 import { type ComponentProps, useContext, useRef, useState } from "react"
 
 import { AuthUIContext } from "../../../lib/auth-ui-provider"
@@ -178,7 +178,7 @@ export function UpdateAvatarCard({
                             onClick={openFileDialog}
                             disabled={loading}
                         >
-                            <RiUploadCloud2Line size={20} />
+                            <CloudArrowUp size={20} />
                             {localization.UPLOAD_AVATAR}
                         </DropdownMenuItem>
                         {sessionData?.user.image && (
@@ -187,7 +187,7 @@ export function UpdateAvatarCard({
                                 disabled={loading}
                                 variant="destructive"
                             >
-                                <RiDeleteBinLine size={20} />
+                                <Trash size={20} />
                                 {localization.DELETE_AVATAR}
                             </DropdownMenuItem>
                         )}

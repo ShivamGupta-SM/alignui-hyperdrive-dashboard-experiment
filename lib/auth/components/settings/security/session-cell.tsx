@@ -1,7 +1,7 @@
 "use client"
 
 import type { Session } from "better-auth"
-import { RiComputerLine, RiLoader4Line, RiSmartphoneLine } from "@remixicon/react"
+import { Desktop, CircleNotch, DeviceMobile } from "@phosphor-icons/react"
 import { useContext, useState } from "react"
 import { UAParser } from "ua-parser-js"
 import { AuthUIContext } from "../../../lib/auth-ui-provider"
@@ -82,9 +82,9 @@ export function SessionCell({
             )}
         >
             {isMobile ? (
-                <RiSmartphoneLine className={cn("size-4", classNames?.icon)} size={20} />
+                <DeviceMobile className={cn("size-4", classNames?.icon)} size={20} />
             ) : (
-                <RiComputerLine className={cn("size-4", classNames?.icon)} size={20} />
+                <Desktop className={cn("size-4", classNames?.icon)} size={20} />
             )}
 
             <div className="flex flex-col">
@@ -117,7 +117,7 @@ export function SessionCell({
                 variant="outline"
                 onClick={handleRevoke}
             >
-                {isLoading && <RiLoader4Line className="animate-spin" size={20} />}
+                {isLoading && <CircleNotch className="animate-spin" size={20} />}
                 {isCurrentSession ? localization.SIGN_OUT : localization.REVOKE}
             </Button>
         </Card>

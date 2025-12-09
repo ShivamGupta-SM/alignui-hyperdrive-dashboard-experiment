@@ -11,20 +11,20 @@ import * as Modal from '@/components/ui/modal'
 import * as Textarea from '@/components/ui/textarea'
 import { getAvatarColor } from '@/utils/avatar-color'
 import {
-  RiArrowLeftLine,
-  RiArrowRightLine,
-  RiCheckLine,
-  RiCloseLine,
-  RiEditLine,
-  RiVerifiedBadgeLine,
-  RiImageLine,
-  RiCalendarLine,
-  RiAlertLine,
-  RiTimeLine,
-  RiHistoryLine,
-  RiShieldCheckLine,
-  RiExternalLinkLine,
-} from '@remixicon/react'
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  X,
+  PencilSimple,
+  SealCheck,
+  Image as ImageIcon,
+  CalendarBlank,
+  Warning,
+  Clock,
+  ClockCounterClockwise,
+  ShieldCheck,
+  ArrowSquareOut,
+} from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import { ENROLLMENT_STATUS_CONFIG, REJECTION_REASONS } from '@/lib/constants'
 import type { Enrollment, EnrollmentStatus, Campaign } from '@/lib/types'
@@ -176,7 +176,7 @@ export default function EnrollmentReviewPage() {
             onClick={() => router.back()}
             className="inline-flex items-center gap-1.5 text-text-sub-600 hover:text-text-strong-950 transition-colors"
           >
-            <RiArrowLeftLine className="size-4" />
+            <ArrowLeft weight="bold" className="size-4" />
             <span className="text-label-sm">Back</span>
           </button>
           
@@ -197,7 +197,7 @@ export default function EnrollmentReviewPage() {
                 {enrollment.shopper?.name}
               </span>
               {enrollment.shopper && enrollment.shopper.approvalRate >= 90 && (
-                <RiVerifiedBadgeLine className="size-4 text-success-base shrink-0" />
+                <SealCheck weight="duotone" className="size-4 text-success-base shrink-0" />
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -244,7 +244,7 @@ export default function EnrollmentReviewPage() {
         {/* Order Details */}
         <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <RiCalendarLine className="size-4 text-gray-500" />
+            <CalendarBlank weight="duotone" className="size-4 text-gray-500" />
             Order Details
           </h2>
           <div className="space-y-2">
@@ -259,7 +259,7 @@ export default function EnrollmentReviewPage() {
         {/* OCR Verification */}
         <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <RiShieldCheckLine className="size-4 text-gray-500" />
+            <ShieldCheck weight="duotone" className="size-4 text-gray-500" />
             OCR Verification
           </h2>
           <div className="space-y-2">
@@ -303,7 +303,7 @@ export default function EnrollmentReviewPage() {
       {/* Order Proof */}
       <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <RiImageLine className="size-4 text-gray-500" />
+          <ImageIcon weight="duotone" className="size-4 text-gray-500" />
           Order Proof
         </h2>
         <div className="grid grid-cols-2 gap-3">
@@ -315,7 +315,7 @@ export default function EnrollmentReviewPage() {
               className="object-cover"
             />
             <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-               <RiImageLine className="size-8 text-white mb-2" />
+               <ImageIcon weight="duotone" className="size-8 text-white mb-2" />
                <span className="text-xs text-white font-medium">View Screenshot</span>
             </div>
           </div>
@@ -327,7 +327,7 @@ export default function EnrollmentReviewPage() {
               className="object-cover"
             />
             <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-               <RiImageLine className="size-8 text-white mb-2" />
+               <ImageIcon weight="duotone" className="size-8 text-white mb-2" />
                <span className="text-xs text-white font-medium">View Photo</span>
             </div>
           </div>
@@ -337,7 +337,7 @@ export default function EnrollmentReviewPage() {
       {/* Timeline */}
       <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <RiHistoryLine className="size-4 text-gray-500" />
+          <ClockCounterClockwise weight="duotone" className="size-4 text-gray-500" />
           Activity Timeline
         </h2>
         <div className="space-y-3">
@@ -382,7 +382,7 @@ export default function EnrollmentReviewPage() {
                   size="small"
                   onClick={() => setIsChangesModalOpen(true)}
                 >
-                  <Button.Icon as={RiEditLine} />
+                  <Button.Icon as={PencilSimple} />
                   Request Changes
                 </Button.Root>
                 <Button.Root
@@ -390,14 +390,14 @@ export default function EnrollmentReviewPage() {
                   size="small"
                   onClick={() => setIsRejectModalOpen(true)}
                 >
-                  <Button.Icon as={RiCloseLine} />
+                  <Button.Icon as={X} />
                   Reject
                 </Button.Root>
                 <Button.Root
                   variant="primary"
                   onClick={() => setIsApproveModalOpen(true)}
                 >
-                  <Button.Icon as={RiCheckLine} />
+                  <Button.Icon as={Check} />
                   Approve & Pay
                 </Button.Root>
               </div>
@@ -413,7 +413,7 @@ export default function EnrollmentReviewPage() {
                 className="flex-1"
                 onClick={() => setIsChangesModalOpen(true)}
               >
-                <Button.Icon as={RiEditLine} />
+                <Button.Icon as={PencilSimple} />
                 Changes
               </Button.Root>
               <Button.Root
@@ -422,7 +422,7 @@ export default function EnrollmentReviewPage() {
                 className="flex-1"
                 onClick={() => setIsRejectModalOpen(true)}
               >
-                <Button.Icon as={RiCloseLine} />
+                <Button.Icon as={X} />
                 Reject
               </Button.Root>
               <Button.Root
@@ -430,7 +430,7 @@ export default function EnrollmentReviewPage() {
                 className="flex-[1.5]"
                 onClick={() => setIsApproveModalOpen(true)}
               >
-                <Button.Icon as={RiCheckLine} />
+                <Button.Icon as={Check} />
                 Approve
               </Button.Root>
             </div>
@@ -450,7 +450,7 @@ export default function EnrollmentReviewPage() {
           <Modal.Body>
             <div className="text-center mb-4">
               <div className="size-14 rounded-full bg-success-lighter flex items-center justify-center mx-auto mb-3">
-                <RiCheckLine className="size-7 text-success-base" />
+                <Check className="size-7 text-success-base" />
               </div>
               <p className="text-paragraph-sm text-text-sub-600 mb-4">
                 Approve this enrollment and pay <strong className="text-text-strong-950">{formatCurrency(enrollment.totalCost)}</strong> to {enrollment.shopper?.name}?
@@ -494,7 +494,7 @@ export default function EnrollmentReviewPage() {
           </Modal.Header>
           <Modal.Body>
             <div className="flex items-start gap-2 p-3 rounded-xl bg-warning-lighter mb-4">
-              <RiAlertLine className="size-4 text-warning-base shrink-0 mt-0.5" />
+              <Warning className="size-4 text-warning-base shrink-0 mt-0.5" />
               <span className="text-paragraph-sm text-warning-dark">
                 This action cannot be undone. The shopper will be notified.
               </span>

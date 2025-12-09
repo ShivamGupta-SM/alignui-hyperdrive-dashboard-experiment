@@ -6,13 +6,15 @@ import * as React from 'react';
 import { tv, type VariantProps } from '@/utils/tv';
 import { cn } from '@/utils/cn';
 import {
-  RiInformationLine,
-  RiErrorWarningLine,
-  RiCheckboxCircleLine,
-  RiAlertLine,
-  RiLightbulbLine,
-  RiCloseLine,
-} from '@remixicon/react';
+  Info,
+  WarningCircle,
+  CheckCircle,
+  Warning,
+  Lightbulb,
+  X,
+} from '@phosphor-icons/react';
+
+type CalloutVariant = 'info' | 'success' | 'warning' | 'error' | 'neutral' | 'tip';
 
 const calloutVariants = tv({
   slots: {
@@ -94,13 +96,13 @@ const calloutVariants = tv({
 
 type CalloutVariantProps = VariantProps<typeof calloutVariants>;
 
-const defaultIcons = {
-  info: RiInformationLine,
-  success: RiCheckboxCircleLine,
-  warning: RiAlertLine,
-  error: RiErrorWarningLine,
-  neutral: RiInformationLine,
-  tip: RiLightbulbLine,
+const defaultIcons: Record<CalloutVariant, React.ElementType> = {
+  info: Info,
+  success: CheckCircle,
+  warning: Warning,
+  error: WarningCircle,
+  neutral: Info,
+  tip: Lightbulb,
 };
 
 interface CalloutProps
@@ -163,7 +165,7 @@ function Callout({
     >
       {showIcon && (
         <div className={iconClass()}>
-          {icon || <IconComponent className="size-full" />}
+          {icon || <IconComponent className="size-full" weight="duotone" />}
         </div>
       )}
       <div className={content()}>
@@ -177,7 +179,7 @@ function Callout({
           className={close()}
           aria-label="Dismiss"
         >
-          <RiCloseLine className="size-full" />
+          <X className="size-full" weight="bold" />
         </button>
       )}
     </div>
@@ -236,7 +238,7 @@ function InlineCallout({
       {...rest}
     >
       <span className={iconClass()}>
-        {icon || <IconComponent className="size-4" />}
+        {icon || <IconComponent className="size-4" weight="duotone" />}
       </span>
       <span className={description()}>{children}</span>
     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { RiLoader4Line } from "@remixicon/react"
+import { CircleNotch } from "@phosphor-icons/react"
 import { useContext, useEffect, useRef } from "react"
 
 import { useOnSuccessTransition } from "../../hooks/use-success-transition"
@@ -32,5 +32,5 @@ export function AuthCallback({ redirectTo }: { redirectTo?: string }) {
         onSuccess()
     }, [isRestoring, persistClient, onSuccess])
 
-    return <RiLoader4Line className="animate-spin" size={20} />
+    return <CircleNotch className="animate-spin" size={20} />
 }

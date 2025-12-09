@@ -1,7 +1,7 @@
 // @ts-nocheck - Vendored library with complex type dependencies
 "use client"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { RiLoader4Line } from "@remixicon/react"
+import { CircleNotch } from "@phosphor-icons/react"
 import { useContext, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -133,7 +133,7 @@ export function RecoverAccountForm({
                     )}
                 >
                     {isSubmitting ? (
-                        <RiLoader4Line className="animate-spin" size={20} />
+                        <CircleNotch className="animate-spin" size={20} />
                     ) : (
                         localization.RECOVER_ACCOUNT_ACTION
                     )}

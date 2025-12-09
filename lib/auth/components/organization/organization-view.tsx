@@ -1,6 +1,6 @@
 "use client"
 
-import { RiMenuLine } from "@remixicon/react"
+import { List } from "@phosphor-icons/react"
 import { useContext, useEffect, useMemo } from "react"
 import { useAuthenticate } from "../../hooks/use-authenticate"
 import { useCurrentOrganization } from "../../hooks/use-current-organization"
@@ -114,7 +114,7 @@ export function OrganizationView({
                     <Drawer>
                         <DrawerTrigger asChild>
                             <Button variant="outline">
-                                <RiMenuLine size={20} />
+                                <List size={20} />
                             </Button>
                         </DrawerTrigger>
 

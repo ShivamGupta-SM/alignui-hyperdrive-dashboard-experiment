@@ -6,8 +6,10 @@ import * as React from 'react';
 import { tv, type VariantProps, type ClassValue } from '@/utils/tv';
 import { recursiveCloneChildren } from '@/utils/recursive-clone-children';
 import type { PolymorphicComponentProps } from '@/utils/polymorphic';
-import { RiCloseLine } from '@remixicon/react';
+import { X } from '@phosphor-icons/react';
 import { cn } from '@/utils/cn';
+
+type PhosphorIcon = React.ComponentType<{ className?: string; weight?: 'thin' | 'light' | 'regular' | 'bold' | 'fill' | 'duotone' }>;
 
 const ALERT_ROOT_NAME = 'AlertRoot';
 const ALERT_ICON_NAME = 'AlertIcon';
@@ -290,10 +292,10 @@ function AlertCloseIcon<T extends React.ElementType>({
   className,
   as,
 }: PolymorphicComponentProps<T, AlertSharedProps>) {
-  const Component = as || RiCloseLine;
+  const Component = (as || X) as PhosphorIcon;
   const { closeIcon } = alertVariants({ size, variant, status });
 
-  return <Component className={closeIcon({ class: className })} />;
+  return <Component className={closeIcon({ class: className })} weight="bold" />;
 }
 AlertCloseIcon.displayName = ALERT_CLOSE_ICON_NAME;
 
@@ -374,7 +376,7 @@ function DismissibleAlert({
             )}
             aria-label="Dismiss alert"
           >
-            <RiCloseLine className="size-full" />
+            <X className="size-full" weight="bold" />
           </button>
         )}
       </div>

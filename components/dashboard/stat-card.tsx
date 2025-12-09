@@ -4,7 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { cn } from '@/utils/cn'
 
-import { WalletIcon } from '@heroicons/react/24/outline'
+import { Wallet } from '@phosphor-icons/react'
 
 // Simple, clean stat card with minimal information
 interface SimpleStatCardProps {
@@ -115,7 +115,7 @@ export function WalletCard({
         'flex size-10 items-center justify-center rounded-full mb-3',
         isLowBalance ? 'bg-warning-base text-white' : 'bg-white/20 text-white'
       )}>
-        <WalletIcon className="size-5" />
+        <Wallet className="size-5" />
       </div>
       
       {/* Value */}
@@ -341,7 +341,7 @@ export function WalletStatCard({
   return (
     <StatCard
       variant={isLowBalance ? 'warning' : 'default'}
-      icon={<WalletIcon />}
+      icon={<Wallet className="size-5" />}
       value={formatCurrency(availableBalance)}
       label={isLowBalance ? 'Low Balance' : 'Wallet Balance'}
       secondaryText={heldAmount ? `${formatCurrency(heldAmount)} held` : undefined}

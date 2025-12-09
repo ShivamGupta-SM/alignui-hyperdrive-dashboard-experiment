@@ -9,27 +9,43 @@ import * as Select from '@/components/ui/select'
 import * as Textarea from '@/components/ui/textarea'
 import * as Checkbox from '@/components/ui/checkbox'
 import * as Radio from '@/components/ui/radio'
-import * as HorizontalStepper from '@/components/ui/horizontal-stepper'
 import * as Breadcrumb from '@/components/ui/breadcrumb'
 import { Calendar } from '@/components/ui/datepicker'
 import * as Popover from '@/components/ui/popover'
-import { RiArrowLeftLine, RiArrowRightLine, RiCalendarLine, RiAddLine, RiDeleteBinLine } from '@remixicon/react'
+import { 
+  ArrowLeft, 
+  ArrowRight, 
+  CalendarBlank, 
+  Plus, 
+  Trash, 
+  Megaphone,
+  Package,
+  CalendarDots,
+  ListChecks,
+  CheckCircle,
+  Eye,
+  Users,
+  Clock,
+  Globe,
+  Lock,
+  Info
+} from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import { CAMPAIGN_TYPE_OPTIONS, DELIVERABLE_TYPE_OPTIONS, DEFAULT_SUBMISSION_DEADLINE_DAYS } from '@/lib/constants'
 import type { CampaignType, DeliverableType, CampaignFormData } from '@/lib/types'
 
 const steps = [
-  { label: 'Basic Info', value: 1 },
-  { label: 'Dates & Limits', value: 2 },
-  { label: 'Deliverables', value: 3 },
-  { label: 'Review', value: 4 },
+  { label: 'Basic Info', shortLabel: 'Info', value: 1, icon: Package },
+  { label: 'Schedule', shortLabel: 'Schedule', value: 2, icon: CalendarDots },
+  { label: 'Deliverables', shortLabel: 'Tasks', value: 3, icon: ListChecks },
+  { label: 'Review', shortLabel: 'Review', value: 4, icon: CheckCircle },
 ]
 
 // Mock products
 const mockProducts = [
-  { id: '1', name: 'Nike Air Max 2024', category: 'Footwear' },
-  { id: '2', name: 'Samsung Galaxy S24', category: 'Electronics' },
-  { id: '3', name: 'Sony WH-1000XM5', category: 'Audio' },
+  { id: '1', name: 'Nike Air Max 2024', category: 'Footwear', image: '/images/products/nike-shoes.png' },
+  { id: '2', name: 'Samsung Galaxy S24', category: 'Electronics', image: '/images/products/samsung-phone.png' },
+  { id: '3', name: 'Sony WH-1000XM5', category: 'Audio', image: '/images/products/sony-headphones.png' },
 ]
 
 export default function CreateCampaignPage() {
@@ -55,19 +71,20 @@ export default function CreateCampaignPage() {
   const handleNext = () => {
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
 
   const handleBack = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
 
   const handleSaveDraft = async () => {
     setIsLoading(true)
     try {
-      // TODO: Save draft API call
       await new Promise((resolve) => setTimeout(resolve, 1000))
       router.push('/dashboard/campaigns')
     } finally {
@@ -78,7 +95,6 @@ export default function CreateCampaignPage() {
   const handleSubmit = async () => {
     setIsLoading(true)
     try {
-      // TODO: Submit for approval API call
       await new Promise((resolve) => setTimeout(resolve, 1000))
       router.push('/dashboard/campaigns')
     } finally {
@@ -86,106 +102,217 @@ export default function CreateCampaignPage() {
     }
   }
 
+  const canProceed = () => {
+    switch (currentStep) {
+      case 1:
+        return formData.productId && formData.title && formData.type
+      case 2:
+        return formData.startDate && formData.endDate && formData.maxEnrollments
+      case 3:
+        return formData.deliverables && formData.deliverables.length > 0
+      case 4:
+        return true
+      default:
+        return false
+    }
+  }
+
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Breadcrumb */}
-      <Breadcrumb.Root className="mb-4">
-        <Breadcrumb.Item asChild>
-          <Link href="/dashboard">Dashboard</Link>
-        </Breadcrumb.Item>
-        <Breadcrumb.ArrowIcon as={RiArrowRightLine} />
-        <Breadcrumb.Item asChild>
-          <Link href="/dashboard/campaigns">Campaigns</Link>
-        </Breadcrumb.Item>
-        <Breadcrumb.ArrowIcon as={RiArrowRightLine} />
-        <Breadcrumb.Item active>Create Campaign</Breadcrumb.Item>
-      </Breadcrumb.Root>
-
-      {/* Header */}
-      <div className="mb-8">
-        <Button.Root
-          variant="ghost"
-          size="small"
-          onClick={() => router.back()}
-          className="mb-4"
-        >
-          <Button.Icon as={RiArrowLeftLine} />
-          Back to Campaigns
-        </Button.Root>
-        <h1 className="text-title-h4 text-text-strong-950">Create Campaign</h1>
-        <p className="text-paragraph-sm text-text-sub-600 mt-1">
-          Set up a new influencer marketing campaign
-        </p>
-      </div>
-
-      {/* Stepper */}
-      <div className="mb-8">
-        <HorizontalStepper.Root>
-          {steps.map((step, index) => (
-            <React.Fragment key={step.value}>
-              <HorizontalStepper.Item
-                state={
-                  currentStep > step.value
-                    ? 'completed'
-                    : currentStep === step.value
-                    ? 'active'
-                    : 'default'
-                }
-                onClick={() => currentStep > step.value && setCurrentStep(step.value)}
-                className={currentStep > step.value ? 'cursor-pointer' : ''}
+    <div className="flex flex-col min-h-full">
+      {/* Sticky Top Bar */}
+      <div className="sticky top-0 z-20 bg-bg-white-0/95 backdrop-blur-sm border-b border-stroke-soft-200">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16">
+            <div className="flex items-center gap-3">
+              <Button.Root
+                variant="ghost"
+                size="small"
+                onClick={() => router.back()}
+                className="-ml-2"
               >
-                <HorizontalStepper.ItemIndicator>
-                  {step.value}
-                </HorizontalStepper.ItemIndicator>
-                {step.label}
-              </HorizontalStepper.Item>
-              {index < steps.length - 1 && <HorizontalStepper.SeparatorIcon />}
-            </React.Fragment>
-          ))}
-        </HorizontalStepper.Root>
+                <Button.Icon as={ArrowLeft} />
+                <span className="hidden sm:inline">Back</span>
+              </Button.Root>
+              
+              <div className="hidden sm:block h-5 w-px bg-stroke-soft-200" />
+              
+              <Breadcrumb.Root className="hidden sm:flex">
+                <Breadcrumb.Item asChild>
+                  <Link href="/dashboard/campaigns">Campaigns</Link>
+                </Breadcrumb.Item>
+                <Breadcrumb.ArrowIcon as={ArrowRight} />
+                <Breadcrumb.Item active>Create</Breadcrumb.Item>
+              </Breadcrumb.Root>
+              
+              <span className="sm:hidden text-label-sm text-text-strong-950">Create Campaign</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-bg-weak-50 ring-1 ring-inset ring-stroke-soft-200">
+                <span className="text-label-xs text-text-soft-400">Step</span>
+                <span className="text-label-sm text-primary-base font-semibold">{currentStep}</span>
+                <span className="text-label-xs text-text-soft-400">of 4</span>
+              </div>
+              
+              <Button.Root
+                variant="basic"
+                size="small"
+                onClick={handleSaveDraft}
+                disabled={isLoading}
+                className="hidden sm:flex"
+              >
+                Save Draft
+              </Button.Root>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Step Content */}
-      <div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
-        {currentStep === 1 && (
-          <Step1BasicInfo formData={formData} updateFormData={updateFormData} />
-        )}
-        {currentStep === 2 && (
-          <Step2DatesLimits formData={formData} updateFormData={updateFormData} />
-        )}
-        {currentStep === 3 && (
-          <Step3Deliverables formData={formData} updateFormData={updateFormData} />
-        )}
-        {currentStep === 4 && (
-          <Step4Review formData={formData} onEdit={setCurrentStep} />
-        )}
+      {/* Progress Bar (Mobile) */}
+      <div className="sm:hidden bg-bg-white-0 border-b border-stroke-soft-200 px-4 py-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-label-xs text-text-sub-600">Step {currentStep} of 4</span>
+          <span className="text-label-xs text-text-soft-400">{steps[currentStep - 1].label}</span>
+        </div>
+        <div className="h-1.5 bg-bg-weak-50 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-primary-base rounded-full transition-all duration-300"
+            style={{ width: `${(currentStep / 4) * 100}%` }}
+          />
+        </div>
+      </div>
 
-        {/* Actions */}
-        <div className="flex items-center justify-between mt-8 pt-6 border-t border-stroke-soft-200">
+      {/* Main Content */}
+      <div className="flex-1">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {/* Desktop Header */}
+        <div className="hidden sm:block mb-8">
+          <div className="flex items-center gap-4">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-base/10 to-purple-500/10 ring-1 ring-inset ring-primary-base/20">
+              <Megaphone weight="duotone" className="size-7 text-primary-base" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-title-h4 text-text-strong-950">Create Campaign</h1>
+              <p className="text-paragraph-sm text-text-sub-600 mt-0.5">
+                Set up a new influencer marketing campaign
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Stepper (Desktop) */}
+        <div className="hidden sm:block mb-8">
+          <div className="flex items-center justify-between">
+            {steps.map((step, index) => {
+              const Icon = step.icon
+              const isCompleted = currentStep > step.value
+              const isActive = currentStep === step.value
+              
+              return (
+                <React.Fragment key={step.value}>
+                  <button
+                    onClick={() => isCompleted && setCurrentStep(step.value)}
+                    disabled={!isCompleted}
+                    className={cn(
+                      'flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all',
+                      isActive && 'bg-primary-base/5 ring-1 ring-inset ring-primary-base/20',
+                      isCompleted && 'cursor-pointer hover:bg-bg-weak-50',
+                      !isActive && !isCompleted && 'opacity-50'
+                    )}
+                  >
+                    <div className={cn(
+                      'flex size-9 items-center justify-center rounded-lg transition-colors',
+                      isCompleted && 'bg-success-base text-white',
+                      isActive && 'bg-primary-base text-white',
+                      !isActive && !isCompleted && 'bg-bg-weak-50 text-text-soft-400'
+                    )}>
+                      {isCompleted ? (
+                        <CheckCircle weight="fill" className="size-5" />
+                      ) : (
+                        <Icon weight={isActive ? 'fill' : 'regular'} className="size-5" />
+                      )}
+                    </div>
+                    <div className="text-left hidden lg:block">
+                      <div className={cn(
+                        'text-label-sm font-medium',
+                        isActive ? 'text-primary-base' : isCompleted ? 'text-text-strong-950' : 'text-text-soft-400'
+                      )}>
+                        {step.label}
+                      </div>
+                    </div>
+                  </button>
+                  
+                  {index < steps.length - 1 && (
+                    <div className={cn(
+                      'flex-1 h-0.5 mx-2 rounded-full transition-colors',
+                      currentStep > step.value ? 'bg-success-base' : 
+                      currentStep > step.value - 1 ? 'bg-primary-base/30' : 'bg-stroke-soft-200'
+                    )} />
+                  )}
+                </React.Fragment>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Step Content Card */}
+        <div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 shadow-sm overflow-hidden">
+          <div className="p-5 sm:p-8">
+            {currentStep === 1 && (
+              <Step1BasicInfo formData={formData} updateFormData={updateFormData} />
+            )}
+            {currentStep === 2 && (
+              <Step2Schedule formData={formData} updateFormData={updateFormData} />
+            )}
+            {currentStep === 3 && (
+              <Step3Deliverables formData={formData} updateFormData={updateFormData} />
+            )}
+            {currentStep === 4 && (
+              <Step4Review formData={formData} onEdit={setCurrentStep} />
+            )}
+          </div>
+        </div>
+      </div>
+      </div>
+
+      {/* Sticky Bottom Actions */}
+      <div className="sticky bottom-0 z-10 bg-bg-white-0 border-t border-stroke-soft-200 px-4 py-3 sm:py-4 mt-auto">
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
           <div>
             {currentStep > 1 && (
-              <Button.Root variant="basic" onClick={handleBack}>
-                <Button.Icon as={RiArrowLeftLine} />
-                Back
+              <Button.Root variant="basic" size="small" onClick={handleBack}>
+                <Button.Icon as={ArrowLeft} />
+                <span className="hidden sm:inline">Back</span>
               </Button.Root>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          
+          <div className="flex items-center gap-2 sm:gap-3">
             <Button.Root
               variant="basic"
+              size="small"
               onClick={handleSaveDraft}
               disabled={isLoading}
+              className="sm:hidden"
             >
-              Save as Draft
+              Draft
             </Button.Root>
+            
             {currentStep < 4 ? (
-              <Button.Root variant="primary" onClick={handleNext}>
-                Continue
-                <Button.Icon as={RiArrowRightLine} />
+              <Button.Root 
+                variant="primary" 
+                size="small" 
+                onClick={handleNext}
+                disabled={!canProceed()}
+              >
+                <span className="hidden sm:inline">Continue</span>
+                <span className="sm:hidden">Next</span>
+                <Button.Icon as={ArrowRight} />
               </Button.Root>
             ) : (
               <Button.Root
                 variant="primary"
+                size="small"
                 onClick={handleSubmit}
                 disabled={isLoading}
               >
@@ -206,42 +333,64 @@ interface StepProps {
 }
 
 function Step1BasicInfo({ formData, updateFormData }: StepProps) {
+  const selectedProduct = mockProducts.find(p => p.id === formData.productId)
+  
   return (
-    <div className="space-y-6">
-      <h2 className="text-label-lg text-text-strong-950">Basic Information</h2>
-
-      {/* Product Selection */}
+    <div className="space-y-8">
+      {/* Section Header */}
       <div>
-        <label className="block text-label-sm text-text-strong-950 mb-2">
-          Select Product <span className="text-error-base">*</span>
-        </label>
-        <Select.Root
-          value={formData.productId}
-          onValueChange={(value) => updateFormData({ productId: value })}
-        >
-          <Select.Trigger>
-            <Select.Value placeholder="Search products..." />
-          </Select.Trigger>
-          <Select.Content>
-            {mockProducts.map((product) => (
-              <Select.Item key={product.id} value={product.id}>
-                {product.name} ({product.category})
-              </Select.Item>
-            ))}
-          </Select.Content>
-        </Select.Root>
-        <p className="mt-1 text-paragraph-xs text-text-soft-400">
-          Don&apos;t see it?{' '}
-          <Link href="/dashboard/products/new" className="text-primary-base hover:underline">
-            + Add New Product
-          </Link>
+        <h2 className="text-title-h5 text-text-strong-950 mb-1">Basic Information</h2>
+        <p className="text-paragraph-sm text-text-sub-600">
+          Set up the foundation of your campaign
         </p>
       </div>
 
+      {/* Product Selection */}
+      <div className="space-y-3">
+        <label className="flex items-center gap-1 text-label-sm text-text-strong-950">
+          Select Product
+          <span className="text-error-base">*</span>
+        </label>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {mockProducts.map((product) => (
+            <button
+              key={product.id}
+              type="button"
+              onClick={() => updateFormData({ productId: product.id })}
+              className={cn(
+                'flex items-center gap-3 p-3 rounded-xl text-left transition-all',
+                'ring-1 ring-inset',
+                formData.productId === product.id
+                  ? 'ring-primary-base bg-primary-base/5 shadow-sm'
+                  : 'ring-stroke-soft-200 hover:bg-bg-weak-50 hover:ring-stroke-sub-300'
+              )}
+            >
+              <div className="size-12 rounded-lg bg-bg-weak-50 flex items-center justify-center shrink-0">
+                <Package weight="duotone" className="size-6 text-text-soft-400" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-label-sm text-text-strong-950 truncate">{product.name}</div>
+                <div className="text-paragraph-xs text-text-soft-400">{product.category}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+        
+        <Link 
+          href="/dashboard/products/new" 
+          className="inline-flex items-center gap-1.5 text-label-sm text-primary-base hover:text-primary-darker font-medium"
+        >
+          <Plus weight="bold" className="size-4" />
+          Add New Product
+        </Link>
+      </div>
+
       {/* Campaign Title */}
-      <div>
-        <label className="block text-label-sm text-text-strong-950 mb-2">
-          Campaign Title <span className="text-error-base">*</span>
+      <div className="space-y-2">
+        <label className="flex items-center gap-1 text-label-sm text-text-strong-950">
+          Campaign Title
+          <span className="text-error-base">*</span>
         </label>
         <Input.Root>
           <Input.Wrapper>
@@ -255,70 +404,93 @@ function Step1BasicInfo({ formData, updateFormData }: StepProps) {
       </div>
 
       {/* Description */}
-      <div>
-        <label className="block text-label-sm text-text-strong-950 mb-2">
+      <div className="space-y-2">
+        <label className="text-label-sm text-text-strong-950">
           Description
+          <span className="text-paragraph-xs text-text-soft-400 ml-1">(optional)</span>
         </label>
         <Textarea.Root
-          placeholder="Describe campaign, special offers, and expectations..."
+          placeholder="Describe your campaign goals, special offers, and what you expect from participants..."
           value={formData.description || ''}
           onChange={(e) => updateFormData({ description: e.target.value })}
-          rows={4}
+          rows={3}
         />
       </div>
 
       {/* Campaign Type */}
-      <div>
-        <label className="block text-label-sm text-text-strong-950 mb-2">
-          Campaign Type <span className="text-error-base">*</span>
+      <div className="space-y-3">
+        <label className="flex items-center gap-1 text-label-sm text-text-strong-950">
+          Campaign Type
+          <span className="text-error-base">*</span>
         </label>
         <Radio.Group
           value={formData.type}
           onValueChange={(value) => updateFormData({ type: value as CampaignType })}
-          className="flex flex-wrap gap-3"
+          className="grid grid-cols-1 sm:grid-cols-3 gap-3"
         >
           {CAMPAIGN_TYPE_OPTIONS.map((option) => (
             <label
               key={option.value}
               className={cn(
-                'flex items-center gap-2 px-4 py-3 rounded-12 cursor-pointer transition-colors',
+                'flex flex-col p-4 rounded-xl cursor-pointer transition-all',
                 'ring-1 ring-inset',
                 formData.type === option.value
-                  ? 'ring-primary-base bg-primary-alpha-10'
-                  : 'ring-stroke-soft-200 hover:bg-bg-weak-50'
+                  ? 'ring-primary-base bg-primary-base/5 shadow-sm'
+                  : 'ring-stroke-soft-200 hover:bg-bg-weak-50 hover:ring-stroke-sub-300'
               )}
             >
-              <Radio.Item value={option.value} />
-              <span className="text-label-sm text-text-strong-950">{option.label}</span>
+              <div className="flex items-center gap-2 mb-2">
+                <Radio.Item value={option.value} />
+                <span className="text-label-sm text-text-strong-950 font-medium">{option.label}</span>
+              </div>
+              <span className="text-paragraph-xs text-text-soft-400 pl-6">
+                {option.description}
+              </span>
             </label>
           ))}
         </Radio.Group>
       </div>
 
-      {/* Visibility */}
-      <div>
-        <label className="flex items-center gap-2 cursor-pointer">
+      {/* Visibility Toggle */}
+      <div className="rounded-xl bg-bg-weak-50 p-4 ring-1 ring-inset ring-stroke-soft-200">
+        <label className="flex items-start gap-3 cursor-pointer">
           <Checkbox.Root
             checked={formData.isPublic}
             onCheckedChange={(checked) => updateFormData({ isPublic: checked === true })}
+            className="mt-0.5"
           />
-          <span className="text-paragraph-sm text-text-sub-600">
-            Public (visible to all shoppers)
-          </span>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              {formData.isPublic ? (
+                <Globe weight="duotone" className="size-4 text-success-base" />
+              ) : (
+                <Lock weight="duotone" className="size-4 text-text-soft-400" />
+              )}
+              <span className="text-label-sm text-text-strong-950">
+                {formData.isPublic ? 'Public Campaign' : 'Private Campaign'}
+              </span>
+            </div>
+            <span className="text-paragraph-xs text-text-soft-400 block mt-0.5">
+              {formData.isPublic 
+                ? 'Visible to all shoppers in the marketplace'
+                : 'Only accessible via direct link'}
+            </span>
+          </div>
         </label>
       </div>
     </div>
   )
 }
 
-// Step 2: Dates & Limits
-function Step2DatesLimits({ formData, updateFormData }: StepProps) {
+// Step 2: Schedule
+function Step2Schedule({ formData, updateFormData }: StepProps) {
   const [startDateOpen, setStartDateOpen] = React.useState(false)
   const [endDateOpen, setEndDateOpen] = React.useState(false)
 
   const formatDate = (date?: Date) => {
     if (!date) return 'Select date'
     return date.toLocaleDateString('en-IN', {
+      weekday: 'short',
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -326,24 +498,39 @@ function Step2DatesLimits({ formData, updateFormData }: StepProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-label-lg text-text-strong-950">Dates & Limits</h2>
+    <div className="space-y-8">
+      {/* Section Header */}
+      <div>
+        <h2 className="text-title-h5 text-text-strong-950 mb-1">Schedule & Limits</h2>
+        <p className="text-paragraph-sm text-text-sub-600">
+          Define when your campaign runs and capacity limits
+        </p>
+      </div>
 
       {/* Campaign Period */}
-      <div>
-        <label className="block text-label-sm text-text-strong-950 mb-2">
-          Campaign Period <span className="text-error-base">*</span>
+      <div className="space-y-3">
+        <label className="flex items-center gap-1 text-label-sm text-text-strong-950">
+          <CalendarDots weight="duotone" className="size-4 text-primary-base" />
+          Campaign Period
+          <span className="text-error-base">*</span>
         </label>
-        <div className="grid grid-cols-2 gap-4">
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Popover.Root open={startDateOpen} onOpenChange={setStartDateOpen}>
-            <Popover.Trigger asChild>
-              <button className="flex items-center gap-2 px-4 py-2.5 rounded-10 ring-1 ring-inset ring-stroke-soft-200 text-left hover:bg-bg-weak-50">
-                <RiCalendarLine className="size-5 text-text-soft-400" />
-                <span className="flex-1 text-paragraph-sm text-text-strong-950">
-                  {formatDate(formData.startDate)}
-                </span>
-              </button>
-            </Popover.Trigger>
+            <div className="space-y-1.5">
+              <span className="text-label-xs text-text-sub-600">Start Date</span>
+              <Popover.Trigger asChild>
+                <button className="flex items-center gap-2 w-full px-4 py-3 rounded-xl ring-1 ring-inset ring-stroke-soft-200 text-left hover:bg-bg-weak-50 hover:ring-stroke-sub-300 transition-all">
+                  <CalendarBlank weight="duotone" className="size-5 text-text-soft-400 shrink-0" />
+                  <span className={cn(
+                    'flex-1 text-paragraph-sm',
+                    formData.startDate ? 'text-text-strong-950' : 'text-text-soft-400'
+                  )}>
+                    {formatDate(formData.startDate)}
+                  </span>
+                </button>
+              </Popover.Trigger>
+            </div>
             <Popover.Content>
               <Calendar
                 mode="single"
@@ -352,19 +539,26 @@ function Step2DatesLimits({ formData, updateFormData }: StepProps) {
                   updateFormData({ startDate: date })
                   setStartDateOpen(false)
                 }}
+                disabled={(date) => date < new Date()}
               />
             </Popover.Content>
           </Popover.Root>
 
           <Popover.Root open={endDateOpen} onOpenChange={setEndDateOpen}>
-            <Popover.Trigger asChild>
-              <button className="flex items-center gap-2 px-4 py-2.5 rounded-10 ring-1 ring-inset ring-stroke-soft-200 text-left hover:bg-bg-weak-50">
-                <RiCalendarLine className="size-5 text-text-soft-400" />
-                <span className="flex-1 text-paragraph-sm text-text-strong-950">
-                  {formatDate(formData.endDate)}
-                </span>
-              </button>
-            </Popover.Trigger>
+            <div className="space-y-1.5">
+              <span className="text-label-xs text-text-sub-600">End Date</span>
+              <Popover.Trigger asChild>
+                <button className="flex items-center gap-2 w-full px-4 py-3 rounded-xl ring-1 ring-inset ring-stroke-soft-200 text-left hover:bg-bg-weak-50 hover:ring-stroke-sub-300 transition-all">
+                  <CalendarBlank weight="duotone" className="size-5 text-text-soft-400 shrink-0" />
+                  <span className={cn(
+                    'flex-1 text-paragraph-sm',
+                    formData.endDate ? 'text-text-strong-950' : 'text-text-soft-400'
+                  )}>
+                    {formatDate(formData.endDate)}
+                  </span>
+                </button>
+              </Popover.Trigger>
+            </div>
             <Popover.Content>
               <Calendar
                 mode="single"
@@ -373,51 +567,66 @@ function Step2DatesLimits({ formData, updateFormData }: StepProps) {
                   updateFormData({ endDate: date })
                   setEndDateOpen(false)
                 }}
-                disabled={(date) => formData.startDate ? date < formData.startDate : false}
+                disabled={(date) => formData.startDate ? date < formData.startDate : date < new Date()}
               />
             </Popover.Content>
           </Popover.Root>
         </div>
       </div>
 
-      {/* Maximum Enrollments */}
-      <div>
-        <label className="block text-label-sm text-text-strong-950 mb-2">
-          Maximum Enrollments <span className="text-error-base">*</span>
-        </label>
-        <Input.Root>
-          <Input.Wrapper>
-            <Input.El
-              type="number"
-              placeholder="500"
-              value={formData.maxEnrollments || ''}
-              onChange={(e) => updateFormData({ maxEnrollments: parseInt(e.target.value) || 0 })}
-            />
-          </Input.Wrapper>
-        </Input.Root>
-        <p className="mt-1 text-paragraph-xs text-text-soft-400">
-          Maximum shoppers who can enroll in this campaign
-        </p>
+      {/* Capacity Settings */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="space-y-2">
+          <label className="flex items-center gap-1 text-label-sm text-text-strong-950">
+            <Users weight="duotone" className="size-4 text-information-base" />
+            Maximum Enrollments
+            <span className="text-error-base">*</span>
+          </label>
+          <Input.Root>
+            <Input.Wrapper>
+              <Input.El
+                type="number"
+                placeholder="500"
+                value={formData.maxEnrollments || ''}
+                onChange={(e) => updateFormData({ maxEnrollments: parseInt(e.target.value) || 0 })}
+              />
+            </Input.Wrapper>
+          </Input.Root>
+          <p className="text-paragraph-xs text-text-soft-400">
+            Maximum shoppers who can enroll
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="flex items-center gap-1 text-label-sm text-text-strong-950">
+            <Clock weight="duotone" className="size-4 text-warning-base" />
+            Submission Deadline
+          </label>
+          <div className="flex items-center gap-2">
+            <Input.Root className="flex-1">
+              <Input.Wrapper>
+                <Input.El
+                  type="number"
+                  placeholder="45"
+                  value={formData.submissionDeadlineDays || ''}
+                  onChange={(e) => updateFormData({ submissionDeadlineDays: parseInt(e.target.value) || DEFAULT_SUBMISSION_DEADLINE_DAYS })}
+                />
+              </Input.Wrapper>
+            </Input.Root>
+            <span className="text-paragraph-sm text-text-sub-600 shrink-0">days</span>
+          </div>
+          <p className="text-paragraph-xs text-text-soft-400">
+            Days to submit proofs after enrolling
+          </p>
+        </div>
       </div>
 
-      {/* Submission Deadline */}
-      <div>
-        <label className="block text-label-sm text-text-strong-950 mb-2">
-          Submission Deadline (Days)
-        </label>
-        <Input.Root>
-          <Input.Wrapper>
-            <Input.El
-              type="number"
-              placeholder="45"
-              value={formData.submissionDeadlineDays || ''}
-              onChange={(e) => updateFormData({ submissionDeadlineDays: parseInt(e.target.value) || DEFAULT_SUBMISSION_DEADLINE_DAYS })}
-            />
-          </Input.Wrapper>
-        </Input.Root>
-        <p className="mt-1 text-paragraph-xs text-text-soft-400">
-          Days shoppers have to submit proofs after enrolling (Default: 45)
-        </p>
+      {/* Info Callout */}
+      <div className="flex items-start gap-3 rounded-xl bg-information-lighter/50 p-4 ring-1 ring-inset ring-information-base/20">
+        <Info weight="fill" className="size-5 text-information-base shrink-0 mt-0.5" />
+        <div className="text-paragraph-sm text-text-sub-600">
+          <strong className="text-information-base">Tip:</strong> Set realistic deadlines. 45 days is recommended for product delivery and content creation.
+        </div>
       </div>
     </div>
   )
@@ -449,48 +658,85 @@ function Step3Deliverables({ formData, updateFormData }: StepProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-label-lg text-text-strong-950">Campaign Deliverables</h2>
-
-      <div className="rounded-12 bg-information-lighter p-4 text-paragraph-sm text-information-base">
-        ℹ️ Order screenshot is automatically required for OCR verification
+    <div className="space-y-8">
+      {/* Section Header */}
+      <div>
+        <h2 className="text-title-h5 text-text-strong-950 mb-1">Campaign Deliverables</h2>
+        <p className="text-paragraph-sm text-text-sub-600">
+          Define what participants need to submit
+        </p>
       </div>
 
+      {/* Info Banner */}
+      <div className="flex items-start gap-3 rounded-xl bg-success-lighter/50 p-4 ring-1 ring-inset ring-success-base/20">
+        <CheckCircle weight="fill" className="size-5 text-success-base shrink-0 mt-0.5" />
+        <div className="text-paragraph-sm text-text-sub-600">
+          <strong className="text-success-base">Order screenshot</strong> is automatically required for OCR verification of purchases.
+        </div>
+      </div>
+
+      {/* Deliverables List */}
       <div className="space-y-4">
         {deliverables.map((deliverable, index) => (
           <div
             key={index}
-            className="rounded-12 ring-1 ring-inset ring-stroke-soft-200 p-4"
+            className={cn(
+              'rounded-xl ring-1 ring-inset p-4 sm:p-5',
+              index === 0 
+                ? 'ring-primary-base/30 bg-primary-base/5' 
+                : 'ring-stroke-soft-200'
+            )}
           >
-            <div className="flex items-start justify-between gap-4 mb-4">
-              <div className="flex items-center gap-2">
-                <Checkbox.Root
-                  checked={deliverable.isRequired}
-                  onCheckedChange={(checked) =>
-                    updateDeliverable(index, { isRequired: checked === true })
-                  }
-                  disabled={index === 0} // Order screenshot always required
-                />
-                <span className="text-label-sm text-text-strong-950">
-                  {deliverable.isRequired ? 'Required' : 'Optional'}
-                </span>
+            {/* Header Row */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  'flex size-8 items-center justify-center rounded-lg text-label-sm font-semibold',
+                  index === 0 ? 'bg-primary-base text-white' : 'bg-bg-weak-50 text-text-sub-600'
+                )}>
+                  {index + 1}
+                </div>
+                <div>
+                  <span className="text-label-sm text-text-strong-950 font-medium">
+                    {DELIVERABLE_TYPE_OPTIONS.find(o => o.value === deliverable.type)?.label || 'Deliverable'}
+                  </span>
+                  {index === 0 && (
+                    <span className="text-paragraph-xs text-primary-base ml-2">(Auto-required)</span>
+                  )}
+                </div>
               </div>
-              {index > 0 && (
-                <Button.Root
-                  variant="ghost"
-                  size="xsmall"
-                  onClick={() => removeDeliverable(index)}
-                >
-                  <Button.Icon as={RiDeleteBinLine} />
-                </Button.Root>
-              )}
+              
+              <div className="flex items-center gap-2">
+                {index > 0 && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox.Root
+                      checked={deliverable.isRequired}
+                      onCheckedChange={(checked) =>
+                        updateDeliverable(index, { isRequired: checked === true })
+                      }
+                    />
+                    <span className="text-label-xs text-text-sub-600">
+                      Required
+                    </span>
+                  </label>
+                )}
+                {index > 0 && (
+                  <Button.Root
+                    variant="ghost"
+                    size="xsmall"
+                    onClick={() => removeDeliverable(index)}
+                    className="text-error-base hover:bg-error-lighter -mr-1"
+                  >
+                    <Button.Icon as={Trash} />
+                  </Button.Root>
+                )}
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-label-xs text-text-sub-600 mb-1">
-                  Type
-                </label>
+            {/* Form Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-label-xs text-text-sub-600">Type</label>
                 <Select.Root
                   value={deliverable.type}
                   onValueChange={(value) =>
@@ -510,14 +756,12 @@ function Step3Deliverables({ formData, updateFormData }: StepProps) {
                   </Select.Content>
                 </Select.Root>
               </div>
-              <div>
-                <label className="block text-label-xs text-text-sub-600 mb-1">
-                  Instructions
-                </label>
+              <div className="space-y-1.5">
+                <label className="text-label-xs text-text-sub-600">Instructions</label>
                 <Input.Root>
                   <Input.Wrapper>
                     <Input.El
-                      placeholder="e.g., Min 50 words"
+                      placeholder="e.g., Min 50 words, include product photo"
                       value={deliverable.instructions || ''}
                       onChange={(e) =>
                         updateDeliverable(index, { instructions: e.target.value })
@@ -531,9 +775,9 @@ function Step3Deliverables({ formData, updateFormData }: StepProps) {
         ))}
       </div>
 
-      <Button.Root variant="basic" onClick={addDeliverable}>
-        <Button.Icon as={RiAddLine} />
-        Add Custom Deliverable
+      <Button.Root variant="basic" onClick={addDeliverable} className="w-full sm:w-auto">
+        <Button.Icon as={Plus} />
+        Add Deliverable
       </Button.Root>
     </div>
   )
@@ -546,6 +790,7 @@ interface Step4Props {
 }
 
 function Step4Review({ formData, onEdit }: Step4Props) {
+  const [termsAccepted, setTermsAccepted] = React.useState(false)
   const product = mockProducts.find((p) => p.id === formData.productId)
 
   const formatDate = (date?: Date) => {
@@ -557,93 +802,71 @@ function Step4Review({ formData, onEdit }: Step4Props) {
     })
   }
 
+  const ReviewSection = ({ title, step, children }: { title: string; step: number; children: React.ReactNode }) => (
+    <div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 bg-bg-weak-50 border-b border-stroke-soft-200">
+        <h3 className="text-label-sm text-text-strong-950 font-medium">{title}</h3>
+        <Button.Root variant="ghost" size="xsmall" onClick={() => onEdit(step)}>
+          Edit
+        </Button.Root>
+      </div>
+      <div className="p-4 space-y-3 text-paragraph-sm">
+        {children}
+      </div>
+    </div>
+  )
+
+  const ReviewRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="flex justify-between gap-4">
+      <span className="text-text-sub-600">{label}</span>
+      <span className="text-text-strong-950 text-right">{value}</span>
+    </div>
+  )
+
   return (
     <div className="space-y-6">
-      <h2 className="text-label-lg text-text-strong-950">Review & Submit</h2>
-      <p className="text-paragraph-sm text-text-sub-600">
-        Please verify all details before submitting for approval
-      </p>
-
-      {/* Basic Info */}
-      <div className="rounded-12 ring-1 ring-inset ring-stroke-soft-200 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-label-sm text-text-strong-950">Basic Information</h3>
-          <Button.Root variant="ghost" size="xsmall" onClick={() => onEdit(1)}>
-            Edit
-          </Button.Root>
-        </div>
-        <div className="space-y-2 text-paragraph-sm">
-          <div className="flex justify-between">
-            <span className="text-text-sub-600">Product</span>
-            <span className="text-text-strong-950">{product?.name || 'Not selected'}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-text-sub-600">Title</span>
-            <span className="text-text-strong-950">{formData.title || 'Not set'}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-text-sub-600">Type</span>
-            <span className="text-text-strong-950 capitalize">{formData.type}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-text-sub-600">Visibility</span>
-            <span className="text-text-strong-950">{formData.isPublic ? 'Public' : 'Private'}</span>
-          </div>
-        </div>
+      {/* Section Header */}
+      <div>
+        <h2 className="text-title-h5 text-text-strong-950 mb-1">Review & Submit</h2>
+        <p className="text-paragraph-sm text-text-sub-600">
+          Please verify all details before submitting
+        </p>
       </div>
 
-      {/* Dates & Limits */}
-      <div className="rounded-12 ring-1 ring-inset ring-stroke-soft-200 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-label-sm text-text-strong-950">Dates & Limits</h3>
-          <Button.Root variant="ghost" size="xsmall" onClick={() => onEdit(2)}>
-            Edit
-          </Button.Root>
-        </div>
-        <div className="space-y-2 text-paragraph-sm">
-          <div className="flex justify-between">
-            <span className="text-text-sub-600">Period</span>
-            <span className="text-text-strong-950">
-              {formatDate(formData.startDate)} - {formatDate(formData.endDate)}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-text-sub-600">Max Enrollments</span>
-            <span className="text-text-strong-950">{formData.maxEnrollments || 'Not set'}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-text-sub-600">Submission Deadline</span>
-            <span className="text-text-strong-950">{formData.submissionDeadlineDays} days</span>
-          </div>
-        </div>
-      </div>
+      {/* Review Sections */}
+      <div className="space-y-4">
+        <ReviewSection title="Basic Information" step={1}>
+          <ReviewRow label="Product" value={product?.name || 'Not selected'} />
+          <ReviewRow label="Title" value={formData.title || 'Not set'} />
+          <ReviewRow label="Type" value={CAMPAIGN_TYPE_OPTIONS.find(o => o.value === formData.type)?.label} />
+          <ReviewRow label="Visibility" value={formData.isPublic ? 'Public' : 'Private'} />
+        </ReviewSection>
 
-      {/* Deliverables */}
-      <div className="rounded-12 ring-1 ring-inset ring-stroke-soft-200 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-label-sm text-text-strong-950">Deliverables</h3>
-          <Button.Root variant="ghost" size="xsmall" onClick={() => onEdit(3)}>
-            Edit
-          </Button.Root>
-        </div>
-        <div className="space-y-2 text-paragraph-sm">
+        <ReviewSection title="Schedule & Limits" step={2}>
+          <ReviewRow label="Period" value={`${formatDate(formData.startDate)} - ${formatDate(formData.endDate)}`} />
+          <ReviewRow label="Max Enrollments" value={formData.maxEnrollments?.toLocaleString() || 'Not set'} />
+          <ReviewRow label="Submission Deadline" value={`${formData.submissionDeadlineDays} days`} />
+        </ReviewSection>
+
+        <ReviewSection title="Deliverables" step={3}>
           {formData.deliverables?.map((d, i) => (
-            <div key={i} className="flex justify-between">
-              <span className="text-text-sub-600">
-                {DELIVERABLE_TYPE_OPTIONS.find((o) => o.value === d.type)?.label}
-              </span>
-              <span className="text-text-strong-950">
-                {d.isRequired ? 'Required' : 'Optional'}
-              </span>
-            </div>
+            <ReviewRow 
+              key={i} 
+              label={DELIVERABLE_TYPE_OPTIONS.find((o) => o.value === d.type)?.label || d.type}
+              value={d.isRequired ? 'Required' : 'Optional'} 
+            />
           ))}
-        </div>
+        </ReviewSection>
       </div>
 
       {/* Terms Agreement */}
-      <div>
-        <label className="flex items-start gap-2 cursor-pointer">
-          <Checkbox.Root className="mt-0.5" />
+      <div className="rounded-xl bg-bg-weak-50 p-4 ring-1 ring-inset ring-stroke-soft-200">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <Checkbox.Root
+            checked={termsAccepted}
+            onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+            className="mt-0.5"
+          />
           <span className="text-paragraph-sm text-text-sub-600">
             I confirm that all information provided is accurate and I agree to the{' '}
             <a href="/terms" className="text-primary-base hover:underline">
@@ -659,4 +882,3 @@ function Step4Review({ formData, onEdit }: Step4Props) {
     </div>
   )
 }
-

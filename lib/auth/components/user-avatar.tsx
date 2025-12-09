@@ -1,6 +1,6 @@
 "use client"
 
-import { RiUserLine } from "@remixicon/react"
+import { User } from "@phosphor-icons/react"
 import { type ComponentProps, useContext } from "react"
 
 import { AuthUIContext } from "../lib/auth-ui-provider"
@@ -135,7 +135,7 @@ export function UserAvatar({
                 delayMs={src ? 600 : undefined}
             >
                 {firstTwoCharacters(name) || (
-                    <RiUserLine
+                    <User
                         className={cn(classNames?.fallbackIcon)}
                         size="50%"
                     />
