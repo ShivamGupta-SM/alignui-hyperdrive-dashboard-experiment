@@ -189,7 +189,7 @@ function DashboardLayoutInner({
   // Don't render until mounted to prevent hydration mismatch
   if (!mounted) {
     return (
-      <div className="h-screen p-0 lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200">
+      <div className="h-dvh p-0 lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 pb-safe">
         <div className="flex h-full">
           {/* Placeholder sidebar - transparent on gray shell */}
           <div className="hidden lg:block w-[280px] shrink-0" />
@@ -212,7 +212,7 @@ function DashboardLayoutInner({
 
 
   return (
-      <div className="h-screen lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 transition-colors duration-200">
+      <div className="h-dvh lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 transition-colors duration-200 pb-safe">
       {/* ============================================ */}
       {/* DESKTOP LAYOUT - Traditional Inset Sidebar */}
       {/* ============================================ */}
@@ -283,7 +283,7 @@ function DashboardLayoutInner({
               onSettingsClick={() => setSettingsPanelOpen(true)}
               user={mockUser}
             />
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto overscroll-contain -webkit-overflow-scrolling-touch">
               <div className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
                 {children}
               </div>
@@ -348,8 +348,8 @@ function DashboardLayoutInner({
             )}
           >
             {/* Page Content */}
-            <main className="flex-1 overflow-y-auto rounded-2xl">
-              <div className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+            <main className="flex-1 overflow-y-auto overscroll-contain rounded-2xl" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 pb-safe">
                 {children}
               </div>
             </main>

@@ -760,6 +760,50 @@ body {
   font-family: Inter, Arial, Helvetica, sans-serif;
   margin: 0;
   padding: 0;
+  /* iOS smooth scrolling fixes */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+}
+
+/* iOS Safari/Chrome scroll fix - prevent rubber-banding getting stuck */
+html {
+  height: -webkit-fill-available;
+  overflow: hidden;
+}
+
+body {
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+}
+
+/* Safe area utilities for iOS notch/home indicator */
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+
+.pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+
+.p-safe {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* iOS momentum scroll container */
+.ios-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 /* ============================================ */
