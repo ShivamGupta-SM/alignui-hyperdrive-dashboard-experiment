@@ -1,6 +1,8 @@
+'use client'
+
 import Link from 'next/link'
 import * as Button from '@/components/ui/button'
-import { ArrowLeft } from '@phosphor-icons/react/dist/ssr'
+import { ArrowLeft } from '@phosphor-icons/react'
 
 export default function TermsPage() {
   return (

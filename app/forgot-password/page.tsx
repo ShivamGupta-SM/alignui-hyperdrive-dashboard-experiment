@@ -5,7 +5,7 @@ import Link from 'next/link'
 import * as Button from '@/components/ui/button'
 import * as Input from '@/components/ui/input'
 import { Callout } from '@/components/ui/callout'
-import { ArrowLeft, Envelope } from '@phosphor-icons/react/dist/ssr'
+import { ArrowLeft, Envelope } from '@phosphor-icons/react'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = React.useState('')
