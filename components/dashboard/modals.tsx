@@ -50,17 +50,17 @@ export function ConfirmationModal({
 }: ConfirmationModalProps) {
   const variantConfig = {
     danger: {
-      icon: RiAlertLine,
+      icon: Warning,
       iconClass: 'text-error-base bg-error-lighter',
       buttonVariant: 'error' as const,
     },
     warning: {
-      icon: RiAlertLine,
+      icon: Warning,
       iconClass: 'text-warning-base bg-warning-lighter',
       buttonVariant: 'primary' as const,
     },
     info: {
-      icon: RiInformationLine,
+      icon: Info,
       iconClass: 'text-info-base bg-info-lighter',
       buttonVariant: 'primary' as const,
     },
@@ -146,15 +146,15 @@ export function ApproveEnrollmentModal({
         <Modal.Body>
           <ul className="space-y-2 text-paragraph-sm text-text-sub-600 mb-4">
             <li className="flex items-center gap-2">
-              <RiCheckLine className="size-4 text-success-base shrink-0" />
+              <Check className="size-4 text-success-base shrink-0" />
               Commit the held amount from your wallet
             </li>
             <li className="flex items-center gap-2">
-              <RiCheckLine className="size-4 text-success-base shrink-0" />
+              <Check className="size-4 text-success-base shrink-0" />
               Transfer payout to the shopper
             </li>
             <li className="flex items-center gap-2">
-              <RiCheckLine className="size-4 text-success-base shrink-0" />
+              <Check className="size-4 text-success-base shrink-0" />
               Mark the enrollment as completed
             </li>
           </ul>
@@ -444,7 +444,7 @@ export function ExtendDeadlineModal({
           </div>
 
           <div className="flex items-start gap-2 text-paragraph-xs text-text-soft-400">
-            <RiInformationLine className="size-4 shrink-0" />
+            <Info className="size-4 shrink-0" />
             <span>Shopper will be notified of the new deadline via email and app</span>
           </div>
         </Modal.Body>
