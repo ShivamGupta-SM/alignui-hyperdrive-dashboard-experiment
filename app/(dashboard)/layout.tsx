@@ -189,12 +189,12 @@ function DashboardLayoutInner({
   // Don't render until mounted to prevent hydration mismatch
   if (!mounted) {
     return (
-      <div className="h-screen p-0 lg:p-3 bg-gradient-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200">
+      <div className="h-screen p-0 lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200">
         <div className="flex h-full">
           {/* Placeholder sidebar - transparent on gray shell */}
           <div className="hidden lg:block w-[280px] shrink-0" />
           {/* Main Content Card */}
-          <div className="flex flex-1 flex-col overflow-hidden bg-bg-white-0 lg:rounded-2xl lg:border lg:border-stroke-soft-200 lg:shadow-md lg:ring-1 lg:ring-black/[0.03] dark:lg:ring-white/[0.03]">
+          <div className="flex flex-1 flex-col overflow-hidden bg-bg-white-0 lg:rounded-2xl lg:border lg:border-stroke-soft-200 lg:shadow-md lg:ring-1 lg:ring-black/3 dark:lg:ring-white/3">
             {/* Placeholder header */}
             <div className="h-16 border-b border-stroke-soft-200" />
             {/* Page Content */}
@@ -212,7 +212,7 @@ function DashboardLayoutInner({
 
 
   return (
-      <div className="h-screen lg:p-3 bg-gradient-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 transition-colors duration-200">
+      <div className="h-screen lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 transition-colors duration-200">
       {/* ============================================ */}
       {/* DESKTOP LAYOUT - Traditional Inset Sidebar */}
       {/* ============================================ */}
@@ -273,7 +273,7 @@ function DashboardLayoutInner({
           )}
 
           {/* Content Card */}
-          <div className="flex flex-1 flex-col overflow-hidden rounded-2xl bg-bg-white-0 border border-stroke-soft-200 shadow-md ring-1 ring-black/[0.03] dark:ring-white/[0.03] transition-all duration-200">
+          <div className="flex flex-1 flex-col overflow-hidden rounded-2xl bg-bg-white-0 border border-stroke-soft-200 shadow-md ring-1 ring-black/3 dark:ring-white/3 transition-all duration-200">
             <Header
               unreadNotifications={3}
               onNotificationsClick={() => setNotificationsOpen(true)}
@@ -339,7 +339,7 @@ function DashboardLayoutInner({
           <div
             className={cn(
               "relative z-10 flex flex-col h-full",
-              "bg-bg-white-0 rounded-2xl border border-stroke-soft-200 shadow-md ring-1 ring-black/[0.03] dark:ring-white/[0.03]",
+              "bg-bg-white-0 rounded-2xl border border-stroke-soft-200 shadow-md ring-1 ring-black/3 dark:ring-white/3",
               "transition-all duration-300 ease-out",
               // When sidebar is open, slide content down (70% to show more peek)
               mobileSidebarOpen 

@@ -462,7 +462,7 @@ function BankAccountCard({ account }: { account: typeof mockBankAccounts[0] }) {
   return (
     <div className="flex items-center justify-between py-3">
       <div className="flex items-center gap-4">
-        <div className="flex size-12 items-center justify-center rounded-full bg-gradient-to-br from-primary-base/10 to-primary-base/5">
+        <div className="flex size-12 items-center justify-center rounded-full bg-linear-to-br from-primary-base/10 to-primary-base/5">
           <Bank className="size-5 text-primary-base" />
         </div>
         <div>
@@ -528,7 +528,7 @@ function GstSection() {
         </Card.Header>
         <Card.Content className="pt-4">
           {/* GST Number Display */}
-          <div className="p-5 rounded-16 bg-gradient-to-br from-primary-base/5 to-purple-500/5 border border-stroke-soft-200">
+          <div className="p-5 rounded-16 bg-linear-to-br from-primary-base/5 to-purple-500/5 border border-stroke-soft-200">
             <div className="flex items-center justify-between mb-3">
               <span className="text-label-xs text-text-sub-600 uppercase tracking-wider">GST Number</span>
               <Badge.Root 

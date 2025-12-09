@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del \"c:\\Users\\Shivam Gupta\\Downloads\\Hyprive_unti\\experiment\\alignui-hyperdrive-dashboard-experiment\\middleware.ts\")",
+      "Bash(rm:*)"
+    ]
+  }
+}

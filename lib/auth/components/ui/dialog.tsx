@@ -5,6 +5,7 @@ import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import * as Modal from "@/components/ui/modal"
 import { cn } from "../../lib/utils"
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react"
 
 // Re-export AlignUI Modal as Dialog with shadcn-compatible API
 const Dialog = Modal.Root
@@ -41,7 +42,7 @@ function DialogHeader({
     children,
     ...props
 }: React.HTMLAttributes<HTMLDivElement> & {
-    icon?: React.ComponentType<{ className?: string }>
+    icon?: PhosphorIcon
     title?: string
     description?: string
 }) {
