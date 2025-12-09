@@ -45,6 +45,8 @@ const modalVariants = tv({
         overlay: 'p-0',
         content: [
           'h-full max-w-none rounded-none',
+          // Safe area padding for notch/home indicator
+          'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]',
           'data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
         ],
       },

@@ -65,10 +65,11 @@ export function Header({
         {/* Mobile Menu Toggle - Only visible on mobile */}
         {onMobileMenuClick && (
           <button
+            type="button"
             onClick={onMobileMenuClick}
             className={cn(
               iconButtonStyles,
-              "lg:hidden size-9 sm:size-10 shrink-0 relative"
+              "lg:hidden size-11 sm:size-10 shrink-0 relative"
             )}
             aria-label={isMobileSidebarOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={isMobileSidebarOpen}
@@ -98,6 +99,7 @@ export function Header({
         {/* Desktop Sidebar Collapse Toggle - Hidden on mobile */}
         {onSidebarCollapsedChange && (
           <button
+            type="button"
             onClick={() => onSidebarCollapsedChange(!sidebarCollapsed)}
             className={cn(
               iconButtonStyles,
@@ -117,10 +119,11 @@ export function Header({
 
         {/* Search / Command Menu - Hidden on mobile when sidebar is open */}
         <button
+          type="button"
           onClick={onCommandMenuClick}
           className={cn(
             iconButtonStyles,
-            "size-9 sm:size-10 sm:w-auto sm:min-w-[180px] md:min-w-[220px] sm:px-3 shrink-0",
+            "size-11 sm:size-10 sm:w-auto sm:min-w-[180px] md:min-w-[220px] sm:px-3 shrink-0",
             isMobileSidebarOpen && "hidden lg:flex" // Hide on mobile when sidebar open
           )}
         >
@@ -140,10 +143,11 @@ export function Header({
       {/* Right: Notifications + Profile */}
       <div className="flex items-center gap-1.5 sm:gap-2">
         <button
+          type="button"
           onClick={onNotificationsClick}
           className={cn(
             iconButtonStyles,
-            "relative size-9 sm:size-10 group"
+            "relative size-11 sm:size-10 group"
           )}
           aria-label="Notifications"
         >
@@ -161,10 +165,11 @@ export function Header({
         {/* Profile Avatar - Opens Settings Panel */}
         {user && onSettingsClick && (
           <button
+            type="button"
             onClick={onSettingsClick}
             className={cn(
               iconButtonStyles,
-              "size-9 sm:size-10 p-[3px]"
+              "size-11 sm:size-10 p-[3px]"
             )}
             aria-label="Open settings"
           >

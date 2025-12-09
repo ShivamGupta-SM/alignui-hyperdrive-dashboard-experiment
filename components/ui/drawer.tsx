@@ -150,6 +150,7 @@ function DrawerFooter({
         'flex items-center gap-4 border-t border-stroke-soft-200 p-5',
         className,
       )}
+      style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))' }}
       {...rest}
     />
   );

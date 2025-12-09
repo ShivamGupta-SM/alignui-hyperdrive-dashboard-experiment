@@ -49,7 +49,8 @@ export const inputVariants = tv({
     ],
     input: [
       // base
-      'w-full bg-transparent bg-none text-paragraph-sm text-text-strong-950 outline-none',
+      // Use text-base (16px) to prevent iOS zoom on focus
+      'w-full bg-transparent bg-none text-base sm:text-paragraph-sm text-text-strong-950 outline-none',
       'transition duration-200 ease-out',
       // placeholder
       'placeholder:select-none placeholder:text-text-soft-400 placeholder:transition placeholder:duration-200 placeholder:ease-out',

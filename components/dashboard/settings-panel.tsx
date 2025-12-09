@@ -174,9 +174,11 @@ function MainSettingsPanel({
             <p className="text-paragraph-xs text-text-sub-600">{user.email}</p>
           </div>
         </div>
-        <button 
+        <button
+          type="button"
           onClick={onClose}
-          className="size-8 rounded-lg flex items-center justify-center text-text-sub-600 hover:bg-bg-weak-50 hover:text-text-strong-950 transition-colors"
+          className="size-11 rounded-lg flex items-center justify-center text-text-sub-600 hover:bg-bg-weak-50 hover:text-text-strong-950 transition-colors -mr-1.5"
+          aria-label="Close settings"
         >
           <X className="size-5" weight="bold" />
         </button>
@@ -290,10 +292,14 @@ function MainSettingsPanel({
       </div>
 
       {/* Footer - Sign Out */}
-      <div className="border-t border-stroke-soft-200 px-5 py-3">
+      <div
+        className="border-t border-stroke-soft-200 px-5 py-3"
+        style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
+      >
         <button
+          type="button"
           onClick={onSignOut}
-          className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-error-base transition-colors hover:bg-error-lighter active:scale-[0.99]"
+          className="flex w-full items-center justify-center gap-2 rounded-xl min-h-11 text-error-base transition-colors hover:bg-error-lighter active:scale-[0.99]"
         >
           <SignOut className="size-5" weight="duotone" />
           <span className="text-label-sm font-medium">Sign Out</span>
@@ -329,10 +335,11 @@ function SubPanel({ type, onBack, onClose, isDarkMode }: SubPanelProps) {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-stroke-soft-200 px-5 py-4">
+      <div className="flex items-center gap-2 border-b border-stroke-soft-200 px-4 py-3">
         <button
+          type="button"
           onClick={onBack}
-          className="size-8 rounded-lg flex items-center justify-center text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
+          className="size-11 rounded-lg flex items-center justify-center text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
           aria-label="Back"
         >
           <ArrowLeft className="size-5" weight="bold" />
@@ -341,8 +348,9 @@ function SubPanel({ type, onBack, onClose, isDarkMode }: SubPanelProps) {
           {titles[type!]}
         </h2>
         <button
+          type="button"
           onClick={onClose}
-          className="size-8 rounded-lg flex items-center justify-center text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
+          className="size-11 rounded-lg flex items-center justify-center text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
           aria-label="Close"
         >
           <X className="size-5" weight="bold" />

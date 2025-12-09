@@ -373,8 +373,11 @@ export function NotificationsDrawer({
         </Drawer.Body>
 
         {/* Footer - Settings link */}
-        <div className="border-t border-stroke-soft-200 px-5 py-3">
-          <button className="w-full text-center text-label-sm text-text-sub-600 hover:text-text-strong-950 transition-colors py-2">
+        <div
+          className="border-t border-stroke-soft-200 px-5 py-3"
+          style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
+        >
+          <button type="button" className="w-full text-center text-label-sm text-text-sub-600 hover:text-text-strong-950 transition-colors py-2 min-h-11">
             Notification Settings
           </button>
         </div>

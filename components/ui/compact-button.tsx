@@ -57,12 +57,18 @@ export const compactButtonVariants = tv({
       modifiable: {},
     },
     size: {
+      // Mobile-friendly size with 44px touch target
+      xlarge: {
+        root: 'size-11',
+        icon: 'size-5',
+      },
       large: {
-        root: 'size-6',
+        // Increase from size-6 to size-9 for better touch target on mobile
+        root: 'size-9 sm:size-6',
         icon: 'size-5',
       },
       medium: {
-        root: 'size-5',
+        root: 'size-8 sm:size-5',
         icon: 'size-[18px]',
       },
     },
