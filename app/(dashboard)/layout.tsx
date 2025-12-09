@@ -349,7 +349,10 @@ function DashboardLayoutInner({
           >
             {/* Page Content */}
             <main className="flex-1 overflow-y-auto overscroll-contain rounded-2xl" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <div className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 pb-safe">
+              <div
+                className="container mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-8"
+                style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+              >
                 {children}
               </div>
             </main>
