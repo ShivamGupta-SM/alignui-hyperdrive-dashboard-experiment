@@ -1,7 +1,9 @@
+'use client'
+
 import Link from 'next/link'
 import * as Button from '@/components/ui/button'
 import { FeaturedIcon } from '@/components/claude-generated-components/featured-icon'
-import { ArrowRight, ChartBar, SealCheck, Wallet } from '@phosphor-icons/react/dist/ssr'
+import { ArrowRight, ChartBar, SealCheck, Wallet } from '@phosphor-icons/react'
 
 export default function Home() {
   return (
