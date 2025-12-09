@@ -91,7 +91,7 @@
     "typescript": "^5"
   },
   "engines": {
-    "node": "22.x"
+    "node": "23.x"
   },
   "packageManager": "pnpm@10.12.1"
 }
