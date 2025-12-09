@@ -824,7 +824,7 @@ export function SignUpForm({
                     )}
                 >
                     {isSubmitting ? (
-                        <ArrowPathIcon className="animate-spin size-5" />
+                        <CircleNotch className="animate-spin size-5" />
                     ) : (
                         localization.SIGN_UP_ACTION
                     )}
