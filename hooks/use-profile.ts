@@ -1,37 +1,21 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { get, patch } from '@/lib/axios'
-import type { AxiosError } from 'axios'
-import type { User, ApiResponse, ApiError } from '@/lib/types'
+import { getEncoreBrowserClient } from '@/lib/encore-browser'
+import type { auth } from '@/lib/encore-browser'
 import { STALE_TIMES } from '@/lib/types'
 import { profileKeys } from '@/lib/query-keys'
 
 // Re-export keys for backwards compatibility
 export { profileKeys }
 
-// Retry configuration - don't retry on 4xx errors
-const shouldRetry = (failureCount: number, error: AxiosError<ApiError>) => {
-  if (error.response?.status && error.response.status >= 400 && error.response.status < 500) {
-    return false
-  }
-  return failureCount < 3
-}
+// Re-export types from Encore for convenience
+export type User = auth.User
+export type Session = auth.Session
 
 // ============================================
 // Types
 // ============================================
-
-export interface Session {
-  id: string
-  device: string
-  iconType: 'computer' | 'smartphone' | 'mac'
-  ip: string
-  location: string
-  lastActive: string
-  signedIn: string
-  isCurrent: boolean
-}
 
 export interface ProfileData {
   user: User
@@ -43,32 +27,27 @@ export interface ProfileData {
 // ============================================
 
 export function useProfile() {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: profileKeys.user(),
-    queryFn: () => get<ApiResponse<User>>('/api/user'),
+    queryFn: () => client.auth.getMe(),
     staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
-export function useSessions() {
+export function useSessions(token?: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: profileKeys.sessions(),
-    queryFn: () => get<ApiResponse<Session[]>>('/api/user/sessions'),
-    staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
+    queryFn: async () => {
+      if (!token) return []
+      const result = await client.auth.listSessions({ token })
+      return result.sessions
     },
+    enabled: !!token,
+    staleTime: STALE_TIMES.STANDARD,
   })
 }
 
@@ -78,22 +57,41 @@ export function useSessions() {
 
 export function useUpdateProfile() {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: (data: { name?: string; email?: string; phone?: string }) =>
-      patch<ApiResponse<User>>('/api/user', data),
+    mutationFn: (data: { name?: string; image?: string }) =>
+      client.auth.updateMe(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: profileKeys.user() })
     },
   })
 }
 
-export function useRevokeSession() {
+export function useRevokeSession(token?: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: (sessionId: string) =>
-      patch<ApiResponse<void>>(`/api/user/sessions/${sessionId}/revoke`, {}),
+    mutationFn: (sessionToken: string) => {
+      if (!token) throw new Error('Token required')
+      return client.auth.revokeSession({ token, sessionToken })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: profileKeys.sessions() })
+    },
+  })
+}
+
+export function useRevokeAllSessions(token?: string) {
+  const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
+
+  return useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('Token required')
+      return client.auth.revokeSessions({ token })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: profileKeys.sessions() })
     },
@@ -108,17 +106,21 @@ export function useRevokeSession() {
  * Fetch profile data for SSR hydration
  * Used by the profile page to hydrate React Query cache
  */
-export function useProfileData() {
+export function useProfileData(token?: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: profileKeys.data(),
     queryFn: async () => {
-      const response = await get<ApiResponse<ProfileData>>('/api/user/data')
-      if (response.success) {
-        return response.data
+      const [user, sessionsData] = await Promise.all([
+        client.auth.getMe(),
+        token ? client.auth.listSessions({ token }) : Promise.resolve({ sessions: [] }),
+      ])
+      return {
+        user,
+        sessions: sessionsData.sessions,
       }
-      throw new Error(response.error)
     },
     staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
   })
 }

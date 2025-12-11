@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { toast } from 'sonner'
 import * as Button from '@/components/ui/button'
 import * as StatusBadge from '@/components/ui/status-badge'
@@ -15,8 +14,6 @@ import {
   Check,
   X,
   PencilSimple,
-  SealCheck,
-  Image as ImageIcon,
   CalendarBlank,
   Warning,
   ClockCounterClockwise,
@@ -29,8 +26,18 @@ import {
   useApproveEnrollment,
   useRejectEnrollment,
   useRequestEnrollmentChanges,
+  type Enrollment,
 } from '@/hooks/use-enrollments'
 import type { EnrollmentStatus } from '@/lib/types'
+
+// Helper to calculate costs from Encore enrollment
+function calculateCosts(enrollment: Enrollment) {
+  const billAmount = enrollment.orderValue * (enrollment.lockedBillRate / 100)
+  const gstAmount = billAmount * 0.18 // 18% GST
+  const platformFee = enrollment.orderValue * (enrollment.lockedPlatformFee / 100)
+  const totalCost = billAmount + gstAmount + platformFee
+  return { billAmount, gstAmount, platformFee, totalCost }
+}
 
 const getStatusBadgeStatus = (status: EnrollmentStatus) => {
   switch (status) {
@@ -70,7 +77,6 @@ export function EnrollmentDetailClient({ enrollmentId }: EnrollmentDetailClientP
 
   const formatCurrency = (amount: number) => `₹${amount.toLocaleString('en-IN')}`
   const formatDate = (date: Date) => new Date(date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })
-  const formatTime = (date: Date) => new Date(date).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })
 
   const isLoading = approveEnrollment.isPending || rejectEnrollment.isPending || requestChanges.isPending
 
@@ -196,33 +202,20 @@ export function EnrollmentDetailClient({ enrollmentId }: EnrollmentDetailClientP
           </StatusBadge.Root>
         </div>
 
-        {/* Shopper Info */}
+        {/* Enrollment Info */}
         <div className="flex items-center gap-3 sm:gap-4">
-          <Avatar.Root size="48" color={getAvatarColor(enrollment.shopper?.name || 'U')}>
-            {(enrollment.shopper?.name || 'U').charAt(0).toUpperCase()}
+          <Avatar.Root size="48" color={getAvatarColor(enrollment.shopperId || 'U')}>
+            {(enrollment.shopperId || 'U').charAt(0).toUpperCase()}
           </Avatar.Root>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
               <span className="text-label-md sm:text-title-h5 text-text-strong-950 truncate">
-                {enrollment.shopper?.name}
+                Shopper #{enrollment.shopperId.slice(0, 8)}
               </span>
-              {enrollment.shopper && enrollment.shopper.approvalRate >= 90 && (
-                <SealCheck weight="duotone" className="size-4 text-success-base shrink-0" />
-              )}
             </div>
             <div className="flex items-center gap-2">
-              {enrollment.campaign?.product?.image && (
-                <div className="relative size-5 rounded overflow-hidden flex-shrink-0">
-                   <Image
-                     src={enrollment.campaign.product.image}
-                     alt={enrollment.campaign.product.name}
-                     fill
-                     className="object-cover"
-                   />
-                </div>
-              )}
               <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 truncate">
-                {enrollment.campaign?.title} • {enrollment.platform}
+                Order #{enrollment.orderId}
               </p>
             </div>
           </div>
@@ -234,20 +227,24 @@ export function EnrollmentDetailClient({ enrollmentId }: EnrollmentDetailClientP
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Order Value" value={formatCurrency(enrollment.orderValue)} />
-        <StatCard label="Your Cost" value={formatCurrency(enrollment.totalCost)} highlight />
-        <StatCard
-          label="OCR Confidence"
-          value={`${enrollment.ocrData?.confidence || 0}%`}
-          valueColor={(enrollment.ocrData?.confidence || 0) >= 90 ? 'text-green-600' : 'text-amber-600'}
-        />
-        <StatCard
-          label="Shopper Rate"
-          value={`${enrollment.shopper?.approvalRate || 0}%`}
-          valueColor={(enrollment.shopper?.approvalRate || 0) >= 80 ? 'text-green-600' : 'text-amber-600'}
-        />
-      </div>
+      {(() => {
+        const costs = calculateCosts(enrollment)
+        return (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard label="Order Value" value={formatCurrency(enrollment.orderValue)} />
+            <StatCard label="Your Cost" value={formatCurrency(costs.totalCost)} highlight />
+            <StatCard
+              label="Rebate"
+              value={`${enrollment.lockedRebatePercentage}%`}
+            />
+            <StatCard
+              label="Rejections"
+              value={`${enrollment.rejectionCount}`}
+              valueColor={enrollment.rejectionCount > 0 ? 'text-amber-600' : 'text-green-600'}
+            />
+          </div>
+        )
+      })()}
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -259,134 +256,101 @@ export function EnrollmentDetailClient({ enrollmentId }: EnrollmentDetailClientP
           </h2>
           <div className="space-y-2">
             <DetailRow label="Order ID" value={enrollment.orderId} mono />
-            <DetailRow label="Order Date" value={formatDate(enrollment.orderDate)} />
-            <DetailRow label="Platform" value={enrollment.platform} />
-            <DetailRow label="Enrolled" value={formatDate(enrollment.createdAt)} />
-            <DetailRow label="Deadline" value={formatDate(enrollment.submissionDeadline)} />
+            <DetailRow label="Purchase Date" value={enrollment.purchaseDate ? formatDate(new Date(enrollment.purchaseDate)) : '-'} />
+            <DetailRow label="Enrolled" value={formatDate(new Date(enrollment.createdAt))} />
+            <DetailRow label="Expires" value={enrollment.expiresAt ? formatDate(new Date(enrollment.expiresAt)) : '-'} />
+            <DetailRow label="Can Resubmit" value={enrollment.canResubmit ? 'Yes' : 'No'} />
           </div>
         </div>
 
-        {/* OCR Verification */}
+        {/* Rate Details */}
         <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <ShieldCheck weight="duotone" className="size-4 text-gray-500" />
-            OCR Verification
+            Rate Details
           </h2>
           <div className="space-y-2">
-            <DetailRow
-              label="Order ID Match"
-              value={enrollment.ocrData?.extractedOrderId === enrollment.orderId ? '✓ Verified' : '✗ Mismatch'}
-              valueColor={enrollment.ocrData?.extractedOrderId === enrollment.orderId ? 'text-green-600' : 'text-red-600'}
-            />
-            <DetailRow
-              label="Amount Match"
-              value={enrollment.ocrData?.extractedAmount === enrollment.orderValue ? '✓ Verified' : '✗ Mismatch'}
-              valueColor={enrollment.ocrData?.extractedAmount === enrollment.orderValue ? 'text-green-600' : 'text-red-600'}
-            />
-            <DetailRow label="Extracted Date" value={enrollment.ocrData?.extractedDate || '-'} />
-            <DetailRow label="Extracted Product" value={enrollment.ocrData?.extractedProduct || '-'} />
-            <DetailRow
-              label="Confidence"
-              value={`${enrollment.ocrData?.confidence || 0}%`}
-              valueColor={(enrollment.ocrData?.confidence || 0) >= 90 ? 'text-green-600' : 'text-amber-600'}
-            />
+            <DetailRow label="Rebate Percentage" value={`${enrollment.lockedRebatePercentage}%`} />
+            <DetailRow label="Bill Rate" value={`${enrollment.lockedBillRate}%`} />
+            <DetailRow label="Platform Fee" value={`${enrollment.lockedPlatformFee}%`} />
+            {enrollment.lockedBonusAmount && (
+              <DetailRow label="Bonus Amount" value={formatCurrency(enrollment.lockedBonusAmount)} />
+            )}
+            <DetailRow label="Status" value={enrollment.status} />
           </div>
         </div>
       </div>
 
       {/* Billing Breakdown */}
-      <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Billing Breakdown</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <DetailRow label={`Bill Rate (${enrollment.campaign?.billRate || 18}%)`} value={formatCurrency(enrollment.billAmount)} />
-            <DetailRow label="GST (18%)" value={formatCurrency(enrollment.gstAmount)} />
-            <DetailRow label="Platform Fee" value={formatCurrency(enrollment.platformFee)} />
+      {(() => {
+        const costs = calculateCosts(enrollment)
+        return (
+          <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3">Billing Breakdown</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <DetailRow label={`Bill Rate (${enrollment.lockedBillRate}%)`} value={formatCurrency(costs.billAmount)} />
+                <DetailRow label="GST (18%)" value={formatCurrency(costs.gstAmount)} />
+                <DetailRow label={`Platform Fee (${enrollment.lockedPlatformFee}%)`} value={formatCurrency(costs.platformFee)} />
+              </div>
+              <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 flex flex-col items-center justify-center">
+                <span className="text-sm text-blue-700 mb-1">Total Cost to You</span>
+                <span className="text-2xl text-blue-600 font-bold">{formatCurrency(costs.totalCost)}</span>
+              </div>
+            </div>
           </div>
-          <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 flex flex-col items-center justify-center">
-            <span className="text-sm text-blue-700 mb-1">Total Cost to You</span>
-            <span className="text-2xl text-blue-600 font-bold">{formatCurrency(enrollment.totalCost)}</span>
-          </div>
-        </div>
-      </div>
+        )
+      })()}
 
-      {/* Submissions / Order Proof */}
-      <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <ImageIcon weight="duotone" className="size-4 text-gray-500" />
-          Submissions
-        </h2>
-        {enrollment.submissions && enrollment.submissions.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3">
-            {enrollment.submissions.map((submission, index) => {
-              // Find the deliverable info from campaign if available
-              const deliverable = enrollment.campaign?.deliverables?.find(
-                d => d.id === submission.deliverableId
-              )
-              return (
-                <div
-                  key={submission.id}
-                  className="aspect-video relative rounded-xl overflow-hidden border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity group"
-                >
-                  <Image
-                    src={submission.fileUrl}
-                    alt={deliverable?.title || `Submission ${index + 1}`}
-                    fill
-                    className="object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ImageIcon weight="duotone" className="size-8 text-white mb-2" />
-                    <span className="text-xs text-white font-medium">
-                      {deliverable?.title || `View Submission ${index + 1}`}
-                    </span>
-                    <span className={cn(
-                      "text-xs mt-1 px-2 py-0.5 rounded-full",
-                      submission.status === 'approved' && "bg-green-500/80 text-white",
-                      submission.status === 'rejected' && "bg-red-500/80 text-white",
-                      submission.status === 'pending' && "bg-yellow-500/80 text-white"
-                    )}>
-                      {submission.status}
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-text-sub-600">
-            <ImageIcon weight="duotone" className="size-12 mx-auto mb-2 text-gray-300" />
-            <p className="text-paragraph-sm">No submissions yet</p>
-          </div>
-        )}
-      </div>
-
-      {/* Timeline */}
+      {/* Status Info */}
       <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
           <ClockCounterClockwise weight="duotone" className="size-4 text-gray-500" />
-          Activity Timeline
+          Status Timeline
         </h2>
         <div className="space-y-3">
-          {enrollment.history?.map((item, index) => (
-            <div key={item.id} className="flex gap-3">
+          <div className="flex gap-3">
+            <div className="flex flex-col items-center">
+              <div className="size-2 rounded-full bg-blue-500" />
+              <div className="w-px flex-1 bg-gray-200" />
+            </div>
+            <div className="flex-1 pb-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-gray-900">Created</span>
+                <span className="text-xs text-gray-400">{formatDate(new Date(enrollment.createdAt))}</span>
+              </div>
+              <p className="text-xs text-gray-500">Enrollment created</p>
+            </div>
+          </div>
+          {enrollment.submittedAt && (
+            <div className="flex gap-3">
               <div className="flex flex-col items-center">
-                <div className={cn(
-                  "size-2 rounded-full",
-                  index === 0 ? "bg-blue-500" : "bg-gray-300"
-                )} />
-                {index < (enrollment.history?.length || 0) - 1 && (
-                  <div className="w-px flex-1 bg-gray-200" />
-                )}
+                <div className="size-2 rounded-full bg-green-500" />
+                <div className="w-px flex-1 bg-gray-200" />
               </div>
               <div className="flex-1 pb-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-gray-900">{item.action}</span>
-                  <span className="text-xs text-gray-400">{formatTime(item.performedAt)}</span>
+                  <span className="text-sm font-medium text-gray-900">Submitted</span>
+                  <span className="text-xs text-gray-400">{formatDate(new Date(enrollment.submittedAt))}</span>
                 </div>
-                <p className="text-xs text-gray-500">{item.description}</p>
+                <p className="text-xs text-gray-500">Deliverables submitted for review</p>
               </div>
             </div>
-          ))}
+          )}
+          {enrollment.approvedAt && (
+            <div className="flex gap-3">
+              <div className="flex flex-col items-center">
+                <div className="size-2 rounded-full bg-green-500" />
+              </div>
+              <div className="flex-1 pb-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-gray-900">Approved</span>
+                  <span className="text-xs text-gray-400">{formatDate(new Date(enrollment.approvedAt))}</span>
+                </div>
+                <p className="text-xs text-gray-500">Enrollment approved for payout</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -399,7 +363,7 @@ export function EnrollmentDetailClient({ enrollmentId }: EnrollmentDetailClientP
               <div>
                 <h3 className="text-label-md text-text-strong-950 mb-1">Ready to Review</h3>
                 <p className="text-paragraph-sm text-text-sub-600">
-                  Approve to pay <strong className="text-primary-base">{formatCurrency(enrollment.totalCost)}</strong> to the shopper
+                  Approve to pay <strong className="text-primary-base">{formatCurrency(calculateCosts(enrollment).totalCost)}</strong> to the shopper
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -474,32 +438,37 @@ export function EnrollmentDetailClient({ enrollmentId }: EnrollmentDetailClientP
             <Modal.Title>Approve Enrollment</Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            <div className="text-center mb-4">
-              <div className="size-14 rounded-full bg-success-lighter flex items-center justify-center mx-auto mb-3">
-                <Check className="size-7 text-success-base" />
-              </div>
-              <p className="text-paragraph-sm text-text-sub-600 mb-4">
-                Approve this enrollment and pay <strong className="text-text-strong-950">{formatCurrency(enrollment.totalCost)}</strong> to {enrollment.shopper?.name}?
-              </p>
-              <div className="text-left rounded-xl bg-bg-weak-50 p-3 space-y-1 text-paragraph-xs">
-                <div className="flex justify-between">
-                  <span className="text-text-sub-600">Bill Amount</span>
-                  <span className="text-text-strong-950">{formatCurrency(enrollment.billAmount)}</span>
+            {(() => {
+              const costs = calculateCosts(enrollment)
+              return (
+                <div className="text-center mb-4">
+                  <div className="size-14 rounded-full bg-success-lighter flex items-center justify-center mx-auto mb-3">
+                    <Check className="size-7 text-success-base" />
+                  </div>
+                  <p className="text-paragraph-sm text-text-sub-600 mb-4">
+                    Approve this enrollment and pay <strong className="text-text-strong-950">{formatCurrency(costs.totalCost)}</strong> to the shopper?
+                  </p>
+                  <div className="text-left rounded-xl bg-bg-weak-50 p-3 space-y-1 text-paragraph-xs">
+                    <div className="flex justify-between">
+                      <span className="text-text-sub-600">Bill Amount</span>
+                      <span className="text-text-strong-950">{formatCurrency(costs.billAmount)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-sub-600">GST</span>
+                      <span className="text-text-strong-950">{formatCurrency(costs.gstAmount)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-sub-600">Platform Fee</span>
+                      <span className="text-text-strong-950">{formatCurrency(costs.platformFee)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-stroke-soft-200 font-semibold">
+                      <span className="text-text-strong-950">Total</span>
+                      <span className="text-primary-base">{formatCurrency(costs.totalCost)}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-text-sub-600">GST</span>
-                  <span className="text-text-strong-950">{formatCurrency(enrollment.gstAmount)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-text-sub-600">Platform Fee</span>
-                  <span className="text-text-strong-950">{formatCurrency(enrollment.platformFee)}</span>
-                </div>
-                <div className="flex justify-between pt-2 border-t border-stroke-soft-200 font-semibold">
-                  <span className="text-text-strong-950">Total</span>
-                  <span className="text-primary-base">{formatCurrency(enrollment.totalCost)}</span>
-                </div>
-              </div>
-            </div>
+              )
+            })()}
           </Modal.Body>
           <Modal.Footer>
             <Button.Root variant="basic" onClick={() => setIsApproveModalOpen(false)}>

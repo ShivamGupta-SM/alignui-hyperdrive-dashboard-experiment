@@ -85,6 +85,8 @@ export const walletHandlers = [
   }),
 
   // POST /api/wallet/withdraw
+  // Matches Encore wallets.createOrganizationWithdrawal: { amount, notes? }
+  // Returns wallets.Withdrawal type
   http.post('/api/wallet/withdraw', async ({ request }) => {
     await delay(DELAY.SLOW)
 
@@ -92,10 +94,11 @@ export const walletHandlers = [
     const orgId = auth.organizationId
     const body = await request.json() as Record<string, unknown>
 
-    const { amount, bankAccountId } = body as { amount?: number; bankAccountId?: string }
+    // Match Encore's createOrganizationWithdrawal params: { amount, notes? }
+    const { amount, notes } = body as { amount?: number; notes?: string }
 
-    if (!amount || amount <= 0) {
-      return errorResponse('Invalid withdrawal amount', 400)
+    if (!amount || amount < 1000) {
+      return errorResponse('Minimum withdrawal amount is ₹1,000', 400)
     }
 
     const balance = mockWalletBalanceByOrg[orgId] || mockWalletBalanceByOrg['1']
@@ -104,26 +107,29 @@ export const walletHandlers = [
       return errorResponse('Insufficient balance', 400)
     }
 
+    // Return wallets.Withdrawal type matching Encore
     const withdrawal = {
-      id: `txn-${Date.now()}`,
-      organizationId: orgId,
-      type: 'withdrawal',
+      id: `wd-${Date.now()}`,
+      holderId: orgId,
+      holderType: 'organization' as const,
       amount,
-      description: 'Withdrawal to bank account',
-      reference: `WD-${Date.now()}`,
-      bankAccountId,
-      status: 'processing',
-      createdAt: new Date(),
+      status: 'pending' as const,
+      withdrawalMethodId: undefined,
+      requiresApproval: amount >= 100000,
+      approvedBy: undefined,
+      approvedAt: undefined,
+      rejectionReason: undefined,
+      utr: undefined,
+      requestedAt: new Date().toISOString(),
+      processedAt: undefined,
+      notes,
     }
 
-    return successResponse({
-      withdrawal,
-      message: 'Withdrawal request submitted successfully',
-      newBalance: balance.availableBalance - amount,
-    })
+    return successResponse(withdrawal)
   }),
 
   // POST /api/wallet/add-funds
+  // Matches addFundsBodySchema: { amount, paymentMethod: 'upi' | 'netbanking' | 'card' }
   http.post('/api/wallet/add-funds', async ({ request }) => {
     await delay(DELAY.MEDIUM)
 
@@ -131,10 +137,18 @@ export const walletHandlers = [
     const orgId = auth.organizationId
     const body = await request.json() as Record<string, unknown>
 
-    const { amount, method } = body as { amount?: number; method?: string }
+    // Match schema: paymentMethod (not method)
+    const { amount, paymentMethod } = body as {
+      amount?: number
+      paymentMethod?: 'upi' | 'netbanking' | 'card'
+    }
 
-    if (!amount || amount <= 0) {
-      return errorResponse('Invalid amount', 400)
+    if (!amount || amount < 100) {
+      return errorResponse('Minimum amount is ₹100', 400)
+    }
+
+    if (!paymentMethod || !['upi', 'netbanking', 'card'].includes(paymentMethod)) {
+      return errorResponse('Invalid payment method', 400)
     }
 
     const balance = mockWalletBalanceByOrg[orgId] || mockWalletBalanceByOrg['1']
@@ -143,11 +157,11 @@ export const walletHandlers = [
     const paymentRequest = {
       id: `pay-${Date.now()}`,
       amount,
-      method: method || 'upi',
+      paymentMethod,
       status: 'pending',
       paymentLink: `https://pay.example.com/${Date.now()}`,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
-      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
     }
 
     return successResponse({
@@ -157,6 +171,8 @@ export const walletHandlers = [
   }),
 
   // POST /api/wallet/credit
+  // Matches creditRequestBodySchema: { amount, reason }
+  // This is for credit increase requests, not direct credit
   http.post('/api/wallet/credit', async ({ request }) => {
     await delay(DELAY.MEDIUM)
 
@@ -164,31 +180,33 @@ export const walletHandlers = [
     const orgId = auth.organizationId
     const body = await request.json() as Record<string, unknown>
 
-    const { amount, reference, description } = body as {
+    // Match schema: reason (not description)
+    const { amount, reason } = body as {
       amount?: number
-      reference?: string
-      description?: string
+      reason?: string
     }
 
-    if (!amount || amount <= 0) {
-      return errorResponse('Invalid credit amount', 400)
+    if (!amount || amount < 10000) {
+      return errorResponse('Minimum credit request is ₹10,000', 400)
     }
 
-    const balance = mockWalletBalanceByOrg[orgId] || mockWalletBalanceByOrg['1']
-
-    const transaction = {
-      id: `txn-${Date.now()}`,
-      organizationId: orgId,
-      type: 'credit',
-      amount,
-      description: description || 'Manual credit',
-      reference: reference || `CR-${Date.now()}`,
-      createdAt: new Date(),
+    if (amount > 500000) {
+      return errorResponse('Maximum credit request is ₹5,00,000', 400)
     }
 
+    if (!reason || reason.length < 10) {
+      return errorResponse('Please provide a reason (at least 10 characters)', 400)
+    }
+
+    // Return credit request response matching organizations.requestCreditIncrease
     return successResponse({
-      transaction,
-      newBalance: balance.availableBalance + amount,
+      success: true,
+      requestId: `cr-${Date.now()}`,
+      organizationId: orgId,
+      requestedAmount: amount,
+      reason,
+      status: 'pending_review',
+      submittedAt: new Date().toISOString(),
     })
   }),
 
@@ -303,5 +321,34 @@ export const walletHandlers = [
       status: 'cancelled',
       message: 'Withdrawal cancelled successfully',
     })
+  }),
+
+  // GET /api/wallet/withdrawals/stats - Get withdrawal statistics
+  http.get('/api/wallet/withdrawals/stats', async () => {
+    await delay(DELAY.FAST)
+
+    const stats = {
+      totalWithdrawals: 12,
+      totalAmount: 425000,
+      pendingCount: 1,
+      pendingAmount: 25000,
+      processingCount: 0,
+      processingAmount: 0,
+      completedCount: 10,
+      completedAmount: 385000,
+      failedCount: 1,
+      failedAmount: 15000,
+      cancelledCount: 0,
+      cancelledAmount: 0,
+      thisMonthCount: 2,
+      thisMonthAmount: 75000,
+      lastMonthCount: 3,
+      lastMonthAmount: 125000,
+      averageWithdrawalAmount: 35417,
+      averageProcessingTime: 48,
+      successRate: 91,
+    }
+
+    return successResponse(stats)
   }),
 ]

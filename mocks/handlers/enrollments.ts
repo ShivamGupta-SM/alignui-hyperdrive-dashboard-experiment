@@ -149,51 +149,18 @@ export const enrollmentsHandlers = [
     })
   }),
 
-  // PATCH /api/enrollments/:id
-  http.patch('/api/enrollments/:id', async ({ params, request }) => {
-    await delay(DELAY.SLOW)
-
-    const auth = getAuthContext()
-    const { id } = params
-    const body = await request.json() as Record<string, unknown>
-
-    const enrollment = mockEnrollments.find(
-      e => e.id === id && e.organizationId === auth.organizationId
-    )
-
-    if (!enrollment) {
-      return notFoundResponse('Enrollment')
-    }
-
-    const { status, reason } = body as { status?: string; reason?: string }
-
-    const updatedEnrollment = {
-      ...enrollment,
-      ...(status && { status }),
-      updatedAt: new Date(),
-      history: [
-        ...(enrollment.history || []),
-        {
-          id: `hist_${Date.now()}`,
-          enrollmentId: id as string,
-          action: `Status changed to ${status}`,
-          description: reason || `Enrollment ${status}`,
-          performedBy: auth.user.name,
-          performedAt: new Date(),
-        },
-      ],
-    }
-
-    return successResponse(updatedEnrollment)
-  }),
+  // NOTE: No PATCH /api/enrollments/:id endpoint in API routes
+  // Use approve/reject/request-changes actions instead
 
   // POST /api/enrollments/:id/approve
+  // Schema: { remarks?: string } - matches API route
   http.post('/api/enrollments/:id/approve', async ({ params, request }) => {
     await delay(DELAY.MEDIUM)
 
     const auth = getAuthContext()
     const { id } = params
-    const body = await request.json() as Record<string, unknown>
+    // Body is optional - catch JSON parse errors
+    const body = await request.json().catch(() => ({})) as Record<string, unknown>
 
     const enrollment = mockEnrollments.find(
       e => e.id === id && e.organizationId === auth.organizationId
@@ -207,6 +174,8 @@ export const enrollmentsHandlers = [
       return errorResponse('Only enrollments awaiting review can be approved', 400)
     }
 
+    const { remarks } = body as { remarks?: string }
+
     const updatedEnrollment = {
       ...enrollment,
       status: 'approved',
@@ -217,11 +186,12 @@ export const enrollmentsHandlers = [
           id: `hist_${Date.now()}`,
           enrollmentId: id as string,
           action: 'Approved',
-          description: (body.notes as string) || 'Enrollment approved',
+          description: remarks || 'Enrollment approved',
           performedBy: auth.user.name,
           performedAt: new Date(),
         },
       ],
+      message: 'Enrollment approved successfully. Hold will be committed.',
     }
 
     return successResponse(updatedEnrollment)
@@ -348,7 +318,9 @@ export const enrollmentsHandlers = [
     return successResponse(updatedEnrollment)
   }),
 
-  // PATCH /api/enrollments/bulk - Bulk update enrollments (client uses PATCH)
+  // PATCH /api/enrollments/bulk - Bulk update enrollments
+  // Schema: { ids: string[], status: 'approved' | 'rejected', reason?: string }
+  // Response: { updatedCount, failed?, errors?, message }
   http.patch('/api/enrollments/bulk', async ({ request }) => {
     await delay(DELAY.SLOW)
 
@@ -356,27 +328,65 @@ export const enrollmentsHandlers = [
     const body = await request.json() as Record<string, unknown>
     const { ids, status, reason } = body as {
       ids?: string[]
-      status?: string
+      status?: 'approved' | 'rejected'
       reason?: string
     }
 
-    if (!status || !ids?.length) {
-      return errorResponse('Status and enrollment IDs are required', 400)
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return errorResponse('At least one enrollment ID is required', 400)
     }
 
-    let updatedCount = 0
+    if (!status) {
+      return errorResponse('Status is required', 400)
+    }
+
+    // Only approved and rejected are valid for bulk operations
+    if (status !== 'approved' && status !== 'rejected') {
+      return errorResponse(`Bulk operation not supported for status: ${status}`, 400)
+    }
+
+    let successCount = 0
+    let failedCount = 0
+    const errors: Array<{ id: string; error: string }> = []
+
     for (const enrollmentId of ids) {
       const enrollment = mockEnrollments.find(
         e => e.id === enrollmentId && e.organizationId === auth.organizationId
       )
 
-      if (enrollment && enrollment.status === 'awaiting_review') {
-        updatedCount++
+      if (!enrollment) {
+        failedCount++
+        errors.push({ id: enrollmentId, error: 'Enrollment not found' })
+        continue
       }
+
+      if (enrollment.status !== 'awaiting_review') {
+        failedCount++
+        errors.push({ id: enrollmentId, error: 'Enrollment not awaiting review' })
+        continue
+      }
+
+      successCount++
     }
 
+    // Response format matches API route
+    const responseData = status === 'approved'
+      ? {
+          approved: successCount,
+          failed: failedCount,
+          errors: errors.length > 0 ? errors : undefined,
+          message: `Successfully approved ${successCount} enrollment(s)`,
+        }
+      : {
+          rejected: successCount,
+          failed: failedCount,
+          errors: errors.length > 0 ? errors : undefined,
+          message: `Successfully rejected ${successCount} enrollment(s)`,
+        }
+
     return successResponse({
-      updatedCount,
+      updatedCount: successCount,
+      ...responseData,
     })
   }),
 
@@ -518,5 +528,105 @@ export const enrollmentsHandlers = [
     }
 
     return successResponse(scanResult)
+  }),
+
+  // GET /api/enrollments/:id/transitions - Get enrollment status transitions
+  http.get('/api/enrollments/:id/transitions', async ({ params }) => {
+    await delay(DELAY.FAST)
+
+    const auth = getAuthContext()
+    const { id } = params
+
+    const enrollment = mockEnrollments.find(
+      e => e.id === id && e.organizationId === auth.organizationId
+    )
+
+    if (!enrollment) {
+      return notFoundResponse('Enrollment')
+    }
+
+    // Enrollment status transition rules
+    const TRANSITION_RULES: Record<string, string[]> = {
+      enrolled: ['approve', 'reject', 'request_changes', 'withdraw'],
+      awaiting_submission: ['submit_deliverables', 'withdraw', 'expire'],
+      awaiting_review: ['approve', 'reject', 'request_changes'],
+      changes_requested: ['resubmit', 'withdraw', 'expire'],
+      approved: [],
+      rejected: [],
+      withdrawn: [],
+      expired: [],
+    }
+
+    const allowedTransitions = TRANSITION_RULES[enrollment.status] || []
+
+    // Generate transition history
+    const createdAt = new Date(enrollment.createdAt)
+    const history: Array<{
+      id: string
+      fromStatus: string | null
+      toStatus: string
+      triggeredBy: string
+      triggeredByName: string
+      reason: string | null
+      createdAt: string
+    }> = [
+      {
+        id: `${enrollment.id}-1`,
+        fromStatus: null,
+        toStatus: 'enrolled',
+        triggeredBy: 'system',
+        triggeredByName: 'System',
+        reason: 'Enrollment created',
+        createdAt: createdAt.toISOString(),
+      },
+    ]
+
+    // Add more history based on current status
+    if (enrollment.status === 'awaiting_review') {
+      history.push({
+        id: `${enrollment.id}-2`,
+        fromStatus: 'enrolled',
+        toStatus: 'awaiting_submission',
+        triggeredBy: 'system',
+        triggeredByName: 'System',
+        reason: 'Order verified',
+        createdAt: new Date(createdAt.getTime() + 5 * 60 * 1000).toISOString(),
+      })
+      history.push({
+        id: `${enrollment.id}-3`,
+        fromStatus: 'awaiting_submission',
+        toStatus: 'awaiting_review',
+        triggeredBy: enrollment.shopperId,
+        triggeredByName: enrollment.shopper?.name || 'Shopper',
+        reason: 'Deliverables submitted for review',
+        createdAt: new Date(createdAt.getTime() + 120 * 60 * 1000).toISOString(),
+      })
+    } else if (enrollment.status === 'approved') {
+      history.push({
+        id: `${enrollment.id}-2`,
+        fromStatus: 'enrolled',
+        toStatus: 'awaiting_review',
+        triggeredBy: enrollment.shopperId,
+        triggeredByName: enrollment.shopper?.name || 'Shopper',
+        reason: 'Deliverables submitted',
+        createdAt: new Date(createdAt.getTime() + 60 * 60 * 1000).toISOString(),
+      })
+      history.push({
+        id: `${enrollment.id}-3`,
+        fromStatus: 'awaiting_review',
+        toStatus: 'approved',
+        triggeredBy: 'brand',
+        triggeredByName: 'Brand Team',
+        reason: 'All deliverables verified successfully',
+        createdAt: new Date(createdAt.getTime() + 240 * 60 * 1000).toISOString(),
+      })
+    }
+
+    return successResponse({
+      enrollmentId: id,
+      currentStatus: enrollment.status,
+      allowedTransitions,
+      history,
+    })
   }),
 ]

@@ -1,27 +1,23 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { get, post } from '@/lib/axios'
-import type { AxiosError } from 'axios'
-import type { ApiResponse, ApiError, PaginatedResponse } from '@/lib/types'
+import { getEncoreBrowserClient } from '@/lib/encore-browser'
+import type { notifications } from '@/lib/encore-browser'
 import { STALE_TIMES } from '@/lib/types'
 import { DURATIONS } from '@/lib/types/constants'
-import type { MockNotification } from '@/lib/mocks'
 
-// Retry configuration - don't retry on 4xx errors
-const shouldRetry = (failureCount: number, error: AxiosError<ApiError>) => {
-  if (error.response?.status && error.response.status >= 400 && error.response.status < 500) {
-    return false
-  }
-  return failureCount < 3
-}
+// Re-export types from Encore for convenience
+export type Notification = notifications.Notification
+export type NotificationType = notifications.NotificationType
+export type NotificationChannel = notifications.NotificationChannel
+export type NotificationPreference = notifications.NotificationPreference
 
 // ============================================
 // Types
 // ============================================
 
 export interface NotificationFilters {
-  type?: 'campaign' | 'enrollment' | 'wallet' | 'team' | 'system'
+  type?: NotificationType
   unreadOnly?: boolean
   page?: number
   limit?: number
@@ -36,6 +32,7 @@ export const notificationKeys = {
   lists: () => [...notificationKeys.all, 'list'] as const,
   list: (filters?: NotificationFilters) => [...notificationKeys.lists(), filters] as const,
   unreadCount: () => [...notificationKeys.all, 'unread-count'] as const,
+  preferences: () => [...notificationKeys.all, 'preferences'] as const,
 }
 
 // ============================================
@@ -46,11 +43,17 @@ export const notificationKeys = {
  * Fetch paginated notifications
  */
 export function useNotifications(filters: NotificationFilters = {}) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: notificationKeys.list(filters),
-    queryFn: () => get<PaginatedResponse<MockNotification>>('/api/notifications', { params: filters }),
+    queryFn: () => client.notifications.listNotifications({
+      skip: filters.page ? (filters.page - 1) * (filters.limit || 20) : 0,
+      take: filters.limit || 20,
+      type: filters.type,
+      unreadOnly: filters.unreadOnly,
+    }),
     staleTime: STALE_TIMES.REALTIME,
-    retry: shouldRetry,
   })
 }
 
@@ -58,18 +61,32 @@ export function useNotifications(filters: NotificationFilters = {}) {
  * Fetch unread notification count
  */
 export function useUnreadNotificationCount() {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: notificationKeys.unreadCount(),
-    queryFn: () => get<ApiResponse<{ count: number }>>('/api/notifications/unread-count'),
-    staleTime: STALE_TIMES.REALTIME,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data.count
-      }
-      return 0
+    queryFn: async () => {
+      const result = await client.notifications.getUnreadCount()
+      return result.count
     },
+    staleTime: STALE_TIMES.REALTIME,
     refetchInterval: DURATIONS.NOTIFICATION_REFETCH_MS,
+  })
+}
+
+/**
+ * Fetch notification preferences
+ */
+export function useNotificationPreferences() {
+  const client = getEncoreBrowserClient()
+
+  return useQuery({
+    queryKey: notificationKeys.preferences(),
+    queryFn: async () => {
+      const result = await client.notifications.listPreferences()
+      return result.data
+    },
+    staleTime: STALE_TIMES.STATIC,
   })
 }
 
@@ -82,10 +99,10 @@ export function useUnreadNotificationCount() {
  */
 export function useMarkNotificationRead() {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: (id: string) =>
-      post<ApiResponse<MockNotification>>(`/api/notifications/${id}/read`, {}),
+    mutationFn: (id: string) => client.notifications.markAsRead(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: notificationKeys.unreadCount() })
@@ -98,10 +115,42 @@ export function useMarkNotificationRead() {
  */
 export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: () =>
-      post<ApiResponse<{ message: string; count: number }>>('/api/notifications/mark-all-read', {}),
+    mutationFn: () => client.notifications.markAllAsRead(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: notificationKeys.unreadCount() })
+    },
+  })
+}
+
+/**
+ * Update notification preference
+ */
+export function useUpdateNotificationPreference() {
+  const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
+
+  return useMutation({
+    mutationFn: (data: notifications.UpdatePreferenceRequest) =>
+      client.notifications.updatePreference(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationKeys.preferences() })
+    },
+  })
+}
+
+/**
+ * Delete a notification
+ */
+export function useDeleteNotification() {
+  const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
+
+  return useMutation({
+    mutationFn: (id: string) => client.notifications.deleteNotification(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: notificationKeys.unreadCount() })

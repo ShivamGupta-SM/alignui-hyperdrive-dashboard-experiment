@@ -1,28 +1,43 @@
 'use client'
 
-import { useMutation } from '@tanstack/react-query'
-import { post, del } from '@/lib/axios'
-import type { ApiResponse } from '@/lib/types'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { getEncoreBrowserClient } from '@/lib/encore-browser'
+import type { storage } from '@/lib/encore-browser'
+import { STALE_TIMES } from '@/lib/types'
+
+// Re-export types from Encore for convenience
+export type UploadUrlRequest = storage.UploadUrlRequest
+export type UploadUrlResponse = storage.UploadUrlResponse
+export type DownloadUrlRequest = storage.DownloadUrlRequest
+export type DownloadUrlResponse = storage.DownloadUrlResponse
 
 // ============================================
-// Types
+// Query Keys
 // ============================================
 
-interface UploadUrlRequest {
-  filename: string
-  contentType: string
-  folder?: 'avatars' | 'logos' | 'bills' | 'deliverables' | 'products'
+export const storageKeys = {
+  all: ['storage'] as const,
+  files: () => [...storageKeys.all, 'files'] as const,
 }
 
-interface UploadUrlResponse {
-  uploadUrl: string
-  key: string
-  expiresIn: number
-}
+// ============================================
+// Query Hooks
+// ============================================
 
-interface DownloadUrlResponse {
-  downloadUrl: string
-  expiresIn: number
+/**
+ * List user's files in uploads bucket
+ */
+export function useFiles() {
+  const client = getEncoreBrowserClient()
+
+  return useQuery({
+    queryKey: storageKeys.files(),
+    queryFn: async () => {
+      const result = await client.storage.listFiles()
+      return result.files
+    },
+    staleTime: STALE_TIMES.STANDARD,
+  })
 }
 
 // ============================================
@@ -33,9 +48,11 @@ interface DownloadUrlResponse {
  * Get a pre-signed upload URL
  */
 export function useGetUploadUrl() {
+  const client = getEncoreBrowserClient()
+
   return useMutation({
     mutationFn: (data: UploadUrlRequest) =>
-      post<ApiResponse<UploadUrlResponse>>('/api/storage/upload-url', data),
+      client.storage.requestUploadUrl(data),
   })
 }
 
@@ -43,9 +60,47 @@ export function useGetUploadUrl() {
  * Get a pre-signed download URL
  */
 export function useGetDownloadUrl() {
+  const client = getEncoreBrowserClient()
+
+  return useMutation({
+    mutationFn: (data: DownloadUrlRequest) =>
+      client.storage.requestDownloadUrl(data),
+  })
+}
+
+/**
+ * Get a pre-signed upload URL for profile pictures
+ */
+export function useGetProfilePictureUploadUrl() {
+  const client = getEncoreBrowserClient()
+
+  return useMutation({
+    mutationFn: (filename: string) =>
+      client.storage.requestProfilePictureUploadUrl({ filename }),
+  })
+}
+
+/**
+ * Get a pre-signed upload URL for KYC documents
+ */
+export function useGetKycDocumentUploadUrl() {
+  const client = getEncoreBrowserClient()
+
+  return useMutation({
+    mutationFn: (filename: string) =>
+      client.storage.requestKycDocumentUploadUrl({ filename }),
+  })
+}
+
+/**
+ * Get a pre-signed download URL for KYC documents
+ */
+export function useGetKycDocumentDownloadUrl() {
+  const client = getEncoreBrowserClient()
+
   return useMutation({
     mutationFn: (key: string) =>
-      post<ApiResponse<DownloadUrlResponse>>('/api/storage/download-url', { key }),
+      client.storage.requestKycDocumentDownloadUrl({ key }),
   })
 }
 
@@ -53,9 +108,11 @@ export function useGetDownloadUrl() {
  * Delete a file from storage
  */
 export function useDeleteFile() {
+  const client = getEncoreBrowserClient()
+
   return useMutation({
     mutationFn: (key: string) =>
-      del<ApiResponse<{ message: string; key: string }>>(`/api/storage/files/${encodeURIComponent(key)}`),
+      client.storage.deleteFile(key),
   })
 }
 
@@ -67,7 +124,13 @@ export function useUploadFile() {
   const getUploadUrl = useGetUploadUrl()
 
   return useMutation({
-    mutationFn: async ({ file, folder }: { file: File; folder?: UploadUrlRequest['folder'] }) => {
+    mutationFn: async ({
+      file,
+      folder,
+    }: {
+      file: File
+      folder?: UploadUrlRequest['folder']
+    }) => {
       // Get the pre-signed upload URL
       const urlResponse = await getUploadUrl.mutateAsync({
         filename: file.name,
@@ -75,20 +138,76 @@ export function useUploadFile() {
         folder,
       })
 
-      if (!urlResponse.success) {
-        throw new Error(urlResponse.error || 'Failed to get upload URL')
-      }
-
-      // In production, you would actually upload to the pre-signed URL
-      // For mock, we just return the key
-      // await fetch(urlResponse.data.uploadUrl, {
-      //   method: 'PUT',
-      //   body: file,
-      //   headers: { 'Content-Type': file.type },
-      // })
+      // Upload the file to the pre-signed URL
+      await fetch(urlResponse.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      })
 
       return {
-        key: urlResponse.data.key,
+        key: urlResponse.key,
+        fileUrl: urlResponse.fileUrl,
+        filename: file.name,
+        contentType: file.type,
+        size: file.size,
+      }
+    },
+  })
+}
+
+/**
+ * Upload a profile picture
+ * This is a helper that combines getting the URL and uploading
+ */
+export function useUploadProfilePicture() {
+  const getUploadUrl = useGetProfilePictureUploadUrl()
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      // Get the pre-signed upload URL
+      const urlResponse = await getUploadUrl.mutateAsync(file.name)
+
+      // Upload the file to the pre-signed URL
+      await fetch(urlResponse.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      })
+
+      return {
+        key: urlResponse.key,
+        fileUrl: urlResponse.fileUrl,
+        filename: file.name,
+        contentType: file.type,
+        size: file.size,
+      }
+    },
+  })
+}
+
+/**
+ * Upload a KYC document
+ * This is a helper that combines getting the URL and uploading
+ */
+export function useUploadKycDocument() {
+  const getUploadUrl = useGetKycDocumentUploadUrl()
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      // Get the pre-signed upload URL
+      const urlResponse = await getUploadUrl.mutateAsync(file.name)
+
+      // Upload the file to the pre-signed URL
+      await fetch(urlResponse.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      })
+
+      return {
+        key: urlResponse.key,
+        fileUrl: urlResponse.fileUrl,
         filename: file.name,
         contentType: file.type,
         size: file.size,

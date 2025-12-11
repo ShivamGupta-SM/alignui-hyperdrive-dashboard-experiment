@@ -25,7 +25,9 @@ import { useInvoicesData } from '@/hooks/use-invoices'
 import { useDebounceValue, useMediaQuery } from 'usehooks-ts'
 import { exportInvoices } from '@/lib/excel'
 import { toast } from 'sonner'
-import type { Invoice } from '@/lib/types'
+import type { invoices } from '@/lib/encore-browser'
+
+type Invoice = invoices.Invoice
 
 const periodFilters = [
   { value: 'all', label: 'All' },
@@ -117,11 +119,13 @@ export function InvoicesClient() {
     return formatCurrency(amount)
   }
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string | undefined) => {
+    if (!date) return '-'
     return new Date(date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
   }
 
-  const formatDateFull = (date: Date) => {
+  const formatDateFull = (date: Date | string | undefined) => {
+    if (!date) return '-'
     return new Date(date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
@@ -283,7 +287,7 @@ function InvoiceItem({
 }: {
   invoice: Invoice
   formatCurrency: (n: number) => string
-  formatDate: (d: Date) => string
+  formatDate: (d: Date | string | undefined) => string
   onView: () => void
 }) {
   return (
@@ -372,7 +376,7 @@ function InvoiceContent({
 }: {
   invoice: Invoice
   formatCurrency: (n: number) => string
-  formatDate: (d: Date) => string
+  formatDate: (d: Date | string | undefined) => string
   onDownloadPDF: (invoice: Invoice) => Promise<void>
   isDownloading: boolean
 }) {
@@ -499,7 +503,7 @@ function InvoiceModal({
   invoice: Invoice | null
   onClose: () => void
   formatCurrency: (n: number) => string
-  formatDate: (d: Date) => string
+  formatDate: (d: Date | string | undefined) => string
   onDownloadPDF: (invoice: Invoice, e?: React.MouseEvent) => Promise<void>
   downloadingId: string | null
 }) {

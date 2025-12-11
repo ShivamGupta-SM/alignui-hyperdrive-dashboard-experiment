@@ -403,7 +403,13 @@ export function DashboardClient() {
                 className="flex items-center gap-3 p-3 hover:bg-bg-weak-50 transition-colors group"
               >
                 <div className="relative size-10 rounded-lg overflow-hidden shrink-0 ring-1 ring-inset ring-stroke-soft-200 bg-bg-weak-50">
-                  <Image src={campaign.image} alt={campaign.name} fill sizes="40px" className="object-contain p-0.5" />
+                  {campaign.image ? (
+                    <Image src={campaign.image} alt={campaign.name} fill sizes="40px" className="object-contain p-0.5" />
+                  ) : (
+                    <div className="size-full flex items-center justify-center text-text-soft-400">
+                      <Megaphone className="size-5" />
+                    </div>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-label-xs text-text-strong-950 group-hover:text-primary-base transition-colors truncate">

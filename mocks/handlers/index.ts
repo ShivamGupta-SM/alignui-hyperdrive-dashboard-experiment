@@ -20,6 +20,8 @@ import { platformsHandlers } from './platforms'
 import { categoriesHandlers } from './categories'
 import { storageHandlers } from './storage'
 import { organizationsHandlers } from './organizations'
+import { settingsHandlers } from './settings'
+import { onboardingHandlers } from './onboarding'
 
 export const handlers = [
   ...authHandlers,
@@ -37,4 +39,6 @@ export const handlers = [
   ...categoriesHandlers,
   ...storageHandlers,
   ...organizationsHandlers,
+  ...settingsHandlers,
+  ...onboardingHandlers,
 ]

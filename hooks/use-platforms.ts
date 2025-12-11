@@ -1,19 +1,12 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { get } from '@/lib/axios'
-import type { AxiosError } from 'axios'
-import type { ApiResponse, ApiError } from '@/lib/types'
+import { getEncoreBrowserClient } from '@/lib/encore-browser'
+import type { integrations } from '@/lib/encore-browser'
 import { STALE_TIMES } from '@/lib/types'
-import type { Platform } from '@/lib/mocks'
 
-// Retry configuration - don't retry on 4xx errors
-const shouldRetry = (failureCount: number, error: AxiosError<ApiError>) => {
-  if (error.response?.status && error.response.status >= 400 && error.response.status < 500) {
-    return false
-  }
-  return failureCount < 3
-}
+// Re-export types from Encore for convenience
+export type Platform = integrations.Platform
 
 // ============================================
 // Query Keys
@@ -36,18 +29,16 @@ export const platformKeys = {
 /**
  * Fetch all platforms
  */
-export function usePlatforms() {
+export function usePlatforms(page = 1, limit = 50) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: platformKeys.list(),
-    queryFn: () => get<ApiResponse<Platform[]>>('/api/platforms'),
+    queryFn: () => client.integrations.listPlatforms({
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
     staleTime: STALE_TIMES.STATIC, // Platforms rarely change
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
@@ -55,17 +46,15 @@ export function usePlatforms() {
  * Fetch active platforms only
  */
 export function useActivePlatforms() {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: platformKeys.active(),
-    queryFn: () => get<ApiResponse<Platform[]>>('/api/platforms/active'),
-    staleTime: STALE_TIMES.STATIC,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
+    queryFn: async () => {
+      const result = await client.integrations.listActivePlatforms()
+      return result.platforms
     },
+    staleTime: STALE_TIMES.STATIC,
   })
 }
 
@@ -73,18 +62,13 @@ export function useActivePlatforms() {
  * Fetch single platform by ID
  */
 export function usePlatform(id: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: platformKeys.detail(id),
-    queryFn: () => get<ApiResponse<Platform>>(`/api/platforms/${id}`),
+    queryFn: () => client.integrations.getPlatform(id),
     enabled: !!id,
     staleTime: STALE_TIMES.STATIC,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
@@ -92,17 +76,12 @@ export function usePlatform(id: string) {
  * Fetch platform by name/slug
  */
 export function usePlatformByName(name: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: platformKeys.byName(name),
-    queryFn: () => get<ApiResponse<Platform>>(`/api/platforms/name/${encodeURIComponent(name)}`),
+    queryFn: () => client.integrations.getPlatformByName(name),
     enabled: !!name,
     staleTime: STALE_TIMES.STATIC,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }

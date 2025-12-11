@@ -453,4 +453,161 @@ export const profileHandlers = [
       gstDetails,
     })
   }),
+
+  // POST /api/settings/gst/verify - Verify GST number
+  http.post('/api/settings/gst/verify', async ({ request }) => {
+    await delay(DELAY.SLOW)
+
+    const body = await request.json() as Record<string, unknown>
+    const { gstNumber } = body as { gstNumber?: string }
+
+    if (!gstNumber || gstNumber.length !== 15) {
+      return errorResponse('Invalid GST number', 400)
+    }
+
+    // Mock GST database
+    const mockGstData: Record<string, {
+      gstNumber: string
+      legalName: string
+      tradeName: string
+      state: string
+      status: 'active' | 'inactive' | 'cancelled'
+      registrationDate: string
+      businessType: string
+    }> = {
+      '27AABCT1234M1Z5': {
+        gstNumber: '27AABCT1234M1Z5',
+        legalName: 'HYPRIVE TECHNOLOGIES PRIVATE LIMITED',
+        tradeName: 'Hyprive',
+        state: 'Maharashtra',
+        status: 'active',
+        registrationDate: '2020-07-01',
+        businessType: 'Private Limited Company',
+      },
+    }
+
+    const gstData = mockGstData[gstNumber]
+
+    if (gstData) {
+      return successResponse({
+        ...gstData,
+        isVerified: true,
+      })
+    }
+
+    // For unknown GST numbers, generate mock data based on state code
+    const stateCode = gstNumber.substring(0, 2)
+    const stateNames: Record<string, string> = {
+      '27': 'Maharashtra',
+      '29': 'Karnataka',
+      '07': 'Delhi',
+      '33': 'Tamil Nadu',
+    }
+
+    return successResponse({
+      gstNumber,
+      legalName: 'VERIFIED BUSINESS ENTITY',
+      tradeName: 'Verified Business',
+      state: stateNames[stateCode] || 'Unknown',
+      status: 'active' as const,
+      isVerified: true,
+      registrationDate: '2021-01-01',
+      businessType: 'Private Limited Company',
+    })
+  }),
+
+  // POST /api/settings/pan/verify - Verify PAN number
+  http.post('/api/settings/pan/verify', async ({ request }) => {
+    await delay(DELAY.SLOW)
+
+    const body = await request.json() as Record<string, unknown>
+    const { panNumber, name } = body as { panNumber?: string; name?: string }
+
+    if (!panNumber || panNumber.length !== 10) {
+      return errorResponse('Invalid PAN number', 400)
+    }
+
+    if (!name || name.length < 2) {
+      return errorResponse('Name is required', 400)
+    }
+
+    // Mock PAN database
+    const mockPanData: Record<string, {
+      panNumber: string
+      registeredName: string
+      panType: 'individual' | 'company' | 'trust' | 'other'
+    }> = {
+      'AABCT1234M': {
+        panNumber: 'AABCT1234M',
+        registeredName: 'HYPRIVE TECHNOLOGIES PRIVATE LIMITED',
+        panType: 'company',
+      },
+    }
+
+    const panData = mockPanData[panNumber]
+
+    if (panData) {
+      const normalizedName = name.toUpperCase().trim()
+      const registeredName = panData.registeredName.toUpperCase()
+      const nameMatch = registeredName.includes(normalizedName) || normalizedName.includes(registeredName.split(' ')[0])
+
+      return successResponse({
+        panNumber: panData.panNumber,
+        name: panData.registeredName,
+        nameMatch,
+        isValid: true,
+        panType: panData.panType,
+      })
+    }
+
+    // For unknown PAN numbers, determine type from 4th character
+    const fourthChar = panNumber.charAt(3)
+    const panTypeMap: Record<string, 'individual' | 'company' | 'trust' | 'other'> = {
+      'P': 'individual',
+      'C': 'company',
+      'T': 'trust',
+    }
+
+    return successResponse({
+      panNumber,
+      name: name.toUpperCase(),
+      nameMatch: true,
+      isValid: true,
+      panType: panTypeMap[fourthChar] || 'other',
+    })
+  }),
+
+  // POST /api/settings/bank-accounts/verify - Verify bank account
+  http.post('/api/settings/bank-accounts/verify', async ({ request }) => {
+    await delay(DELAY.SLOW)
+
+    const auth = getAuthContext()
+    const orgId = auth.organizationId
+    const body = await request.json() as Record<string, unknown>
+    const { bankAccountId } = body as { bankAccountId?: string }
+
+    if (!bankAccountId) {
+      return errorResponse('Bank account ID is required', 400)
+    }
+
+    // Find the bank account
+    const bankAccounts = mockBankAccountsByOrg[orgId] || mockBankAccountsByOrg['1']
+    const account = bankAccounts.find((acc: { id: string }) => acc.id === bankAccountId)
+
+    if (!account) {
+      return notFoundResponse('Bank account')
+    }
+
+    // Mock successful verification (penny drop)
+    return successResponse({
+      id: account.id,
+      accountNumber: account.accountNumber,
+      accountHolder: account.accountHolder,
+      bankName: account.bankName,
+      ifscCode: account.ifscCode,
+      isVerified: true,
+      verificationStatus: 'verified' as const,
+      verificationMessage: 'Bank account verified successfully via penny drop',
+    })
+  }),
 ]

@@ -12,7 +12,8 @@
       "Bash(pnpm approve-builds:*)",
       "Bash(npx msw:*)",
       "Bash(git log:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(pnpm remove:*)"
     ]
   }
 }

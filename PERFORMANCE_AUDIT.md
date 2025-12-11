@@ -2,22 +2,25 @@
 
 **Project:** Hyprive Hyperdrive Dashboard
 **Date:** December 11, 2025
-**Total Issues Found:** 60+
+**Last Updated:** December 11, 2025 (v2 - Post-Refactor Scan)
+**Total Issues Found:** 85+
 
 ---
 
 ## Executive Summary
 
-This comprehensive audit identified **60+ performance issues** across 8 categories, ranging from critical bundle bloat to memory leaks. Addressing the top 10 issues would resolve approximately 70% of the performance impact.
+This comprehensive audit identified **85+ performance issues** across 8 categories, ranging from critical bundle bloat to memory leaks. Addressing the top 10 issues would resolve approximately 70% of the performance impact.
 
 ### Impact Overview
 
 | Priority | Count | Categories |
 |----------|-------|------------|
-| 🔴 Critical | 12 | Barrel exports, waterfall requests, memory leaks, layout thrashing |
-| 🟠 High | 28 | Missing useCallback/memo, client boundaries, image optimization |
-| 🟡 Medium | 15 | State management, will-change hints, React Query tuning |
+| 🔴 Critical | 18 | Barrel exports, waterfall requests, memory leaks, layout thrashing, inline callbacks |
+| 🟠 High | 35 | Missing useCallback/memo, client boundaries, image optimization |
+| 🟡 Medium | 22 | State management, will-change hints, React Query tuning |
 | 🟢 Low | 10 | Minor optimizations |
+
+> **v2 Update:** Recent architectural refactor added 20+ hook modules, Novu integration, deliverables API, and expanded barrel exports. New issues identified in inline callbacks, polling intervals, and client boundary violations.
 
 ---
 
@@ -30,9 +33,29 @@ Barrel exports force bundlers to include all modules even when only one is neede
 | File | Exports | Impact |
 |------|---------|--------|
 | `lib/auth/index.ts` | 68 `export *` statements | All auth components bundled (~100KB+) |
-| `hooks/index.ts` | 20+ `export *` statements | All hooks bundled regardless of usage |
+| `hooks/index.ts` | **26 `export *` statements** (was 20+) | All hooks bundled regardless of usage |
 | `components/dashboard/index.ts` | 60+ exports | Skeletons, empty states always bundled |
 | `components/claude-generated-components/index.ts` | 40+ namespace exports | All custom components bundled |
+
+#### 🆕 NEW: Expanded hooks/index.ts Barrel (v2)
+
+The hooks barrel now includes 6 additional hook modules:
+- `use-profile` - Profile management hooks
+- `use-team` - Team member hooks
+- `use-settings` - Settings hooks
+- `use-organizations` - Organization hooks
+- `use-deliverables` - **NEW** Deliverables hooks
+- Re-exports 21 functions from `usehooks-ts`
+
+**Example of Chain Loading Problem:**
+```typescript
+// wallet-client.tsx Line 33
+import { useWalletSearchParams } from '@/hooks'
+// This single import evaluates ALL 26 hook modules including:
+// - use-novu.ts (imports @novu/react - heavy)
+// - use-dashboard.ts (heavy queries)
+// - use-campaigns.ts (imports axios, React Query)
+```
 
 **Recommended Fix:**
 
@@ -52,6 +75,28 @@ Barrel exports force bundlers to include all modules even when only one is neede
 | `lib/excel.ts:1` | `xlsx` | ~150KB | Dynamic import for export functionality |
 | `app/providers.tsx` | PostHog, Sentry | ~50KB+ | Lazy load after hydration |
 | `components/dashboard/notification-center.tsx` | `@novu/react` | Large | Lazy load notification panel |
+| `components/dashboard/novu-provider.tsx` | `@novu/react` | Large | **NEW** - Conditional but eager import |
+| `hooks/use-novu.ts` | `@tanstack/react-query` | Medium | **NEW** - Bundled via barrel export |
+
+#### 🆕 NEW: Novu Package Integration (v2)
+
+**Files:** `package.json` now includes:
+
+```json
+"@novu/api": "^3.11.0",
+"@novu/framework": "^2.9.0",
+"@novu/nextjs": "^3.11.0",
+"@novu/react": "^3.11.0"
+```
+
+**Issue:** `dashboard-shell.tsx` unconditionally imports NovuProvider:
+
+```typescript
+// dashboard-shell.tsx line 11
+import { NovuProvider } from '@/components/dashboard/novu-provider'
+```
+
+Even though NovuProvider has conditional rendering (checks if configured), the import is eager.
 
 **Recommended Fix:**
 
@@ -553,3 +598,288 @@ This audit identified significant performance opportunities. The most impactful 
 4. **Fixing memory leaks** - Ensures stable long-session performance
 
 Start with the critical issues (priority 1-4) for the biggest immediate wins.
+
+---
+
+## 🆕 NEW ISSUES (v2 - Post-Refactor Scan)
+
+This section documents new performance issues discovered after the recent architectural refactor.
+
+### 9. New Inline Callback Issues (CRITICAL)
+
+#### 9.1 12 Inline Callbacks Per Campaign Card
+
+**File:** `app/(dashboard)/dashboard/campaigns/campaigns-client.tsx` (Lines 308-325)
+
+```typescript
+{campaigns.map((campaign) => (
+  <CampaignCard
+    key={campaign.id}
+    campaign={campaign}
+    onView={() => router.push(`/dashboard/campaigns/${campaign.id}`)}
+    onManage={() => router.push(`/dashboard/campaigns/${campaign.id}`)}
+    onPause={() => handleStatusChange(campaign.id, 'paused')}
+    onResume={() => handleStatusChange(campaign.id, 'active')}
+    onEnd={() => handleStatusChange(campaign.id, 'ended')}
+    onComplete={() => handleStatusChange(campaign.id, 'completed')}
+    onArchive={() => handleStatusChange(campaign.id, 'archived')}
+    onCancel={() => handleStatusChange(campaign.id, 'cancelled')}
+    onDuplicate={() => handleDuplicate(campaign.id)}
+    onEdit={() => router.push(`/dashboard/campaigns/${campaign.id}/edit`)}
+    onDelete={() => handleDelete(campaign.id)}
+    onSubmitForApproval={() => handleStatusChange(campaign.id, 'pending_approval')}
+  />
+))}
+```
+
+**Impact:** 12 new function references created per campaign per render. Even if CampaignCard is memoized, it re-renders due to prop identity changes.
+
+#### 9.2 Inline Callbacks in Wallet Withdrawals
+
+**File:** `app/(dashboard)/dashboard/wallet/wallet-client.tsx` (Lines 452-471)
+
+```typescript
+{withdrawals.map((withdrawal) => (
+  <WithdrawalItem
+    key={withdrawal.id}
+    withdrawal={withdrawal}
+    onCancel={() => {
+      cancelWithdrawal.mutate(withdrawal.id, {
+        onSuccess: () => toast.success('Withdrawal cancelled'),
+        onError: () => toast.error('Failed to cancel withdrawal'),
+      })
+    }}
+  />
+))}
+```
+
+**Impact:** Complex inline callback with nested mutation options recreated per item per render.
+
+#### 9.3 Inline Callbacks in Enrollment List
+
+**File:** `app/(dashboard)/dashboard/enrollments/enrollments-client.tsx` (Lines 419-439)
+
+```typescript
+{filteredEnrollments.map((enrollment) => (
+  <EnrollmentListItem
+    key={enrollment.id}
+    enrollment={enrollment}
+    onSelect={(checked) => handleSelect(enrollment.id, checked)}
+    onClick={() => router.push(`/dashboard/enrollments/${enrollment.id}`)}
+  />
+))}
+```
+
+---
+
+### 10. New Components Missing React.memo
+
+| Component | File | Lines | Used In |
+|-----------|------|-------|---------|
+| `WithdrawalItem` | `wallet-client.tsx` | 840-973 | Withdrawal list |
+| `EnrollmentListItem` | `enrollments-client.tsx` | 463-551 | Enrollment list |
+| `EnrollmentCardItem` | `enrollments-client.tsx` | 560-595 | Enrollment grid |
+
+**Recommended Fix:**
+
+```typescript
+// Before
+function WithdrawalItem({ withdrawal, onCancel }: Props) { ... }
+
+// After
+const WithdrawalItem = React.memo(function WithdrawalItem({
+  withdrawal,
+  onCancel
+}: Props) { ... })
+```
+
+---
+
+### 11. New Data Fetching Issues
+
+#### 11.1 Sequential API Calls in Campaigns Data Route
+
+**File:** `app/api/campaigns/data/route.ts` (Lines 21-28)
+
+```typescript
+// WATERFALL - Second request waits for first
+const response = await client.campaigns.listCampaigns({...})
+const stats = await client.organizations.getOrganizationCampaignStats(organizationId)
+
+// FIX - Parallelize
+const [response, stats] = await Promise.all([
+  client.campaigns.listCampaigns({...}),
+  client.organizations.getOrganizationCampaignStats(organizationId)
+])
+```
+
+#### 11.2 Incorrect staleTime for Campaign Stats
+
+**File:** `hooks/use-campaigns.ts` (Line 443)
+
+```typescript
+export function useCampaignStats(id: string) {
+  return useQuery({
+    staleTime: STALE_TIMES.REALTIME, // 30s - TOO AGGRESSIVE for stats!
+    // Stats are historical data, should use STATIC (5min)
+  })
+}
+```
+
+#### 11.3 Excessive Polling - Network Storm Risk
+
+Multiple hooks use 30-second refetch intervals that fire simultaneously on dashboard load:
+
+| Hook | File | Interval |
+|------|------|----------|
+| `useUnreadNotificationCount` | `use-notifications.ts:72` | 30s polling |
+| `useNotifications` | `use-notifications.ts` | REALTIME staleTime |
+| `useWalletSummary` | `use-wallet.ts` | REALTIME staleTime |
+| `useEnrollments` | `use-enrollments.ts` | REALTIME staleTime |
+
+**Impact:** When user lands on dashboard, 4+ queries refetch every 30 seconds.
+
+#### 11.4 New Deliverables Hook Missing gcTime
+
+**File:** `hooks/use-deliverables.ts` (Lines 55-87)
+
+```typescript
+export function useDeliverableType(id: string) {
+  return useQuery({
+    queryKey: deliverableKeys.detail(id),
+    staleTime: STALE_TIMES.STATIC,
+    // Missing: gcTime for garbage collection
+    // Could cause memory bloat if many deliverable types viewed
+  })
+}
+```
+
+---
+
+### 12. New Memory Leak Issues
+
+#### 12.1 setTimeout in FundWalletContent
+
+**File:** `app/(dashboard)/dashboard/wallet/wallet-client.tsx` (Line 586)
+
+```typescript
+// Inside FundWalletContent function (modal content)
+const handleCopy = (text: string, field: string) => {
+  navigator.clipboard.writeText(text)
+  setCopied(field)
+  setTimeout(() => setCopied(null), 2000) // NO CLEANUP!
+}
+```
+
+**Risk:** If modal closes before 2-second timeout, state update on unmounted component.
+
+#### 12.2 Novu Event Handler Dependency Issue
+
+**File:** `components/dashboard/notification-center.tsx` (Lines 1220-1255)
+
+```typescript
+React.useEffect(() => {
+  novu.on('notifications.notification_received', handleNewNotification)
+  novu.on('notifications.unread_count_changed', handleUnreadCountChanged)
+
+  return () => {
+    novu.off('notifications.notification_received', handleNewNotification)
+    novu.off('notifications.unread_count_changed', handleUnreadCountChanged)
+  }
+}, [novu, refetchCounts, router]) // refetchCounts may change frequently!
+```
+
+**Risk:** If `refetchCounts` isn't memoized, effect re-runs on every render, accumulating listeners before cleanup.
+
+---
+
+### 13. New Client/Server Boundary Issue
+
+#### 13.1 Marketing Home Page Incorrectly Client
+
+**File:** `app/page.tsx` (Line 1)
+
+```typescript
+'use client' // UNNECESSARY!
+
+import { mockTestimonials } from '@/lib/mocks' // Mock data sent to client!
+```
+
+**Issue:** Landing page marked as client component but doesn't need client features. Mock data library bundled into client JS.
+
+**Impact:** Unnecessary client bundle size, mock data exposed to browser.
+
+**Fix:** Remove `'use client'` directive, extract mobile menu toggle to small client component if needed.
+
+---
+
+### 14. New Dashboard Shell Issues
+
+#### 14.1 Unstable Notifications Prop
+
+**File:** `components/dashboard/dashboard-shell.tsx` (Lines 411-421)
+
+```typescript
+<NotificationsDrawer
+  notifications={notificationsData?.data?.map(n => ({
+    id: n.id,
+    userId: n.userId || '1',
+    type: n.type,
+    // ... more fields
+  }))}
+/>
+```
+
+**Issue:** `.map()` creates new array every render, causing NotificationsDrawer to re-render even if data unchanged.
+
+**Fix:** Memoize the transformation:
+
+```typescript
+const notifications = React.useMemo(
+  () => notificationsData?.data?.map(n => ({ ... })),
+  [notificationsData?.data]
+)
+```
+
+---
+
+## Updated Priority Fix Matrix (v2)
+
+| Priority | Issue | Files | Impact |
+|----------|-------|-------|--------|
+| 🔴 1 | Split barrel exports | hooks/index.ts (26 exports now) | -40% bundle |
+| 🔴 2 | Fix waterfall requests | api/campaigns/data/route.ts | -50% latency |
+| 🔴 3 | Fix inline callbacks in lists | campaigns-client, wallet-client, enrollments-client | -60% re-renders |
+| 🔴 4 | Add React.memo to list items | WithdrawalItem, EnrollmentListItem, EnrollmentCardItem | -40% re-renders |
+| 🔴 5 | Fix setTimeout leaks | wallet-client.tsx:586 | Memory stability |
+| 🟠 6 | Fix marketing page boundary | app/page.tsx | -20KB bundle |
+| 🟠 7 | Memoize notifications transform | dashboard-shell.tsx | Fewer re-renders |
+| 🟠 8 | Fix campaign stats staleTime | use-campaigns.ts:443 | Fewer refetches |
+| 🟠 9 | Reduce polling storm | Multiple hooks | -75% background requests |
+| 🟠 10 | Dynamic import NovuProvider | dashboard-shell.tsx | Conditional loading |
+
+---
+
+## Updated Quick Wins Checklist (v2)
+
+### Easy Fixes (< 5 min each)
+
+- [ ] Add `refetchOnWindowFocus: false` to list hooks
+- [ ] Change `useCampaignStats` staleTime from REALTIME to STATIC
+- [ ] Add `gcTime` to `useDeliverableType` hook
+- [ ] Remove `'use client'` from `app/page.tsx`
+- [ ] Add `will-change` to modal/drawer overlays
+
+### Medium Fixes (15-30 min each)
+
+- [ ] Wrap WithdrawalItem, EnrollmentListItem, EnrollmentCardItem in React.memo
+- [ ] Memoize notifications data transformation in dashboard-shell
+- [ ] Extract campaign card callbacks to useCallback hooks
+- [ ] Fix wallet handleCopy setTimeout cleanup
+
+### Larger Fixes (1+ hour)
+
+- [ ] Split hooks/index.ts barrel export
+- [ ] Parallelize API routes with Promise.all
+- [ ] Dynamic import NovuProvider
+- [ ] Refactor inline callbacks to stable references

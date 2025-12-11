@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import type { Campaign, Enrollment, Invoice, Transaction } from '@/lib/types'
+import type { campaigns, wallets, enrollments, invoices } from '@/lib/encore-browser'
 
 /**
  * Generic Excel export utility
@@ -112,12 +112,12 @@ export function generateExcelBuffer<T extends Record<string, unknown>>(
 /**
  * Export campaigns to Excel
  */
-export function exportCampaigns(campaigns: Campaign[]): void {
-  const data = campaigns.map((c) => ({
+export function exportCampaigns(campaignsList: campaigns.CampaignWithStats[]): void {
+  const data = campaignsList.map((c) => ({
     id: c.id,
     title: c.title,
     status: c.status,
-    type: c.type,
+    type: c.campaignType,
     billRate: c.billRate ?? 0,
     maxEnrollments: c.maxEnrollments,
     currentEnrollments: c.currentEnrollments,
@@ -151,23 +151,34 @@ export function exportCampaigns(campaigns: Campaign[]): void {
 /**
  * Export enrollments to Excel
  */
-export function exportEnrollments(enrollments: Enrollment[]): void {
-  const data = enrollments.map((e) => ({
-    id: e.id,
-    shopperName: e.shopper?.name || 'Unknown',
-    shopperEmail: e.shopper?.email || '',
-    campaignTitle: e.campaign?.title || 'Unknown',
-    status: e.status,
-    platform: e.platform,
-    orderId: e.orderId,
-    orderValue: e.orderValue,
-    billAmount: e.billAmount,
-    platformFee: e.platformFee,
-    gstAmount: e.gstAmount,
-    totalCost: e.totalCost,
-    submissionDeadline: new Date(e.submissionDeadline).toLocaleDateString(),
-    createdAt: new Date(e.createdAt).toLocaleDateString(),
-  }))
+export function exportEnrollments(enrollmentsList: enrollments.Enrollment[]): void {
+  const data = enrollmentsList.map((e) => {
+    // Calculate costs from locked rates
+    const billAmount = e.orderValue * (e.lockedBillRate / 100)
+    const gstAmount = billAmount * 0.18
+    const platformFee = e.orderValue * (e.lockedPlatformFee / 100)
+    const totalCost = billAmount + gstAmount + platformFee
+
+    return {
+      id: e.id,
+      shopperId: e.shopperId,
+      campaignId: e.campaignId,
+      status: e.status,
+      orderId: e.orderId,
+      orderValue: e.orderValue,
+      rebatePercentage: e.lockedRebatePercentage,
+      billRate: e.lockedBillRate,
+      billAmount: Math.round(billAmount),
+      platformFee: Math.round(platformFee),
+      gstAmount: Math.round(gstAmount),
+      totalCost: Math.round(totalCost),
+      rejectionCount: e.rejectionCount,
+      canResubmit: e.canResubmit ? 'Yes' : 'No',
+      purchaseDate: e.purchaseDate ? new Date(e.purchaseDate).toLocaleDateString() : '',
+      expiresAt: e.expiresAt ? new Date(e.expiresAt).toLocaleDateString() : '',
+      createdAt: new Date(e.createdAt).toLocaleDateString(),
+    }
+  })
 
   exportToExcel(
     data,
@@ -175,18 +186,21 @@ export function exportEnrollments(enrollments: Enrollment[]): void {
     'Enrollments',
     [
       { key: 'id', header: 'Enrollment ID', width: 15 },
-      { key: 'shopperName', header: 'Shopper Name', width: 20 },
-      { key: 'shopperEmail', header: 'Shopper Email', width: 25 },
-      { key: 'campaignTitle', header: 'Campaign', width: 25 },
+      { key: 'shopperId', header: 'Shopper ID', width: 15 },
+      { key: 'campaignId', header: 'Campaign ID', width: 15 },
       { key: 'status', header: 'Status', width: 15 },
-      { key: 'platform', header: 'Platform', width: 12 },
       { key: 'orderId', header: 'Order ID', width: 20 },
       { key: 'orderValue', header: 'Order Value (₹)', width: 15 },
+      { key: 'rebatePercentage', header: 'Rebate %', width: 10 },
+      { key: 'billRate', header: 'Bill Rate %', width: 10 },
       { key: 'billAmount', header: 'Bill Amount (₹)', width: 15 },
       { key: 'platformFee', header: 'Platform Fee (₹)', width: 15 },
       { key: 'gstAmount', header: 'GST (₹)', width: 12 },
       { key: 'totalCost', header: 'Total Cost (₹)', width: 12 },
-      { key: 'submissionDeadline', header: 'Submission Deadline', width: 18 },
+      { key: 'rejectionCount', header: 'Rejections', width: 10 },
+      { key: 'canResubmit', header: 'Can Resubmit', width: 12 },
+      { key: 'purchaseDate', header: 'Purchase Date', width: 12 },
+      { key: 'expiresAt', header: 'Expires At', width: 12 },
       { key: 'createdAt', header: 'Created', width: 12 },
     ]
   )
@@ -195,12 +209,12 @@ export function exportEnrollments(enrollments: Enrollment[]): void {
 /**
  * Export invoices to Excel
  */
-export function exportInvoices(invoices: Invoice[]): void {
-  const data = invoices.map((i) => ({
+export function exportInvoices(invoicesList: invoices.Invoice[]): void {
+  const data = invoicesList.map((i) => ({
     invoiceNumber: i.invoiceNumber,
     status: i.status,
-    periodStart: new Date(i.periodStart).toLocaleDateString(),
-    periodEnd: new Date(i.periodEnd).toLocaleDateString(),
+    periodStart: i.periodStart ? new Date(i.periodStart).toLocaleDateString() : '',
+    periodEnd: i.periodEnd ? new Date(i.periodEnd).toLocaleDateString() : '',
     enrollmentCount: i.enrollmentCount,
     subtotal: i.subtotal,
     gstAmount: i.gstAmount,
@@ -228,7 +242,7 @@ export function exportInvoices(invoices: Invoice[]): void {
 /**
  * Export transactions to Excel
  */
-export function exportTransactions(transactions: Transaction[]): void {
+export function exportTransactions(transactions: wallets.WalletTransaction[]): void {
   const data = transactions.map((t) => ({
     id: t.id,
     type: t.type,

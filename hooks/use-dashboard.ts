@@ -1,77 +1,67 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { get } from '@/lib/axios'
-import type { AxiosError } from 'axios'
-import type { DashboardData, ApiResponse, ApiError } from '@/lib/types'
+import { getEncoreBrowserClient } from '@/lib/encore-browser'
+import type { organizations } from '@/lib/encore-browser'
 import { STALE_TIMES } from '@/lib/types'
 import { dashboardKeys } from '@/lib/query-keys'
 
 // Re-export keys for backwards compatibility
 export { dashboardKeys }
 
-// Retry configuration - don't retry on 4xx errors
-const shouldRetry = (failureCount: number, error: AxiosError<ApiError>) => {
-  if (error.response?.status && error.response.status >= 400 && error.response.status < 500) {
-    return false
-  }
-  return failureCount < 3
-}
-
 // ============================================
-// Query Functions (exported for server prefetch)
+// Types - Re-export from Encore client for convenience
 // ============================================
 
-/**
- * Client-side fetch function using axios
- */
-async function fetchDashboardClient(): Promise<DashboardData> {
-  const response = await get<ApiResponse<DashboardData>>('/api/dashboard')
-  if (response.success) {
-    return response.data
-  }
-  throw new Error(response.error)
-}
+export type DashboardData = organizations.DashboardOverviewResponse
+export type DashboardStats = organizations.DashboardStats
+export type EnrollmentChartDataPoint = organizations.EnrollmentChartDataPoint
+export type TopCampaign = organizations.TopCampaign
+export type EnrollmentDistribution = organizations.EnrollmentDistribution
 
 // ============================================
 // Query Options (shared between client and server)
 // ============================================
 
-export const dashboardQueryOptions = {
+export const dashboardQueryOptions = (organizationId?: string) => ({
   queryKey: dashboardKeys.stats(),
-  queryFn: fetchDashboardClient,
+  queryFn: async () => {
+    const client = getEncoreBrowserClient()
+    // Use the provided organizationId or fall back to a default
+    const orgId = organizationId || 'default'
+    return client.organizations.getDashboardOverview(orgId, { days: 30 })
+  },
   staleTime: STALE_TIMES.STANDARD, // 1 minute
-  retry: shouldRetry,
-} as const
+}) as const
 
 // ============================================
 // Query Hooks
 // ============================================
 
-export function useDashboard() {
+export function useDashboard(organizationId?: string) {
   return useQuery({
-    ...dashboardQueryOptions,
+    ...dashboardQueryOptions(organizationId),
   })
 }
 
-export function useDashboardStats() {
-  const { data, ...rest } = useDashboard()
+export function useDashboardStats(organizationId?: string) {
+  const { data, ...rest } = useDashboard(organizationId)
   return {
     data: data?.stats,
     ...rest,
   }
 }
 
-export function useEnrollmentChart() {
-  const { data, ...rest } = useDashboard()
+export function useEnrollmentChart(organizationId?: string) {
+  const { data, ...rest } = useDashboard(organizationId)
   return {
     data: data?.enrollmentChart,
     ...rest,
   }
 }
 
-export function useTopCampaigns() {
-  const { data, ...rest } = useDashboard()
+export function useTopCampaigns(organizationId?: string) {
+  const { data, ...rest } = useDashboard(organizationId)
   return {
     data: data?.topCampaigns,
     ...rest,

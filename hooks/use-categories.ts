@@ -1,19 +1,12 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { get } from '@/lib/axios'
-import type { AxiosError } from 'axios'
-import type { ApiResponse, ApiError, PaginatedResponse, Product } from '@/lib/types'
+import { getEncoreBrowserClient } from '@/lib/encore-browser'
+import type { products } from '@/lib/encore-browser'
 import { STALE_TIMES } from '@/lib/types'
-import type { Category } from '@/lib/mocks'
 
-// Retry configuration - don't retry on 4xx errors
-const shouldRetry = (failureCount: number, error: AxiosError<ApiError>) => {
-  if (error.response?.status && error.response.status >= 400 && error.response.status < 500) {
-    return false
-  }
-  return failureCount < 3
-}
+// Re-export types from Encore for convenience
+export type ProductCategory = products.ProductCategory
 
 // ============================================
 // Query Keys
@@ -35,38 +28,34 @@ export const categoryKeys = {
 // ============================================
 
 /**
- * Fetch active categories (hierarchical)
+ * Fetch categories with pagination
  */
-export function useCategories() {
+export function useCategories(page = 1, limit = 50) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: categoryKeys.list(),
-    queryFn: () => get<ApiResponse<Category[]>>('/api/categories'),
+    queryFn: () => client.products.listCategories({
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
     staleTime: STALE_TIMES.STATIC, // Categories rarely change
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
 /**
- * Fetch all categories (flat list, including inactive)
+ * Fetch all categories (flat list)
  */
 export function useAllCategories() {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: categoryKeys.allList(),
-    queryFn: () => get<ApiResponse<Category[]>>('/api/categories/all'),
-    staleTime: STALE_TIMES.STATIC,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
+    queryFn: async () => {
+      const result = await client.products.listAllCategories()
+      return result.categories
     },
+    staleTime: STALE_TIMES.STATIC,
   })
 }
 
@@ -74,18 +63,13 @@ export function useAllCategories() {
  * Fetch single category by ID
  */
 export function useCategory(id: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: categoryKeys.detail(id),
-    queryFn: () => get<ApiResponse<Category>>(`/api/categories/${id}`),
+    queryFn: () => client.products.getCategory(id),
     enabled: !!id,
     staleTime: STALE_TIMES.STATIC,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
@@ -93,18 +77,13 @@ export function useCategory(id: string) {
  * Fetch category by name/slug
  */
 export function useCategoryByName(name: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: categoryKeys.byName(name),
-    queryFn: () => get<ApiResponse<Category>>(`/api/categories/name/${encodeURIComponent(name)}`),
+    queryFn: () => client.products.getCategoryByName(name),
     enabled: !!name,
     staleTime: STALE_TIMES.STATIC,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
@@ -112,11 +91,15 @@ export function useCategoryByName(name: string) {
  * Fetch products in a category
  */
 export function useCategoryProducts(id: string, page = 1, limit = 20) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: [...categoryKeys.products(id), { page, limit }],
-    queryFn: () => get<PaginatedResponse<Product>>(`/api/categories/${id}/products`, { params: { page, limit } }),
+    queryFn: () => client.products.getCategoryProducts(id, {
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
     enabled: !!id,
     staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
   })
 }

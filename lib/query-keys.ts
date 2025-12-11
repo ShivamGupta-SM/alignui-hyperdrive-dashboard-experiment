@@ -13,7 +13,7 @@ export const dashboardKeys = {
 export const campaignKeys = {
   all: [QUERY_KEYS.CAMPAIGNS] as const,
   lists: () => [...campaignKeys.all, 'list'] as const,
-  list: (filters: Record<string, unknown>) => [...campaignKeys.lists(), filters] as const,
+  list: <T extends object>(filters: T) => [...campaignKeys.lists(), filters] as const,
   details: () => [...campaignKeys.all, 'detail'] as const,
   detail: (id: string) => [...campaignKeys.details(), id] as const,
   data: (status?: string) => [...campaignKeys.all, 'data', status ?? 'all'] as const,
@@ -23,7 +23,7 @@ export const campaignKeys = {
 export const enrollmentKeys = {
   all: [QUERY_KEYS.ENROLLMENTS] as const,
   lists: () => [...enrollmentKeys.all, 'list'] as const,
-  list: (filters: Record<string, unknown>) => [...enrollmentKeys.lists(), filters] as const,
+  list: <T extends object>(filters: T) => [...enrollmentKeys.lists(), filters] as const,
   details: () => [...enrollmentKeys.all, 'detail'] as const,
   detail: (id: string) => [...enrollmentKeys.details(), id] as const,
   pending: () => [...enrollmentKeys.all, 'pending'] as const,
@@ -36,7 +36,7 @@ export const walletKeys = {
   balance: () => [...walletKeys.all, 'balance'] as const,
   summary: () => [...walletKeys.all, 'summary'] as const,
   transactions: () => [...walletKeys.all, 'transactions'] as const,
-  transactionList: (filters: Record<string, unknown>) => [...walletKeys.transactions(), filters] as const,
+  transactionList: <T extends object>(filters: T) => [...walletKeys.transactions(), filters] as const,
   data: () => [...walletKeys.all, 'data'] as const,
 }
 
@@ -44,7 +44,7 @@ export const walletKeys = {
 export const invoiceKeys = {
   all: [QUERY_KEYS.INVOICES] as const,
   lists: () => [...invoiceKeys.all, 'list'] as const,
-  list: (filters: Record<string, unknown>) => [...invoiceKeys.lists(), filters] as const,
+  list: <T extends object>(filters: T) => [...invoiceKeys.lists(), filters] as const,
   details: () => [...invoiceKeys.all, 'detail'] as const,
   detail: (id: string) => [...invoiceKeys.details(), id] as const,
   data: () => [...invoiceKeys.all, 'data'] as const,
@@ -62,7 +62,7 @@ export const teamKeys = {
 export const productKeys = {
   all: ['products'] as const,
   lists: () => [...productKeys.all, 'list'] as const,
-  list: (filters: Record<string, unknown>) => [...productKeys.lists(), filters] as const,
+  list: <T extends object>(filters: T) => [...productKeys.lists(), filters] as const,
   details: () => [...productKeys.all, 'detail'] as const,
   detail: (id: string) => [...productKeys.details(), id] as const,
   data: () => [...productKeys.all, 'data'] as const,

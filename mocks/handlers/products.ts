@@ -116,6 +116,9 @@ export const productsHandlers = [
   }),
 
   // POST /api/products
+  // Schema accepts: { name, description, image, category, platform, productUrl }
+  // API route converts to Encore: { name, description, categoryId, platformId, productLink, productImages[] }
+  // Returns products.Product type
   http.post('/api/products', async ({ request }) => {
     await delay(DELAY.MEDIUM)
 
@@ -136,6 +139,10 @@ export const productsHandlers = [
       return errorResponse('Name must be at least 2 characters', 400)
     }
 
+    if (name.length > 200) {
+      return errorResponse('Name must be at most 200 characters', 400)
+    }
+
     if (!category) {
       return errorResponse('Category is required', 400)
     }
@@ -144,18 +151,47 @@ export const productsHandlers = [
       return errorResponse('Platform is required', 400)
     }
 
+    // Validate URLs if provided
+    if (productUrl) {
+      try {
+        new URL(productUrl)
+      } catch {
+        return errorResponse('Invalid product URL', 400)
+      }
+    }
+
+    if (image) {
+      try {
+        new URL(image)
+      } catch {
+        return errorResponse('Invalid image URL', 400)
+      }
+    }
+
+    // Return products.Product type matching Encore
+    // Include both Encore fields (categoryId, platformId, productLink, productImages)
+    // and frontend aliases (category, platform, productUrl, image)
     const newProduct = {
       id: `product-${Date.now()}`,
       organizationId: orgId,
       name,
-      description,
-      image,
+      description: description || null,
+      // Encore field names
+      categoryId: category,
+      platformId: platform,
+      productLink: productUrl || null,
+      productImages: image ? [image] : [],
+      // Frontend aliases for backwards compatibility
       category,
       platform,
-      productUrl,
+      productUrl: productUrl || null,
+      image: image || null,
+      images: image ? [image] : [],
+      // Additional fields
       campaignCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }
 
     return successResponse(newProduct, 201)

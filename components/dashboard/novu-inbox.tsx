@@ -1,17 +1,10 @@
 'use client'
 
 import { Inbox } from '@novu/nextjs'
-import { useQuery } from '@tanstack/react-query'
 import { useTheme } from 'next-themes'
 import { Bell } from '@phosphor-icons/react'
-import { get } from '@/lib/axios'
+import { authClient } from '@/lib/auth-client'
 import { cn } from '@/utils/cn'
-import type { ApiResponse } from '@/lib/types'
-
-interface SubscriberAuth {
-  subscriberId: string
-  subscriberHash: string | null
-}
 
 /**
  * Bell Button - Matches header iconButtonStyles
@@ -45,33 +38,26 @@ function BellButton({ count = 0 }: { count?: number }) {
 
 /**
  * Novu Inbox Component - Notification bell with dropdown panel
+ * Uses Better-Auth session for subscriber identification.
  */
 export function NovuInbox() {
   const appId = process.env.NEXT_PUBLIC_NOVU_APP_ID
   const apiUrl = process.env.NEXT_PUBLIC_NOVU_API_URL
   const wsUrl = process.env.NEXT_PUBLIC_NOVU_WS_URL
   const { resolvedTheme } = useTheme()
-
-  const { data: authData, isLoading, error } = useQuery({
-    queryKey: ['novu', 'subscriber-hash'],
-    queryFn: () => get<ApiResponse<SubscriberAuth>>('/api/novu/subscriber-hash'),
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-    enabled: !!appId,
-  })
+  const { data: session, isPending } = authClient.useSession()
 
   if (!appId) return null
-  if (isLoading) return <BellButton />
-  if (error || !authData?.success || !authData.data?.subscriberId) return <BellButton />
+  if (isPending) return <BellButton />
+  if (!session?.user?.id) return <BellButton />
 
-  const { subscriberId, subscriberHash } = authData.data
+  const subscriberId = session.user.id
   const isDark = resolvedTheme === 'dark'
 
   return (
     <Inbox
       applicationIdentifier={appId}
       subscriber={subscriberId}
-      subscriberHash={subscriberHash || undefined}
       backendUrl={apiUrl}
       socketUrl={wsUrl}
       renderBell={(unreadCountObj) => <BellButton count={unreadCountObj?.total ?? 0} />}

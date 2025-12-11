@@ -39,10 +39,13 @@ import {
   ClipboardText,
   CheckCircle,
 } from '@phosphor-icons/react/dist/ssr'
-import type { Campaign, CampaignStatus, Enrollment, DeliverableType } from '@/lib/types'
+import type { Enrollment } from '@/hooks/use-enrollments'
+import type { DeliverableType } from '@/lib/types'
 import { CAMPAIGN_STATUS_CONFIG } from '@/lib/constants'
-import { useCampaign, usePauseCampaign, useResumeCampaign, useEndCampaign, useCampaignStats, useCampaignPricing } from '@/hooks/use-campaigns'
-import type { CampaignStats, CampaignPricing } from '@/hooks/use-campaigns'
+import { useCampaign, usePauseCampaign, useResumeCampaign, useEndCampaign, useCampaignStats, useCampaignPricing, useCampaignPerformance } from '@/hooks/use-campaigns'
+import { useCampaignDeliverables } from '@/hooks/use-deliverables'
+import type { CampaignWithStats, CampaignStats, CampaignPricing, CampaignStatus } from '@/hooks/use-campaigns'
+import type { campaigns } from '@/lib/encore-browser'
 import { useEnrollments, useExportEnrollments } from '@/hooks/use-enrollments'
 import { toast } from 'sonner'
 
@@ -61,6 +64,8 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
   const enrollments = enrollmentsData?.data || []
   const { data: stats } = useCampaignStats(campaignId)
   const { data: pricing } = useCampaignPricing(campaignId)
+  const { data: deliverables } = useCampaignDeliverables(campaignId)
+  const { data: performanceData } = useCampaignPerformance(campaignId)
 
   // Campaign action hooks
   const pauseCampaign = usePauseCampaign(campaignId)
@@ -89,7 +94,7 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
     return `₹${amount.toLocaleString('en-IN')}`
   }
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
     return new Date(date).toLocaleDateString('en-IN', {
       month: 'short',
       day: 'numeric',
@@ -298,7 +303,7 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">
           <span className="flex items-center gap-1.5">
             <ShoppingBag weight="duotone" className="size-4 shrink-0" />
-            {stats?.productName || campaign.title}
+            {campaign.product?.name || campaign.title}
           </span>
           <span className="flex items-center gap-1.5">
             <CalendarBlank weight="duotone" className="size-4 shrink-0" />
@@ -327,6 +332,7 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
           campaign={campaign}
           stats={stats}
           pricing={pricing}
+          deliverables={deliverables}
           formatCurrency={formatCurrency}
           getDaysRemaining={getDaysRemaining}
           getProgressPercentage={getProgressPercentage}
@@ -345,6 +351,7 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
         <StatisticsTab
           campaign={campaign}
           stats={stats}
+          performanceData={performanceData}
         />
       )}
 
@@ -388,9 +395,10 @@ function getDeliverableIcon(type: DeliverableType) {
 
 // Overview Tab Component
 interface OverviewTabProps {
-  campaign: Campaign
+  campaign: CampaignWithStats
   stats: CampaignStats | undefined
   pricing: CampaignPricing | undefined
+  deliverables: campaigns.CampaignDeliverableResponse[] | undefined
   formatCurrency: (amount: number) => string
   getDaysRemaining: () => number
   getProgressPercentage: () => number
@@ -401,6 +409,7 @@ function OverviewTab({
   campaign,
   stats,
   pricing,
+  deliverables,
   formatCurrency,
   getDaysRemaining,
   getProgressPercentage,
@@ -428,12 +437,12 @@ function OverviewTab({
     ]
   }, [campaign])
 
-  // Enrollment breakdown data for BarList - use stats from API
+  // Enrollment breakdown data for BarList - use stats from CampaignWithStats
   const enrollmentBreakdown = [
     { name: 'Approved', value: campaign.approvedCount, color: 'green' as const },
     { name: 'Pending Review', value: campaign.pendingCount, color: 'orange' as const },
     { name: 'Rejected', value: campaign.rejectedCount, color: 'red' as const },
-    { name: 'Awaiting Submission', value: stats?.awaitingSubmission ?? 0, color: 'blue' as const },
+    { name: 'Withdrawn', value: stats?.withdrawnEnrollments ?? 0, color: 'gray' as const },
   ]
 
   return (
@@ -640,13 +649,13 @@ function OverviewTab({
           <ListChecks weight="duotone" className="size-5 text-primary-base" />
           Required Deliverables
         </h3>
-        {campaign.deliverables && campaign.deliverables.length > 0 ? (
+        {deliverables && deliverables.length > 0 ? (
           <div className="space-y-3">
-            {campaign.deliverables.map((deliverable, index) => {
-              const DeliverableIcon = getDeliverableIcon(deliverable.type)
+            {deliverables.map((campaignDeliverable, index) => {
+              const DeliverableIcon = getDeliverableIcon(campaignDeliverable.deliverable?.category as DeliverableType)
               return (
                 <div
-                  key={deliverable.id}
+                  key={campaignDeliverable.id}
                   className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-bg-weak-50 border border-stroke-soft-200"
                 >
                   <div className="size-10 sm:size-12 rounded-xl bg-primary-alpha-10 flex items-center justify-center shrink-0">
@@ -655,9 +664,9 @@ function OverviewTab({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-label-sm sm:text-label-md text-text-strong-950">
-                        {index + 1}. {deliverable.title}
+                        {index + 1}. {campaignDeliverable.deliverable?.name ?? 'Deliverable'}
                       </span>
-                      {deliverable.isRequired ? (
+                      {campaignDeliverable.isRequired ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error-lighter text-error-base text-[10px] sm:text-xs font-medium">
                           Required
                         </span>
@@ -667,15 +676,15 @@ function OverviewTab({
                         </span>
                       )}
                     </div>
-                    {deliverable.description && (
+                    {campaignDeliverable.deliverable?.category && (
                       <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mb-1">
-                        {deliverable.description}
+                        {campaignDeliverable.deliverable.category}
                       </p>
                     )}
-                    {deliverable.instructions && (
+                    {campaignDeliverable.instructions && (
                       <p className="text-paragraph-xs text-text-soft-400 flex items-start gap-1">
                         <Info weight="fill" className="size-3.5 shrink-0 mt-0.5" />
-                        {deliverable.instructions}
+                        {campaignDeliverable.instructions}
                       </p>
                     )}
                   </div>
@@ -709,18 +718,12 @@ interface EnrollmentsTabProps {
 function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
   const exportEnrollments = useExportEnrollments(campaignId)
 
-  const handleExport = (format: 'csv' | 'xlsx' = 'xlsx') => {
+  const handleExport = () => {
     exportEnrollments.mutate(
-      { format },
+      {},
       {
         onSuccess: (response) => {
-          if (response.success && response.data) {
-            toast.success(`Exported ${response.data.totalCount} enrollments`)
-            // If there's a download URL, trigger download
-            if (response.data.downloadUrl) {
-              window.open(response.data.downloadUrl, '_blank')
-            }
-          }
+          toast.success(`Exported ${response.totalCount} enrollments`)
         },
         onError: () => {
           toast.error('Failed to export enrollments')
@@ -739,7 +742,7 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
           <Button.Root
             variant="basic"
             size="small"
-            onClick={() => handleExport('xlsx')}
+            onClick={() => handleExport()}
             disabled={exportEnrollments.isPending}
           >
             <Button.Icon as={DownloadSimple} />
@@ -768,13 +771,21 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
 
 // Statistics Tab Component
 interface StatisticsTabProps {
-  campaign: Campaign
+  campaign: CampaignWithStats
   stats: CampaignStats | undefined
+  performanceData: campaigns.CampaignPerformance[] | undefined
 }
 
-function StatisticsTab({ stats }: StatisticsTabProps) {
-  // Use enrollment trend from API stats, or empty array as fallback
-  const chartData = stats?.enrollmentTrend ?? []
+function StatisticsTab({ stats, performanceData }: StatisticsTabProps) {
+  // Transform performance data for chart (needs 'name' field instead of 'date')
+  const chartData = React.useMemo(() => {
+    if (!performanceData) return []
+    return performanceData.map(item => ({
+      name: item.date,
+      enrollments: item.enrollments,
+      approvals: item.approvals,
+    }))
+  }, [performanceData])
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -788,7 +799,7 @@ function StatisticsTab({ stats }: StatisticsTabProps) {
                 data={chartData}
                 dataKeys={[
                   { key: 'enrollments', label: 'Total Enrollments', color: 'oklch(0.7 0.15 250)' },
-                  { key: 'approved', label: 'Approved', color: 'oklch(0.7 0.15 145)' },
+                  { key: 'approvals', label: 'Approved', color: 'oklch(0.7 0.15 145)' },
                 ]}
                 height={250}
                 showLegend
@@ -807,11 +818,10 @@ function StatisticsTab({ stats }: StatisticsTabProps) {
         <h3 className="text-label-md text-text-strong-950 mb-3 sm:mb-4">Performance Metrics</h3>
         <MetricGroup columns={4} className="grid-cols-2 lg:grid-cols-4">
           <Metric
-            label="Avg. Review Time"
-            value={`${stats?.avgReviewTimeHours ?? 0} hours`}
-            delta="-30min"
-            deltaType="increase"
-            description="vs last week"
+            label="Total Enrollments"
+            value={`${stats?.totalEnrollments ?? 0}`}
+            deltaType="unchanged"
+            description="all time"
             size="sm"
           />
           <Metric
@@ -823,18 +833,17 @@ function StatisticsTab({ stats }: StatisticsTabProps) {
             size="sm"
           />
           <Metric
-            label="Rejection Rate"
-            value={`${stats?.rejectionRate ?? 0}%`}
-            delta={stats?.rejectionRate && stats.rejectionRate < 15 ? '-2%' : '+1%'}
-            deltaType={stats?.rejectionRate && stats.rejectionRate < 15 ? 'increase' : 'decrease'}
-            description={stats?.rejectionRate && stats.rejectionRate < 15 ? 'improving' : 'needs attention'}
+            label="Avg. Order Value"
+            value={`₹${(stats?.averageOrderValue ?? 0).toLocaleString('en-IN')}`}
+            deltaType="unchanged"
+            description="per enrollment"
             size="sm"
           />
           <Metric
-            label="Withdrawal Rate"
-            value={`${stats?.withdrawalRate ?? 0}%`}
+            label="Total Payouts"
+            value={`₹${(stats?.totalPayouts ?? 0).toLocaleString('en-IN')}`}
             deltaType="unchanged"
-            description="stable"
+            description="paid out"
             size="sm"
           />
         </MetricGroup>
@@ -845,7 +854,7 @@ function StatisticsTab({ stats }: StatisticsTabProps) {
 
 // Settings Tab Component
 interface SettingsTabProps {
-  campaign: Campaign
+  campaign: CampaignWithStats
 }
 
 function SettingsTab({ campaign }: SettingsTabProps) {
@@ -879,12 +888,12 @@ function SettingsTab({ campaign }: SettingsTabProps) {
           </List.Item>
           <List.Item>
             <List.ItemContent>
-              <List.ItemTitle>Submission Deadline</List.ItemTitle>
+              <List.ItemTitle>Enrollment Expiry</List.ItemTitle>
               <List.ItemDescription className="hidden sm:block">Days after enrollment to submit proof</List.ItemDescription>
             </List.ItemContent>
             <List.ItemAction>
               <span className="text-label-sm sm:text-label-md text-text-strong-950">
-                {campaign.submissionDeadlineDays} days
+                {campaign.enrollmentExpiryDays} days
               </span>
             </List.ItemAction>
           </List.Item>

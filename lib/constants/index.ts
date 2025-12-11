@@ -151,6 +151,11 @@ export const ENROLLMENT_STATUS_CONFIG: Record<EnrollmentStatus, {
   rejected: {
     label: 'Rejected',
     color: 'red',
+    description: 'Submission rejected'
+  },
+  permanently_rejected: {
+    label: 'Permanently Rejected',
+    color: 'red',
     description: 'Permanently rejected'
   },
   withdrawn: {
@@ -187,23 +192,46 @@ export const INVOICE_STATUS_CONFIG: Record<InvoiceStatus, {
   }
 }
 
-export const TRANSACTION_TYPE_CONFIG: Record<TransactionType, {
+// Encore WalletTransaction types: 'credit' | 'debit' | 'hold' | 'release' | 'hold_committed'
+type EncoreTransactionType = 'credit' | 'debit' | 'hold' | 'release' | 'hold_committed'
+
+// Union of old and new transaction types for backwards compatibility
+type AllTransactionTypes = TransactionType | EncoreTransactionType
+
+export const TRANSACTION_TYPE_CONFIG: Record<AllTransactionTypes, {
   label: string
   color: 'green' | 'red' | 'blue' | 'gray'
   sign: '+' | '-' | ''
 }> = {
+  // New Encore types
   credit: {
     label: 'Credit',
     color: 'green',
     sign: '+'
   },
-  hold_created: {
+  debit: {
+    label: 'Debit',
+    color: 'red',
+    sign: '-'
+  },
+  hold: {
     label: 'Hold Created',
     color: 'red',
     sign: '-'
   },
+  release: {
+    label: 'Hold Released',
+    color: 'green',
+    sign: '+'
+  },
   hold_committed: {
     label: 'Hold Committed',
+    color: 'red',
+    sign: '-'
+  },
+  // Legacy types (for backwards compatibility)
+  hold_created: {
+    label: 'Hold Created',
     color: 'red',
     sign: '-'
   },

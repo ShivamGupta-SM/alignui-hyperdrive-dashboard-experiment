@@ -1,18 +1,9 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { get, post, patch, del } from '@/lib/axios'
-import type { AxiosError } from 'axios'
-import type { ApiResponse, ApiError } from '@/lib/types'
+import { getEncoreBrowserClient } from '@/lib/encore-browser'
+import type { organizations } from '@/lib/encore-browser'
 import { STALE_TIMES } from '@/lib/types'
-
-// Retry configuration - don't retry on 4xx errors
-const shouldRetry = (failureCount: number, error: AxiosError<ApiError>) => {
-  if (error.response?.status && error.response.status >= 400 && error.response.status < 500) {
-    return false
-  }
-  return failureCount < 3
-}
 
 // ============================================
 // Query Keys
@@ -27,6 +18,12 @@ export const settingsKeys = {
   activity: (orgId: string) => [...settingsKeys.all, 'activity', orgId] as const,
 }
 
+// Re-export types from Encore for convenience
+export type OrganizationBankAccount = organizations.OrganizationBankAccount
+export type GSTDetails = organizations.GSTDetails
+export type PANDetails = organizations.PANDetails
+// Note: Organization is exported from use-organizations.ts
+
 // ============================================
 // Types
 // ============================================
@@ -34,91 +31,78 @@ export const settingsKeys = {
 export interface OrganizationSettings {
   name: string
   slug: string
-  website: string
-  logo: string
-  email: string
-  phone: string
-  address: string
-  industry: string
+  website?: string
+  logo?: string
+  description?: string
+  phoneNumber?: string
+  address?: string
+  industryCategory?: string
+  contactPerson?: string
+  city?: string
+  state?: string
+  postalCode?: string
 }
 
 export interface BankAccount {
   id: string
   bankName: string
   accountNumber: string
-  accountHolder: string
+  accountHolderName: string
   ifscCode: string
   isDefault: boolean
   isVerified: boolean
+  accountType: 'current' | 'savings'
 }
 
 export interface GstDetails {
   gstNumber: string
-  legalName: string
-  tradeName: string
-  state: string
+  legalName?: string
+  tradeName?: string
+  state?: string
   isVerified: boolean
 }
 
 export interface SettingsData {
-  user: {
-    name: string
-    email: string
-    phone: string
-    avatar?: string
-    role: string
-  }
-  organization: OrganizationSettings
-  bankAccounts: BankAccount[]
-  gstDetails: GstDetails
+  organization: organizations.Organization
+  bankAccounts: OrganizationBankAccount[]
+  gstDetails: GSTDetails | null
+  panDetails: PANDetails | null
 }
 
 // ============================================
 // Query Hooks
 // ============================================
 
-export function useOrganizationSettings() {
+export function useOrganizationSettings(organizationId: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: settingsKeys.organization(),
-    queryFn: () => get<ApiResponse<OrganizationSettings>>('/api/settings/organization'),
+    queryFn: () => client.organizations.getOrganization(organizationId),
+    enabled: !!organizationId,
     staleTime: STALE_TIMES.STATIC,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
-export function useBankAccounts() {
+export function useBankAccounts(organizationId: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: settingsKeys.bankAccounts(),
-    queryFn: () => get<ApiResponse<BankAccount[]>>('/api/settings/bank-accounts'),
+    queryFn: () => client.organizations.listBankAccounts(organizationId),
+    enabled: !!organizationId,
     staleTime: STALE_TIMES.STATIC,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
-export function useGstDetails() {
+export function useGstDetails(organizationId: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: settingsKeys.gst(),
-    queryFn: () => get<ApiResponse<GstDetails>>('/api/settings/gst'),
+    queryFn: () => client.organizations.getGSTDetails(organizationId),
+    enabled: !!organizationId,
     staleTime: STALE_TIMES.STATIC,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
@@ -126,12 +110,13 @@ export function useGstDetails() {
 // Mutation Hooks
 // ============================================
 
-export function useUpdateOrganization() {
+export function useUpdateOrganizationSettings(organizationId: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
     mutationFn: (data: Partial<OrganizationSettings>) =>
-      patch<ApiResponse<OrganizationSettings>>('/api/settings/organization', data),
+      client.organizations.updateOrganization(organizationId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.organization() })
     },
@@ -146,18 +131,27 @@ export function useUpdateOrganization() {
  * Fetch settings data for SSR hydration
  * Used by the settings page to hydrate React Query cache
  */
-export function useSettingsData() {
+export function useSettingsData(organizationId: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: settingsKeys.data(),
     queryFn: async () => {
-      const response = await get<ApiResponse<SettingsData>>('/api/settings/data')
-      if (response.success) {
-        return response.data
+      const [organization, bankAccountsData, gstData, panData] = await Promise.all([
+        client.organizations.getOrganization(organizationId),
+        client.organizations.listBankAccounts(organizationId),
+        client.organizations.getGSTDetails(organizationId),
+        client.organizations.getPANDetails(organizationId),
+      ])
+      return {
+        organization,
+        bankAccounts: bankAccountsData.data,
+        gstDetails: gstData.gstDetails,
+        panDetails: panData.panDetails,
       }
-      throw new Error(response.error)
     },
+    enabled: !!organizationId,
     staleTime: STALE_TIMES.STATIC,
-    retry: shouldRetry,
   })
 }
 
@@ -184,13 +178,15 @@ export type OrganizationActivityType =
 
 export interface OrganizationActivity {
   id: string
-  type: OrganizationActivityType
-  title: string
-  description: string
-  actorId: string
-  actorName: string
-  actorAvatar: string | null
-  metadata: Record<string, unknown>
+  action: string
+  type: OrganizationActivityType // Alias for action for component compatibility
+  entityType: string
+  entityId: string
+  details: Record<string, unknown>
+  description?: string
+  actorName?: string
+  actorAvatar?: string
+  adminName: string | null
   createdAt: string
 }
 
@@ -202,25 +198,57 @@ export interface OrganizationActivityResponse {
   hasMore: boolean
 }
 
+// Helper to format activity description from action and entity type
+function formatActivityDescription(action: string, entityType: string, details: Record<string, unknown>): string {
+  const actionDescriptions: Record<string, string> = {
+    campaign_created: 'created a new campaign',
+    campaign_activated: 'activated the campaign',
+    campaign_paused: 'paused the campaign',
+    campaign_completed: 'marked the campaign as completed',
+    enrollment_approved: 'approved an enrollment',
+    enrollment_rejected: 'rejected an enrollment',
+    enrollment_bulk_approved: 'bulk approved enrollments',
+    withdrawal_requested: 'requested a withdrawal',
+    withdrawal_completed: 'completed a withdrawal',
+    member_invited: 'invited a new team member',
+    member_joined: 'joined the team',
+    member_removed: 'removed a team member',
+    invoice_generated: 'generated an invoice',
+    product_created: 'added a new product',
+    settings_updated: 'updated organization settings',
+  }
+
+  const entityName = (details?.name as string) || (details?.title as string) || entityType
+  const base = actionDescriptions[action] || `performed ${action.replace(/_/g, ' ')}`
+
+  return entityName && entityName !== entityType ? `${base}: ${entityName}` : base
+}
+
 /**
  * Fetch organization activity feed
  * Shows audit trail of actions taken in the organization
  */
 export function useOrganizationActivity(organizationId: string, skip = 0, take = 20) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: [...settingsKeys.activity(organizationId), { skip, take }] as const,
-    queryFn: () => get<ApiResponse<OrganizationActivityResponse>>(`/api/organizations/${organizationId}/activity`, {
-      params: { skip, take }
-    }),
+    queryFn: async (): Promise<OrganizationActivityResponse> => {
+      const response = await client.organizations.getOrganizationActivity(organizationId, { skip, take })
+      // Map action to type for component compatibility
+      return {
+        ...response,
+        data: response.data.map((item) => ({
+          ...item,
+          type: item.action as OrganizationActivityType,
+          description: formatActivityDescription(item.action, item.entityType, item.details),
+          actorName: item.adminName ?? undefined,
+          actorAvatar: undefined,
+        })),
+      }
+    },
     enabled: !!organizationId,
     staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
@@ -231,25 +259,21 @@ export function useOrganizationActivity(organizationId: string, skip = 0, take =
 export interface AddBankAccountInput {
   bankName: string
   accountNumber: string
-  confirmAccountNumber: string
-  accountHolder: string
+  accountHolderName: string
   ifscCode: string
-}
-
-export interface BankAccountResponse extends BankAccount {
-  verificationStatus?: 'pending' | 'verified' | 'failed'
-  addedAt?: string
+  accountType: 'current' | 'savings'
 }
 
 /**
  * Add a new bank account
  */
-export function useAddBankAccount() {
+export function useAddBankAccount(organizationId: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
     mutationFn: (data: AddBankAccountInput) =>
-      post<ApiResponse<BankAccountResponse>>('/api/settings/bank-accounts', data),
+      client.organizations.addBankAccount(organizationId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.bankAccounts() })
     },
@@ -259,12 +283,13 @@ export function useAddBankAccount() {
 /**
  * Delete a bank account
  */
-export function useDeleteBankAccount() {
+export function useDeleteBankAccount(organizationId: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
     mutationFn: (id: string) =>
-      del<ApiResponse<{ message: string; id: string }>>(`/api/settings/bank-accounts/${id}`),
+      client.organizations.deleteBankAccount(organizationId, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.bankAccounts() })
     },
@@ -274,12 +299,13 @@ export function useDeleteBankAccount() {
 /**
  * Set bank account as default
  */
-export function useSetDefaultBankAccount() {
+export function useSetDefaultBankAccount(organizationId: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
     mutationFn: (id: string) =>
-      patch<ApiResponse<BankAccount>>(`/api/settings/bank-accounts/${id}`, { isDefault: true }),
+      client.organizations.setDefaultBankAccount(organizationId, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.bankAccounts() })
     },
@@ -294,112 +320,55 @@ export interface VerifyGstInput {
   gstNumber: string
 }
 
-export interface GstVerificationResponse {
-  gstNumber: string
-  legalName: string
-  tradeName: string
-  state: string
-  status: 'active' | 'inactive' | 'cancelled'
-  isVerified: boolean
-  registrationDate: string
-  businessType: string
-}
-
 /**
  * Verify GST number
  */
-export function useVerifyGst() {
+export function useVerifyGst(organizationId: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
     mutationFn: (data: VerifyGstInput) =>
-      post<ApiResponse<GstVerificationResponse>>('/api/settings/gst/verify', data),
+      client.organizations.verifyGST(organizationId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.gst() })
+      queryClient.invalidateQueries({ queryKey: settingsKeys.organization() })
     },
   })
 }
 
 export interface VerifyPanInput {
   panNumber: string
-  name: string
-}
-
-export interface PanVerificationResponse {
-  panNumber: string
-  name: string
-  nameMatch: boolean
-  isValid: boolean
-  panType: 'individual' | 'company' | 'trust' | 'other'
 }
 
 /**
  * Verify PAN number
  */
-export function useVerifyPan() {
+export function useVerifyPan(organizationId: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
     mutationFn: (data: VerifyPanInput) =>
-      post<ApiResponse<PanVerificationResponse>>('/api/settings/pan/verify', data),
+      client.organizations.verifyPAN(organizationId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.organization() })
     },
   })
 }
 
-export interface VerifyBankAccountInput {
-  bankAccountId: string
-}
-
-export interface BankAccountVerificationResponse {
-  id: string
-  accountNumber: string
-  accountHolder: string
-  bankName: string
-  ifscCode: string
-  isVerified: boolean
-  verificationStatus: 'pending' | 'verified' | 'failed'
-  verificationMessage?: string
-}
-
 /**
  * Verify bank account (penny drop verification)
  */
-export function useVerifyBankAccount() {
+export function useVerifyBankAccount(organizationId: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: (data: VerifyBankAccountInput) =>
-      post<ApiResponse<BankAccountVerificationResponse>>('/api/settings/bank-accounts/verify', data),
+    mutationFn: (bankAccountId: string) =>
+      client.organizations.verifyBankAccount(organizationId, bankAccountId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsKeys.bankAccounts() })
-    },
-  })
-}
-
-// ============================================
-// Update GST Details
-// ============================================
-
-export interface UpdateGstInput {
-  gstNumber: string
-  legalName?: string
-  tradeName?: string
-  state?: string
-}
-
-/**
- * Update/Save GST details
- */
-export function useUpdateGstDetails() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: (data: UpdateGstInput) =>
-      post<ApiResponse<GstDetails>>('/api/settings/gst', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsKeys.gst() })
     },
   })
 }

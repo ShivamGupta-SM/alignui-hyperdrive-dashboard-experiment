@@ -3,6 +3,7 @@
  */
 
 import { http } from 'msw'
+import { mockCampaigns, mockEnrollments } from '@/lib/mocks'
 import {
   delay,
   DELAY,
@@ -348,5 +349,128 @@ export const organizationsHandlers = [
     ]
 
     return successResponse(members)
+  }),
+
+  // GET /api/organizations/:id/activity - Get organization activity
+  http.get('/api/organizations/:id/activity', async ({ params, request }) => {
+    await delay(DELAY.FAST)
+
+    const { id } = params
+    const url = new URL(request.url)
+    const skip = Number.parseInt(url.searchParams.get('skip') || '0', 10)
+    const take = Number.parseInt(url.searchParams.get('take') || '20', 10)
+
+    const org = mockOrganizations.find(o => o.id === id)
+
+    if (!org) {
+      return notFoundResponse('Organization')
+    }
+
+    // Generate mock activity
+    const activities = [
+      {
+        id: 'act-1',
+        type: 'campaign_created',
+        description: 'New campaign "Summer Sale 2024" was created',
+        entityType: 'campaign',
+        entityId: 'camp-1',
+        performedBy: 'John Doe',
+        performedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      {
+        id: 'act-2',
+        type: 'enrollment_approved',
+        description: 'Enrollment #ENR-001 was approved',
+        entityType: 'enrollment',
+        entityId: 'enr-1',
+        performedBy: 'Jane Smith',
+        performedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      {
+        id: 'act-3',
+        type: 'team_member_invited',
+        description: 'Bob Wilson was invited to the team',
+        entityType: 'team',
+        entityId: 'mem-3',
+        performedBy: 'John Doe',
+        performedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      {
+        id: 'act-4',
+        type: 'withdrawal_requested',
+        description: 'Withdrawal of ₹50,000 was requested',
+        entityType: 'wallet',
+        entityId: 'wd-1',
+        performedBy: 'John Doe',
+        performedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      {
+        id: 'act-5',
+        type: 'campaign_activated',
+        description: 'Campaign "Winter Collection" was activated',
+        entityType: 'campaign',
+        entityId: 'camp-2',
+        performedBy: 'Jane Smith',
+        performedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+    ]
+
+    const paginatedActivities = activities.slice(skip, skip + take)
+
+    return successResponse({
+      data: paginatedActivities,
+      total: activities.length,
+      skip,
+      take,
+      hasMore: skip + take < activities.length,
+    })
+  }),
+
+  // GET /api/organizations/:id/campaign-stats - Get organization campaign statistics
+  http.get('/api/organizations/:id/campaign-stats', async ({ params }) => {
+    await delay(DELAY.FAST)
+
+    const { id } = params
+
+    const org = mockOrganizations.find(o => o.id === id)
+
+    if (!org) {
+      return notFoundResponse('Organization')
+    }
+
+    // Calculate campaign statistics from mock data
+    const orgCampaigns = mockCampaigns.filter(c => c.organizationId === id)
+    const orgEnrollments = mockEnrollments.filter(e =>
+      orgCampaigns.some(c => c.id === e.campaignId)
+    )
+
+    const totalCampaigns = orgCampaigns.length
+    const activeCampaigns = orgCampaigns.filter(c => c.status === 'active').length
+    const completedCampaigns = orgCampaigns.filter(c => c.status === 'completed').length
+    const draftCampaigns = orgCampaigns.filter(c => c.status === 'draft').length
+
+    // Calculate budget from totalPayout
+    const totalBudget = orgCampaigns.reduce((sum, c) => sum + (c.totalPayout || 0) * 1.2, 0)
+    const spentBudget = orgCampaigns.reduce((sum, c) => sum + (c.totalPayout || 0), 0)
+    const remainingBudget = totalBudget - spentBudget
+
+    const totalEnrollments = orgEnrollments.length
+    const approvedEnrollments = orgEnrollments.filter(e => e.status === 'approved').length
+    const pendingEnrollments = orgEnrollments.filter(e =>
+      e.status === 'enrolled' || e.status === 'awaiting_submission' || e.status === 'awaiting_review'
+    ).length
+
+    return successResponse({
+      totalCampaigns,
+      activeCampaigns,
+      completedCampaigns,
+      draftCampaigns,
+      totalBudget,
+      spentBudget,
+      remainingBudget,
+      totalEnrollments,
+      approvedEnrollments,
+      pendingEnrollments,
+    })
   }),
 ]

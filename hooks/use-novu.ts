@@ -1,16 +1,12 @@
 'use client'
 
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { post } from '@/lib/axios'
-import type { ApiResponse } from '@/lib/types'
-
 /**
  * Novu React Hooks
  *
- * Provides hooks for Novu integration in the dashboard.
- * The NovuInbox component handles its own data fetching.
+ * Utility functions for Novu integration.
+ * Main hooks (useNotifications, useCounts, useNovu) come from @novu/react.
  *
- * @see https://docs.novu.co/platform/quickstart/nextjs
+ * @see https://docs.novu.co/platform/inbox/react/headless
  */
 
 // ============================================
@@ -19,7 +15,9 @@ import type { ApiResponse } from '@/lib/types'
 
 export const novuKeys = {
   all: ['novu'] as const,
-  subscriberHash: () => [...novuKeys.all, 'subscriber-hash'] as const,
+  notifications: () => [...novuKeys.all, 'notifications'] as const,
+  counts: () => [...novuKeys.all, 'counts'] as const,
+  preferences: () => [...novuKeys.all, 'preferences'] as const,
 }
 
 // ============================================
@@ -40,23 +38,16 @@ export function getNovuAppId(): string | undefined {
   return process.env.NEXT_PUBLIC_NOVU_APP_ID
 }
 
-// ============================================
-// Hooks
-// ============================================
+/**
+ * Get Novu API URL
+ */
+export function getNovuApiUrl(): string | undefined {
+  return process.env.NEXT_PUBLIC_NOVU_API_URL
+}
 
 /**
- * Sync the current user as a Novu subscriber
- *
- * Call this after authentication to ensure the user exists in Novu.
- * This is typically done automatically in the auth flow.
+ * Get Novu WebSocket URL
  */
-export function useSyncNovuSubscriber() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: () => post<ApiResponse<{ subscriberId: string; synced: boolean }>>('/api/novu/sync-subscriber', {}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: novuKeys.subscriberHash() })
-    },
-  })
+export function getNovuWsUrl(): string | undefined {
+  return process.env.NEXT_PUBLIC_NOVU_WS_URL
 }

@@ -13,6 +13,7 @@ export const ACTIVE_ORG_COOKIE = 'active-organization-id'
 export interface AuthContext {
   userId: string
   organizationId: string
+  authToken?: string
   user: {
     id: string
     email: string
@@ -45,30 +46,13 @@ type AuthCheckResult = AuthResult | AuthError
 
 /**
  * Get authenticated user context for API routes
- *
- * @example
- * export async function GET(request: NextRequest) {
- *   const auth = await getAuthContext(request)
- *   if (!auth.success) {
- *     return unauthorizedResponse(auth.error)
- *   }
- *   // Use auth.context.userId, auth.context.organizationId
- * }
+ * Used by Novu routes for subscriber authentication
  */
 export async function getAuthContext(_request?: NextRequest): Promise<AuthCheckResult> {
-  // In a real app, this would:
-  // 1. Extract the session token from cookies/headers
-  // 2. Verify the token with Better Auth
-  // 3. Return the user and organization info
-
-  // For now, return mock data for development
-  // TODO: Integrate with Better Auth server-side session verification
-
   const headersList = await headers()
   const authHeader = headersList.get('authorization')
 
   // Simulate authentication check
-  // In production, verify JWT/session token here
   if (authHeader === 'Bearer invalid') {
     return {
       success: false,
@@ -77,7 +61,7 @@ export async function getAuthContext(_request?: NextRequest): Promise<AuthCheckR
     }
   }
 
-  // Get active organization ID from cookie (set by client-side dashboard-shell)
+  // Get active organization ID from cookie
   const cookieStore = await cookies()
   const activeOrgId = cookieStore.get(ACTIVE_ORG_COOKIE)?.value
 
@@ -91,6 +75,7 @@ export async function getAuthContext(_request?: NextRequest): Promise<AuthCheckR
     context: {
       userId: mockUser.id,
       organizationId: organization.id,
+      authToken: authHeader?.replace('Bearer ', ''),
       user: {
         id: mockUser.id,
         email: mockUser.email,
@@ -107,50 +92,9 @@ export async function getAuthContext(_request?: NextRequest): Promise<AuthCheckR
 }
 
 /**
- * Higher-order function to protect API routes
- *
- * @example
- * export const GET = withAuth(async (request, context) => {
- *   const campaigns = await getCampaigns(context.organizationId)
- *   return successResponse(campaigns)
- * })
- */
-export function withAuth<T extends NextRequest>(
-  handler: (request: T, context: AuthContext) => Promise<NextResponse>
-) {
-  return async (request: T): Promise<NextResponse> => {
-    const auth = await getAuthContext(request)
-
-    if (!auth.success) {
-      return NextResponse.json(
-        { success: false, error: auth.error },
-        { status: auth.status }
-      )
-    }
-
-    return handler(request, auth.context)
-  }
-}
-
-// ============================================
-// Server Action Auth Helpers
-// ============================================
-
-/**
  * Get authenticated context for server actions
- *
- * @example
- * export async function createCampaign(data: unknown) {
- *   const auth = await getServerActionAuth()
- *   if (!auth.success) {
- *     return { success: false, error: auth.error }
- *   }
- *   // Use auth.context.organizationId
- * }
  */
 export async function getServerActionAuth(): Promise<AuthCheckResult> {
-  // Server actions use the same authentication mechanism
-  // In production, this would verify the session from cookies
   return getAuthContext()
 }
 

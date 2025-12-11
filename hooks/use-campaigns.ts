@@ -2,55 +2,36 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { get, post, patch, del } from '@/lib/axios'
-import type { AxiosError } from 'axios'
-import type {
-  Campaign,
-  CampaignStatus,
-  ApiResponse,
-  PaginatedResponse,
-  ApiError,
-} from '@/lib/types'
+import { getEncoreBrowserClient } from '@/lib/encore-browser'
+import type { campaigns, shared } from '@/lib/encore-browser'
 import { STALE_TIMES } from '@/lib/types'
 import { campaignKeys } from '@/lib/query-keys'
 
 // Re-export keys for backwards compatibility
 export { campaignKeys }
 
-// Retry configuration - don't retry on 4xx errors
-const shouldRetry = (failureCount: number, error: AxiosError<ApiError>) => {
-  if (error.response?.status && error.response.status >= 400 && error.response.status < 500) {
-    return false
-  }
-  return failureCount < 3
-}
-
 // ============================================
-// Types
+// Types - Re-export from Encore client for convenience
 // ============================================
 
+export type Campaign = campaigns.Campaign
+export type CampaignWithStats = campaigns.CampaignWithStats
+export type CampaignStats = campaigns.CampaignStats
+export type CampaignPricing = campaigns.CampaignPricing
+export type CampaignPerformance = campaigns.CampaignPerformance
+export type CampaignStatus = shared.CampaignStatus
+export type CampaignType = shared.CampaignType
+
+// Filter types
 export interface CampaignFilters {
-  status?: string
+  status?: CampaignStatus
   search?: string
   page?: number
   limit?: number
-  [key: string]: string | number | undefined
-}
-
-interface CreateCampaignData {
-  title: string
-  description?: string
-  productId: string
-  type: 'cashback' | 'barter' | 'hybrid'
-  isPublic: boolean
-  maxEnrollments: number
-  submissionDeadlineDays: number
-  startDate: string
-  endDate: string
-}
-
-interface UpdateCampaignData extends Partial<CreateCampaignData> {
-  status?: CampaignStatus
+  organizationId?: string
+  productId?: string
+  platformId?: string
+  categoryId?: string
 }
 
 // ============================================
@@ -58,35 +39,92 @@ interface UpdateCampaignData extends Partial<CreateCampaignData> {
 // ============================================
 
 /**
- * Fetch paginated list of campaigns
- * Returns full PaginatedResponse with data and meta
+ * Fetch paginated list of campaigns with stats
+ * Returns Encore's paginated response directly
  */
 export function useCampaigns(filters: CampaignFilters = {}) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: campaignKeys.list(filters),
-    queryFn: () => get<PaginatedResponse<Campaign>>('/api/campaigns', { params: filters }),
+    queryFn: () => client.campaigns.listCampaigns({
+      status: filters.status,
+      organizationId: filters.organizationId,
+      productId: filters.productId,
+      platformId: filters.platformId,
+      categoryId: filters.categoryId,
+      skip: filters.page ? (filters.page - 1) * (filters.limit || 20) : 0,
+      take: filters.limit || 20,
+    }),
     staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
   })
 }
 
 /**
- * Fetch single campaign by ID
- * Returns unwrapped Campaign data directly via select
+ * Fetch single campaign by ID with stats
  */
 export function useCampaign(id: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: campaignKeys.detail(id),
-    queryFn: () => get<ApiResponse<Campaign>>(`/api/campaigns/${id}`),
+    queryFn: () => client.campaigns.getCampaign(id),
     enabled: !!id,
     staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
+  })
+}
+
+/**
+ * Fetch campaigns data for SSR hydration
+ */
+export function useCampaignsData(status?: string) {
+  const client = getEncoreBrowserClient()
+
+  return useQuery({
+    queryKey: campaignKeys.data(status),
+    queryFn: async () => {
+      const response = await client.campaigns.listCampaigns({
+        status: status && status !== 'all' ? status as CampaignStatus : undefined,
+        take: 50,
+      })
+      return {
+        campaigns: response.data,
+        allCampaigns: response.data,
+        stats: {
+          total: response.total,
+          active: response.data.filter(c => c.status === 'active').length,
+          endingSoon: response.data.filter(c => {
+            const endDate = new Date(c.endDate)
+            const now = new Date()
+            const daysUntilEnd = (endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+            return c.status === 'active' && daysUntilEnd <= 7 && daysUntilEnd > 0
+          }).length,
+          draft: response.data.filter(c => c.status === 'draft').length,
+          pending: response.data.filter(c => c.status === 'pending_approval').length,
+          completed: response.data.filter(c => c.status === 'completed').length,
+          totalEnrollments: response.data.reduce((sum, c) => sum + c.currentEnrollments, 0),
+          totalPayout: response.data.reduce((sum, c) => sum + c.totalPayout, 0),
+        },
       }
-      throw new Error(response.error)
     },
+    staleTime: STALE_TIMES.STANDARD,
+  })
+}
+
+/**
+ * Fetch campaign detail data for SSR hydration
+ */
+export function useCampaignDetailData(id: string) {
+  const client = getEncoreBrowserClient()
+
+  return useQuery({
+    queryKey: [...campaignKeys.detail(id), 'ssr'] as const,
+    queryFn: async () => {
+      const campaign = await client.campaigns.getCampaign(id)
+      return { campaign, enrollments: [] }
+    },
+    enabled: !!id,
+    staleTime: STALE_TIMES.STANDARD,
   })
 }
 
@@ -99,10 +137,11 @@ export function useCampaign(id: string) {
  */
 export function useCreateCampaign() {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: (data: CreateCampaignData) =>
-      post<ApiResponse<Campaign>>('/api/campaigns', data),
+    mutationFn: (data: campaigns.CreateCampaignRequest) =>
+      client.campaigns.createCampaign(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() })
     },
@@ -114,10 +153,11 @@ export function useCreateCampaign() {
  */
 export function useUpdateCampaign(id: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: (data: UpdateCampaignData) =>
-      patch<ApiResponse<Campaign>>(`/api/campaigns/${id}`, data),
+    mutationFn: (data: campaigns.UpdateCampaignRequest) =>
+      client.campaigns.updateCampaign(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() })
       queryClient.invalidateQueries({ queryKey: campaignKeys.detail(id) })
@@ -130,10 +170,10 @@ export function useUpdateCampaign(id: string) {
  */
 export function useDeleteCampaign() {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: (id: string) =>
-      del<ApiResponse<void>>(`/api/campaigns/${id}`),
+    mutationFn: (id: string) => client.campaigns.deleteCampaign(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() })
     },
@@ -145,17 +185,33 @@ export function useDeleteCampaign() {
  */
 export function useUpdateCampaignStatus(id: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: (status: CampaignStatus) =>
-      patch<ApiResponse<Campaign>>(`/api/campaigns/${id}`, { status }),
-    // Optimistic update
+    mutationFn: async (status: CampaignStatus) => {
+      // Map status to the appropriate action
+      switch (status) {
+        case 'active':
+          return client.campaigns.activateCampaign(id)
+        case 'paused':
+          return client.campaigns.pauseCampaign(id, { reason: 'User requested pause' })
+        case 'ended':
+          return client.campaigns.endCampaign(id)
+        case 'cancelled':
+          return client.campaigns.cancelCampaign(id)
+        case 'completed':
+          return client.campaigns.completeCampaign(id)
+        case 'archived':
+          return client.campaigns.archiveCampaign(id)
+        default:
+          throw new Error(`Cannot directly set status to ${status}`)
+      }
+    },
     onMutate: async (newStatus) => {
       await queryClient.cancelQueries({ queryKey: campaignKeys.detail(id) })
+      const previousCampaign = queryClient.getQueryData<CampaignWithStats>(campaignKeys.detail(id))
 
-      const previousCampaign = queryClient.getQueryData<Campaign>(campaignKeys.detail(id))
-
-      queryClient.setQueryData<Campaign>(campaignKeys.detail(id), (old) => {
+      queryClient.setQueryData<CampaignWithStats>(campaignKeys.detail(id), (old) => {
         if (!old) return old
         return { ...old, status: newStatus }
       })
@@ -175,65 +231,6 @@ export function useUpdateCampaignStatus(id: string) {
 }
 
 // ============================================
-// SSR Hydration Hooks
-// ============================================
-
-/**
- * Fetch campaigns data for SSR hydration
- * Used by the campaigns page to hydrate React Query cache
- */
-export function useCampaignsData(status?: string) {
-  return useQuery({
-    queryKey: campaignKeys.data(status),
-    queryFn: async () => {
-      const response = await get<ApiResponse<{
-        campaigns: Campaign[]
-        allCampaigns: Campaign[]
-        stats: {
-          total: number
-          active: number
-          endingSoon: number
-          draft: number
-          pending: number
-          completed: number
-          totalEnrollments: number
-          totalPayout: number
-        }
-      }>>('/api/campaigns/data', { params: { status } })
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
-    staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-  })
-}
-
-/**
- * Fetch campaign detail data for SSR hydration
- * Used by the campaign detail page to hydrate React Query cache
- */
-export function useCampaignDetailData(id: string) {
-  return useQuery({
-    queryKey: [...campaignKeys.detail(id), 'ssr'] as const,
-    queryFn: async () => {
-      const response = await get<ApiResponse<{
-        campaign: Campaign
-        enrollments: { id: string; status: string }[]
-      }>>(`/api/campaigns/${id}/data`)
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
-    enabled: !!id,
-    staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-  })
-}
-
-// ============================================
 // Campaign Action Hooks
 // ============================================
 
@@ -242,10 +239,10 @@ export function useCampaignDetailData(id: string) {
  */
 export function useSubmitCampaign(id: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: () =>
-      post<ApiResponse<{ id: string; status: string; message: string }>>(`/api/campaigns/${id}/submit`, {}),
+    mutationFn: () => client.campaigns.submitForApproval(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() })
       queryClient.invalidateQueries({ queryKey: campaignKeys.detail(id) })
@@ -258,10 +255,10 @@ export function useSubmitCampaign(id: string) {
  */
 export function useActivateCampaign(id: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: () =>
-      post<ApiResponse<{ id: string; status: string; message: string }>>(`/api/campaigns/${id}/activate`, {}),
+    mutationFn: () => client.campaigns.activateCampaign(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() })
       queryClient.invalidateQueries({ queryKey: campaignKeys.detail(id) })
@@ -274,10 +271,11 @@ export function useActivateCampaign(id: string) {
  */
 export function usePauseCampaign(id: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: () =>
-      post<ApiResponse<{ id: string; status: string; message: string }>>(`/api/campaigns/${id}/pause`, {}),
+    mutationFn: (reason?: string) =>
+      client.campaigns.pauseCampaign(id, { reason: reason || 'Paused by user' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() })
       queryClient.invalidateQueries({ queryKey: campaignKeys.detail(id) })
@@ -290,10 +288,10 @@ export function usePauseCampaign(id: string) {
  */
 export function useResumeCampaign(id: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: () =>
-      post<ApiResponse<{ id: string; status: string; message: string }>>(`/api/campaigns/${id}/resume`, {}),
+    mutationFn: () => client.campaigns.resumeCampaign(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() })
       queryClient.invalidateQueries({ queryKey: campaignKeys.detail(id) })
@@ -306,10 +304,10 @@ export function useResumeCampaign(id: string) {
  */
 export function useEndCampaign(id: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: () =>
-      post<ApiResponse<{ id: string; status: string; message: string }>>(`/api/campaigns/${id}/end`, {}),
+    mutationFn: () => client.campaigns.endCampaign(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() })
       queryClient.invalidateQueries({ queryKey: campaignKeys.detail(id) })
@@ -322,10 +320,10 @@ export function useEndCampaign(id: string) {
  */
 export function useCompleteCampaign(id: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: () =>
-      post<ApiResponse<{ id: string; status: string; message: string }>>(`/api/campaigns/${id}/complete`, {}),
+    mutationFn: () => client.campaigns.completeCampaign(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() })
       queryClient.invalidateQueries({ queryKey: campaignKeys.detail(id) })
@@ -338,10 +336,10 @@ export function useCompleteCampaign(id: string) {
  */
 export function useArchiveCampaign(id: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: () =>
-      post<ApiResponse<{ id: string; status: string; message: string }>>(`/api/campaigns/${id}/archive`, {}),
+    mutationFn: () => client.campaigns.archiveCampaign(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() })
       queryClient.invalidateQueries({ queryKey: campaignKeys.detail(id) })
@@ -354,10 +352,10 @@ export function useArchiveCampaign(id: string) {
  */
 export function useCancelCampaign(id: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: () =>
-      post<ApiResponse<{ id: string; status: string; message: string }>>(`/api/campaigns/${id}/cancel`, {}),
+    mutationFn: () => client.campaigns.cancelCampaign(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() })
       queryClient.invalidateQueries({ queryKey: campaignKeys.detail(id) })
@@ -370,10 +368,11 @@ export function useCancelCampaign(id: string) {
  */
 export function useDuplicateCampaign(id: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: () =>
-      post<ApiResponse<Campaign>>(`/api/campaigns/${id}/duplicate`, {}),
+    mutationFn: (newTitle?: string) =>
+      client.campaigns.duplicateCampaign(id, { newTitle }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.lists() })
     },
@@ -384,70 +383,27 @@ export function useDuplicateCampaign(id: string) {
  * Validate a campaign
  */
 export function useCampaignValidation(id: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: [...campaignKeys.detail(id), 'validation'] as const,
-    queryFn: () => get<ApiResponse<{
-      isValid: boolean
-      errors: { field: string; message: string }[]
-      warnings: { field: string; message: string }[]
-      canSubmit: boolean
-    }>>(`/api/campaigns/${id}/validate`),
+    queryFn: () => client.campaigns.validateCampaign(id),
     enabled: !!id,
     staleTime: 0, // Always fresh
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
-}
-
-/**
- * Campaign stats response type
- */
-export interface CampaignStats {
-  totalEnrollments: number
-  pendingEnrollments: number
-  approvedEnrollments: number
-  rejectedEnrollments: number
-  changesRequested: number
-  awaitingSubmission: number
-  approvalRate: number
-  totalOrderValue: number
-  totalBillAmount: number
-  totalPayout: number
-  utilizationRate: number
-  daysRemaining: number
-  averageOrderValue: number
-  // Performance metrics
-  avgReviewTimeHours: number
-  rejectionRate: number
-  withdrawalRate: number
-  // Product info
-  productName: string
-  productImage: string | null
-  // Trend data for chart
-  enrollmentTrend: { name: string; enrollments: number; approved: number }[]
 }
 
 /**
  * Fetch campaign statistics
  */
 export function useCampaignStats(id: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: [...campaignKeys.detail(id), 'stats'] as const,
-    queryFn: () => get<ApiResponse<CampaignStats>>(`/api/campaigns/${id}/stats`),
+    queryFn: () => client.campaigns.getCampaignStats(id),
     enabled: !!id,
     staleTime: STALE_TIMES.REALTIME,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
@@ -455,40 +411,24 @@ export function useCampaignStats(id: string) {
 // Campaign Deliverables Hooks
 // ============================================
 
-/**
- * Fetch campaign deliverables
- */
-export function useCampaignDeliverables(id: string) {
-  return useQuery({
-    queryKey: [...campaignKeys.detail(id), 'deliverables'] as const,
-    queryFn: () => get<ApiResponse<{
-      id: string
-      name: string
-      slug: string
-      description: string
-      requiresProof: boolean
-    }[]>>(`/api/campaigns/${id}/deliverables`),
-    enabled: !!id,
-    staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
-  })
-}
+// Note: useCampaignDeliverables is exported from use-deliverables.ts
 
 /**
  * Update campaign deliverables (batch)
  */
 export function useUpdateCampaignDeliverables(id: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: (data: { deliverables: string[]; action?: 'replace' | 'add' | 'remove' }) =>
-      post<ApiResponse<{ id: string; deliverables: string[]; message: string }>>(`/api/campaigns/${id}/deliverables/batch`, data),
+    mutationFn: (data: {
+      deliverables: Array<{
+        deliverableId: string
+        quantity?: number
+        isRequired?: boolean
+        instructions?: string
+      }>
+    }) => client.campaigns.addCampaignDeliverablesBatch(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: campaignKeys.detail(id) })
     },
@@ -500,71 +440,40 @@ export function useUpdateCampaignDeliverables(id: string) {
 // ============================================
 
 /**
- * Campaign performance data for charts
- */
-export interface CampaignPerformance {
-  date: string
-  enrollments: number
-  approvals: number
-  rejections: number
-  orderValue: number
-  payouts: number
-}
-
-/**
  * Fetch campaign performance data for charts
  */
 export function useCampaignPerformance(id: string, days = 30) {
+  const client = getEncoreBrowserClient()
+
+  // Calculate date range
+  const endDate = new Date().toISOString().split('T')[0]
+  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
   return useQuery({
     queryKey: [...campaignKeys.detail(id), 'performance', days] as const,
-    queryFn: () => get<ApiResponse<CampaignPerformance[]>>(`/api/campaigns/${id}/performance`, { params: { days } }),
+    queryFn: () => client.campaigns.getCampaignPerformance(id, { startDate, endDate }),
     enabled: !!id,
     staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
+    select: (response) => response.data,
   })
-}
-
-/**
- * Campaign pricing breakdown
- */
-export interface CampaignPricing {
-  campaignId: string
-  rebatePercentage: number
-  billRate: number
-  platformFee: number
-  bonusAmount: number
-  tdsRate: number
-  gstRate: number
-  estimatedCostPerEnrollment: number
 }
 
 /**
  * Fetch campaign pricing details
  */
 export function useCampaignPricing(id: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: [...campaignKeys.detail(id), 'pricing'] as const,
-    queryFn: () => get<ApiResponse<CampaignPricing>>(`/api/campaigns/${id}/pricing`),
+    queryFn: () => client.campaigns.getCampaignPricing(id),
     enabled: !!id,
     staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
 /**
- * Payout estimate response
+ * Payout estimate response type
  */
 export interface PayoutEstimate {
   orderValue: number
@@ -578,14 +487,24 @@ export interface PayoutEstimate {
  * Calculate estimated payout for an order value
  */
 export function useCalculatePayoutEstimate(id: string) {
+  const client = getEncoreBrowserClient()
+
   return useMutation({
-    mutationFn: (orderValue: number) =>
-      post<ApiResponse<PayoutEstimate>>(`/api/campaigns/${id}/calculate-payout`, { orderValue }),
+    mutationFn: async (orderValue: number): Promise<PayoutEstimate> => {
+      const result = await client.campaigns.calculatePayoutEstimate(id, { orderValue })
+      return {
+        orderValue,
+        shopperPayout: result.shopperPayout,
+        brandCost: result.brandCost,
+        gstAmount: result.gstAmount,
+        platformFee: result.platformFee,
+      }
+    },
   })
 }
 
 // ============================================
-// Campaign Search Hook
+// Campaign Search Hooks
 // ============================================
 
 export interface CampaignSearchParams {
@@ -595,31 +514,17 @@ export interface CampaignSearchParams {
   status?: CampaignStatus
 }
 
-export interface CampaignSearchResult {
-  data: Campaign[]
-  total: number
-  skip: number
-  take: number
-  hasMore: boolean
-}
-
 /**
  * Search campaigns by title/description
- * Uses full-text search on the backend
  */
 export function useSearchCampaigns(params: CampaignSearchParams) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: [...campaignKeys.all, 'search', params] as const,
-    queryFn: () => get<ApiResponse<CampaignSearchResult>>('/api/campaigns/search', { params }),
+    queryFn: () => client.campaigns.searchCampaigns(params),
     enabled: !!params.q && params.q.length >= 2,
     staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 

@@ -17,11 +17,15 @@ import {
   paginateArray,
 } from './utils'
 
+// Valid role values matching API schema
+const VALID_ROLES = ['admin', 'manager', 'viewer'] as const
+type TeamRole = typeof VALID_ROLES[number]
+
 // Mock invitations storage
 const mockInvitations: Array<{
   id: string
   email: string
-  role: string
+  role: TeamRole
   message?: string
   organizationId: string
   invitedBy: string
@@ -134,6 +138,7 @@ export const teamHandlers = [
   }),
 
   // POST /api/team/members (Invite)
+  // Schema: { email: z.string().email(), role: z.enum(['admin', 'manager', 'viewer']), message?: z.string().max(500) }
   http.post('/api/team/members', async ({ request }) => {
     await delay(DELAY.MEDIUM)
 
@@ -147,8 +152,28 @@ export const teamHandlers = [
       message?: string
     }
 
-    if (!email || !role) {
-      return errorResponse('Email and role are required', 400)
+    if (!email) {
+      return errorResponse('Email is required', 400)
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return errorResponse('Invalid email address', 400)
+    }
+
+    if (!role) {
+      return errorResponse('Role is required', 400)
+    }
+
+    // Validate role is one of the allowed values
+    if (!VALID_ROLES.includes(role as TeamRole)) {
+      return errorResponse(`Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`, 400)
+    }
+
+    // Validate message length if provided
+    if (message && message.length > 500) {
+      return errorResponse('Message must be at most 500 characters', 400)
     }
 
     // Check if user is already a member
@@ -171,7 +196,7 @@ export const teamHandlers = [
     const invitation = {
       id: `inv-${Date.now()}`,
       email,
-      role,
+      role: role as TeamRole,
       message,
       organizationId: orgId,
       invitedBy: auth.userId,

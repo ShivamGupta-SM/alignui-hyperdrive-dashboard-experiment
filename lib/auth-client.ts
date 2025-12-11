@@ -14,10 +14,10 @@ import { passkeyClient } from "@better-auth/passkey/client"
 import { createAuthClient } from "better-auth/react"
 
 // Create auth client with all plugins for full functionality
-// Using type assertion to work around version mismatch between better-auth types
+// Points directly to Encore backend where Better-Auth is configured
 export const authClient = createAuthClient({
-    // Use local API routes for dummy auth (point to external URL for real auth server)
-    baseURL: typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
+    // Point to Encore backend for real auth (Better-Auth runs on Encore)
+    baseURL: process.env.NEXT_PUBLIC_ENCORE_URL || "http://localhost:4000",
     plugins: [
         apiKeyClient(),
         multiSessionClient(),

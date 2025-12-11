@@ -4,18 +4,36 @@ import * as React from 'react'
 import { cn } from '@/utils/cn'
 import * as Drawer from '@/components/ui/drawer'
 import {
-  UserPlus,
   Check,
   Wallet,
   Warning,
-  UsersThree,
   FileText,
   BellSimple,
   CheckCircle,
   X,
+  Play,
+  Stop,
+  ShieldCheck,
+  XCircle,
+  Megaphone,
 } from '@phosphor-icons/react'
 import { useRouter } from 'next/navigation'
-import type { Notification, NotificationType } from '@/lib/types'
+import type { notifications } from '@/lib/encore-browser'
+
+// Use Encore's notification types
+type NotificationType = notifications.NotificationType
+
+interface Notification {
+  id: string
+  userId: string
+  type: NotificationType
+  title: string
+  message: string
+  actionUrl?: string
+  actionLabel?: string
+  isRead: boolean
+  createdAt: string | Date
+}
 
 interface NotificationsDrawerProps {
   open: boolean
@@ -27,16 +45,16 @@ interface NotificationsDrawerProps {
   isLoading?: boolean
 }
 
-// Mock notifications for fallback
+// Mock notifications for fallback (using Encore NotificationType values)
 const mockNotifications: Notification[] = [
   {
     id: '1',
     userId: '1',
-    type: 'enrollment_new',
-    title: 'New Enrollment',
-    message: 'John D. enrolled in Nike Summer Sale',
+    type: 'enrollment_approved',
+    title: 'Enrollment Approved',
+    message: 'Your enrollment in Nike Summer Sale was approved',
     actionUrl: '/dashboard/enrollments/1',
-    actionLabel: 'Review Now',
+    actionLabel: 'View Details',
     isRead: false,
     createdAt: new Date(Date.now() - 2 * 60 * 1000),
   },
@@ -54,7 +72,7 @@ const mockNotifications: Notification[] = [
   {
     id: '3',
     userId: '1',
-    type: 'wallet_credit',
+    type: 'payment_received',
     title: 'Payment Received',
     message: '₹50,000 has been credited to your wallet',
     actionUrl: '/dashboard/wallet',
@@ -65,82 +83,138 @@ const mockNotifications: Notification[] = [
   {
     id: '4',
     userId: '1',
-    type: 'wallet_low_balance',
-    title: 'Low Balance Alert',
-    message: 'Wallet balance below ₹10,000. Add funds to prevent campaign pauses.',
-    actionUrl: '/dashboard/wallet',
-    actionLabel: 'Add Funds',
+    type: 'invoice_generated',
+    title: 'New Invoice',
+    message: 'Invoice #INV-2024-001 has been generated',
+    actionUrl: '/dashboard/invoices',
+    actionLabel: 'View Invoice',
     isRead: true,
     createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
   },
   {
     id: '5',
     userId: '1',
-    type: 'team_member_joined',
-    title: 'Team Update',
-    message: 'Sarah Wilson has joined your organization',
-    actionUrl: '/dashboard/team',
-    actionLabel: 'View Team',
+    type: 'kyc_verified',
+    title: 'KYC Verified',
+    message: 'Your KYC verification has been completed',
+    actionUrl: '/dashboard/settings',
+    actionLabel: 'View Settings',
     isRead: true,
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
   },
 ]
 
-const notificationIcons: Record<NotificationType, React.ElementType> = {
-  enrollment_new: UserPlus,
-  enrollment_approved: Check,
-  enrollment_rejected: Warning,
+// Icon mapping for Encore NotificationType
+const notificationIcons: Partial<Record<NotificationType, React.ElementType>> = {
   campaign_approved: CheckCircle,
   campaign_rejected: Warning,
-  wallet_credit: Wallet,
-  wallet_low_balance: Warning,
-  team_member_joined: UsersThree,
+  campaign_started: Play,
+  campaign_ended: Stop,
+  enrollment_approved: Check,
+  enrollment_rejected: Warning,
+  deliverable_approved: Check,
+  deliverable_rejected: Warning,
+  revision_requested: Warning,
+  payment_received: Wallet,
+  withdrawal_completed: Wallet,
+  withdrawal_failed: Warning,
+  kyc_verified: ShieldCheck,
+  kyc_rejected: XCircle,
   invoice_generated: FileText,
+  invoice_overdue: Warning,
+  system_announcement: Megaphone,
+  general: BellSimple,
 }
 
-const notificationStyles: Record<NotificationType, { bg: string; icon: string; border: string }> = {
-  enrollment_new: { 
-    bg: 'bg-primary-alpha-10', 
+// Style mapping for Encore NotificationType
+const notificationStyles: Partial<Record<NotificationType, { bg: string; icon: string; border: string }>> = {
+  campaign_approved: {
+    bg: 'bg-success-lighter',
+    icon: 'text-success-base',
+    border: 'border-success-base/20'
+  },
+  campaign_rejected: {
+    bg: 'bg-error-lighter',
+    icon: 'text-error-base',
+    border: 'border-error-base/20'
+  },
+  campaign_started: {
+    bg: 'bg-primary-alpha-10',
     icon: 'text-primary-base',
     border: 'border-primary-base/20'
   },
-  enrollment_approved: { 
-    bg: 'bg-success-lighter', 
+  campaign_ended: {
+    bg: 'bg-bg-weak-50',
+    icon: 'text-text-sub-600',
+    border: 'border-stroke-soft-200'
+  },
+  enrollment_approved: {
+    bg: 'bg-success-lighter',
     icon: 'text-success-base',
     border: 'border-success-base/20'
   },
-  enrollment_rejected: { 
-    bg: 'bg-error-lighter', 
+  enrollment_rejected: {
+    bg: 'bg-error-lighter',
     icon: 'text-error-base',
     border: 'border-error-base/20'
   },
-  campaign_approved: { 
-    bg: 'bg-success-lighter', 
+  deliverable_approved: {
+    bg: 'bg-success-lighter',
     icon: 'text-success-base',
     border: 'border-success-base/20'
   },
-  campaign_rejected: { 
-    bg: 'bg-error-lighter', 
+  deliverable_rejected: {
+    bg: 'bg-error-lighter',
     icon: 'text-error-base',
     border: 'border-error-base/20'
   },
-  wallet_credit: { 
-    bg: 'bg-success-lighter', 
-    icon: 'text-success-base',
-    border: 'border-success-base/20'
-  },
-  wallet_low_balance: { 
-    bg: 'bg-warning-lighter', 
+  revision_requested: {
+    bg: 'bg-warning-lighter',
     icon: 'text-warning-base',
     border: 'border-warning-base/20'
   },
-  team_member_joined: { 
-    bg: 'bg-information-lighter', 
+  payment_received: {
+    bg: 'bg-success-lighter',
+    icon: 'text-success-base',
+    border: 'border-success-base/20'
+  },
+  withdrawal_completed: {
+    bg: 'bg-success-lighter',
+    icon: 'text-success-base',
+    border: 'border-success-base/20'
+  },
+  withdrawal_failed: {
+    bg: 'bg-error-lighter',
+    icon: 'text-error-base',
+    border: 'border-error-base/20'
+  },
+  kyc_verified: {
+    bg: 'bg-success-lighter',
+    icon: 'text-success-base',
+    border: 'border-success-base/20'
+  },
+  kyc_rejected: {
+    bg: 'bg-error-lighter',
+    icon: 'text-error-base',
+    border: 'border-error-base/20'
+  },
+  invoice_generated: {
+    bg: 'bg-information-lighter',
     icon: 'text-information-base',
     border: 'border-information-base/20'
   },
-  invoice_generated: { 
-    bg: 'bg-bg-weak-50', 
+  invoice_overdue: {
+    bg: 'bg-warning-lighter',
+    icon: 'text-warning-base',
+    border: 'border-warning-base/20'
+  },
+  system_announcement: {
+    bg: 'bg-primary-alpha-10',
+    icon: 'text-primary-base',
+    border: 'border-primary-base/20'
+  },
+  general: {
+    bg: 'bg-bg-weak-50',
     icon: 'text-text-sub-600',
     border: 'border-stroke-soft-200'
   },
@@ -202,7 +276,7 @@ export function NotificationsDrawer({
     return groups
   }, [filteredNotifications])
 
-  const formatTime = (date: Date) => {
+  const formatTime = (date: Date | string) => {
     const now = new Date()
     const diff = now.getTime() - new Date(date).getTime()
     const minutes = Math.floor(diff / 60000)
@@ -321,8 +395,12 @@ export function NotificationsDrawer({
                   {/* Notification Items */}
                   <div className="px-3 py-2">
                     {group.notifications.map((notification) => {
-                      const Icon = notificationIcons[notification.type]
-                      const styles = notificationStyles[notification.type]
+                      const Icon = notificationIcons[notification.type] || BellSimple
+                      const styles = notificationStyles[notification.type] || {
+                        bg: 'bg-bg-weak-50',
+                        icon: 'text-text-sub-600',
+                        border: 'border-stroke-soft-200'
+                      }
 
                       const handleClick = () => {
                         // Mark as read if unread

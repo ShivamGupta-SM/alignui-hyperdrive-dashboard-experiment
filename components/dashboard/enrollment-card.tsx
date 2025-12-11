@@ -1,13 +1,12 @@
 'use client'
 
-import * as React from 'react'
 import { cn } from '@/utils/cn'
 import * as Avatar from '@/components/ui/avatar'
 import * as Badge from '@/components/ui/badge'
 import * as Button from '@/components/ui/button'
 import * as Checkbox from '@/components/ui/checkbox'
-import { ArrowSquareOut, Clock, SealCheck, CurrencyCircleDollar, Info } from '@phosphor-icons/react'
-import type { Enrollment, EnrollmentStatus } from '@/lib/types'
+import { ArrowSquareOut, SealCheck, CurrencyCircleDollar, Info } from '@phosphor-icons/react'
+import type { EnrollmentWithRelations } from '@/hooks/use-enrollments'
 import { ENROLLMENT_STATUS_CONFIG } from '@/lib/constants'
 
 // Color palette for avatar initials based on first letter
@@ -18,7 +17,7 @@ const getAvatarColor = (name: string): 'blue' | 'purple' | 'sky' | 'yellow' | 'r
 }
 
 interface EnrollmentCardProps {
-  enrollment: Enrollment
+  enrollment: EnrollmentWithRelations
   onReview?: () => void
   onView?: () => void
   selected?: boolean
@@ -40,16 +39,8 @@ export function EnrollmentCard({
     return `₹${amount.toLocaleString('en-IN')}`
   }
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-IN', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
-  }
-
   const isReviewable = enrollment.status === 'awaiting_review'
-  const shopperName = enrollment.shopper?.name || 'Unknown'
+  const shopperName = enrollment.shopper?.displayName || 'Unknown'
 
   return (
     <div className={cn(
@@ -69,9 +60,9 @@ export function EnrollmentCard({
         )}
 
         {/* Shopper Avatar */}
-        {enrollment.shopper?.avatar ? (
+        {enrollment.shopper?.avatarUrl ? (
           <Avatar.Root size="40">
-            <Avatar.Image src={enrollment.shopper.avatar} alt={shopperName} />
+            <Avatar.Image src={enrollment.shopper.avatarUrl} alt={shopperName} />
           </Avatar.Root>
         ) : (
           <Avatar.Root size="40" color={getAvatarColor(shopperName)}>
@@ -84,7 +75,7 @@ export function EnrollmentCard({
           <div className="flex items-center justify-between gap-2 mb-1">
             <div className="flex items-center gap-2">
               <span className="text-label-md text-text-strong-950">
-                {enrollment.shopper?.name || 'Unknown Shopper'}
+                {enrollment.shopper?.displayName || 'Unknown Shopper'}
               </span>
               {enrollment.shopper && enrollment.shopper.approvalRate >= 90 && (
                 <SealCheck className="size-4 text-success-base" weight="duotone" />
@@ -105,33 +96,13 @@ export function EnrollmentCard({
             <span className="text-stroke-soft-200">•</span>
             <span>{formatCurrency(enrollment.orderValue)}</span>
             <span className="text-stroke-soft-200">•</span>
-            <span>{enrollment.platform}</span>
+            <span>{enrollment.platform?.name || 'Unknown'}</span>
           </div>
 
           {/* Campaign Name (optional) */}
           {showCampaign && enrollment.campaign && (
             <div className="text-paragraph-xs text-text-soft-400 mt-1">
               {enrollment.campaign.title}
-            </div>
-          )}
-
-          {/* OCR Verification Status */}
-          {enrollment.ocrData && (
-            <div className={cn(
-              'flex items-center gap-1 mt-2 text-paragraph-xs',
-              enrollment.ocrData.isVerified ? 'text-success-base' : 'text-warning-base'
-            )}>
-              {enrollment.ocrData.isVerified ? (
-                <>
-                  <SealCheck className="size-3.5" weight="duotone" />
-                  <span>OCR Verified ({enrollment.ocrData.confidence}% confidence)</span>
-                </>
-              ) : (
-                <>
-                  <Clock className="size-3.5" weight="duotone" />
-                  <span>Pending verification</span>
-                </>
-              )}
             </div>
           )}
 
@@ -165,7 +136,7 @@ export function EnrollmentCard({
           <div className="flex items-center justify-between text-paragraph-sm">
             <span className="text-text-sub-600">Your cost for this enrollment:</span>
             <span className="text-label-sm text-text-strong-950">
-              {formatCurrency(enrollment.totalCost)}
+              {formatCurrency(Math.round(enrollment.orderValue * (enrollment.lockedBillRate / 100) * 1.18))}
             </span>
           </div>
         </div>
@@ -176,7 +147,7 @@ export function EnrollmentCard({
 
 // Table row version
 interface EnrollmentTableRowProps {
-  enrollment: Enrollment
+  enrollment: EnrollmentWithRelations
   onReview?: () => void
   onView?: () => void
   selected?: boolean
@@ -213,17 +184,17 @@ export function EnrollmentTableRow({
       )}
       <td className="py-3 px-4">
         <div className="flex items-center gap-3">
-          {enrollment.shopper?.avatar ? (
+          {enrollment.shopper?.avatarUrl ? (
             <Avatar.Root size="32">
-              <Avatar.Image src={enrollment.shopper.avatar} alt={enrollment.shopper?.name || 'Unknown'} />
+              <Avatar.Image src={enrollment.shopper.avatarUrl} alt={enrollment.shopper?.displayName || 'Unknown'} />
             </Avatar.Root>
           ) : (
-            <Avatar.Root size="32" color={getAvatarColor(enrollment.shopper?.name || 'U')}>
-              {(enrollment.shopper?.name || 'U').charAt(0).toUpperCase()}
+            <Avatar.Root size="32" color={getAvatarColor(enrollment.shopper?.displayName || 'U')}>
+              {(enrollment.shopper?.displayName || 'U').charAt(0).toUpperCase()}
             </Avatar.Root>
           )}
           <span className="text-label-sm text-text-strong-950">
-            {enrollment.shopper?.name || 'Unknown'}
+            {enrollment.shopper?.displayName || 'Unknown'}
           </span>
         </div>
       </td>

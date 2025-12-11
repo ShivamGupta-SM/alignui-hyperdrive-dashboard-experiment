@@ -32,19 +32,23 @@ import { VisaIcon, MastercardIcon, AmexIcon, DiscoverIcon, PaypalIcon, UnionPayI
 import { cn } from '@/utils/cn'
 import { useWalletSearchParams } from '@/hooks'
 import { useWalletData, useWithdrawals, useCancelWithdrawal, useWithdrawalStats } from '@/hooks/use-wallet'
-import type { Withdrawal } from '@/hooks/use-wallet'
+import type { Withdrawal, WalletTransaction, Wallet as WalletData } from '@/hooks/use-wallet'
+import { useRequestCreditIncrease, useCurrentOrganization } from '@/hooks/use-organizations'
 import { useMediaQuery } from 'usehooks-ts'
 import { THRESHOLDS } from '@/lib/types/constants'
 import { exportTransactions } from '@/lib/excel'
-import type { Transaction, WalletBalance } from '@/lib/types'
 import { TRANSACTION_TYPE_CONFIG } from '@/lib/constants'
-import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { requestCredit } from '@/app/actions'
 
-const defaultWallet: WalletBalance = {
+const defaultWallet: WalletData = {
+  id: '',
+  holderId: '',
+  holderType: 'organization',
+  currency: 'INR',
+  balance: 0,
+  pendingBalance: 0,
   availableBalance: 0,
-  heldAmount: 0,
+  createdAt: new Date().toISOString(),
   creditLimit: 0,
   creditUtilized: 0,
 }
@@ -93,14 +97,14 @@ export function WalletClient() {
     return `₹${amount.toLocaleString('en-IN')}`
   }
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
     return new Date(date).toLocaleDateString('en-IN', {
       month: 'short',
       day: 'numeric',
     })
   }
 
-  const formatTime = (date: Date) => {
+  const formatTime = (date: Date | string) => {
     return new Date(date).toLocaleTimeString('en-IN', {
       hour: 'numeric',
       minute: '2-digit',
@@ -110,7 +114,7 @@ export function WalletClient() {
 
   const creditUtilization = React.useMemo(() => {
     if (!wallet.creditLimit) return 0
-    return Math.round((wallet.creditUtilized / wallet.creditLimit) * 100)
+    return Math.round(((wallet.creditUtilized ?? 0) / wallet.creditLimit) * 100)
   }, [wallet.creditLimit, wallet.creditUtilized])
 
   const filteredTransactions = React.useMemo(() => {
@@ -118,23 +122,22 @@ export function WalletClient() {
     return transactions.filter((t) => t.type === transactionFilter)
   }, [transactions, transactionFilter])
 
-  const getTransactionStatus = (type: Transaction['type']) => {
+  const getTransactionStatus = (type: WalletTransaction['type']) => {
     switch (type) {
       case 'credit':
-      case 'refund':
-      case 'hold_voided':
+      case 'release':
         return 'completed' as const
-      case 'hold_created':
+      case 'hold':
         return 'pending' as const
       case 'hold_committed':
-      case 'withdrawal':
+      case 'debit':
         return 'disabled' as const
       default:
         return 'disabled' as const
     }
   }
 
-  const totalHeld = activeHolds.reduce((acc, h) => acc + h.holdAmount, 0)
+  const totalHeld = activeHolds.reduce((acc, h) => acc + h.amount, 0)
 
   return (
     <Tooltip.Provider>
@@ -172,7 +175,7 @@ export function WalletClient() {
           <div>
             <p className="text-paragraph-sm text-white/80 mb-1.5">Total Balance</p>
             <h2 className="text-title-h2 sm:text-[42px] font-bold tracking-tight leading-none">
-              {formatCurrency(wallet.availableBalance + wallet.heldAmount)}
+              {formatCurrency(wallet.availableBalance + wallet.pendingBalance)}
             </h2>
           </div>
           <div className="flex size-11 sm:size-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
@@ -187,7 +190,7 @@ export function WalletClient() {
           </div>
           <div>
             <p className="text-[11px] text-white/60 uppercase tracking-wider mb-1">On Hold</p>
-            <p className="text-label-lg sm:text-title-h5 font-semibold">{formatCurrency(wallet.heldAmount)}</p>
+            <p className="text-label-lg sm:text-title-h5 font-semibold">{formatCurrency(wallet.pendingBalance)}</p>
           </div>
         </div>
       </div>
@@ -205,7 +208,7 @@ export function WalletClient() {
                 <span className="text-label-sm text-text-sub-600">Credit Limit</span>
               </div>
               <p className="text-label-lg sm:text-title-h5 text-text-strong-950 font-semibold mt-2">
-                {formatCurrency(wallet.creditLimit)}
+                {formatCurrency(wallet.creditLimit ?? 0)}
               </p>
             </div>
             <ProgressCircle.Root value={creditUtilization} size="48" className="shrink-0">
@@ -214,7 +217,7 @@ export function WalletClient() {
           </div>
           <div className="flex items-center justify-between pt-3 border-t border-stroke-soft-200 mt-auto">
             <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">
-              {formatCurrency(wallet.creditUtilized)} utilized
+              {formatCurrency(wallet.creditUtilized ?? 0)} utilized
             </p>
             <button
               type="button"
@@ -392,7 +395,15 @@ export function WalletClient() {
           {activeSection === 'withdrawals' && (
             <>
               {/* Withdrawal Stats Overview */}
-              {withdrawalStats && (
+              {withdrawalStats && (() => {
+                // Extract counts from countByStatus map
+                const completedCount = withdrawalStats.countByStatus?.completed ?? 0
+                const pendingCount = withdrawalStats.pendingApprovalCount ?? 0
+                const successRate = withdrawalStats.totalCount > 0
+                  ? Math.round((completedCount / withdrawalStats.totalCount) * 100)
+                  : 0
+
+                return (
                 <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-4 mb-4">
                   <div className="flex items-center gap-3 rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200">
                     <div className="flex size-9 items-center justify-center rounded-lg bg-success-lighter text-success-base">
@@ -400,7 +411,7 @@ export function WalletClient() {
                     </div>
                     <div>
                       <span className="block text-paragraph-xs text-text-soft-400">Completed</span>
-                      <span className="text-label-lg text-success-base font-semibold">{withdrawalStats.completedCount}</span>
+                      <span className="text-label-lg text-success-base font-semibold">{completedCount}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200">
@@ -409,7 +420,7 @@ export function WalletClient() {
                     </div>
                     <div>
                       <span className="block text-paragraph-xs text-text-soft-400">Pending</span>
-                      <span className="text-label-lg text-warning-base font-semibold">{withdrawalStats.pendingCount + withdrawalStats.processingCount}</span>
+                      <span className="text-label-lg text-warning-base font-semibold">{pendingCount}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200">
@@ -417,14 +428,14 @@ export function WalletClient() {
                       <Bank weight="duotone" className="size-4" />
                     </div>
                     <div>
-                      <span className="block text-paragraph-xs text-text-soft-400">This Month</span>
-                      <span className="text-label-lg text-text-strong-950 font-semibold">₹{(withdrawalStats.thisMonthAmount / 1000).toFixed(0)}K</span>
+                      <span className="block text-paragraph-xs text-text-soft-400">Total Amount</span>
+                      <span className="text-label-lg text-text-strong-950 font-semibold">₹{(withdrawalStats.totalAmount / 1000).toFixed(0)}K</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200">
                     <div className={cn(
                       "flex size-9 items-center justify-center rounded-lg",
-                      withdrawalStats.successRate >= 90 ? "bg-success-lighter text-success-base" : "bg-warning-lighter text-warning-base"
+                      successRate >= 90 ? "bg-success-lighter text-success-base" : "bg-warning-lighter text-warning-base"
                     )}>
                       <ArrowUp weight="bold" className="size-4" />
                     </div>
@@ -432,12 +443,13 @@ export function WalletClient() {
                       <span className="block text-paragraph-xs text-text-soft-400">Success Rate</span>
                       <span className={cn(
                         "text-label-lg font-semibold",
-                        withdrawalStats.successRate >= 90 ? "text-success-base" : "text-warning-base"
-                      )}>{withdrawalStats.successRate}%</span>
+                        successRate >= 90 ? "text-success-base" : "text-warning-base"
+                      )}>{successRate}%</span>
                     </div>
                   </div>
                 </div>
-              )}
+                )
+              })()}
 
               {/* Withdrawals Header */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -532,14 +544,14 @@ export function WalletClient() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-label-sm text-text-strong-950 truncate">
-                          {hold.campaignName}
+                          {hold.campaignTitle}
                         </p>
                         <p className="text-paragraph-xs text-text-soft-400 mt-0.5">
-                          {hold.enrollmentCount} pending enrollments
+                          Enrollment: {hold.enrollmentId.slice(-8)}
                         </p>
                       </div>
                       <p className="text-label-md text-text-strong-950 font-semibold tabular-nums shrink-0 min-w-[60px] text-right">
-                        {formatCurrencyShort(hold.holdAmount)}
+                        {formatCurrencyShort(hold.amount)}
                       </p>
                     </div>
                   </div>
@@ -693,34 +705,41 @@ function CreditRequestContent({
   onClose: () => void
   onSuccess: () => void
 }) {
-  const router = useRouter()
   const [requestedLimit, setRequestedLimit] = React.useState('')
   const [reason, setReason] = React.useState('')
-  const [isLoading, setIsLoading] = React.useState(false)
   const creditLimitId = React.useId()
   const reasonId = React.useId()
 
-  const handleSubmit = async () => {
-    setIsLoading(true)
-    try {
-      const result = await requestCredit({
-        amount: Number(requestedLimit),
-        reason,
-      })
-      if (result.success) {
-        toast.success(result.message || 'Credit request submitted successfully')
-        setRequestedLimit('')
-        setReason('')
-        onSuccess()
-        router.refresh()
-      } else {
-        toast.error(result.error || 'Failed to submit credit request')
-      }
-    } catch {
-      toast.error('Something went wrong. Please try again.')
-    } finally {
-      setIsLoading(false)
+  // Get current organization for the credit increase request
+  const { data: currentOrganization } = useCurrentOrganization()
+  const requestCreditIncrease = useRequestCreditIncrease()
+
+  const handleSubmit = () => {
+    if (!currentOrganization?.id) {
+      toast.error('Organization not found. Please try again.')
+      return
     }
+
+    requestCreditIncrease.mutate(
+      {
+        organizationId: currentOrganization.id,
+        requestedAmount: Number(requestedLimit),
+        reason,
+      },
+      {
+        onSuccess: (response) => {
+          if (response.success) {
+            toast.success('Credit request submitted successfully')
+            setRequestedLimit('')
+            setReason('')
+            onSuccess()
+          }
+        },
+        onError: () => {
+          toast.error('Failed to submit credit request')
+        },
+      }
+    )
   }
 
   return (
@@ -774,9 +793,9 @@ function CreditRequestContent({
         <Button.Root
           variant="primary"
           onClick={handleSubmit}
-          disabled={isLoading || !requestedLimit || !reason}
+          disabled={requestCreditIncrease.isPending || !requestedLimit || !reason}
         >
-          {isLoading ? 'Submitting...' : 'Submit Request'}
+          {requestCreditIncrease.isPending ? 'Submitting...' : 'Submit Request'}
         </Button.Root>
       </div>
     </>
@@ -930,11 +949,11 @@ function WithdrawalItem({
                 {config.label}
               </StatusBadge.Root>
             </div>
-            {withdrawal.bankAccountName && (
+            {withdrawal.withdrawalMethodId && (
               <div className="flex items-center gap-1.5 mt-1.5">
                 <Bank weight="duotone" className="size-3.5 text-text-soft-400 shrink-0" />
                 <span className="text-paragraph-xs text-text-sub-600 truncate">
-                  {withdrawal.bankAccountName} •••• {withdrawal.bankAccountLast4}
+                  Bank Transfer
                 </span>
               </div>
             )}

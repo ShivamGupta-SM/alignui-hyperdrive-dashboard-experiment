@@ -24,27 +24,32 @@ import {
 } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import { toast } from 'sonner'
-import type { Product } from '@/lib/types'
+import type { products } from '@/lib/encore-browser'
 import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useBulkImportProducts } from '@/hooks/use-products'
 import type { BulkImportProduct, BulkImportResult } from '@/hooks/use-products'
 import { useCategories } from '@/hooks/use-categories'
 import { usePlatforms } from '@/hooks/use-platforms'
 
+type Product = products.ProductWithStats
+
 // Get stats from products
-const getStats = (products: Product[]) => {
-  const total = products.length
-  const withCampaigns = products.filter(p => p.campaignCount > 0).length
-  const totalCampaigns = products.reduce((acc, p) => acc + p.campaignCount, 0)
-  const categories = new Set(products.map(p => p.category)).size
+const getStats = (productList: Product[]) => {
+  const total = productList.length
+  const withCampaigns = productList.filter(p => p.campaignCount > 0).length
+  const totalCampaigns = productList.reduce((acc, p) => acc + p.campaignCount, 0)
+  const categories = new Set(productList.map(p => p.categoryId).filter(Boolean)).size
 
   return { total, withCampaigns, totalCampaigns, categories }
 }
 
 export function ProductsClient() {
   // API hooks
-  const { data: products = [] } = useProducts()
-  const { data: categories = [], isLoading: isLoadingCategories } = useCategories()
-  const { data: platforms = [], isLoading: isLoadingPlatforms } = usePlatforms()
+  const { data: productsData } = useProducts()
+  const products = productsData?.data ?? []
+  const { data: categoriesData, isLoading: isLoadingCategories } = useCategories()
+  const categories = categoriesData?.data ?? []
+  const { data: platformsData, isLoading: isLoadingPlatforms } = usePlatforms()
+  const platforms = platformsData?.data ?? []
   const deleteProduct = useDeleteProduct()
   const bulkImport = useBulkImportProducts()
   const [search, setSearch] = React.useState('')
@@ -66,11 +71,11 @@ export function ProductsClient() {
     }
 
     if (categoryFilter !== 'all') {
-      result = result.filter((p) => p.category === categoryFilter)
+      result = result.filter((p) => p.categoryId === categoryFilter)
     }
 
     if (platformFilter !== 'all') {
-      result = result.filter((p) => p.platform === platformFilter)
+      result = result.filter((p) => p.platformId === platformFilter)
     }
 
     return result
@@ -294,18 +299,18 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
     'Any Platform': 'bg-gray-100 text-gray-600',
   }
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('en-IN', { month: 'short', day: 'numeric' }).format(date)
+  const formatDate = (date: Date | string) => {
+    return new Intl.DateTimeFormat('en-IN', { month: 'short', day: 'numeric' }).format(new Date(date))
   }
 
   return (
     <div className="group rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden hover:ring-primary-base/50 hover:shadow-lg transition-all duration-200">
       {/* Image Container - 4:3 on mobile, square on desktop */}
       <div className="aspect-[4/3] sm:aspect-square bg-bg-weak-50 relative overflow-hidden">
-        {product.image ? (
+        {product.productImages?.[0] ? (
           <>
             <img
-              src={product.image}
+              src={product.productImages[0]}
               alt={product.name}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
@@ -335,9 +340,9 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
         <div className="absolute top-2 right-2">
           <span className={cn(
             "px-2 py-1 rounded-lg text-label-xs font-medium backdrop-blur-sm",
-            platformColors[product.platform] || 'bg-gray-100 text-gray-600'
+            platformColors[product.platformId || ''] || 'bg-gray-100 text-gray-600'
           )}>
-            {product.platform}
+            {product.platformId || 'N/A'}
           </span>
         </div>
 
@@ -348,9 +353,9 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
               <Button.Icon as={PencilSimple} />
               Edit
             </Button.Root>
-            {product.productUrl && (
+            {product.productLink && (
               <Button.Root variant="basic" size="xsmall" asChild className="bg-white/95 backdrop-blur-sm shadow-sm">
-                <a href={product.productUrl} target="_blank" rel="noopener noreferrer">
+                <a href={product.productLink} target="_blank" rel="noopener noreferrer">
                   <Button.Icon as={ArrowSquareOut} />
                 </a>
               </Button.Root>
@@ -367,7 +372,7 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
         {/* Category tag */}
         <div className="mb-2">
           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium uppercase tracking-wide bg-primary-alpha-10 text-primary-base">
-            {product.category}
+            {product.categoryId || 'Uncategorized'}
           </span>
         </div>
 
@@ -386,9 +391,9 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
           <span className="text-paragraph-xs text-text-soft-400">
             Added {formatDate(product.createdAt)}
           </span>
-          {product.productUrl ? (
+          {product.productLink ? (
             <a
-              href={product.productUrl}
+              href={product.productLink}
               target="_blank"
               rel="noopener noreferrer"
               className="text-paragraph-xs text-primary-base hover:underline"
@@ -421,9 +426,11 @@ function ProductModal({ open, onOpenChange, product, categories, platforms, isLo
 
   const [name, setName] = React.useState(product?.name || '')
   const [description, setDescription] = React.useState(product?.description || '')
-  const [category, setCategory] = React.useState(product?.category || '')
-  const [platform, setPlatform] = React.useState(product?.platform || '')
-  const [productUrl, setProductUrl] = React.useState(product?.productUrl || '')
+  const [category, setCategory] = React.useState(product?.categoryId || '')
+  const [platform, setPlatform] = React.useState(product?.platformId || '')
+  const [productUrl, setProductUrl] = React.useState(product?.productLink || '')
+  const [price, setPrice] = React.useState(product?.price?.toString() || '')
+  const [sku, setSku] = React.useState(product?.sku || '')
 
   const isLoading = createProduct.isPending || updateProduct.isPending
 
@@ -431,15 +438,19 @@ function ProductModal({ open, onOpenChange, product, categories, platforms, isLo
     if (product) {
       setName(product.name)
       setDescription(product.description || '')
-      setCategory(product.category)
-      setPlatform(product.platform)
-      setProductUrl(product.productUrl || '')
+      setCategory(product.categoryId || '')
+      setPlatform(product.platformId || '')
+      setProductUrl(product.productLink || '')
+      setPrice(product.price?.toString() || '')
+      setSku(product.sku || '')
     } else {
       setName('')
       setDescription('')
       setCategory('')
       setPlatform('')
       setProductUrl('')
+      setPrice('')
+      setSku('')
     }
   }, [product])
 
@@ -447,9 +458,11 @@ function ProductModal({ open, onOpenChange, product, categories, platforms, isLo
     const data = {
       name,
       description: description || undefined,
-      category,
-      platform,
-      productUrl: productUrl || undefined,
+      categoryId: category || undefined,
+      platformId: platform || undefined,
+      productLink: productUrl || '',
+      price: Number.parseFloat(price) || 0,
+      sku: sku || `SKU-${Date.now()}`,
     }
 
     if (product) {
@@ -547,6 +560,38 @@ function ProductModal({ open, onOpenChange, product, categories, platforms, isLo
                     ))}
                   </Select.Content>
                 </Select.Root>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-label-sm text-text-strong-950 mb-2">
+                  Price (₹) <span className="text-error-base">*</span>
+                </label>
+                <Input.Root>
+                  <Input.Wrapper>
+                    <Input.El
+                      type="number"
+                      placeholder="999"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                    />
+                  </Input.Wrapper>
+                </Input.Root>
+              </div>
+              <div>
+                <label className="block text-label-sm text-text-strong-950 mb-2">
+                  SKU (Optional)
+                </label>
+                <Input.Root>
+                  <Input.Wrapper>
+                    <Input.El
+                      placeholder="Auto-generated if empty"
+                      value={sku}
+                      onChange={(e) => setSku(e.target.value)}
+                    />
+                  </Input.Wrapper>
+                </Input.Root>
               </div>
             </div>
 
@@ -657,9 +702,11 @@ function BulkImportModal({ open, onOpenChange, bulkImport, categories, platforms
           products.push({
             name: values[nameIdx],
             description: descIdx >= 0 ? values[descIdx] : undefined,
-            category: categoryIdx >= 0 && values[categoryIdx] ? values[categoryIdx] : categories[0]?.name || 'Other',
-            platform: platformIdx >= 0 && values[platformIdx] ? values[platformIdx] : platforms[0]?.name || 'Any Platform',
-            productUrl: urlIdx >= 0 ? values[urlIdx] : undefined,
+            categoryId: categoryIdx >= 0 && values[categoryIdx] ? values[categoryIdx] : categories[0]?.id || undefined,
+            platformId: platformIdx >= 0 && values[platformIdx] ? values[platformIdx] : platforms[0]?.id || undefined,
+            productLink: urlIdx >= 0 ? values[urlIdx] || '' : '',
+            sku: `SKU-${Date.now()}-${i}`,
+            price: 0, // Default price, can be updated later
           })
         }
       }
@@ -681,11 +728,9 @@ function BulkImportModal({ open, onOpenChange, bulkImport, categories, platforms
       { products: importData },
       {
         onSuccess: (response) => {
-          if (response.success && response.data) {
-            setResult(response.data)
-            setStep('result')
-            toast.success(`Successfully imported ${response.data.successCount} products`)
-          }
+          setResult(response)
+          setStep('result')
+          toast.success(`Successfully imported ${response.imported} products`)
         },
         onError: () => {
           toast.error('Failed to import products')
@@ -737,7 +782,7 @@ Adidas Tee,Cotton t-shirt,Apparel,Flipkart,https://...`}
                   <div key={`${product.name}-${idx}`} className="p-3 text-paragraph-sm">
                     <div className="font-medium text-text-strong-950">{product.name}</div>
                     <div className="text-paragraph-xs text-text-sub-600 mt-0.5">
-                      {product.category} • {product.platform}
+                      {product.categoryId || 'N/A'} • {product.platformId || 'N/A'}
                     </div>
                   </div>
                 ))}
@@ -754,15 +799,15 @@ Adidas Tee,Cotton t-shirt,Apparel,Flipkart,https://...`}
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-lg bg-success-lighter p-3 text-center">
-                  <div className="text-title-h5 text-success-base font-semibold">{result.successCount}</div>
+                  <div className="text-title-h5 text-success-base font-semibold">{result.imported}</div>
                   <div className="text-paragraph-xs text-success-dark">Imported</div>
                 </div>
                 <div className="rounded-lg bg-error-lighter p-3 text-center">
-                  <div className="text-title-h5 text-error-base font-semibold">{result.failedCount}</div>
+                  <div className="text-title-h5 text-error-base font-semibold">{result.failed}</div>
                   <div className="text-paragraph-xs text-error-dark">Failed</div>
                 </div>
                 <div className="rounded-lg bg-bg-weak-50 p-3 text-center">
-                  <div className="text-title-h5 text-text-strong-950 font-semibold">{result.totalProcessed}</div>
+                  <div className="text-title-h5 text-text-strong-950 font-semibold">{result.imported + result.failed}</div>
                   <div className="text-paragraph-xs text-text-sub-600">Total</div>
                 </div>
               </div>
@@ -770,9 +815,9 @@ Adidas Tee,Cotton t-shirt,Apparel,Flipkart,https://...`}
                 <div className="rounded-lg border border-error-light bg-error-lighter/50 p-3">
                   <p className="text-label-xs text-error-base mb-2">Errors:</p>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {result.errors.map((err) => (
-                      <p key={`error-row-${err.row}`} className="text-paragraph-xs text-error-dark">
-                        Row {err.row}: {err.error}
+                    {result.errors.map((err, idx) => (
+                      <p key={`error-${idx}`} className="text-paragraph-xs text-error-dark">
+                        {err}
                       </p>
                     ))}
                   </div>

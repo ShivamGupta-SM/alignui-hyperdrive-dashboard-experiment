@@ -10,7 +10,6 @@ import { mockUser, mockOrganizations, mockShopperProfiles, mockDeliverableTypes 
 import {
   delay,
   DELAY,
-  getAuthContext,
   successResponse,
   notFoundResponse,
 } from './utils'
@@ -116,43 +115,6 @@ export const authHandlers = [
   http.delete('/api/storage/files/:key', async () => {
     await delay(DELAY.FAST)
     return successResponse({ message: 'File deleted successfully' })
-  }),
-
-  // Novu notification handlers
-  // GET /api/novu
-  http.get('/api/novu', async () => {
-    await delay(DELAY.FAST)
-
-    const auth = getAuthContext()
-
-    return successResponse({
-      subscriberId: auth.userId,
-      applicationId: 'mock-app-id',
-    })
-  }),
-
-  // GET /api/novu/subscriber-hash
-  http.get('/api/novu/subscriber-hash', async () => {
-    await delay(DELAY.FAST)
-
-    const auth = getAuthContext()
-
-    return successResponse({
-      subscriberId: auth.userId,
-      subscriberHash: `mock-hash-${auth.userId}`,
-    })
-  }),
-
-  // POST /api/novu/sync-subscriber
-  http.post('/api/novu/sync-subscriber', async () => {
-    await delay(DELAY.FAST)
-
-    const auth = getAuthContext()
-
-    return successResponse({
-      subscriberId: auth.userId,
-      synced: true,
-    })
   }),
 
   // Onboarding

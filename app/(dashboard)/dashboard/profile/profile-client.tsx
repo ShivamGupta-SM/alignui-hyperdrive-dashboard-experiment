@@ -28,8 +28,10 @@ import {
   Info,
 } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
-import type { User } from '@/lib/types'
+import type { auth } from '@/lib/encore-browser'
 import { useProfileData } from '@/hooks/use-profile'
+
+type User = auth.User
 import { delay, DELAY } from '@/lib/utils/delay'
 
 // Icon mapping for sessions
@@ -63,7 +65,7 @@ export function ProfileClient() {
     if (!profileData?.sessions) return []
     return profileData.sessions.map((session) => ({
       ...session,
-      icon: getSessionIcon(session.device?.includes('iPhone') ? 'smartphone' : session.device?.includes('Mac') ? 'mac' : 'computer'),
+      icon: getSessionIcon(session.userAgent?.includes('iPhone') ? 'smartphone' : session.userAgent?.includes('Mac') ? 'mac' : 'computer'),
     }))
   }, [profileData?.sessions])
 
@@ -89,20 +91,20 @@ export function ProfileClient() {
       {/* Account Overview */}
       <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
         <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
-          <Avatar.Root size="64" color={getAvatarColor(user.name)} className="shrink-0">
-            {user.avatar ? (
-              <Avatar.Image src={user.avatar} alt={user.name} />
+          <Avatar.Root size="64" color={getAvatarColor(user.name || '')} className="shrink-0">
+            {user.image ? (
+              <Avatar.Image src={user.image} alt={user.name || 'User'} />
             ) : (
-              user.name.charAt(0).toUpperCase()
+              (user.name || 'U').charAt(0).toUpperCase()
             )}
           </Avatar.Root>
           <div className="min-w-0">
-            <h2 className="text-label-md sm:text-label-lg text-text-strong-950 truncate">{user.name}</h2>
+            <h2 className="text-label-md sm:text-label-lg text-text-strong-950 truncate">{user.name || 'User'}</h2>
             <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 truncate">{user.email}</p>
           </div>
         </div>
         <MetricGroup columns={3} className="grid-cols-3">
-          <Metric label="Member Since" value={user.createdAt.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })} size="sm" />
+          <Metric label="Member Since" value={new Date(user.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })} size="sm" />
           <Metric label="Active Sessions" value={sessions.length} size="sm" />
           <Metric label="2FA" value={user.twoFactorEnabled ? 'Enabled' : 'Disabled'} size="sm" className={cn(!user.twoFactorEnabled && "[&>div>span:last-child]:text-warning-base")} />
         </MetricGroup>
@@ -152,7 +154,7 @@ interface ProfileTabProps {
 }
 
 function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
-  const [name, setName] = React.useState(user.name)
+  const [name, setName] = React.useState(user.name || '')
   const [email, setEmail] = React.useState(user.email)
 
   const handleSave = async () => {
@@ -171,11 +173,11 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
       <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-6">
         <h3 className="text-label-sm sm:text-label-md text-text-strong-950 mb-3 sm:mb-4">Profile Photo</h3>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-          <Avatar.Root size="80" color={getAvatarColor(user.name)} className="shrink-0">
-            {user.avatar ? (
-              <Avatar.Image src={user.avatar} alt={user.name} />
+          <Avatar.Root size="80" color={getAvatarColor(user.name || '')} className="shrink-0">
+            {user.image ? (
+              <Avatar.Image src={user.image} alt={user.name || 'User'} />
             ) : (
-              user.name.charAt(0).toUpperCase()
+              (user.name || 'U').charAt(0).toUpperCase()
             )}
           </Avatar.Root>
           <div className="flex-1">
@@ -556,16 +558,7 @@ function NotificationsTab() {
 
 // Sessions Tab - Using List
 interface SessionsTabProps {
-  sessions: {
-    id: string
-    device: string
-    icon: React.ElementType
-    ip: string
-    location: string
-    lastActive: string
-    signedIn: string
-    isCurrent: boolean
-  }[]
+  sessions: (auth.Session & { icon: React.ElementType })[]
 }
 
 function SessionsTab({ sessions }: SessionsTabProps) {
@@ -589,6 +582,16 @@ function SessionsTab({ sessions }: SessionsTabProps) {
     }
   }
 
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
@@ -605,8 +608,9 @@ function SessionsTab({ sessions }: SessionsTabProps) {
         </div>
 
         <List.Root variant="divided" size="lg">
-          {sessions.map((session) => {
+          {sessions.map((session, index) => {
             const Icon = session.icon
+            const isCurrent = index === 0 // Assume first session is current
             return (
               <List.Item key={session.id} className="py-4">
                 <List.ItemIcon>
@@ -616,21 +620,20 @@ function SessionsTab({ sessions }: SessionsTabProps) {
                 </List.ItemIcon>
                 <List.ItemContent>
                   <div className="flex items-center gap-2">
-                    <List.ItemTitle>{session.device}</List.ItemTitle>
-                    {session.isCurrent && (
+                    <List.ItemTitle>{session.userAgent || 'Unknown Device'}</List.ItemTitle>
+                    {isCurrent && (
                       <StatusBadge.Root status="completed" variant="light">
                         This Device
                       </StatusBadge.Root>
                     )}
                   </div>
                   <div className="text-paragraph-xs text-text-sub-600 mt-1 space-y-0.5">
-                    <div>IP: {session.ip}</div>
-                    <div>Location: {session.location}</div>
-                    <div>Last active: {session.lastActive}</div>
-                    <div>Signed in: {session.signedIn}</div>
+                    <div>IP: {session.ipAddress || 'Unknown'}</div>
+                    <div>Last updated: {formatDate(session.updatedAt)}</div>
+                    <div>Signed in: {formatDate(session.createdAt)}</div>
                   </div>
                 </List.ItemContent>
-                {!session.isCurrent && (
+                {!isCurrent && (
                   <List.ItemAction>
                     <Button.Root
                       variant="basic"

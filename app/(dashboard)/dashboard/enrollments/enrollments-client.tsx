@@ -20,18 +20,17 @@ import {
   SquaresFour,
   ArrowRight,
   Warning,
-  Star,
 } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import { useEnrollmentSearchParams } from '@/hooks'
-import { useEnrollmentsData } from '@/hooks/use-enrollments'
+import { useEnrollmentsData, type Enrollment } from '@/hooks/use-enrollments'
 import { useDebounceValue } from 'usehooks-ts'
 import { exportEnrollments } from '@/lib/excel'
 import { bulkUpdateEnrollments } from '@/app/actions'
-import type { Enrollment, EnrollmentStatus } from '@/lib/types'
+import type { EnrollmentStatus } from '@/lib/types'
 
 // Helper functions
-const getTimeAgo = (date: Date): string => {
+const getTimeAgo = (date: Date | string): string => {
   const now = new Date()
   const diffMs = now.getTime() - new Date(date).getTime()
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
@@ -42,7 +41,7 @@ const getTimeAgo = (date: Date): string => {
   return `${diffDays} days ago`
 }
 
-const isOverdue = (date: Date): boolean => {
+const isOverdue = (date: Date | string): boolean => {
   const now = new Date()
   const diffMs = now.getTime() - new Date(date).getTime()
   return diffMs > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS * 60 * 60 * 1000
@@ -177,7 +176,7 @@ export function EnrollmentsClient({ initialStatus = 'all' }: EnrollmentsClientPr
     const searchLower = search.toLowerCase()
     return enrollments.filter(
       (e) =>
-        e.shopper?.name.toLowerCase().includes(searchLower) ||
+        e.shopperId.toLowerCase().includes(searchLower) ||
         e.orderId.toLowerCase().includes(searchLower)
     )
   }, [enrollments, search])
@@ -186,14 +185,14 @@ export function EnrollmentsClient({ initialStatus = 'all' }: EnrollmentsClientPr
   const trackerData = React.useMemo(() => {
     return allEnrollments.map(e => {
       switch (e.status) {
-        case 'approved': return { status: 'success' as const, tooltip: e.shopper?.name }
+        case 'approved': return { status: 'success' as const, tooltip: e.orderId || e.shopperId }
         case 'awaiting_review':
         case 'awaiting_submission':
-        case 'changes_requested': return { status: 'warning' as const, tooltip: e.shopper?.name }
-        case 'rejected':
+        case 'changes_requested': return { status: 'warning' as const, tooltip: e.orderId || e.shopperId }
+        case 'permanently_rejected':
         case 'withdrawn':
-        case 'expired': return { status: 'error' as const, tooltip: e.shopper?.name }
-        default: return { status: 'neutral' as const, tooltip: e.shopper?.name }
+        case 'expired': return { status: 'error' as const, tooltip: e.orderId || e.shopperId }
+        default: return { status: 'neutral' as const, tooltip: e.orderId || e.shopperId }
       }
     })
   }, [allEnrollments])
@@ -463,9 +462,8 @@ interface EnrollmentListItemProps {
 function EnrollmentListItem({ enrollment, formatCurrency, selected, onSelect, onClick }: EnrollmentListItemProps) {
   const canSelect = enrollment.status === 'awaiting_review'
   const enrollmentOverdue = enrollment.status === 'awaiting_review' && isOverdue(enrollment.createdAt)
-  const shopperRate = enrollment.shopper?.approvalRate ?? 0
-  const prevEnrollments = enrollment.shopper?.previousEnrollments ?? 0
-  const isTrustedShopper = shopperRate >= 90 && prevEnrollments >= 3
+  // Display ID or orderId as the primary identifier
+  const displayName = enrollment.orderId || enrollment.shopperId.slice(0, 8)
 
   return (
     <div
@@ -494,21 +492,16 @@ function EnrollmentListItem({ enrollment, formatCurrency, selected, onSelect, on
       <button type="button" onClick={onClick} className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 text-left">
         {/* Avatar */}
         <div className="relative shrink-0">
-          <Avatar.Root size="40" color={getAvatarColor(enrollment.shopper?.name || '')}>
-            {enrollment.shopper?.name?.charAt(0) || '?'}
+          <Avatar.Root size="40" color={getAvatarColor(displayName)}>
+            {displayName.charAt(0).toUpperCase()}
           </Avatar.Root>
-          {isTrustedShopper && (
-            <div className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full bg-success-base text-white flex items-center justify-center">
-              <Star weight="fill" className="size-2.5" />
-            </div>
-          )}
         </div>
 
         {/* Main content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <span className="text-label-sm text-text-strong-950 truncate">
-              {enrollment.shopper?.name}
+              {displayName}
             </span>
             <StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="light">
               {getStatusLabel(enrollment.status)}
@@ -521,17 +514,9 @@ function EnrollmentListItem({ enrollment, formatCurrency, selected, onSelect, on
             )}
           </div>
           <div className="flex items-center gap-2 text-paragraph-xs text-text-sub-600">
-            <span className="truncate">{enrollment.campaign?.title}</span>
+            <span className="truncate">Campaign: {enrollment.campaignId.slice(0, 8)}...</span>
             <span className="text-text-soft-400">•</span>
             <span className="text-text-soft-400">{getTimeAgo(enrollment.createdAt)}</span>
-            {prevEnrollments > 0 && (
-              <>
-                <span className="hidden sm:inline text-text-soft-400">•</span>
-                <span className="hidden sm:inline text-text-soft-400">
-                  {shopperRate}% rate · {prevEnrollments} prev
-                </span>
-              </>
-            )}
           </div>
         </div>
 
@@ -541,7 +526,7 @@ function EnrollmentListItem({ enrollment, formatCurrency, selected, onSelect, on
             <span className="text-label-sm sm:text-label-md text-text-strong-950 font-semibold block">
               {formatCurrency(enrollment.orderValue)}
             </span>
-            <span className="text-paragraph-xs text-text-sub-600 hidden sm:block">{enrollment.platform}</span>
+            <span className="text-paragraph-xs text-text-sub-600 hidden sm:block">{enrollment.orderId.slice(0, 12)}...</span>
           </div>
           <ArrowRight className="size-4 text-text-soft-400 group-hover:text-text-sub-600 transition-colors" />
         </div>
@@ -558,6 +543,8 @@ interface EnrollmentCardItemProps {
 }
 
 function EnrollmentCardItem({ enrollment, formatCurrency, onClick }: EnrollmentCardItemProps) {
+  const displayName = enrollment.orderId || enrollment.shopperId.slice(0, 8)
+
   return (
     <button
       type="button"
@@ -566,14 +553,14 @@ function EnrollmentCardItem({ enrollment, formatCurrency, onClick }: EnrollmentC
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <Avatar.Root size="40" color={getAvatarColor(enrollment.shopper?.name || '')} className="shrink-0">
-            {enrollment.shopper?.name?.charAt(0) || '?'}
+          <Avatar.Root size="40" color={getAvatarColor(displayName)} className="shrink-0">
+            {displayName.charAt(0).toUpperCase()}
           </Avatar.Root>
           <div>
             <span className="text-label-sm text-text-strong-950 block truncate">
-              {enrollment.shopper?.name}
+              {displayName}
             </span>
-            <span className="text-paragraph-xs text-text-sub-600">{enrollment.campaign?.title}</span>
+            <span className="text-paragraph-xs text-text-sub-600">Campaign: {enrollment.campaignId.slice(0, 8)}...</span>
           </div>
         </div>
         <StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="light">
@@ -586,8 +573,8 @@ function EnrollmentCardItem({ enrollment, formatCurrency, onClick }: EnrollmentC
           <span className="text-label-sm text-text-strong-950 font-semibold">{formatCurrency(enrollment.orderValue)}</span>
         </div>
         <div className="rounded-lg bg-bg-weak-50 p-2">
-          <span className="text-paragraph-xs text-text-soft-400 block">Platform</span>
-          <span className="text-label-sm text-text-strong-950">{enrollment.platform}</span>
+          <span className="text-paragraph-xs text-text-soft-400 block">Order ID</span>
+          <span className="text-label-sm text-text-strong-950">{enrollment.orderId.slice(0, 12)}...</span>
         </div>
       </div>
     </button>

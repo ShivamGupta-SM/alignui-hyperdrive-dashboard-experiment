@@ -9,6 +9,7 @@ export type EnrollmentStatus =
   | 'changes_requested'
   | 'approved'
   | 'rejected'
+  | 'permanently_rejected'
   | 'withdrawn'
   | 'expired'
 

@@ -777,4 +777,49 @@ export const campaignsHandlers = [
       downloadUrl: format === 'xlsx' ? `/api/campaigns/${id}/enrollments/download.xlsx` : undefined,
     })
   }),
+
+  // GET /api/campaigns/search - Search campaigns
+  http.get('/api/campaigns/search', async ({ request }) => {
+    await delay(DELAY.FAST)
+
+    const auth = getAuthContext()
+    const orgId = auth.organizationId
+    const url = new URL(request.url)
+
+    const q = url.searchParams.get('q') || ''
+    const skip = Number.parseInt(url.searchParams.get('skip') || '0', 10)
+    const take = Number.parseInt(url.searchParams.get('take') || '20', 10)
+    const status = url.searchParams.get('status')
+
+    // Filter campaigns by organization
+    let campaigns = mockCampaigns.filter(c => c.organizationId === orgId)
+
+    // Apply search query (search in title and description)
+    if (q) {
+      const searchLower = q.toLowerCase()
+      campaigns = campaigns.filter(c =>
+        c.title.toLowerCase().includes(searchLower) ||
+        c.description?.toLowerCase().includes(searchLower)
+      )
+    }
+
+    // Apply status filter
+    if (status) {
+      campaigns = campaigns.filter(c => c.status === status)
+    }
+
+    // Get total before pagination
+    const total = campaigns.length
+
+    // Apply pagination
+    const paginatedCampaigns = campaigns.slice(skip, skip + take)
+
+    return successResponse({
+      data: paginatedCampaigns,
+      total,
+      skip,
+      take,
+      hasMore: skip + take < total,
+    })
+  }),
 ]

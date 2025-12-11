@@ -14,6 +14,7 @@ import { useLocalStorage } from '@/hooks/use-local-storage'
 import { useSignOut } from '@/hooks/use-sign-out'
 import { useNotifications, useUnreadNotificationCount, useMarkAllNotificationsRead, useMarkNotificationRead } from '@/hooks/use-notifications'
 import { useDashboard } from '@/hooks/use-dashboard'
+import { useSwitchOrganization } from '@/hooks/use-organizations'
 import { useTheme } from 'next-themes'
 import { cn } from '@/utils/cn'
 import type { Organization, User } from '@/lib/types'
@@ -60,6 +61,9 @@ function DashboardShellInner({
   // Dashboard data for pending enrollments count
   const { data: dashboardData } = useDashboard()
   const pendingEnrollmentsCount = dashboardData?.stats?.pendingEnrollments ?? 0
+
+  // Organization switching mutation
+  const switchOrganization = useSwitchOrganization()
 
   // Persist active organization ID in localStorage
   const [activeOrgId, setActiveOrgId] = useLocalStorage<string | null>('active-organization-id', null)
@@ -163,16 +167,24 @@ function DashboardShellInner({
   const { signOut: handleSignOut } = useSignOut('/sign-in')
 
   const handleOrganizationChange = React.useCallback((org: Organization) => {
-    // Persist active organization ID in localStorage
-    setActiveOrgId(org.id)
-    // Also set cookie for server-side access (API routes, server components)
-    document.cookie = `active-organization-id=${org.id}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
+    // Close mobile sidebar immediately for better UX
     setMobileSidebarOpen(false)
-    // Invalidate all React Query caches to force re-fetch with new org context
-    queryClient.invalidateQueries()
-    // Refresh to re-fetch server components
-    router.refresh()
-  }, [setActiveOrgId, router, queryClient])
+
+    // Update local state immediately for instant UI feedback
+    // This triggers the useEffect that syncs to cookie
+    setActiveOrgId(org.id)
+
+    // Call API to switch organization on backend
+    // On success: invalidates all queries and refreshes router (handled by hook)
+    // On error: still works locally since we already updated localStorage/cookie
+    switchOrganization.mutate(org.id, {
+      onError: () => {
+        // API failed but local state already updated - manually invalidate and refresh
+        queryClient.invalidateQueries()
+        router.refresh()
+      }
+    })
+  }, [setActiveOrgId, router, queryClient, switchOrganization])
 
   const handleCreateOrganization = React.useCallback(() => {
     setMobileSidebarOpen(false)
@@ -403,7 +415,6 @@ function DashboardShellInner({
           title: n.title,
           message: n.message,
           actionUrl: n.actionUrl,
-          actionLabel: n.actionLabel,
           isRead: n.isRead,
           createdAt: n.createdAt,
         }))}

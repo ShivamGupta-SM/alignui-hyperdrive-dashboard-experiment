@@ -29,7 +29,8 @@ import { toast } from 'sonner'
 
 export default function NewProductPage() {
   // Fetch categories from API
-  const { data: categories = [], isLoading: isLoadingCategories } = useCategories()
+  const { data: categoriesData, isLoading: isLoadingCategories } = useCategories()
+  const categories = categoriesData?.data ?? []
   const createProduct = useCreateProduct()
   const router = useRouter()
   const [isLoading, setIsLoading] = React.useState(false)
@@ -40,6 +41,7 @@ export default function NewProductPage() {
     category: '',
     brand: '',
     price: '',
+    sku: '',
     url: '',
   })
 
@@ -61,10 +63,12 @@ export default function NewProductPage() {
       await createProduct.mutateAsync({
         name: formData.name,
         description: formData.description || undefined,
-        category: formData.category,
-        platform: 'amazon', // Default platform
-        image: uploadedImage || undefined,
-        productUrl: formData.url || undefined,
+        sku: formData.sku || `SKU-${Date.now()}`, // Generate SKU if not provided
+        categoryId: formData.category || undefined,
+        platformId: 'amazon', // Default platform
+        price: Number.parseFloat(formData.price) || 0,
+        productLink: formData.url || '',
+        productImages: uploadedImage ? [uploadedImage] : undefined,
       })
       toast.success('Product created successfully')
       router.push('/dashboard/products')

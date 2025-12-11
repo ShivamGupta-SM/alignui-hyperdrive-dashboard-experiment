@@ -1,19 +1,17 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { get, post, patch } from '@/lib/axios'
-import { useRouter } from 'next/navigation'
-import type { AxiosError } from 'axios'
-import type { ApiResponse, ApiError, Organization } from '@/lib/types'
+import { getEncoreBrowserClient } from '@/lib/encore-browser'
+import type { organizations, shared } from '@/lib/encore-browser'
 import { STALE_TIMES } from '@/lib/types'
+import { useRouter } from 'next/navigation'
 
-// Retry configuration - don't retry on 4xx errors
-const shouldRetry = (failureCount: number, error: AxiosError<ApiError>) => {
-  if (error.response?.status && error.response.status >= 400 && error.response.status < 500) {
-    return false
-  }
-  return failureCount < 3
-}
+// Re-export types from Encore for convenience
+export type Organization = organizations.Organization
+export type OrganizationCampaignStats = organizations.OrganizationCampaignStats
+export type OrganizationStats = organizations.OrganizationStats
+export type ApprovalStatus = shared.ApprovalStatus
+export type AccountTier = shared.AccountTier
 
 // ============================================
 // Query Keys
@@ -27,43 +25,8 @@ export const organizationKeys = {
   current: () => [...organizationKeys.all, 'current'] as const,
   details: () => [...organizationKeys.all, 'detail'] as const,
   detail: (id: string) => [...organizationKeys.details(), id] as const,
+  stats: (id: string) => [...organizationKeys.detail(id), 'stats'] as const,
   campaignStats: (id: string) => [...organizationKeys.detail(id), 'campaignStats'] as const,
-}
-
-// ============================================
-// Types
-// ============================================
-
-export interface MyOrganization {
-  id: string
-  name: string
-  slug: string
-  logo: string | null
-  role: 'owner' | 'admin' | 'member'
-  status: Organization['status']
-  verificationStatus: 'pending' | 'verified' | 'rejected'
-}
-
-export interface OrganizationCampaignStats {
-  totalCampaigns: number
-  activeCampaigns: number
-  completedCampaigns: number
-  draftCampaigns: number
-  totalBudget: number
-  spentBudget: number
-  remainingBudget: number
-  totalEnrollments: number
-  approvedEnrollments: number
-  pendingEnrollments: number
-}
-
-export interface SwitchOrganizationResponse {
-  message: string
-  organization: {
-    id: string
-    name: string
-    slug: string
-  }
 }
 
 // ============================================
@@ -75,35 +38,15 @@ export interface SwitchOrganizationResponse {
  * Use this when you need to refresh the org list dynamically
  */
 export function useMyOrganizations() {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: organizationKeys.my(),
-    queryFn: () => get<ApiResponse<MyOrganization[]>>('/api/organizations/my'),
+    queryFn: async () => {
+      const result = await client.organizations.getMyOrganizations()
+      return result.data
+    },
     staleTime: STALE_TIMES.STATIC,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
-  })
-}
-
-/**
- * Fetch current organization details (client-side)
- */
-export function useCurrentOrganization() {
-  return useQuery({
-    queryKey: organizationKeys.current(),
-    queryFn: () => get<ApiResponse<Organization>>('/api/organizations/current'),
-    staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
@@ -111,37 +54,82 @@ export function useCurrentOrganization() {
  * Fetch organization by ID
  */
 export function useOrganization(id: string) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
     queryKey: organizationKeys.detail(id),
-    queryFn: () => get<ApiResponse<Organization>>(`/api/organizations/${id}`),
+    queryFn: () => client.organizations.getOrganization(id),
     enabled: !!id,
     staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
+  })
+}
+
+/**
+ * Fetch current organization (reads from localStorage)
+ * Returns the first organization if no current org is set
+ */
+export function useCurrentOrganization() {
+  const client = getEncoreBrowserClient()
+
+  return useQuery({
+    queryKey: organizationKeys.current(),
+    queryFn: async () => {
+      // First try to get the organization ID from localStorage
+      let currentOrgId: string | null = null
+      if (typeof window !== 'undefined') {
+        currentOrgId = localStorage.getItem('currentOrganizationId')
       }
-      throw new Error(response.error)
+
+      // If we have a stored org ID, fetch that org
+      if (currentOrgId) {
+        try {
+          return await client.organizations.getOrganization(currentOrgId)
+        } catch {
+          // If the stored org doesn't exist, fall through to get user's orgs
+        }
+      }
+
+      // Otherwise, get user's organizations and return the first one
+      const result = await client.organizations.getMyOrganizations()
+      if (result.data.length > 0) {
+        // Store the first org as current
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('currentOrganizationId', result.data[0].id)
+        }
+        return result.data[0]
+      }
+
+      return null
     },
+    staleTime: STALE_TIMES.STANDARD,
+  })
+}
+
+/**
+ * Fetch organization statistics
+ */
+export function useOrganizationStats(organizationId: string) {
+  const client = getEncoreBrowserClient()
+
+  return useQuery({
+    queryKey: organizationKeys.stats(organizationId),
+    queryFn: () => client.organizations.getOrganizationStats(organizationId),
+    enabled: !!organizationId,
+    staleTime: STALE_TIMES.STANDARD,
   })
 }
 
 /**
  * Fetch organization campaign statistics
  */
-export function useOrganizationCampaignStats(organizationId: string) {
+export function useOrganizationCampaignStats(organizationId: string, skip = 0, take = 20) {
+  const client = getEncoreBrowserClient()
+
   return useQuery({
-    queryKey: organizationKeys.campaignStats(organizationId),
-    queryFn: () => get<ApiResponse<OrganizationCampaignStats>>(`/api/organizations/${organizationId}/campaign-stats`),
+    queryKey: [...organizationKeys.campaignStats(organizationId), { skip, take }] as const,
+    queryFn: () => client.organizations.getOrganizationCampaignStats(organizationId, { skip, take }),
     enabled: !!organizationId,
     staleTime: STALE_TIMES.STANDARD,
-    retry: shouldRetry,
-    select: (response) => {
-      if (response.success) {
-        return response.data
-      }
-      throw new Error(response.error)
-    },
   })
 }
 
@@ -150,57 +138,34 @@ export function useOrganizationCampaignStats(organizationId: string) {
 // ============================================
 
 /**
- * Switch active organization
- * This sets a cookie and invalidates all caches
+ * Create a new organization
  */
-export function useSwitchOrganization() {
+export function useCreateOrganization() {
   const queryClient = useQueryClient()
-  const router = useRouter()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: (organizationId: string) =>
-      post<ApiResponse<SwitchOrganizationResponse>>('/api/organizations/switch', { organizationId }),
-    onSuccess: (response) => {
-      if (response.success) {
-        // Also update localStorage for client-side persistence
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('active-organization-id', JSON.stringify(response.data.organization.id))
-        }
-        // Invalidate all queries to refetch with new org context
-        queryClient.invalidateQueries()
-        // Refresh to update server components
-        router.refresh()
-      }
+    mutationFn: (data: organizations.CreateOrganizationRequest) =>
+      client.organizations.createOrganization(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.my() })
     },
   })
 }
 
 /**
- * Update organization logo
+ * Update organization
  */
-export function useUpdateOrganizationLogo() {
+export function useUpdateOrganization(organizationId: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: async ({ organizationId, file }: { organizationId: string; file: File }) => {
-      const formData = new FormData()
-      formData.append('logo', file)
-
-      const response = await fetch(`/api/organizations/${organizationId}/logo`, {
-        method: 'PATCH',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to upload logo')
-      }
-
-      return response.json() as Promise<ApiResponse<{ id: string; logo: string }>>
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.organizationId) })
+    mutationFn: (data: organizations.UpdateOrganizationRequest) =>
+      client.organizations.updateOrganization(organizationId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(organizationId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.my() })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.current() })
     },
   })
 }
@@ -208,38 +173,86 @@ export function useUpdateOrganizationLogo() {
 /**
  * Update organization logo by URL
  */
-export function useUpdateOrganizationLogoUrl() {
+export function useUpdateOrganizationLogo(organizationId: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: ({ organizationId, logoUrl }: { organizationId: string; logoUrl: string }) =>
-      patch<ApiResponse<{ id: string; logo: string }>>(`/api/organizations/${organizationId}/logo`, { logoUrl }),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.organizationId) })
+    mutationFn: (logoUrl: string) =>
+      client.organizations.updateOrganizationLogo(organizationId, { logoUrl }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(organizationId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.my() })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.current() })
+    },
+  })
+}
+
+/**
+ * Switch active organization
+ * This invalidates all caches and refreshes the router
+ *
+ * Note: localStorage is managed by the calling component via useLocalStorage hook.
+ * This hook only handles the query invalidation and router refresh.
+ * The cookie is synced from localStorage via useEffect in dashboard-shell.
+ */
+export function useSwitchOrganization() {
+  const queryClient = useQueryClient()
+  const router = useRouter()
+
+  return useMutation({
+    mutationFn: async (organizationId: string) => {
+      // Organization switching is handled client-side via localStorage
+      // The server reads the organization from the x-organization-id header
+      // which is set by the axios interceptor reading from localStorage
+      return { success: true, organizationId }
+    },
+    onSuccess: () => {
+      // Invalidate all queries to refetch with new org context
+      queryClient.invalidateQueries()
+      // Refresh to update server components
+      router.refresh()
     },
   })
 }
 
 /**
  * Request credit limit increase
+ * Can be called with or without organizationId pre-bound
  */
-export function useRequestCreditIncrease() {
+export function useRequestCreditIncrease(presetOrgId?: string) {
   const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
 
   return useMutation({
-    mutationFn: ({ organizationId, requestedAmount, reason }: {
-      organizationId: string
-      requestedAmount: number
-      reason: string
-    }) =>
-      post<ApiResponse<{ message: string; requestId: string }>>(`/api/organizations/${organizationId}/credit-increase`, {
-        requestedAmount,
-        reason,
-      }),
+    mutationFn: (data: { organizationId?: string; requestedAmount: number; reason?: string }) => {
+      const orgId = data.organizationId || presetOrgId
+      if (!orgId) throw new Error('Organization ID is required')
+      return client.organizations.requestCreditIncrease(orgId, {
+        requestedAmount: data.requestedAmount,
+        reason: data.reason,
+      })
+    },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.organizationId) })
+      const orgId = variables.organizationId || presetOrgId
+      if (orgId) {
+        queryClient.invalidateQueries({ queryKey: organizationKeys.detail(orgId) })
+      }
+    },
+  })
+}
+
+/**
+ * Submit organization for approval
+ */
+export function useSubmitForApproval(organizationId: string) {
+  const queryClient = useQueryClient()
+  const client = getEncoreBrowserClient()
+
+  return useMutation({
+    mutationFn: () => client.organizations.submitOrganizationForApproval(organizationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(organizationId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.my() })
     },
   })
 }

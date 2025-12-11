@@ -35,8 +35,9 @@ import {
 import { cn } from '@/utils/cn'
 import { CAMPAIGN_TYPE_OPTIONS, DELIVERABLE_TYPE_OPTIONS, DEFAULT_SUBMISSION_DEADLINE_DAYS } from '@/lib/constants'
 import { createCampaign, updateCampaignStatus } from '@/app/actions'
-import { useProducts } from '@/hooks/use-products'
-import type { CampaignType, DeliverableType, CampaignFormData, Product } from '@/lib/types'
+import { useProducts, type ProductWithStats } from '@/hooks/use-products'
+import type { CampaignType, DeliverableType, CampaignFormData } from '@/lib/types'
+type Product = ProductWithStats
 
 const steps = [
   { label: 'Basic Info', shortLabel: 'Info', value: 1, icon: Package },
@@ -47,7 +48,8 @@ const steps = [
 
 export default function CreateCampaignPage() {
   // Fetch products from API
-  const { data: products = [], isLoading: isLoadingProducts } = useProducts()
+  const { data: productsData, isLoading: isLoadingProducts } = useProducts()
+  const products = productsData?.data ?? []
   const router = useRouter()
   const [currentStep, setCurrentStep] = React.useState(1)
   const [isLoading, setIsLoading] = React.useState(false)
@@ -455,7 +457,7 @@ function Step1BasicInfo({ formData, updateFormData, products, isLoadingProducts 
                 </div>
                 <div className="min-w-0">
                   <div className="text-label-sm text-text-strong-950 truncate">{product.name}</div>
-                  <div className="text-paragraph-xs text-text-soft-400">{product.category}</div>
+                  <div className="text-paragraph-xs text-text-soft-400">{product.sku}</div>
                 </div>
               </button>
             ))

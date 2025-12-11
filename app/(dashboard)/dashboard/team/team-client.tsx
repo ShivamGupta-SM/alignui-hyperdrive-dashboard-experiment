@@ -23,14 +23,16 @@ import {
   Warning,
 } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
-import type { TeamMember, UserRole } from '@/lib/types'
 import { ROLE_OPTIONS } from '@/lib/constants'
-import { useTeamData, useInvitations } from '@/hooks/use-team'
+import { useTeamData, useInvitations, type Member } from '@/hooks/use-team'
+
+type TeamMember = Member
+type UserRole = 'owner' | 'admin' | 'manager' | 'viewer' | 'member'
 import { authClient } from '@/lib/auth-client'
 import { delay, DELAY } from '@/lib/utils/delay'
 
 // Map role to StatusBadge status
-const getRoleStatus = (role: UserRole) => {
+const getRoleStatus = (role: string) => {
   switch (role) {
     case 'owner':
       return 'completed' as const
@@ -39,6 +41,7 @@ const getRoleStatus = (role: UserRole) => {
     case 'manager':
       return 'completed' as const
     case 'viewer':
+    case 'member':
       return 'disabled' as const
     default:
       return 'disabled' as const
@@ -46,7 +49,7 @@ const getRoleStatus = (role: UserRole) => {
 }
 
 // Get role icon
-const getRoleIcon = (role: UserRole) => {
+const getRoleIcon = (role: string) => {
   switch (role) {
     case 'owner':
       return ShieldCheck
@@ -55,6 +58,7 @@ const getRoleIcon = (role: UserRole) => {
     case 'manager':
       return User
     case 'viewer':
+    case 'member':
       return Eye
     default:
       return User
@@ -67,14 +71,16 @@ export function TeamClient() {
   const [selectedMember, setSelectedMember] = React.useState<TeamMember | null>(null)
 
   // Fetch team data (hydrated from SSR)
-  const { data: teamData, isLoading } = useTeamData()
-  const { data: invitations = [] } = useInvitations()
   const { data: session } = authClient.useSession()
+  // Get organizationId from user's active organization or fallback
+  const organizationId = (session?.user as { activeOrganizationId?: string })?.activeOrganizationId || ''
+  const { data: teamData, isLoading } = useTeamData(organizationId)
+  const { data: invitations = [] } = useInvitations(organizationId)
 
   const members = teamData?.members || []
   const currentUserId = session?.user?.id || ''
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
     return new Date(date).toLocaleDateString('en-IN', {
       month: 'short',
       day: 'numeric',
@@ -201,28 +207,25 @@ export function TeamClient() {
                 {/* Mobile Layout - Stacked */}
                 <div className="flex items-start gap-3 sm:hidden">
                   <AvatarWithFallback
-                    src={member.avatar}
-                    name={member.name}
+                    src={undefined}
+                    name={member.user.name}
                     size="40"
-                    color={getAvatarColor(member.name)}
+                    color={getAvatarColor(member.user.name)}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-label-sm text-text-strong-950">{member.name}</span>
+                      <span className="text-label-sm text-text-strong-950">{member.user.name}</span>
                       {isCurrentUser && (
                         <span className="text-[9px] text-text-soft-400 bg-bg-soft-200 px-1.5 py-0.5 rounded">You</span>
                       )}
                     </div>
-                    <p className="text-paragraph-xs text-text-sub-600">{member.email}</p>
+                    <p className="text-paragraph-xs text-text-sub-600">{member.user.email}</p>
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-2">
                         <StatusBadge.Root status={getRoleStatus(member.role)} variant="light">
                           <StatusBadge.Icon as={RoleIcon} />
                           {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                         </StatusBadge.Root>
-                        <span className="text-[10px] text-text-soft-400">
-                          {formatDate(member.joinedAt)}
-                        </span>
                       </div>
                       {!isCurrentUser && !isOwner && (
                         <Button.Root
@@ -243,20 +246,19 @@ export function TeamClient() {
                 {/* Desktop Layout - Horizontal */}
                 <div className="hidden sm:flex sm:items-center sm:gap-4">
                   <AvatarWithFallback
-                    src={member.avatar}
-                    name={member.name}
+                    src={undefined}
+                    name={member.user.name}
                     size="48"
-                    color={getAvatarColor(member.name)}
+                    color={getAvatarColor(member.user.name)}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-label-sm text-text-strong-950">{member.name}</span>
+                      <span className="text-label-sm text-text-strong-950">{member.user.name}</span>
                       {isCurrentUser && (
                         <span className="text-[10px] text-text-soft-400 bg-bg-soft-200 px-1.5 py-0.5 rounded">You</span>
                       )}
                     </div>
-                    <p className="text-paragraph-xs text-text-sub-600">{member.email}</p>
-                    <span className="text-[10px] text-text-soft-400">Joined {formatDate(member.joinedAt)}</span>
+                    <p className="text-paragraph-xs text-text-sub-600">{member.user.email}</p>
                   </div>
 
                   <StatusBadge.Root status={getRoleStatus(member.role)} variant="light" className="shrink-0">
@@ -324,7 +326,7 @@ export function TeamClient() {
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-text-sub-600 mt-0.5">
                       <span>Role: {invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1)}</span>
                       <span className="hidden sm:inline">•</span>
-                      <span className="hidden sm:inline">Sent: {formatDate(invitation.sentAt)}</span>
+                      <span className="hidden sm:inline">Sent: {formatDate(invitation.createdAt)}</span>
                       <span>•</span>
                       <span className="text-warning-dark">Expires: {formatDate(invitation.expiresAt)}</span>
                     </div>
@@ -556,17 +558,17 @@ function RemoveMemberModal({
           <div className="flex items-center gap-2 p-3 rounded-10 bg-warning-lighter mb-4">
             <Warning className="size-4 text-warning-base shrink-0" />
             <span className="text-paragraph-sm text-warning-dark">
-              Remove {member.name} from team?
+              Remove {member.user.name} from team?
             </span>
           </div>
 
           <div className="flex items-center gap-4 p-4 rounded-10 bg-bg-weak-50 mb-4">
-            <Avatar.Root size="48" color={getAvatarColor(member.name)}>
-              {member.name.charAt(0).toUpperCase()}
+            <Avatar.Root size="48" color={getAvatarColor(member.user.name)}>
+              {member.user.name.charAt(0).toUpperCase()}
             </Avatar.Root>
             <div>
-              <div className="text-label-md text-text-strong-950">{member.name}</div>
-              <div className="text-paragraph-sm text-text-sub-600">{member.email}</div>
+              <div className="text-label-md text-text-strong-950">{member.user.name}</div>
+              <div className="text-paragraph-sm text-text-sub-600">{member.user.email}</div>
               <div className="text-paragraph-xs text-text-soft-400">
                 Role: {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
               </div>

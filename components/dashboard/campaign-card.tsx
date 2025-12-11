@@ -19,12 +19,15 @@ import {
   Image as ImageIcon,
   User,
 } from '@phosphor-icons/react'
-import type { Campaign } from '@/lib/types'
+import type { campaigns } from '@/lib/encore-browser'
 import { CAMPAIGN_STATUS_CONFIG } from '@/lib/constants'
 import { formatDateShort } from '@/lib/format'
 
+// Accept both Campaign and CampaignWithStats
+type CampaignData = campaigns.Campaign | campaigns.CampaignWithStats
+
 interface CampaignCardProps {
-  campaign: Campaign
+  campaign: CampaignData
   onView?: () => void
   onManage?: () => void
   onPause?: () => void
@@ -55,8 +58,17 @@ export const CampaignCard = React.memo(function CampaignCard({
   onSubmitForApproval,
 }: CampaignCardProps) {
   const statusConfig = CAMPAIGN_STATUS_CONFIG[campaign.status]
-  const progress = campaign.maxEnrollments > 0 
-    ? Math.round((campaign.currentEnrollments / campaign.maxEnrollments) * 100) 
+  // Check if campaign has stats (CampaignWithStats)
+  const hasStats = 'currentEnrollments' in campaign
+  const currentEnrollments = hasStats ? (campaign as campaigns.CampaignWithStats).currentEnrollments : 0
+  const approvedCount = hasStats ? (campaign as campaigns.CampaignWithStats).approvedCount : 0
+  const pendingCount = hasStats ? (campaign as campaigns.CampaignWithStats).pendingCount : 0
+  const rejectedCount = hasStats ? (campaign as campaigns.CampaignWithStats).rejectedCount : 0
+  const totalPayout = hasStats ? (campaign as campaigns.CampaignWithStats).totalPayout : 0
+  const product = hasStats ? (campaign as campaigns.CampaignWithStats).product : undefined
+
+  const progress = campaign.maxEnrollments > 0
+    ? Math.round((currentEnrollments / campaign.maxEnrollments) * 100)
     : 0
 
   const getStatusBadgeColor = (): 'yellow' | 'orange' | 'blue' | 'green' | 'red' | 'gray' => {
@@ -107,7 +119,7 @@ export const CampaignCard = React.memo(function CampaignCard({
   }
 
   const actions = getAvailableActions()
-  const productImage = campaign.product?.image || null
+  const productImage = product?.productImages?.[0] || null
   const showProgress = ['active', 'paused'].includes(campaign.status)
   const showStats = ['active', 'paused', 'ended', 'completed'].includes(campaign.status)
 
@@ -190,19 +202,19 @@ export const CampaignCard = React.memo(function CampaignCard({
           <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-bg-weak-50">
             <div className="text-center">
               <div className="text-title-h6 text-text-strong-950 font-semibold">
-                {campaign.currentEnrollments}
+                {currentEnrollments}
               </div>
               <div className="text-label-xs text-text-soft-400 uppercase tracking-wide">Enrolled</div>
             </div>
             <div className="text-center border-x border-stroke-soft-200">
               <div className="text-title-h6 text-warning-base font-semibold">
-                {campaign.pendingCount}
+                {pendingCount}
               </div>
               <div className="text-label-xs text-text-soft-400 uppercase tracking-wide">Pending</div>
             </div>
             <div className="text-center">
               <div className="text-title-h6 text-success-base font-semibold">
-                {campaign.approvedCount}
+                {approvedCount}
               </div>
               <div className="text-label-xs text-text-soft-400 uppercase tracking-wide">Approved</div>
             </div>
@@ -213,7 +225,7 @@ export const CampaignCard = React.memo(function CampaignCard({
             <div className="mt-3">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-paragraph-xs text-text-sub-600">Capacity</span>
-                <span className="text-label-xs text-text-strong-950 font-medium">{campaign.currentEnrollments}/{campaign.maxEnrollments}</span>
+                <span className="text-label-xs text-text-strong-950 font-medium">{currentEnrollments}/{campaign.maxEnrollments}</span>
               </div>
               <ProgressBar.Root value={progress} size="sm" />
             </div>
@@ -268,7 +280,7 @@ export const CampaignCard = React.memo(function CampaignCard({
 
 // Compact version for lists
 interface CampaignListItemProps {
-  campaign: Campaign
+  campaign: CampaignData
   onView?: () => void
   onAction?: () => void
   actionLabel?: string
@@ -280,7 +292,9 @@ export const CampaignListItem = React.memo(function CampaignListItem({
   actionLabel = 'Review',
 }: CampaignListItemProps) {
   const statusConfig = CAMPAIGN_STATUS_CONFIG[campaign.status]
-  const productImage = campaign.product?.image || null
+  // Get product from CampaignWithStats if available
+  const campaignProduct = 'product' in campaign ? campaign.product : undefined
+  const productImage = campaignProduct?.productImages?.[0] || null
 
   return (
     <div className="flex items-center gap-3 py-3 border-b border-stroke-soft-200 last:border-0">
@@ -314,7 +328,7 @@ export const CampaignListItem = React.memo(function CampaignListItem({
           </Badge.Root>
         </div>
         <div className="text-paragraph-xs text-text-sub-600 mt-0.5">
-          {campaign.currentEnrollments} enrollments · {campaign.pendingCount} pending
+          {'currentEnrollments' in campaign ? campaign.currentEnrollments : 0} enrollments · {'pendingCount' in campaign ? campaign.pendingCount : 0} pending
         </div>
       </div>
       

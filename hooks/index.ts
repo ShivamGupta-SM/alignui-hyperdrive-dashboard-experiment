@@ -1,7 +1,6 @@
 // Re-export all hooks for easy imports
 
-// Data fetching hooks
-export * from './use-api'
+// Data fetching hooks (using Encore client directly)
 export * from './use-campaigns'
 export * from './use-enrollments'
 export * from './use-wallet'
@@ -17,9 +16,7 @@ export * from './use-profile'
 export * from './use-team'
 export * from './use-settings'
 export * from './use-organizations'
-
-// Archived hooks (moved to _archive/hooks/):
-// - use-deliverables.ts
+export * from './use-deliverables'
 
 // URL state management (nuqs)
 export * from './use-search-params'

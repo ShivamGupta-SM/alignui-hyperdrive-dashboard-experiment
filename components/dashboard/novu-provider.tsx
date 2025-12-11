@@ -2,22 +2,8 @@
 
 import * as React from 'react'
 import { NovuProvider as NovuReactProvider } from '@novu/react'
-import { useQuery } from '@tanstack/react-query'
-import { get } from '@/lib/axios'
+import { authClient } from '@/lib/auth-client'
 import { NovuReadyProvider } from '@/components/dashboard/notification-center'
-import type { ApiResponse } from '@/lib/types'
-
-interface SubscriberAuth {
-  subscriberId: string
-  subscriberHash: string | null
-  subscriber: {
-    id: string
-    email: string
-    name: string
-    organizationId: string
-    organizationName: string
-  }
-}
 
 interface NovuProviderProps {
   children: React.ReactNode
@@ -27,46 +13,39 @@ interface NovuProviderProps {
  * Novu Provider Component
  *
  * Wraps the app with NovuProvider for headless notification hooks.
- * Only renders the provider when Novu is configured and authenticated.
+ * Uses Better-Auth session for subscriber identification.
+ *
+ * Backend handles subscriber sync via Novu API when user authenticates.
  */
 export function NovuProvider({ children }: NovuProviderProps) {
   const appId = process.env.NEXT_PUBLIC_NOVU_APP_ID
   const apiUrl = process.env.NEXT_PUBLIC_NOVU_API_URL
   const socketUrl = process.env.NEXT_PUBLIC_NOVU_WS_URL
 
-  const { data: authData, isLoading } = useQuery({
-    queryKey: ['novu', 'subscriber-hash'],
-    queryFn: () => get<ApiResponse<SubscriberAuth>>('/api/novu/subscriber-hash'),
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-    enabled: !!appId,
-  })
+  const { data: session, isPending } = authClient.useSession()
 
   // If Novu is not configured, just render children
   if (!appId) {
     return <>{children}</>
   }
 
-  // While loading auth, render children without provider
-  if (isLoading) {
+  // While loading session, render children without provider
+  if (isPending) {
     return <>{children}</>
   }
 
-  // If auth failed, render children without provider
-  if (!authData?.success || !authData.data?.subscriberId) {
+  // If not authenticated, render children without provider
+  if (!session?.user?.id) {
     return <>{children}</>
   }
 
-  const { subscriberId, subscriberHash } = authData.data
+  // Use user ID as subscriber ID - backend syncs this with Novu
+  const subscriberId = session.user.id
 
-  // Note: Novu React SDK uses internal caching via React Query by default
-  // The SDK handles stale-while-revalidate pattern automatically
-  // Real-time WebSocket updates keep data fresh without manual cache config
   return (
     <NovuReactProvider
       applicationIdentifier={appId}
       subscriberId={subscriberId}
-      subscriberHash={subscriberHash || undefined}
       backendUrl={apiUrl}
       socketUrl={socketUrl}
     >
