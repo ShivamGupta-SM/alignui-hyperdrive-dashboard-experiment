@@ -3,15 +3,14 @@
 import * as React from 'react'
 import * as Avatar from '@/components/ui/avatar'
 import { Logo } from '@/components/ui/logo'
+import { NotificationCenter, FallbackNotificationBell } from '@/components/dashboard/notification-center'
 import { cn } from '@/utils/cn'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 import {
-  Bell,
   MagnifyingGlass,
   Command,
   SidebarSimple,
-  List,
   X,
   SquaresFour,
 } from '@phosphor-icons/react'
@@ -129,7 +128,7 @@ export function Header({
         >
           <MagnifyingGlass className="size-4 shrink-0" weight="duotone" />
           <span className="hidden sm:inline text-paragraph-sm ml-2">Search...</span>
-          <kbd className="hidden sm:flex ml-auto items-center gap-0.5 rounded bg-bg-weak-50 px-1.5 py-0.5 text-[11px] font-medium text-text-soft-400">
+          <kbd className="hidden sm:flex ml-auto items-center gap-0.5 rounded bg-bg-weak-50 px-1.5 py-0.5 text-label-xs font-medium text-text-soft-400">
             <Command className="size-3" />K
           </kbd>
         </button>
@@ -142,25 +141,15 @@ export function Header({
 
       {/* Right: Notifications + Profile */}
       <div className="flex items-center gap-1.5 sm:gap-2">
-        <button
-          type="button"
-          onClick={onNotificationsClick}
-          className={cn(
-            iconButtonStyles,
-            "relative size-11 sm:size-10 group"
-          )}
-          aria-label="Notifications"
-        >
-          <Bell 
-            className="size-4 sm:size-5 transition-transform duration-300 group-hover:rotate-12" 
-            weight="duotone" 
+        {/* Notification Center - Uses Novu when configured, fallback otherwise */}
+        {process.env.NEXT_PUBLIC_NOVU_APP_ID ? (
+          <NotificationCenter />
+        ) : (
+          <FallbackNotificationBell
+            count={unreadNotifications}
+            onClick={onNotificationsClick}
           />
-          {unreadNotifications > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex size-4 sm:size-[18px] items-center justify-center rounded-full bg-error-base text-[10px] font-semibold text-white ring-2 ring-bg-white-0 animate-pulse">
-              {unreadNotifications > 9 ? '9+' : unreadNotifications}
-            </span>
-          )}
-        </button>
+        )}
 
         {/* Profile Avatar - Opens Settings Panel */}
         {user && onSettingsClick && (

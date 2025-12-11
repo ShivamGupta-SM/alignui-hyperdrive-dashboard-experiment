@@ -3,8 +3,6 @@
 import * as React from 'react'
 import { cn } from '@/utils/cn'
 import * as Drawer from '@/components/ui/drawer'
-import * as Button from '@/components/ui/button'
-import * as Badge from '@/components/ui/badge'
 import {
   UserPlus,
   Check,
@@ -15,8 +13,8 @@ import {
   BellSimple,
   CheckCircle,
   X,
-  DotsThree,
 } from '@phosphor-icons/react'
+import { useRouter } from 'next/navigation'
 import type { Notification, NotificationType } from '@/lib/types'
 
 interface NotificationsDrawerProps {
@@ -24,10 +22,12 @@ interface NotificationsDrawerProps {
   onOpenChange: (open: boolean) => void
   notifications?: Notification[]
   onMarkAllRead?: () => void
+  onMarkAsRead?: (id: string) => void
   onNotificationClick?: (notification: Notification) => void
+  isLoading?: boolean
 }
 
-// Mock notifications
+// Mock notifications for fallback
 const mockNotifications: Notification[] = [
   {
     id: '1',
@@ -151,8 +151,11 @@ export function NotificationsDrawer({
   onOpenChange,
   notifications = mockNotifications,
   onMarkAllRead,
+  onMarkAsRead,
   onNotificationClick,
+  isLoading = false,
 }: NotificationsDrawerProps) {
+  const router = useRouter()
   const [filter, setFilter] = React.useState<'all' | 'unread'>('all')
 
   const filteredNotifications = React.useMemo(() => {
@@ -228,9 +231,10 @@ export function NotificationsDrawer({
               </p>
             </div>
           </div>
-          <button 
+          <button
+            type="button"
             onClick={() => onOpenChange(false)}
-            className="size-8 rounded-lg flex items-center justify-center text-text-sub-600 hover:bg-bg-weak-50 hover:text-text-strong-950 transition-colors"
+            className="size-8 rounded-lg flex items-center justify-center text-text-sub-600 hover:bg-bg-weak-50 hover:text-text-strong-950 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"
           >
             <X className="size-5" weight="bold" />
           </button>
@@ -240,29 +244,31 @@ export function NotificationsDrawer({
           {/* Filter Pills */}
           <div className="flex items-center gap-2 px-5 py-3 border-b border-stroke-soft-200">
             <button
+              type="button"
               onClick={() => setFilter('all')}
               className={cn(
-                "px-3 py-1.5 rounded-full text-label-sm transition-all",
-                filter === 'all' 
-                  ? "bg-text-strong-950 text-white" 
+                "px-3 py-1.5 rounded-full text-label-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base",
+                filter === 'all'
+                  ? "bg-text-strong-950 text-white"
                   : "bg-bg-weak-50 text-text-sub-600 hover:bg-bg-soft-200"
               )}
             >
               All
             </button>
             <button
+              type="button"
               onClick={() => setFilter('unread')}
               className={cn(
-                "px-3 py-1.5 rounded-full text-label-sm transition-all flex items-center gap-1.5",
-                filter === 'unread' 
-                  ? "bg-text-strong-950 text-white" 
+                "px-3 py-1.5 rounded-full text-label-sm transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base",
+                filter === 'unread'
+                  ? "bg-text-strong-950 text-white"
                   : "bg-bg-weak-50 text-text-sub-600 hover:bg-bg-soft-200"
               )}
             >
               Unread
               {unreadCount > 0 && (
                 <span className={cn(
-                  "size-5 rounded-full text-[11px] font-medium flex items-center justify-center",
+                  "size-5 rounded-full text-label-xs font-medium flex items-center justify-center",
                   filter === 'unread' 
                     ? "bg-white/20 text-white" 
                     : "bg-error-base text-white"
@@ -274,8 +280,9 @@ export function NotificationsDrawer({
             
             {unreadCount > 0 && (
               <button
+                type="button"
                 onClick={onMarkAllRead}
-                className="ml-auto text-label-xs text-primary-base hover:text-primary-dark transition-colors"
+                className="ml-auto text-label-xs text-primary-base hover:text-primary-dark transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2 rounded"
               >
                 Mark all read
               </button>
@@ -284,7 +291,12 @@ export function NotificationsDrawer({
 
           {/* Notifications List */}
           <div className="flex-1 overflow-y-auto">
-            {groupedNotifications.length === 0 ? (
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-16 px-5">
+                <div className="size-8 border-2 border-primary-base/20 border-t-primary-base rounded-full animate-spin" />
+                <p className="text-paragraph-sm text-text-sub-600 mt-4">Loading notifications...</p>
+              </div>
+            ) : groupedNotifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 px-5 text-center">
                 <div className="size-16 rounded-2xl bg-gradient-to-br from-bg-weak-50 to-bg-soft-200 flex items-center justify-center mb-4">
                   <CheckCircle className="size-8 text-success-base" weight="duotone" />
@@ -312,14 +324,30 @@ export function NotificationsDrawer({
                       const Icon = notificationIcons[notification.type]
                       const styles = notificationStyles[notification.type]
 
+                      const handleClick = () => {
+                        // Mark as read if unread
+                        if (!notification.isRead) {
+                          onMarkAsRead?.(notification.id)
+                        }
+                        // Call custom click handler
+                        onNotificationClick?.(notification)
+                        // Navigate if there's an action URL
+                        if (notification.actionUrl) {
+                          router.push(notification.actionUrl)
+                          onOpenChange(false)
+                        }
+                      }
+
                       return (
                         <button
+                          type="button"
                           key={notification.id}
-                          onClick={() => onNotificationClick?.(notification)}
+                          onClick={handleClick}
                           className={cn(
                             'w-full text-left p-3 rounded-xl mb-1 last:mb-0',
                             'transition-all duration-200',
                             'hover:bg-bg-weak-50 active:scale-[0.99]',
+                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base',
                             !notification.isRead && 'bg-primary-alpha-5 hover:bg-primary-alpha-10'
                           )}
                         >
@@ -377,7 +405,14 @@ export function NotificationsDrawer({
           className="border-t border-stroke-soft-200 px-5 py-3"
           style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
         >
-          <button type="button" className="w-full text-center text-label-sm text-text-sub-600 hover:text-text-strong-950 transition-colors py-2 min-h-11">
+          <button
+            type="button"
+            onClick={() => {
+              router.push('/dashboard/settings?tab=notifications')
+              onOpenChange(false)
+            }}
+            className="w-full text-center text-label-sm text-text-sub-600 hover:text-text-strong-950 transition-colors py-2 min-h-11 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"
+          >
             Notification Settings
           </button>
         </div>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import * as Button from '@/components/ui/button'
-import { ArrowLeft } from '@phosphor-icons/react'
+import { ArrowLeft } from '@phosphor-icons/react/dist/ssr'
 
 export default function PrivacyPage() {
   return (

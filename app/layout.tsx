@@ -5,16 +5,19 @@ import "./globals.css"
 import { cn } from "@/utils/cn"
 import { Providers } from "./providers"
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import { Analytics } from "@vercel/analytics/next"
 
 const inter = FontSans({
     subsets: ["latin"],
     variable: "--font-sans",
+    display: "swap",
 })
 
 const geistMono = localFont({
     src: "./fonts/GeistMono[wght].woff2",
     variable: "--font-geist-mono",
     weight: "100 900",
+    display: "swap",
 })
 
 export const metadata: Metadata = {
@@ -42,14 +45,13 @@ export default function RootLayout({
                 inter.variable,
                 geistMono.variable,
                 "antialiased",
-                // Basement reveal pattern: gray shell background on all viewports
-                // The content sits on top as a white sheet
                 "bg-bg-weak-50"
             )}
         >
             <body className="text-text-strong-950 font-sans overscroll-none">
                 <Providers>{children}</Providers>
                 <SpeedInsights />
+                <Analytics />
             </body>
         </html>
     )

@@ -80,6 +80,7 @@ export function SimpleStatCard({
 // Wallet stat card - special styling for wallet balance
 interface WalletCardProps {
   balance: number
+  lowBalanceThreshold?: number
   label?: string
   onAddFunds?: () => void
   className?: string
@@ -87,6 +88,7 @@ interface WalletCardProps {
 
 export function WalletCard({
   balance,
+  lowBalanceThreshold = 50000,
   label = 'Wallet Balance',
   onAddFunds,
   className,
@@ -100,7 +102,7 @@ export function WalletCard({
     return `₹${amount.toLocaleString('en-IN')}`
   }
 
-  const isLowBalance = balance < 10000
+  const isLowBalance = balance < lowBalanceThreshold
 
   return (
     <div className={cn(
@@ -318,12 +320,14 @@ export function StatCard({
 interface WalletStatCardProps extends Omit<StatCardProps, 'value' | 'label' | 'secondaryText'> {
   availableBalance: number
   heldAmount?: number
+  lowBalanceThreshold?: number
   onAddFunds?: () => void
 }
 
 export function WalletStatCard({
   availableBalance,
   heldAmount,
+  lowBalanceThreshold = 50000,
   onAddFunds,
   ...props
 }: WalletStatCardProps) {
@@ -336,7 +340,7 @@ export function WalletStatCard({
     return `₹${amount.toLocaleString('en-IN')}`
   }
 
-  const isLowBalance = availableBalance < 10000
+  const isLowBalance = availableBalance < lowBalanceThreshold
 
   return (
     <StatCard

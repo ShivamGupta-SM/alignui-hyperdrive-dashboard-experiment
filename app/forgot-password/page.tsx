@@ -5,6 +5,7 @@ import Link from 'next/link'
 import * as Button from '@/components/ui/button'
 import * as Input from '@/components/ui/input'
 import { Callout } from '@/components/ui/callout'
+import { delay, DELAY } from '@/lib/utils/delay'
 import { ArrowLeft, Envelope } from '@phosphor-icons/react'
 
 export default function ForgotPasswordPage() {
@@ -19,7 +20,7 @@ export default function ForgotPasswordPage() {
     setIsLoading(true)
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      await delay(DELAY.FORM)
       setSuccess(true)
     } catch {
       setError('Failed to send reset email')

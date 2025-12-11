@@ -1,12 +1,5 @@
 import { AuthView } from "@/lib/auth"
-import { authViewPaths } from "@/lib/auth/server"
 import Link from "next/link"
-
-export const dynamicParams = false
-
-export function generateStaticParams() {
-    return Object.values(authViewPaths).map((path) => ({ path }))
-}
 
 export default async function AuthPage({
     params

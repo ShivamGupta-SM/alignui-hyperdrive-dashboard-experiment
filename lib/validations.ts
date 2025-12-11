@@ -129,7 +129,7 @@ export const campaignSchema = z.object({
     .max(1000, 'Description must be less than 1000 characters')
     .optional(),
   productId: z.string().min(1, 'Product is required'),
-  type: z.enum(['cashback', 'discount', 'reward']),
+  type: z.enum(['cashback', 'barter', 'hybrid']),
   startDate: z.date({ message: 'Start date is required' }),
   endDate: z.date({ message: 'End date is required' }),
   maxEnrollments: z
@@ -139,11 +139,130 @@ export const campaignSchema = z.object({
   billRate: z
     .number()
     .min(0, 'Bill rate must be positive')
-    .max(100, 'Bill rate must be less than 100%'),
+    .max(100, 'Bill rate must be less than 100%')
+    .optional(),
 }).refine((data) => data.endDate > data.startDate, {
   message: 'End date must be after start date',
   path: ['endDate'],
 })
+
+// ==========================================
+// API REQUEST BODY SCHEMAS
+// ==========================================
+
+export const campaignStatusSchema = z.enum([
+  'draft', 'pending_approval', 'rejected', 'approved', 'active',
+  'paused', 'ended', 'expired', 'completed', 'cancelled', 'archived'
+])
+
+export const enrollmentStatusSchema = z.enum([
+  'enrolled', 'awaiting_submission', 'awaiting_review',
+  'changes_requested', 'approved', 'rejected', 'withdrawn', 'expired'
+])
+
+export const createCampaignBodySchema = z.object({
+  title: z
+    .string()
+    .min(1, 'Campaign title is required')
+    .min(3, 'Campaign title must be at least 3 characters')
+    .max(200, 'Campaign title must be less than 200 characters'),
+  description: z
+    .string()
+    .max(1000, 'Description must be less than 1000 characters')
+    .optional(),
+  productId: z.string().min(1, 'Product is required'),
+  type: z.enum(['cashback', 'barter', 'hybrid']),
+  isPublic: z.boolean(),
+  maxEnrollments: z
+    .number()
+    .int()
+    .min(1, 'Maximum enrollments must be at least 1')
+    .max(100000, 'Maximum enrollments must be less than 100,000'),
+  submissionDeadlineDays: z
+    .number()
+    .int()
+    .min(1, 'Submission deadline must be at least 1 day')
+    .max(90, 'Submission deadline must be less than 90 days'),
+  startDate: z.string().min(1, 'Start date is required'),
+  endDate: z.string().min(1, 'End date is required'),
+})
+
+export const updateCampaignBodySchema = createCampaignBodySchema.partial().extend({
+  status: campaignStatusSchema.optional(),
+})
+
+export const updateEnrollmentBodySchema = z.object({
+  status: enrollmentStatusSchema,
+  reason: z.string().max(500, 'Reason must be less than 500 characters').optional(),
+})
+
+export const bulkUpdateEnrollmentBodySchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, 'At least one enrollment ID is required'),
+  status: enrollmentStatusSchema,
+  reason: z.string().max(500, 'Reason must be less than 500 characters').optional(),
+})
+
+// Wallet schemas for API
+export const withdrawalBodySchema = z.object({
+  amount: z.number().min(1000, 'Minimum withdrawal amount is ₹1,000'),
+  bankAccountId: z.string().min(1, 'Bank account is required'),
+})
+
+export const addFundsBodySchema = z.object({
+  amount: z.number().min(100, 'Minimum amount is ₹100'),
+  paymentMethod: z.enum(['upi', 'netbanking', 'card']),
+})
+
+export const creditRequestBodySchema = z.object({
+  amount: z.number().min(10000, 'Minimum credit request is ₹10,000').max(500000, 'Maximum credit request is ₹5,00,000'),
+  reason: z.string().min(10, 'Please provide a reason').max(500, 'Reason must be less than 500 characters'),
+})
+
+// Settings schemas for API
+export const updateProfileBodySchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be less than 100 characters'),
+  phone: z.string().regex(/^[6-9]\d{9}$/, 'Invalid phone number').optional(),
+})
+
+export const updateOrganizationBodySchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be less than 100 characters'),
+  website: z.string().url('Invalid URL').optional().or(z.literal('')),
+  email: z.string().email('Invalid email').optional(),
+  phone: z.string().optional(),
+  address: z.string().max(500, 'Address must be less than 500 characters').optional(),
+  industry: z.string().optional(),
+})
+
+export const updatePasswordBodySchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+})
+
+export const bankAccountBodySchema = z.object({
+  bankName: z.string().min(1, 'Bank name is required'),
+  accountNumber: z.string().min(9, 'Invalid account number').max(18, 'Invalid account number'),
+  accountHolder: z.string().min(2, 'Account holder name is required'),
+  ifscCode: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Invalid IFSC code'),
+  isDefault: z.boolean().optional(),
+})
+
+export const verify2FABodySchema = z.object({
+  code: z.string().length(6, 'Code must be 6 digits').regex(/^\d+$/, 'Code must contain only numbers'),
+})
+
+// Type exports for API schemas
+export type CreateCampaignBody = z.infer<typeof createCampaignBodySchema>
+export type UpdateCampaignBody = z.infer<typeof updateCampaignBodySchema>
+export type UpdateEnrollmentBody = z.infer<typeof updateEnrollmentBodySchema>
+export type BulkUpdateEnrollmentBody = z.infer<typeof bulkUpdateEnrollmentBodySchema>
+export type WithdrawalBody = z.infer<typeof withdrawalBodySchema>
+export type AddFundsBody = z.infer<typeof addFundsBodySchema>
+export type CreditRequestBody = z.infer<typeof creditRequestBodySchema>
+export type UpdateProfileBody = z.infer<typeof updateProfileBodySchema>
+export type UpdateOrganizationBody = z.infer<typeof updateOrganizationBodySchema>
+export type UpdatePasswordBody = z.infer<typeof updatePasswordBodySchema>
+export type BankAccountBody = z.infer<typeof bankAccountBodySchema>
+export type Verify2FABody = z.infer<typeof verify2FABodySchema>
 
 // ==========================================
 // WALLET SCHEMAS
@@ -187,6 +306,45 @@ export type ProductFormData = z.infer<typeof productSchema>
 export type CampaignFormData = z.infer<typeof campaignSchema>
 export type CreditRequestFormData = z.infer<typeof creditRequestSchema>
 export type ProfileFormData = z.infer<typeof profileSchema>
+
+// ==========================================
+// API QUERY PARAMETER SCHEMAS
+// ==========================================
+
+export const paginationSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+})
+
+export const campaignQuerySchema = paginationSchema.extend({
+  status: z.enum(['all', 'draft', 'pending_approval', 'rejected', 'approved', 'active', 'paused', 'ended', 'expired', 'completed', 'cancelled', 'archived']).optional(),
+  search: z.string().optional(),
+})
+
+export const enrollmentQuerySchema = paginationSchema.extend({
+  status: z.enum(['all', 'enrolled', 'awaiting_submission', 'awaiting_review', 'changes_requested', 'approved', 'rejected', 'withdrawn', 'expired']).optional(),
+  campaignId: z.string().optional(),
+  search: z.string().optional(),
+})
+
+export const invoiceQuerySchema = paginationSchema.extend({
+  status: z.enum(['all', 'pending', 'paid', 'overdue', 'cancelled']).optional(),
+})
+
+export const walletQuerySchema = paginationSchema.extend({
+  type: z.enum(['all', 'credit', 'hold_created', 'hold_committed', 'hold_voided', 'withdrawal', 'refund']).optional(),
+})
+
+/**
+ * Parse and validate query parameters from URLSearchParams
+ */
+export function parseQueryParams<T extends z.ZodSchema>(
+  schema: T,
+  searchParams: URLSearchParams
+): z.infer<T> {
+  const params = Object.fromEntries(searchParams.entries())
+  return schema.parse(params)
+}
 
 // ==========================================
 // VALIDATION HELPERS

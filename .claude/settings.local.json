@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(del \"c:\\Users\\Shivam Gupta\\Downloads\\Hyprive_unti\\experiment\\alignui-hyperdrive-dashboard-experiment\\middleware.ts\")",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm approve-builds:*)",
+      "Bash(npx msw:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)"
     ]
   }
 }

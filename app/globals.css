@@ -768,7 +768,8 @@ body {
 /* iOS Safari/Chrome scroll fix - prevent rubber-banding getting stuck */
 html {
   height: -webkit-fill-available;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 body {

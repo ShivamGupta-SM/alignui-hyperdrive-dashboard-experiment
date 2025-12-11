@@ -45,6 +45,7 @@ yarn-error.log*
 # workspace
 .turbo
 .vscode
+.history
 
 # PWA
 public/sw.js

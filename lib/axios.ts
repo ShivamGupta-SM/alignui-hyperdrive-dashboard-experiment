@@ -1,37 +1,49 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios"
-import { toast } from "sonner"
+
+// Custom error class with additional context for callers to handle
+export class ApiError extends Error {
+    constructor(
+        message: string,
+        public status?: number,
+        public code?: string,
+        public isNetworkError = false,
+        public isAuthError = false
+    ) {
+        super(message)
+        this.name = 'ApiError'
+    }
+}
 
 // Create axios instance with defaults
+// Note: baseURL is empty because hooks already use full paths like '/api/...'
 export const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || "/api",
+    baseURL: process.env.NEXT_PUBLIC_API_URL || "",
     timeout: 30000,
     headers: {
         "Content-Type": "application/json",
     },
 })
 
-// Request interceptor
+// Request interceptor - only for external API auth
 api.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
-        // Add auth token if available (for external APIs)
-        // For Next.js API routes, cookies are sent automatically
-        const token = typeof window !== "undefined" ? localStorage.getItem("api_token") : null
-        if (token && config.headers) {
-            config.headers.Authorization = `Bearer ${token}`
+        // Only add auth token for external APIs (not /api routes - those use cookies)
+        const isInternalApi = config.url?.startsWith('/api')
+        if (!isInternalApi) {
+            const token = typeof window !== "undefined" ? localStorage.getItem("api_token") : null
+            if (token && config.headers) {
+                config.headers.Authorization = `Bearer ${token}`
+            }
         }
-
         return config
     },
-    (error) => {
-        return Promise.reject(error)
-    }
+    (error) => Promise.reject(error)
 )
 
-// Response interceptor
+// Response interceptor - transforms errors without side effects
+// Callers are responsible for handling redirects, toasts, and UI feedback
 api.interceptors.response.use(
-    (response) => {
-        return response
-    },
+    (response) => response,
     (error: AxiosError<{ message?: string; error?: string }>) => {
         const message =
             error.response?.data?.message ||
@@ -39,38 +51,26 @@ api.interceptors.response.use(
             error.message ||
             "An unexpected error occurred"
 
-        // Handle specific status codes
-        switch (error.response?.status) {
-            case 401:
-                // Unauthorized - redirect to login
-                if (typeof window !== "undefined") {
-                    window.location.href = "/auth/sign-in"
-                }
-                break
-            case 403:
-                toast.error("You don't have permission to perform this action")
-                break
-            case 404:
-                toast.error("Resource not found")
-                break
-            case 422:
-                // Validation error - let the caller handle it
-                break
-            case 429:
-                toast.error("Too many requests. Please try again later.")
-                break
-            case 500:
-            case 502:
-            case 503:
-                toast.error("Server error. Please try again later.")
-                break
-            default:
-                if (!error.response) {
-                    toast.error("Network error. Please check your connection.")
-                }
-        }
+        const status = error.response?.status
+        const isNetworkError = !error.response
+        const isAuthError = status === 401 || status === 403
 
-        return Promise.reject(error)
+        // Create enhanced error for callers to handle appropriately
+        const apiError = new ApiError(
+            message,
+            status,
+            error.code,
+            isNetworkError,
+            isAuthError
+        )
+
+        // Attach original response data for validation errors etc.
+        Object.assign(apiError, {
+            response: error.response,
+            originalError: error
+        })
+
+        return Promise.reject(apiError)
     }
 )
 

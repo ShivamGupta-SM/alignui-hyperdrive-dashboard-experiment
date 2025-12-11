@@ -377,6 +377,12 @@ export default function MetallicPaint({
   const [error, setError] = useState<string | null>(null)
   const totalAnimationTime = useRef(0)
   const lastRenderTime = useRef(0)
+  const glResourcesRef = useRef<{
+    program: WebGLProgram | null
+    vertexShader: WebGLShader | null
+    fragmentShader: WebGLShader | null
+    vertexBuffer: WebGLBuffer | null
+  }>({ program: null, vertexShader: null, fragmentShader: null, vertexBuffer: null })
 
   // Check WebGL support
   useEffect(() => {
@@ -469,10 +475,31 @@ export default function MetallicPaint({
       gl.enableVertexAttribArray(positionLocation)
       gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
       gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
+
+      // Store resources for cleanup
+      glResourcesRef.current = { program, vertexShader, fragmentShader, vertexBuffer }
       setGl(gl)
     }
     initShader()
     updateUniforms()
+
+    // Cleanup WebGL resources on unmount
+    return () => {
+      const { program, vertexShader, fragmentShader, vertexBuffer } = glResourcesRef.current
+      const canvas = canvasRef.current
+      const glContext = canvas?.getContext('webgl2')
+      if (glContext) {
+        if (vertexBuffer) glContext.deleteBuffer(vertexBuffer)
+        if (program) {
+          if (vertexShader) glContext.detachShader(program, vertexShader)
+          if (fragmentShader) glContext.detachShader(program, fragmentShader)
+          glContext.deleteProgram(program)
+        }
+        if (vertexShader) glContext.deleteShader(vertexShader)
+        if (fragmentShader) glContext.deleteShader(fragmentShader)
+      }
+      glResourcesRef.current = { program: null, vertexShader: null, fragmentShader: null, vertexBuffer: null }
+    }
   }, [])
 
   useEffect(() => {

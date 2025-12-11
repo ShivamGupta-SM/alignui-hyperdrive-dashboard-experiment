@@ -2,6 +2,9 @@ import Link from 'next/link'
 import ThemeSwitch from '@/components/theme-switch'
 import { Logo } from '@/components/ui/logo'
 
+// Onboarding pages require dynamic rendering due to client-side providers
+export const dynamic = 'force-dynamic'
+
 export default function OnboardingLayout({
   children,
 }: {
@@ -24,4 +27,3 @@ export default function OnboardingLayout({
     </div>
   )
 }
-

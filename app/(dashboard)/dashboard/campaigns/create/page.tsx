@@ -3,21 +3,23 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import * as Button from '@/components/ui/button'
 import * as Input from '@/components/ui/input'
 import * as Select from '@/components/ui/select'
 import * as Textarea from '@/components/ui/textarea'
+import { NumberInput } from '@/components/ui/currency-input'
 import * as Checkbox from '@/components/ui/checkbox'
 import * as Radio from '@/components/ui/radio'
 import * as Breadcrumb from '@/components/ui/breadcrumb'
 import { Calendar } from '@/components/ui/datepicker'
 import * as Popover from '@/components/ui/popover'
-import { 
-  ArrowLeft, 
-  ArrowRight, 
-  CalendarBlank, 
-  Plus, 
-  Trash, 
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarBlank,
+  Plus,
+  Trash,
   Megaphone,
   Package,
   CalendarDots,
@@ -32,7 +34,9 @@ import {
 } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import { CAMPAIGN_TYPE_OPTIONS, DELIVERABLE_TYPE_OPTIONS, DEFAULT_SUBMISSION_DEADLINE_DAYS } from '@/lib/constants'
-import type { CampaignType, DeliverableType, CampaignFormData } from '@/lib/types'
+import { createCampaign, updateCampaignStatus } from '@/app/actions'
+import { useProducts } from '@/hooks/use-products'
+import type { CampaignType, DeliverableType, CampaignFormData, Product } from '@/lib/types'
 
 const steps = [
   { label: 'Basic Info', shortLabel: 'Info', value: 1, icon: Package },
@@ -41,14 +45,9 @@ const steps = [
   { label: 'Review', shortLabel: 'Review', value: 4, icon: CheckCircle },
 ]
 
-// Mock products
-const mockProducts = [
-  { id: '1', name: 'Nike Air Max 2024', category: 'Footwear', image: '/images/products/nike-shoes.png' },
-  { id: '2', name: 'Samsung Galaxy S24', category: 'Electronics', image: '/images/products/samsung-phone.png' },
-  { id: '3', name: 'Sony WH-1000XM5', category: 'Audio', image: '/images/products/sony-headphones.png' },
-]
-
 export default function CreateCampaignPage() {
+  // Fetch products from API
+  const { data: products = [], isLoading: isLoadingProducts } = useProducts()
   const router = useRouter()
   const [currentStep, setCurrentStep] = React.useState(1)
   const [isLoading, setIsLoading] = React.useState(false)
@@ -59,7 +58,7 @@ export default function CreateCampaignPage() {
     isPublic: true,
     submissionDeadlineDays: DEFAULT_SUBMISSION_DEADLINE_DAYS,
     deliverables: [
-      { type: 'order_screenshot', title: 'Order Screenshot', isRequired: true },
+      { id: crypto.randomUUID(), type: 'order_screenshot', title: 'Order Screenshot', isRequired: true },
     ],
     terms: [],
   })
@@ -85,8 +84,29 @@ export default function CreateCampaignPage() {
   const handleSaveDraft = async () => {
     setIsLoading(true)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      router.push('/dashboard/campaigns')
+      // Prepare data for server action
+      const campaignData = {
+        title: formData.title || '',
+        description: formData.description,
+        productId: formData.productId || '',
+        type: formData.type || 'cashback',
+        isPublic: formData.isPublic ?? true,
+        maxEnrollments: formData.maxEnrollments || 0,
+        submissionDeadlineDays: formData.submissionDeadlineDays || DEFAULT_SUBMISSION_DEADLINE_DAYS,
+        startDate: formData.startDate?.toISOString() || '',
+        endDate: formData.endDate?.toISOString() || '',
+      }
+
+      const result = await createCampaign(campaignData)
+
+      if (result.success) {
+        toast.success('Campaign saved as draft')
+        router.push('/dashboard/campaigns')
+      } else {
+        toast.error(result.error || 'Failed to save campaign')
+      }
+    } catch {
+      toast.error('Something went wrong. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -95,8 +115,41 @@ export default function CreateCampaignPage() {
   const handleSubmit = async () => {
     setIsLoading(true)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Prepare data for server action
+      const campaignData = {
+        title: formData.title || '',
+        description: formData.description,
+        productId: formData.productId || '',
+        type: formData.type || 'cashback',
+        isPublic: formData.isPublic ?? true,
+        maxEnrollments: formData.maxEnrollments || 0,
+        submissionDeadlineDays: formData.submissionDeadlineDays || DEFAULT_SUBMISSION_DEADLINE_DAYS,
+        startDate: formData.startDate?.toISOString() || '',
+        endDate: formData.endDate?.toISOString() || '',
+      }
+
+      // First create the campaign
+      const createResult = await createCampaign(campaignData)
+
+      if (!createResult.success) {
+        toast.error(createResult.error || 'Failed to create campaign')
+        return
+      }
+
+      // Then submit for approval
+      if (createResult.campaign?.id) {
+        const statusResult = await updateCampaignStatus(createResult.campaign.id, 'pending_approval')
+        if (!statusResult.success) {
+          toast.error('Campaign created but failed to submit for approval')
+          router.push('/dashboard/campaigns')
+          return
+        }
+      }
+
+      toast.success('Campaign submitted for approval')
       router.push('/dashboard/campaigns')
+    } catch {
+      toast.error('Something went wrong. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -259,7 +312,12 @@ export default function CreateCampaignPage() {
         <div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 shadow-sm overflow-hidden">
           <div className="p-5 sm:p-8">
             {currentStep === 1 && (
-              <Step1BasicInfo formData={formData} updateFormData={updateFormData} />
+              <Step1BasicInfo
+                formData={formData}
+                updateFormData={updateFormData}
+                products={products}
+                isLoadingProducts={isLoadingProducts}
+              />
             )}
             {currentStep === 2 && (
               <Step2Schedule formData={formData} updateFormData={updateFormData} />
@@ -268,7 +326,7 @@ export default function CreateCampaignPage() {
               <Step3Deliverables formData={formData} updateFormData={updateFormData} />
             )}
             {currentStep === 4 && (
-              <Step4Review formData={formData} onEdit={setCurrentStep} />
+              <Step4Review formData={formData} onEdit={setCurrentStep} products={products} />
             )}
           </div>
         </div>
@@ -332,9 +390,12 @@ interface StepProps {
   updateFormData: (updates: Partial<CampaignFormData>) => void
 }
 
-function Step1BasicInfo({ formData, updateFormData }: StepProps) {
-  const selectedProduct = mockProducts.find(p => p.id === formData.productId)
-  
+interface Step1Props extends StepProps {
+  products: Product[]
+  isLoadingProducts: boolean
+}
+
+function Step1BasicInfo({ formData, updateFormData, products, isLoadingProducts }: Step1Props) {
   return (
     <div className="space-y-8">
       {/* Section Header */}
@@ -353,28 +414,52 @@ function Step1BasicInfo({ formData, updateFormData }: StepProps) {
         </label>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {mockProducts.map((product) => (
-            <button
-              key={product.id}
-              type="button"
-              onClick={() => updateFormData({ productId: product.id })}
-              className={cn(
-                'flex items-center gap-3 p-3 rounded-xl text-left transition-all',
-                'ring-1 ring-inset',
-                formData.productId === product.id
-                  ? 'ring-primary-base bg-primary-base/5 shadow-sm'
-                  : 'ring-stroke-soft-200 hover:bg-bg-weak-50 hover:ring-stroke-sub-300'
-              )}
-            >
-              <div className="size-12 rounded-lg bg-bg-weak-50 flex items-center justify-center shrink-0">
-                <Package weight="duotone" className="size-6 text-text-soft-400" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-label-sm text-text-strong-950 truncate">{product.name}</div>
-                <div className="text-paragraph-xs text-text-soft-400">{product.category}</div>
-              </div>
-            </button>
-          ))}
+          {isLoadingProducts ? (
+            // Loading skeleton
+            <>
+              {['skeleton-1', 'skeleton-2', 'skeleton-3'].map((key) => (
+                <div
+                  key={key}
+                  className="flex items-center gap-3 p-3 rounded-xl ring-1 ring-inset ring-stroke-soft-200 animate-pulse"
+                >
+                  <div className="size-12 rounded-lg bg-bg-weak-50" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-bg-weak-50 rounded w-3/4" />
+                    <div className="h-3 bg-bg-weak-50 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </>
+          ) : products.length === 0 ? (
+            <div className="col-span-full text-center py-8 text-text-soft-400">
+              <Package weight="duotone" className="size-10 mx-auto mb-2 opacity-50" />
+              <p className="text-paragraph-sm">No products found</p>
+              <p className="text-paragraph-xs">Add a product to create a campaign</p>
+            </div>
+          ) : (
+            products.map((product) => (
+              <button
+                key={product.id}
+                type="button"
+                onClick={() => updateFormData({ productId: product.id })}
+                className={cn(
+                  'flex items-center gap-3 p-3 rounded-xl text-left transition-all',
+                  'ring-1 ring-inset',
+                  formData.productId === product.id
+                    ? 'ring-primary-base bg-primary-base/5 shadow-sm'
+                    : 'ring-stroke-soft-200 hover:bg-bg-weak-50 hover:ring-stroke-sub-300'
+                )}
+              >
+                <div className="size-12 rounded-lg bg-bg-weak-50 flex items-center justify-center shrink-0">
+                  <Package weight="duotone" className="size-6 text-text-soft-400" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-label-sm text-text-strong-950 truncate">{product.name}</div>
+                  <div className="text-paragraph-xs text-text-soft-400">{product.category}</div>
+                </div>
+              </button>
+            ))
+          )}
         </div>
         
         <Link 
@@ -582,16 +667,12 @@ function Step2Schedule({ formData, updateFormData }: StepProps) {
             Maximum Enrollments
             <span className="text-error-base">*</span>
           </label>
-          <Input.Root>
-            <Input.Wrapper>
-              <Input.El
-                type="number"
-                placeholder="500"
-                value={formData.maxEnrollments || ''}
-                onChange={(e) => updateFormData({ maxEnrollments: parseInt(e.target.value) || 0 })}
-              />
-            </Input.Wrapper>
-          </Input.Root>
+          <NumberInput
+            value={formData.maxEnrollments}
+            onValueChange={(value) => updateFormData({ maxEnrollments: value ?? 0 })}
+            placeholder="500"
+            size="medium"
+          />
           <p className="text-paragraph-xs text-text-soft-400">
             Maximum shoppers who can enroll
           </p>
@@ -602,19 +683,13 @@ function Step2Schedule({ formData, updateFormData }: StepProps) {
             <Clock weight="duotone" className="size-4 text-warning-base" />
             Submission Deadline
           </label>
-          <div className="flex items-center gap-2">
-            <Input.Root className="flex-1">
-              <Input.Wrapper>
-                <Input.El
-                  type="number"
-                  placeholder="45"
-                  value={formData.submissionDeadlineDays || ''}
-                  onChange={(e) => updateFormData({ submissionDeadlineDays: parseInt(e.target.value) || DEFAULT_SUBMISSION_DEADLINE_DAYS })}
-                />
-              </Input.Wrapper>
-            </Input.Root>
-            <span className="text-paragraph-sm text-text-sub-600 shrink-0">days</span>
-          </div>
+          <NumberInput
+            value={formData.submissionDeadlineDays}
+            onValueChange={(value) => updateFormData({ submissionDeadlineDays: value ?? DEFAULT_SUBMISSION_DEADLINE_DAYS })}
+            placeholder="45"
+            suffix="days"
+            size="medium"
+          />
           <p className="text-paragraph-xs text-text-soft-400">
             Days to submit proofs after enrolling
           </p>
@@ -640,7 +715,7 @@ function Step3Deliverables({ formData, updateFormData }: StepProps) {
     updateFormData({
       deliverables: [
         ...deliverables,
-        { type: 'delivery_photo' as DeliverableType, title: '', isRequired: false },
+        { id: crypto.randomUUID(), type: 'delivery_photo' as DeliverableType, title: '', isRequired: false },
       ],
     })
   }
@@ -679,7 +754,7 @@ function Step3Deliverables({ formData, updateFormData }: StepProps) {
       <div className="space-y-4">
         {deliverables.map((deliverable, index) => (
           <div
-            key={index}
+            key={deliverable.id}
             className={cn(
               'rounded-xl ring-1 ring-inset p-4 sm:p-5',
               index === 0 
@@ -787,11 +862,12 @@ function Step3Deliverables({ formData, updateFormData }: StepProps) {
 interface Step4Props {
   formData: Partial<CampaignFormData>
   onEdit: (step: number) => void
+  products: Product[]
 }
 
-function Step4Review({ formData, onEdit }: Step4Props) {
+function Step4Review({ formData, onEdit, products }: Step4Props) {
   const [termsAccepted, setTermsAccepted] = React.useState(false)
-  const product = mockProducts.find((p) => p.id === formData.productId)
+  const product = products.find((p) => p.id === formData.productId)
 
   const formatDate = (date?: Date) => {
     if (!date) return 'Not set'

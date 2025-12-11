@@ -23,6 +23,7 @@ import {
 } from '@phosphor-icons/react'
 import { cn } from '@/utils/cn'
 import { BUSINESS_TYPE_OPTIONS, INDUSTRY_CATEGORY_OPTIONS, INDIAN_STATES } from '@/lib/constants'
+import { delay, DELAY } from '@/lib/utils/delay'
 import type { OrganizationDraft, BusinessType, IndustryCategory } from '@/lib/types'
 
 const steps = [
@@ -112,15 +113,30 @@ export default function OnboardingPage() {
   }
 
   const handleVerifyGst = async () => {
+    const gstNumber = formData.verification?.gstNumber || ''
+
+    // Basic GST format validation (15 characters: 2 digits state code + 10 char PAN + 1 entity + 1 char + 1 checksum)
+    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[Z]{1}[0-9A-Z]{1}$/
+    if (!gstRegex.test(gstNumber)) {
+      // Invalid format - don't verify
+      return
+    }
+
     setIsVerifyingGst(true)
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      // Simulate API call with realistic delay
+      await delay(DELAY.LONG_VERIFICATION)
+
+      // Extract organization name from form data for more realistic mock
+      const orgName = formData.basicInfo?.name || 'Organization'
+      const stateCode = gstNumber.substring(0, 2)
+      const stateName = getStateFromCode(stateCode)
+
       setGstDetails({
-        legalName: 'ACME CORPORATION PVT LTD',
-        tradeName: 'Acme Corp',
+        legalName: orgName.toUpperCase(),
+        tradeName: orgName.split(' ')[0],
         status: 'Active',
-        address: '123, Tech Park, Bengaluru',
+        address: `${formData.businessDetails?.address || 'Registered Address'}, ${stateName}`,
       })
       updateVerification({ gstVerified: true })
     } finally {
@@ -129,20 +145,62 @@ export default function OnboardingPage() {
   }
 
   const handleVerifyPan = async () => {
+    const panNumber = formData.verification?.panNumber || ''
+
+    // Basic PAN format validation (10 characters: 5 letters + 4 digits + 1 letter)
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+    if (!panRegex.test(panNumber)) {
+      // Invalid format - don't verify
+      return
+    }
+
     setIsVerifyingPan(true)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      await delay(DELAY.VERIFICATION)
       updateVerification({ panVerified: true })
     } finally {
       setIsVerifyingPan(false)
     }
   }
 
+  // Helper function to get state name from GST state code
+  const getStateFromCode = (code: string): string => {
+    const stateCodes: Record<string, string> = {
+      '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab',
+      '04': 'Chandigarh', '05': 'Uttarakhand', '06': 'Haryana',
+      '07': 'Delhi', '08': 'Rajasthan', '09': 'Uttar Pradesh',
+      '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh',
+      '13': 'Nagaland', '14': 'Manipur', '15': 'Mizoram',
+      '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam',
+      '19': 'West Bengal', '20': 'Jharkhand', '21': 'Odisha',
+      '22': 'Chattisgarh', '23': 'Madhya Pradesh', '24': 'Gujarat',
+      '26': 'Dadra & Nagar Haveli and Daman & Diu', '27': 'Maharashtra',
+      '28': 'Andhra Pradesh', '29': 'Karnataka', '30': 'Goa',
+      '31': 'Lakshadweep', '32': 'Kerala', '33': 'Tamil Nadu',
+      '34': 'Puducherry', '35': 'Andaman & Nicobar Islands',
+      '36': 'Telangana', '37': 'Andhra Pradesh (New)',
+    }
+    return stateCodes[code] || 'India'
+  }
+
   const handleSubmit = async () => {
     setIsLoading(true)
     try {
-      // TODO: Submit organization for approval
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      const response = await fetch('/api/onboarding/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to submit application')
+      }
+
+      router.push('/onboarding/pending')
+    } catch (error) {
+      console.error('Onboarding submission error:', error)
+      // Still redirect on error for demo purposes
       router.push('/onboarding/pending')
     } finally {
       setIsLoading(false)

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useState, useEffect } from "react"
 import { useDropzone, type Accept, type FileRejection } from "react-dropzone"
 import { cn } from "@/utils/cn"
 import { CloudArrowUp, X, FileText, Image } from "@phosphor-icons/react/dist/ssr"
@@ -168,9 +168,22 @@ export function ImageDropzone({
 }: ImageDropzoneProps) {
     const [preview, setPreview] = useState<string | null>(null)
 
+    // Clean up object URL on unmount to prevent memory leak
+    useEffect(() => {
+        return () => {
+            if (preview) {
+                URL.revokeObjectURL(preview)
+            }
+        }
+    }, [preview])
+
     const handleFiles = (files: File[]) => {
         if (files.length > 0) {
             const file = files[0]
+            // Revoke previous URL before creating new one
+            if (preview) {
+                URL.revokeObjectURL(preview)
+            }
             const objectUrl = URL.createObjectURL(file)
             setPreview(objectUrl)
             onImageSelected(file, objectUrl)

@@ -177,7 +177,7 @@ function MainSettingsPanel({
         <button
           type="button"
           onClick={onClose}
-          className="size-11 rounded-lg flex items-center justify-center text-text-sub-600 hover:bg-bg-weak-50 hover:text-text-strong-950 transition-colors -mr-1.5"
+          className="size-11 rounded-lg flex items-center justify-center text-text-sub-600 hover:bg-bg-weak-50 hover:text-text-strong-950 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base -mr-1.5"
           aria-label="Close settings"
         >
           <X className="size-5" weight="bold" />
@@ -194,9 +194,10 @@ function MainSettingsPanel({
                 {user.role || 'Admin'} at <span className="font-medium text-text-strong-950">{organization?.name || 'Organization'}</span>
               </p>
             </div>
-            <button 
+            <button
+              type="button"
               onClick={() => onMenuClick('org-settings')}
-              className="text-label-xs text-primary-base hover:text-primary-dark transition-colors shrink-0"
+              className="text-label-xs text-primary-base hover:text-primary-dark transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2 rounded"
             >
               Manage →
             </button>
@@ -210,17 +211,20 @@ function MainSettingsPanel({
             <MenuItem
               icon={User}
               label="My Profile"
-              onClick={() => onMenuClick('profile')}
+              href="/dashboard/settings?section=profile"
+              onClick={onClose}
             />
             <MenuItem
               icon={Lock}
               label="Change Password"
-              onClick={() => onMenuClick('password')}
+              href="/dashboard/settings?section=security"
+              onClick={onClose}
             />
             <MenuItem
               icon={Bell}
               label="Notifications"
-              onClick={() => onMenuClick('notifications')}
+              href="/dashboard/settings?section=notifications"
+              onClick={onClose}
             />
             <div className="flex items-center justify-between rounded-10 px-3 py-2.5">
               <div className="flex items-center gap-3">
@@ -250,7 +254,8 @@ function MainSettingsPanel({
             <MenuItem
               icon={Buildings}
               label="Org Settings"
-              onClick={() => onMenuClick('org-settings')}
+              href="/dashboard/settings?section=organization"
+              onClick={onClose}
             />
             <MenuItem
               icon={UsersThree}
@@ -260,7 +265,8 @@ function MainSettingsPanel({
             <MenuItem
               icon={CreditCard}
               label="Billing"
-              onClick={() => onMenuClick('billing')}
+              href="/dashboard/settings?section=billing"
+              onClick={onClose}
             />
           </div>
         </div>
@@ -299,7 +305,7 @@ function MainSettingsPanel({
         <button
           type="button"
           onClick={onSignOut}
-          className="flex w-full items-center justify-center gap-2 rounded-xl min-h-11 text-error-base transition-colors hover:bg-error-lighter active:scale-[0.99]"
+          className="flex w-full items-center justify-center gap-2 rounded-xl min-h-11 text-error-base transition-colors hover:bg-error-lighter active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error-base"
         >
           <SignOut className="size-5" weight="duotone" />
           <span className="text-label-sm font-medium">Sign Out</span>
@@ -319,7 +325,7 @@ interface SubPanelProps {
   isDarkMode?: boolean
 }
 
-function SubPanel({ type, onBack, onClose, isDarkMode }: SubPanelProps) {
+function SubPanel({ type, onBack, onClose }: SubPanelProps) {
   const titles: Record<NonNullable<SubPanelType>, string> = {
     profile: 'My Profile',
     password: 'Change Password',
@@ -339,7 +345,7 @@ function SubPanel({ type, onBack, onClose, isDarkMode }: SubPanelProps) {
         <button
           type="button"
           onClick={onBack}
-          className="size-11 rounded-lg flex items-center justify-center text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
+          className="size-11 rounded-lg flex items-center justify-center text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"
           aria-label="Back"
         >
           <ArrowLeft className="size-5" weight="bold" />
@@ -350,7 +356,7 @@ function SubPanel({ type, onBack, onClose, isDarkMode }: SubPanelProps) {
         <button
           type="button"
           onClick={onClose}
-          className="size-11 rounded-lg flex items-center justify-center text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950"
+          className="size-11 rounded-lg flex items-center justify-center text-text-sub-600 transition-colors hover:bg-bg-weak-50 hover:text-text-strong-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"
           aria-label="Close"
         >
           <X className="size-5" weight="bold" />
@@ -376,6 +382,10 @@ function SubPanel({ type, onBack, onClose, isDarkMode }: SubPanelProps) {
 // NOTIFICATIONS SUB-PANEL
 // ===========================================
 function NotificationsSubPanel() {
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [isSaving, setIsSaving] = React.useState(false)
+  const [saved, setSaved] = React.useState(false)
+
   const [emailSettings, setEmailSettings] = React.useState({
     newEnrollments: true,
     campaignApprovals: true,
@@ -394,11 +404,72 @@ function NotificationsSubPanel() {
     to: '07:00',
   })
 
-  const [saved, setSaved] = React.useState(false)
+  // Fetch notification settings on mount
+  React.useEffect(() => {
+    async function fetchSettings() {
+      try {
+        const response = await fetch('/api/user/notifications')
+        if (response.ok) {
+          const data = await response.json()
+          const settings = data.data || data
+          setEmailSettings({
+            newEnrollments: settings.enrollmentAlerts ?? true,
+            campaignApprovals: settings.campaignUpdates ?? true,
+            walletUpdates: settings.walletAlerts ?? false,
+            weeklySummary: settings.weeklyDigest ?? true,
+          })
+          setPushSettings({
+            instantAlerts: settings.pushNotifications ?? true,
+            dailyDigest: settings.marketingEmails ?? false,
+          })
+          setQuietHours({
+            enabled: settings.quietHoursEnabled ?? false,
+            from: settings.quietHoursStart ?? '22:00',
+            to: settings.quietHoursEnd ?? '07:00',
+          })
+        }
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchSettings()
+  }, [])
 
-  const handleSave = () => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      const response = await fetch('/api/user/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enrollmentAlerts: emailSettings.newEnrollments,
+          campaignUpdates: emailSettings.campaignApprovals,
+          walletAlerts: emailSettings.walletUpdates,
+          weeklyDigest: emailSettings.weeklySummary,
+          pushNotifications: pushSettings.instantAlerts,
+          marketingEmails: pushSettings.dailyDigest,
+          quietHoursEnabled: quietHours.enabled,
+          quietHoursStart: quietHours.from,
+          quietHoursEnd: quietHours.to,
+        }),
+      })
+      if (response.ok) {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      }
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-24 rounded-12 bg-bg-weak-50 animate-pulse" />
+        ))}
+      </div>
+    )
   }
 
   return (
@@ -494,12 +565,14 @@ function NotificationsSubPanel() {
       <Divider.Root />
 
       {/* Save Button */}
-      <Button.Root variant="primary" className="w-full" onClick={handleSave}>
+      <Button.Root variant="primary" className="w-full" onClick={handleSave} disabled={isSaving}>
         {saved ? (
           <>
             <Check className="size-4" weight="bold" />
             Saved!
           </>
+        ) : isSaving ? (
+          'Saving...'
         ) : (
           'Save Changes'
         )}
@@ -512,11 +585,33 @@ function NotificationsSubPanel() {
 // PROFILE SUB-PANEL
 // ===========================================
 function ProfileSubPanel() {
+  const [name, setName] = React.useState('')
+  const [phone, setPhone] = React.useState('')
+  const [isLoading, setIsLoading] = React.useState(false)
+  const [saved, setSaved] = React.useState(false)
+
+  const handleSave = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/profile/data', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone }),
+      })
+      if (response.ok) {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col items-center py-4">
         <Avatar.Root size="80" color="blue" className="ring-4 ring-bg-weak-50">
-          <span className="text-title-h4">JD</span>
+          <span className="text-title-h4">{name ? name.charAt(0).toUpperCase() : 'U'}</span>
         </Avatar.Root>
         <Button.Root variant="ghost" size="small" className="mt-3">
           Change Photo
@@ -528,7 +623,11 @@ function ProfileSubPanel() {
           <label className="text-label-sm text-text-strong-950 mb-2 block">Full Name</label>
           <Input.Root>
             <Input.Wrapper>
-              <Input.El defaultValue="John Doe" />
+              <Input.El
+                placeholder="Enter your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
             </Input.Wrapper>
           </Input.Root>
         </div>
@@ -536,7 +635,7 @@ function ProfileSubPanel() {
           <label className="text-label-sm text-text-strong-950 mb-2 block">Email</label>
           <Input.Root>
             <Input.Wrapper>
-              <Input.El type="email" defaultValue="john@nike.com" disabled />
+              <Input.El type="email" placeholder="your@email.com" disabled />
             </Input.Wrapper>
           </Input.Root>
         </div>
@@ -544,14 +643,24 @@ function ProfileSubPanel() {
           <label className="text-label-sm text-text-strong-950 mb-2 block">Phone</label>
           <Input.Root>
             <Input.Wrapper>
-              <Input.El type="tel" defaultValue="+91 98765 43210" />
+              <Input.El
+                type="tel"
+                placeholder="+91 XXXXX XXXXX"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
             </Input.Wrapper>
           </Input.Root>
         </div>
       </div>
 
-      <Button.Root variant="primary" className="w-full">
-        Save Changes
+      <Button.Root variant="primary" className="w-full" onClick={handleSave} disabled={isLoading}>
+        {saved ? (
+          <>
+            <Check className="size-4" weight="bold" />
+            Saved!
+          </>
+        ) : isLoading ? 'Saving...' : 'Save Changes'}
       </Button.Root>
     </div>
   )
@@ -561,6 +670,45 @@ function ProfileSubPanel() {
 // PASSWORD SUB-PANEL
 // ===========================================
 function PasswordSubPanel() {
+  const [currentPassword, setCurrentPassword] = React.useState('')
+  const [newPassword, setNewPassword] = React.useState('')
+  const [confirmPassword, setConfirmPassword] = React.useState('')
+  const [isLoading, setIsLoading] = React.useState(false)
+  const [saved, setSaved] = React.useState(false)
+  const [error, setError] = React.useState('')
+
+  const handleUpdate = async () => {
+    setError('')
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/user/password', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword, confirmPassword: newPassword }),
+      })
+      if (response.ok) {
+        setSaved(true)
+        setCurrentPassword('')
+        setNewPassword('')
+        setConfirmPassword('')
+        setTimeout(() => setSaved(false), 2000)
+      } else {
+        const data = await response.json()
+        setError(data.error || 'Failed to update password')
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="space-y-4">
@@ -568,7 +716,12 @@ function PasswordSubPanel() {
           <label className="text-label-sm text-text-strong-950 mb-2 block">Current Password</label>
           <Input.Root>
             <Input.Wrapper>
-              <Input.El type="password" placeholder="Enter current password" />
+              <Input.El
+                type="password"
+                placeholder="Enter current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
             </Input.Wrapper>
           </Input.Root>
         </div>
@@ -576,7 +729,12 @@ function PasswordSubPanel() {
           <label className="text-label-sm text-text-strong-950 mb-2 block">New Password</label>
           <Input.Root>
             <Input.Wrapper>
-              <Input.El type="password" placeholder="Enter new password" />
+              <Input.El
+                type="password"
+                placeholder="Enter new password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
             </Input.Wrapper>
           </Input.Root>
         </div>
@@ -584,14 +742,32 @@ function PasswordSubPanel() {
           <label className="text-label-sm text-text-strong-950 mb-2 block">Confirm Password</label>
           <Input.Root>
             <Input.Wrapper>
-              <Input.El type="password" placeholder="Confirm new password" />
+              <Input.El
+                type="password"
+                placeholder="Confirm new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
             </Input.Wrapper>
           </Input.Root>
         </div>
+        {error && (
+          <p className="text-paragraph-xs text-error-base">{error}</p>
+        )}
       </div>
 
-      <Button.Root variant="primary" className="w-full">
-        Update Password
+      <Button.Root
+        variant="primary"
+        className="w-full"
+        onClick={handleUpdate}
+        disabled={isLoading || !currentPassword || !newPassword || !confirmPassword}
+      >
+        {saved ? (
+          <>
+            <Check className="size-4" weight="bold" />
+            Updated!
+          </>
+        ) : isLoading ? 'Updating...' : 'Update Password'}
       </Button.Root>
     </div>
   )
@@ -611,10 +787,11 @@ function HelpSubPanel() {
 
   return (
     <div className="space-y-3">
-      {helpTopics.map((topic, index) => (
+      {helpTopics.map((topic) => (
         <button
-          key={index}
-          className="w-full rounded-12 bg-bg-weak-50 p-4 text-left transition-colors hover:bg-bg-soft-200"
+          key={topic.title}
+          type="button"
+          className="w-full rounded-12 bg-bg-weak-50 p-4 text-left transition-colors hover:bg-bg-soft-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"
         >
           <h4 className="text-label-sm text-text-strong-950">{topic.title}</h4>
           <p className="text-paragraph-xs text-text-sub-600 mt-0.5">{topic.description}</p>
@@ -683,14 +860,38 @@ function ContactSubPanel() {
 // ORG SETTINGS SUB-PANEL
 // ===========================================
 function OrgSettingsSubPanel() {
+  const [name, setName] = React.useState('')
+  const [email, setEmail] = React.useState('')
+  const [website, setWebsite] = React.useState('')
+  const [industry, setIndustry] = React.useState('')
+  const [isLoading, setIsLoading] = React.useState(false)
+  const [saved, setSaved] = React.useState(false)
+
+  const handleSave = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/settings/organization', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, website, industry }),
+      })
+      if (response.ok) {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-4 rounded-12 bg-bg-weak-50 p-4">
         <div className="flex size-14 items-center justify-center rounded-12 bg-primary-base text-white font-semibold text-title-h5">
-          A
+          {name ? name.charAt(0).toUpperCase() : 'O'}
         </div>
         <div className="flex-1">
-          <h4 className="text-label-md text-text-strong-950">Acme Corporation</h4>
+          <h4 className="text-label-md text-text-strong-950">{name || 'Your Organization'}</h4>
           <p className="text-paragraph-xs text-text-sub-600">Business Account</p>
         </div>
       </div>
@@ -698,34 +899,37 @@ function OrgSettingsSubPanel() {
       <div className="space-y-4">
         <div>
           <label className="text-label-sm text-text-strong-950 mb-2 block">Organization Name</label>
-          <input 
+          <input
             type="text"
-            placeholder="Enter organization name" 
-            defaultValue="Acme Corporation"
+            placeholder="Enter organization name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             className="w-full rounded-10 border border-stroke-soft-200 bg-bg-white-0 px-3 py-2.5 text-paragraph-sm text-text-strong-950 placeholder:text-text-soft-400 focus:outline-none focus:ring-2 focus:ring-primary-base focus:border-primary-base"
           />
         </div>
         <div>
           <label className="text-label-sm text-text-strong-950 mb-2 block">Business Email</label>
-          <input 
+          <input
             type="email"
-            placeholder="business@example.com" 
-            defaultValue="hello@acme.com"
+            placeholder="business@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             className="w-full rounded-10 border border-stroke-soft-200 bg-bg-white-0 px-3 py-2.5 text-paragraph-sm text-text-strong-950 placeholder:text-text-soft-400 focus:outline-none focus:ring-2 focus:ring-primary-base focus:border-primary-base"
           />
         </div>
         <div>
           <label className="text-label-sm text-text-strong-950 mb-2 block">Website</label>
-          <input 
+          <input
             type="url"
-            placeholder="https://example.com" 
-            defaultValue="https://acme.com"
+            placeholder="https://example.com"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
             className="w-full rounded-10 border border-stroke-soft-200 bg-bg-white-0 px-3 py-2.5 text-paragraph-sm text-text-strong-950 placeholder:text-text-soft-400 focus:outline-none focus:ring-2 focus:ring-primary-base focus:border-primary-base"
           />
         </div>
         <div>
           <label className="text-label-sm text-text-strong-950 mb-2 block">Industry</label>
-          <Select.Root defaultValue="ecommerce">
+          <Select.Root value={industry} onValueChange={setIndustry}>
             <Select.Trigger className="w-full">
               <Select.Value placeholder="Select industry" />
             </Select.Trigger>
@@ -740,8 +944,13 @@ function OrgSettingsSubPanel() {
         </div>
       </div>
 
-      <Button.Root variant="primary" className="w-full">
-        Save Changes
+      <Button.Root variant="primary" className="w-full" onClick={handleSave} disabled={isLoading}>
+        {saved ? (
+          <>
+            <Check className="size-4" weight="bold" />
+            Saved!
+          </>
+        ) : isLoading ? 'Saving...' : 'Save Changes'}
       </Button.Root>
     </div>
   )
@@ -751,39 +960,134 @@ function OrgSettingsSubPanel() {
 // TEAM SUB-PANEL
 // ===========================================
 function TeamSubPanel() {
-  const teamMembers = [
-    { name: 'John Doe', email: 'john@acme.com', role: 'Admin', avatar: 'JD' },
-    { name: 'Jane Smith', email: 'jane@acme.com', role: 'Editor', avatar: 'JS' },
-    { name: 'Bob Wilson', email: 'bob@acme.com', role: 'Viewer', avatar: 'BW' },
-  ]
+  const [teamMembers, setTeamMembers] = React.useState<Array<{
+    id: string
+    name: string
+    email: string
+    role: string
+    avatar?: string
+  }>>([])
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [inviteEmail, setInviteEmail] = React.useState('')
+  const [isInviting, setIsInviting] = React.useState(false)
+  const [showInviteForm, setShowInviteForm] = React.useState(false)
+
+  React.useEffect(() => {
+    async function fetchTeam() {
+      try {
+        const response = await fetch('/api/team/members')
+        if (response.ok) {
+          const data = await response.json()
+          setTeamMembers(data.data || [])
+        }
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchTeam()
+  }, [])
+
+  const handleInvite = async () => {
+    if (!inviteEmail) return
+    setIsInviting(true)
+    try {
+      const response = await fetch('/api/team/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail, role: 'viewer' }),
+      })
+      if (response.ok) {
+        setInviteEmail('')
+        setShowInviteForm(false)
+        // Refresh team list
+        const res = await fetch('/api/team/members')
+        if (res.ok) {
+          const data = await res.json()
+          setTeamMembers(data.data || [])
+        }
+      }
+    } finally {
+      setIsInviting(false)
+    }
+  }
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-16 rounded-12 bg-bg-weak-50 animate-pulse" />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <p className="text-paragraph-sm text-text-sub-600">3 team members</p>
-        <Button.Root variant="primary" size="small">
+        <p className="text-paragraph-sm text-text-sub-600">{teamMembers.length} team member{teamMembers.length !== 1 ? 's' : ''}</p>
+        <Button.Root variant="primary" size="small" onClick={() => setShowInviteForm(!showInviteForm)}>
           <Plus className="size-4" weight="bold" />
           Invite
         </Button.Root>
       </div>
 
+      {showInviteForm && (
+        <div className="rounded-12 bg-bg-weak-50 p-4 space-y-3">
+          <Input.Root>
+            <Input.Wrapper>
+              <Input.El
+                type="email"
+                placeholder="colleague@company.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </Input.Wrapper>
+          </Input.Root>
+          <Button.Root
+            variant="primary"
+            size="small"
+            className="w-full"
+            onClick={handleInvite}
+            disabled={isInviting || !inviteEmail}
+          >
+            {isInviting ? 'Sending...' : 'Send Invitation'}
+          </Button.Root>
+        </div>
+      )}
+
       <div className="space-y-2">
-        {teamMembers.map((member, i) => (
-          <div key={i} className="flex items-center justify-between rounded-12 bg-bg-weak-50 p-3">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-full bg-primary-base text-white text-label-sm font-medium">
-                {member.avatar}
-              </div>
-              <div>
-                <p className="text-label-sm text-text-strong-950">{member.name}</p>
-                <p className="text-paragraph-xs text-text-sub-600">{member.email}</p>
-              </div>
-            </div>
-            <span className="text-label-xs text-text-sub-600 bg-bg-soft-200 px-2 py-1 rounded-md">
-              {member.role}
-            </span>
+        {teamMembers.length === 0 ? (
+          <div className="text-center py-8 text-text-sub-600">
+            <p className="text-paragraph-sm">No team members yet</p>
+            <p className="text-paragraph-xs mt-1">Invite your team to get started</p>
           </div>
-        ))}
+        ) : (
+          teamMembers.map((member) => (
+            <div key={member.id || member.email} className="flex items-center justify-between rounded-12 bg-bg-weak-50 p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-full bg-primary-base text-white text-label-sm font-medium">
+                  {member.avatar || getInitials(member.name)}
+                </div>
+                <div>
+                  <p className="text-label-sm text-text-strong-950">{member.name}</p>
+                  <p className="text-paragraph-xs text-text-sub-600">{member.email}</p>
+                </div>
+              </div>
+              <span className="text-label-xs text-text-sub-600 bg-bg-soft-200 px-2 py-1 rounded-md capitalize">
+                {member.role}
+              </span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   )
@@ -827,7 +1131,7 @@ function BillingSubPanel() {
               <p className="text-paragraph-xs text-text-sub-600">Expires 12/25</p>
             </div>
           </div>
-          <button className="text-label-xs text-primary-base hover:underline">Change</button>
+          <button type="button" className="text-label-xs text-primary-base hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2 rounded">Change</button>
         </div>
       </div>
 
@@ -835,12 +1139,12 @@ function BillingSubPanel() {
       <div>
         <h4 className="text-label-sm text-text-strong-950 mb-3">Recent Invoices</h4>
         <div className="space-y-2">
-          {['Nov 2024', 'Oct 2024', 'Sep 2024'].map((month, i) => (
-            <div key={i} className="flex items-center justify-between py-2 border-b border-stroke-soft-200 last:border-0">
+          {['Nov 2024', 'Oct 2024', 'Sep 2024'].map((month) => (
+            <div key={month} className="flex items-center justify-between py-2 border-b border-stroke-soft-200 last:border-0">
               <span className="text-paragraph-sm text-text-strong-950">{month}</span>
               <div className="flex items-center gap-3">
                 <span className="text-paragraph-sm text-text-sub-600">₹4,999</span>
-                <button className="text-label-xs text-primary-base hover:underline">Download</button>
+                <button type="button" className="text-label-xs text-primary-base hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2 rounded">Download</button>
               </div>
             </div>
           ))}
@@ -883,7 +1187,8 @@ function MenuItem({ icon: Icon, label, onClick, href, external }: MenuItemProps)
 
   const className = cn(
     'flex w-full items-center justify-between rounded-xl px-3 py-2.5 transition-all',
-    'hover:bg-bg-weak-50 active:scale-[0.99]'
+    'hover:bg-bg-weak-50 active:scale-[0.99]',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base'
   )
 
   if (href) {
@@ -907,7 +1212,7 @@ function MenuItem({ icon: Icon, label, onClick, href, external }: MenuItemProps)
   }
 
   return (
-    <button onClick={onClick} className={className}>
+    <button type="button" onClick={onClick} className={className}>
       {content}
     </button>
   )

@@ -2,6 +2,9 @@ import Link from "next/link"
 import ThemeSwitch from "@/components/theme-switch"
 import { Logo } from "@/components/ui/logo"
 
+// Auth pages require dynamic rendering due to client-side providers
+export const dynamic = 'force-dynamic'
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex min-h-screen flex-col">

@@ -23,21 +23,14 @@ import {
   Plus
 } from '@phosphor-icons/react'
 import { cn } from '@/utils/cn'
-
-const CATEGORIES = [
-  { value: 'electronics', label: 'Electronics', icon: '📱' },
-  { value: 'fashion', label: 'Fashion & Apparel', icon: '👕' },
-  { value: 'footwear', label: 'Footwear', icon: '👟' },
-  { value: 'beauty', label: 'Beauty & Personal Care', icon: '💄' },
-  { value: 'home', label: 'Home & Kitchen', icon: '🏠' },
-  { value: 'sports', label: 'Sports & Fitness', icon: '⚽' },
-  { value: 'books', label: 'Books & Media', icon: '📚' },
-  { value: 'toys', label: 'Toys & Games', icon: '🎮' },
-  { value: 'food', label: 'Food & Beverages', icon: '🍕' },
-  { value: 'other', label: 'Other', icon: '📦' },
-]
+import { useCategories } from '@/hooks/use-categories'
+import { useCreateProduct } from '@/hooks/use-products'
+import { toast } from 'sonner'
 
 export default function NewProductPage() {
+  // Fetch categories from API
+  const { data: categories = [], isLoading: isLoadingCategories } = useCategories()
+  const createProduct = useCreateProduct()
   const router = useRouter()
   const [isLoading, setIsLoading] = React.useState(false)
   const [uploadedImage, setUploadedImage] = React.useState<string | null>(null)
@@ -65,8 +58,18 @@ export default function NewProductPage() {
     e.preventDefault()
     setIsLoading(true)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      await createProduct.mutateAsync({
+        name: formData.name,
+        description: formData.description || undefined,
+        category: formData.category,
+        platform: 'amazon', // Default platform
+        image: uploadedImage || undefined,
+        productUrl: formData.url || undefined,
+      })
+      toast.success('Product created successfully')
       router.push('/dashboard/products')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to create product')
     } finally {
       setIsLoading(false)
     }
@@ -202,18 +205,19 @@ export default function NewProductPage() {
                         Category
                         <span className="text-error-base">*</span>
                       </label>
-                      <Select.Root 
-                        value={formData.category} 
+                      <Select.Root
+                        value={formData.category}
                         onValueChange={(value) => setFormData({ ...formData, category: value })}
+                        disabled={isLoadingCategories}
                       >
                         <Select.Trigger>
-                          <Select.Value placeholder="Select category" />
+                          <Select.Value placeholder={isLoadingCategories ? "Loading..." : "Select category"} />
                         </Select.Trigger>
                         <Select.Content>
-                          {CATEGORIES.map((cat) => (
-                            <Select.Item key={cat.value} value={cat.value}>
-                              <span className="mr-2">{cat.icon}</span>
-                              {cat.label}
+                          {categories.map((cat) => (
+                            <Select.Item key={cat.id} value={cat.id}>
+                              <span className="mr-2">{cat.icon || '📦'}</span>
+                              {cat.name}
                             </Select.Item>
                           ))}
                         </Select.Content>

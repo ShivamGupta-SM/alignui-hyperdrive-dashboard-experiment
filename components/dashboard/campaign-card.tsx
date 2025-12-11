@@ -1,13 +1,13 @@
 'use client'
 
 import * as React from 'react'
-import { cn } from '@/utils/cn'
+import Image from 'next/image'
 import * as Badge from '@/components/ui/badge'
 import * as ProgressBar from '@/components/ui/progress-bar'
 import * as Dropdown from '@/components/ui/dropdown'
-import { 
-  DotsThree, 
-  ChartBar, 
+import {
+  DotsThree,
+  ChartBar,
   Copy,
   Pause,
   Play,
@@ -15,13 +15,13 @@ import {
   Check,
   Archive,
   X,
-  Calendar,
-  User,
   CaretRight,
   Image as ImageIcon,
+  User,
 } from '@phosphor-icons/react'
-import type { Campaign, CampaignStatus } from '@/lib/types'
+import type { Campaign } from '@/lib/types'
 import { CAMPAIGN_STATUS_CONFIG } from '@/lib/constants'
+import { formatDateShort } from '@/lib/format'
 
 interface CampaignCardProps {
   campaign: Campaign
@@ -39,16 +39,7 @@ interface CampaignCardProps {
   onSubmitForApproval?: () => void
 }
 
-// Mock product images
-const productImages: Record<string, string> = {
-  '1': 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=120&h=120&fit=crop',
-  '2': 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&h=120&fit=crop',
-  '3': 'https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=120&h=120&fit=crop',
-  '4': 'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=120&h=120&fit=crop',
-  '5': 'https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=120&h=120&fit=crop',
-}
-
-export function CampaignCard({
+export const CampaignCard = React.memo(function CampaignCard({
   campaign,
   onView,
   onManage,
@@ -67,13 +58,6 @@ export function CampaignCard({
   const progress = campaign.maxEnrollments > 0 
     ? Math.round((campaign.currentEnrollments / campaign.maxEnrollments) * 100) 
     : 0
-
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-    })
-  }
 
   const getStatusBadgeColor = (): 'yellow' | 'orange' | 'blue' | 'green' | 'red' | 'gray' => {
     return statusConfig.color
@@ -123,23 +107,27 @@ export function CampaignCard({
   }
 
   const actions = getAvailableActions()
-  const productImage = campaign.product?.image || productImages[campaign.productId] || null
+  const productImage = campaign.product?.image || null
   const showProgress = ['active', 'paused'].includes(campaign.status)
   const showStats = ['active', 'paused', 'ended', 'completed'].includes(campaign.status)
 
   return (
-    <div className="flex flex-col h-full rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden hover:ring-stroke-sub-300 hover:shadow-sm transition-all">
+    <div className="flex flex-col h-full rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden hover:ring-stroke-sub-300 hover:shadow-sm transition-shadow duration-200">
       {/* Header - Campaign Identity */}
       <div className="p-4 pb-3">
         <div className="flex gap-3">
           {/* Product Thumbnail */}
           <div className="shrink-0">
             {productImage ? (
-              <img 
-                src={productImage} 
-                alt="Product" 
-                className="size-14 rounded-xl object-contain bg-bg-weak-50 p-1.5 ring-1 ring-inset ring-stroke-soft-200"
-              />
+              <div className="relative size-14 rounded-xl overflow-hidden bg-bg-weak-50 ring-1 ring-inset ring-stroke-soft-200">
+                <Image
+                  src={productImage}
+                  alt="Product"
+                  fill
+                  sizes="56px"
+                  className="object-contain p-1.5"
+                />
+              </div>
             ) : (
               <div className="size-14 rounded-xl bg-bg-weak-50 flex items-center justify-center ring-1 ring-inset ring-stroke-soft-200">
                 <ImageIcon className="size-6 text-text-soft-400" />
@@ -163,7 +151,7 @@ export function CampaignCard({
                     {statusConfig.label}
                   </Badge.Root>
                   <span className="text-paragraph-xs text-text-soft-400">
-                    {formatDate(campaign.startDate)} – {formatDate(campaign.endDate)}
+                    {formatDateShort(campaign.startDate)} – {formatDateShort(campaign.endDate)}
                   </span>
                 </div>
               </div>
@@ -171,7 +159,7 @@ export function CampaignCard({
               {actions.length > 0 && (
                 <Dropdown.Root>
                   <Dropdown.Trigger asChild>
-                    <button className="flex size-7 shrink-0 items-center justify-center rounded-lg text-text-soft-400 hover:text-text-strong-950 hover:bg-bg-weak-50 -mr-1">
+                    <button type="button" className="flex size-7 shrink-0 items-center justify-center rounded-lg text-text-soft-400 hover:text-text-strong-950 hover:bg-bg-weak-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base -mr-1">
                       <DotsThree weight="bold" className="size-5" />
                     </button>
                   </Dropdown.Trigger>
@@ -204,19 +192,19 @@ export function CampaignCard({
               <div className="text-title-h6 text-text-strong-950 font-semibold">
                 {campaign.currentEnrollments}
               </div>
-              <div className="text-[10px] text-text-soft-400 uppercase tracking-wide">Enrolled</div>
+              <div className="text-label-xs text-text-soft-400 uppercase tracking-wide">Enrolled</div>
             </div>
             <div className="text-center border-x border-stroke-soft-200">
               <div className="text-title-h6 text-warning-base font-semibold">
                 {campaign.pendingCount}
               </div>
-              <div className="text-[10px] text-text-soft-400 uppercase tracking-wide">Pending</div>
+              <div className="text-label-xs text-text-soft-400 uppercase tracking-wide">Pending</div>
             </div>
             <div className="text-center">
               <div className="text-title-h6 text-success-base font-semibold">
                 {campaign.approvedCount}
               </div>
-              <div className="text-[10px] text-text-soft-400 uppercase tracking-wide">Approved</div>
+              <div className="text-label-xs text-text-soft-400 uppercase tracking-wide">Approved</div>
             </div>
           </div>
           
@@ -265,9 +253,10 @@ export function CampaignCard({
           )}
         </div>
         
-        <button 
-          onClick={onView} 
-          className="flex items-center gap-0.5 text-label-sm text-primary-base hover:text-primary-darker font-medium shrink-0"
+        <button
+          type="button"
+          onClick={onView}
+          className="flex items-center gap-0.5 text-label-sm text-primary-base hover:text-primary-darker font-medium shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2 rounded"
         >
           View Details
           <CaretRight weight="bold" className="size-4" />
@@ -275,7 +264,7 @@ export function CampaignCard({
       </div>
     </div>
   )
-}
+})
 
 // Compact version for lists
 interface CampaignListItemProps {
@@ -285,23 +274,26 @@ interface CampaignListItemProps {
   actionLabel?: string
 }
 
-export function CampaignListItem({
+export const CampaignListItem = React.memo(function CampaignListItem({
   campaign,
-  onView,
   onAction,
   actionLabel = 'Review',
 }: CampaignListItemProps) {
   const statusConfig = CAMPAIGN_STATUS_CONFIG[campaign.status]
-  const productImage = productImages[campaign.productId] || null
+  const productImage = campaign.product?.image || null
 
   return (
     <div className="flex items-center gap-3 py-3 border-b border-stroke-soft-200 last:border-0">
       {productImage ? (
-        <img 
-          src={productImage} 
-          alt="Product" 
-          className="size-10 rounded-lg object-cover bg-bg-weak-50"
-        />
+        <div className="relative size-10 rounded-lg overflow-hidden bg-bg-weak-50">
+          <Image
+            src={productImage}
+            alt="Product"
+            fill
+            sizes="40px"
+            className="object-cover"
+          />
+        </div>
       ) : (
         <div className="size-10 rounded-lg bg-bg-weak-50 flex items-center justify-center">
           <ImageIcon className="size-4 text-text-soft-400" />
@@ -327,13 +319,14 @@ export function CampaignListItem({
       </div>
       
       {onAction && (
-        <button 
+        <button
+          type="button"
           onClick={onAction}
-          className="text-label-sm text-primary-base hover:text-primary-darker font-medium"
+          className="text-label-sm text-primary-base hover:text-primary-darker font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2 rounded"
         >
           {actionLabel}
         </button>
       )}
     </div>
   )
-}
+})

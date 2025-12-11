@@ -1,5 +1,6 @@
 'use client'
 
+import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/utils/cn'
@@ -109,6 +110,86 @@ const footerNavigation = [
   },
 ]
 
+// NavItem extracted outside Sidebar to prevent recreation on every render
+interface NavItemProps {
+  item: typeof navigation[0]
+  isActive: boolean
+  collapsed: boolean
+  pendingEnrollments: number
+  isDarkMode?: boolean
+  onMobileClose?: () => void
+}
+
+const NavItem = React.memo(function NavItem({
+  item,
+  isActive: active,
+  collapsed,
+  pendingEnrollments,
+  isDarkMode,
+  onMobileClose
+}: NavItemProps) {
+  const Icon = item.icon
+  const showBadge = item.hasBadge && pendingEnrollments > 0
+
+  const content = (
+    <Link
+      href={item.href}
+      onClick={onMobileClose}
+      className={cn(
+        'group relative flex items-center rounded-xl',
+        'text-label-sm transition-colors duration-200 ease-out',
+        active
+          ? (isDarkMode
+              ? 'bg-primary-base text-white font-medium shadow-sm ring-1 ring-primary-base'
+              : 'bg-bg-white-0 text-text-strong-950 font-medium shadow-sm ring-1 ring-stroke-soft-200')
+          : (isDarkMode
+              ? 'text-white hover:bg-primary-base/80 hover:text-white hover:ring-primary-base/50 hover:shadow-sm hover:ring-1'
+              : 'text-text-strong-950 hover:bg-bg-weak-50 hover:text-text-strong-950 hover:shadow-sm hover:ring-1 hover:ring-stroke-soft-200/50'),
+        collapsed ? 'justify-center size-11' : 'gap-3 px-3 py-2.5'
+      )}
+    >
+      <Icon
+        weight="duotone"
+        className={cn(
+          'size-5 shrink-0 transition-colors duration-200 ease-out',
+          active ? 'text-primary-base' : 'text-text-sub-600 group-hover:text-text-strong-950'
+        )}
+      />
+      {!collapsed && (
+        <>
+          <span className="flex-1">{item.label}</span>
+          <div className="flex items-center gap-1.5">
+            {showBadge && (
+              <Badge.Root color="red" variant="lighter" size="small">
+                {pendingEnrollments > 99 ? '99+' : pendingEnrollments}
+              </Badge.Root>
+            )}
+            {active && (
+              <CaretRight weight="bold" className="size-5 text-text-sub-600" />
+            )}
+          </div>
+        </>
+      )}
+    </Link>
+  )
+
+  if (collapsed) {
+    return (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>{content}</Tooltip.Trigger>
+        <Tooltip.Content side="right">
+          <span>{item.label}</span>
+          {showBadge && (
+            <span className="ml-2 text-error-base">({pendingEnrollments})</span>
+          )}
+        </Tooltip.Content>
+      </Tooltip.Root>
+    )
+  }
+
+  return content
+})
+
 export function Sidebar({
   collapsed = false,
   pendingEnrollments = 0,
@@ -124,78 +205,11 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname()
 
-  const isActive = (href: string) => {
+  const isActiveHref = (href: string) => {
     if (href === '/dashboard') {
       return pathname === '/dashboard'
     }
     return pathname.startsWith(href)
-  }
-
-  const NavItem = ({ item }: { item: typeof navigation[0] }) => {
-    const active = isActive(item.href)
-    const Icon = item.icon
-    const showBadge = item.hasBadge && pendingEnrollments > 0
-
-    const content = (
-      <Link
-        href={item.href}
-        onClick={onMobileClose}
-        className={cn(
-          'group relative flex items-center rounded-xl',
-          'text-label-sm transition-all duration-200 ease-out',
-          // Premium active state with dark mode
-          // Premium active state with dark mode
-          active
-            ? (isDarkMode 
-                ? 'bg-primary-base text-white font-medium shadow-sm ring-1 ring-primary-base' 
-                : 'bg-bg-white-0 text-text-strong-950 font-medium shadow-sm ring-1 ring-stroke-soft-200')
-            : (isDarkMode
-                ? 'text-white hover:bg-primary-base/80 hover:text-white hover:ring-primary-base/50 hover:shadow-sm hover:ring-1'
-                : 'text-text-strong-950 hover:bg-bg-weak-50 hover:text-text-strong-950 hover:shadow-sm hover:ring-1 hover:ring-stroke-soft-200/50'),
-          // Collapsed: fixed size centered, Expanded: normal padding
-          collapsed ? 'justify-center size-11' : 'gap-3 px-3 py-2.5'
-        )}
-      >
-        <Icon 
-          weight="duotone"
-          className={cn(
-            'size-5 shrink-0 transition duration-200 ease-out',
-            active ? 'text-primary-base' : 'text-text-sub-600 group-hover:text-text-strong-950'
-          )} 
-        />
-        {!collapsed && (
-          <>
-            <span className="flex-1">{item.label}</span>
-            <div className="flex items-center gap-1.5">
-              {showBadge && (
-                <Badge.Root color="red" variant="lighter" size="small">
-                  {pendingEnrollments > 99 ? '99+' : pendingEnrollments}
-                </Badge.Root>
-              )}
-              {active && (
-                <CaretRight weight="bold" className="size-5 text-text-sub-600" />
-              )}
-            </div>
-          </>
-        )}
-      </Link>
-    )
-
-    if (collapsed) {
-      return (
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>{content}</Tooltip.Trigger>
-          <Tooltip.Content side="right">
-            <span>{item.label}</span>
-            {showBadge && (
-              <span className="ml-2 text-error-base">({pendingEnrollments})</span>
-            )}
-          </Tooltip.Content>
-        </Tooltip.Root>
-      )
-    }
-
-    return content
   }
 
   return (
@@ -206,7 +220,7 @@ export function Sidebar({
         // Individual elements (nav items, org switcher) have their own backgrounds
         'w-full lg:w-auto',
         'bg-transparent',
-        'transition-all duration-300',
+        'transition-[width] duration-300',
         collapsed ? 'lg:w-[72px]' : 'lg:w-[280px]'
       )}
     >
@@ -254,7 +268,14 @@ export function Sidebar({
         <ul className="space-y-1">
           {navigation.map((item) => (
             <li key={item.id}>
-              <NavItem item={item} />
+              <NavItem
+                item={item}
+                isActive={isActiveHref(item.href)}
+                collapsed={collapsed}
+                pendingEnrollments={pendingEnrollments}
+                isDarkMode={isDarkMode}
+                onMobileClose={onMobileClose}
+              />
             </li>
           ))}
         </ul>
@@ -274,7 +295,14 @@ export function Sidebar({
         <ul className="space-y-1">
           {footerNavigation.map((item) => (
             <li key={item.id}>
-              <NavItem item={item} />
+              <NavItem
+                item={item}
+                isActive={isActiveHref(item.href)}
+                collapsed={collapsed}
+                pendingEnrollments={pendingEnrollments}
+                isDarkMode={isDarkMode}
+                onMobileClose={onMobileClose}
+              />
             </li>
           ))}
         </ul>
@@ -512,7 +540,7 @@ function OrganizationSwitcher({
       align="start"
       side={collapsed ? 'right' : 'bottom'}
       sideOffset={8}
-      className="w-72"
+      className="w-[min(288px,calc(100vw-2rem))]"
     >
       {/* Switch Organization Section */}
       <Dropdown.Group>
@@ -527,9 +555,10 @@ function OrganizationSwitcher({
                 key={org.id}
                 type="button"
                 onClick={() => onOrganizationChange?.(org)}
+                aria-current={isSelected ? 'true' : undefined}
                 className={cn(
                   'relative flex w-full items-center gap-3 rounded-md px-2 py-2',
-                  'cursor-pointer transition-colors duration-150 outline-none',
+                  'cursor-pointer transition-colors duration-200 outline-none',
                   'hover:bg-bg-weak-50 focus:bg-bg-weak-50',
                   isSelected && 'bg-bg-weak-50'
                 )}
@@ -576,7 +605,7 @@ function OrganizationSwitcher({
             'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2',
             'text-label-sm font-semibold text-text-sub-600',
             'border border-stroke-soft-200',
-            'cursor-pointer transition-colors duration-150',
+            'cursor-pointer transition-colors duration-200',
             'hover:bg-bg-weak-50 hover:text-text-strong-950'
           )}
         >

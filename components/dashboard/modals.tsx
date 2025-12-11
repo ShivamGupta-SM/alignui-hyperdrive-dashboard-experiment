@@ -562,8 +562,16 @@ export function AddFundsModal({
           </div>
 
           <div className="rounded-10 bg-bg-weak-50 p-4 text-center">
-            <div className="flex size-32 mx-auto items-center justify-center rounded-10 bg-white border border-stroke-soft-200 mb-3">
-              <QrCode weight="duotone" className="size-16 text-text-soft-400" />
+            <div className="flex size-32 mx-auto items-center justify-center rounded-10 bg-white border border-stroke-soft-200 mb-3 overflow-hidden">
+              {amount ? (
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`upi://pay?pa=hypedrive@upi&pn=Hypedrive&am=${amount}&cu=INR`)}`}
+                  alt="UPI QR Code"
+                  className="size-28"
+                />
+              ) : (
+                <QrCode weight="duotone" className="size-16 text-text-soft-400" />
+              )}
             </div>
             <p className="text-paragraph-sm text-text-sub-600">
               Scan with any UPI app to pay {amount ? formatCurrency(Number(amount)) : '₹0'}

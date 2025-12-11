@@ -64,8 +64,8 @@ export default function PendingApprovalPage() {
             <Link href="/dashboard">Go to Dashboard</Link>
           </Button.Root>
           <Button.Root variant="basic" className="w-full" asChild>
-            <a href="mailto:support@hypedrive.com">
-              <Button.Icon as={Headset} />
+            <a href="mailto:support@hypedrive.com" className="inline-flex items-center gap-2">
+              <Headset weight="duotone" className="size-5" />
               Contact Support
             </a>
           </Button.Root>
@@ -74,4 +74,3 @@ export default function PendingApprovalPage() {
     </div>
   )
 }
-
