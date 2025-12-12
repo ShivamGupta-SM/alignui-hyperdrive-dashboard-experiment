@@ -7,7 +7,6 @@ import {
   updateCampaignBodySchema,
   campaignStatusSchema,
 } from '@/lib/validations'
-import { delay, DELAY } from '@/lib/utils/delay'
 import { getServerActionAuth } from '@/lib/auth-helpers'
 
 export async function createCampaign(data: unknown): Promise<CampaignActionResult> {
@@ -25,8 +24,6 @@ export async function createCampaign(data: unknown): Promise<CampaignActionResul
       error: validation.error.issues[0]?.message || 'Invalid input',
     }
   }
-
-  await delay(DELAY.SLOW)
 
   const validData = validation.data
 
@@ -76,8 +73,6 @@ export async function updateCampaign(
     }
   }
 
-  await delay(DELAY.SLOW)
-
   // In a real app, this would update the database
   revalidatePath('/dashboard/campaigns')
   revalidatePath(`/dashboard/campaigns/${id}`)
@@ -90,8 +85,6 @@ export async function deleteCampaign(id: string): Promise<CampaignActionResult> 
   if (!id || typeof id !== 'string') {
     return { success: false, error: 'Campaign ID is required' }
   }
-
-  await delay(DELAY.SLOW)
 
   // In a real app, this would delete from database
   revalidatePath('/dashboard/campaigns')
@@ -114,8 +107,6 @@ export async function updateCampaignStatus(id: string, status: unknown): Promise
     }
   }
 
-  await delay(DELAY.STANDARD)
-
   // In a real app, this would update the status in database
   revalidatePath('/dashboard/campaigns')
   revalidatePath(`/dashboard/campaigns/${id}`)
@@ -128,8 +119,6 @@ export async function duplicateCampaign(id: string): Promise<CampaignActionResul
   if (!id || typeof id !== 'string') {
     return { success: false, error: 'Campaign ID is required' }
   }
-
-  await delay(DELAY.SLOW)
 
   // In a real app, this would duplicate the campaign
   const newId = `camp_${Date.now()}`
