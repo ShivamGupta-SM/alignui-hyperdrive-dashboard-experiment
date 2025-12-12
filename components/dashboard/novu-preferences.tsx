@@ -11,6 +11,7 @@ import {
   ChatCircle,
   Info,
 } from '@phosphor-icons/react'
+import { NovuReadyContext } from '@/components/dashboard/notification-center'
 
 // Channel configuration for display
 const channelConfig: Record<string, { icon: React.ElementType; label: string; description: string }> = {
@@ -42,10 +43,36 @@ const channelConfig: Record<string, { icon: React.ElementType; label: string; de
 }
 
 // ============================================
-// Novu Preferences Panel Component
+// Fallback when Novu is not ready
 // ============================================
 
-export function NovuPreferencesPanel() {
+function NovuPreferencesPanelEmpty() {
+  return (
+    <div className="rounded-2xl border border-stroke-soft-200 bg-bg-white-0 p-5">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="size-10 rounded-lg bg-gradient-to-br from-primary-base/10 to-primary-base/20 flex items-center justify-center">
+          <Bell className="size-5 text-primary-base" weight="duotone" />
+        </div>
+        <div>
+          <h3 className="text-label-md text-text-strong-950">Channel Preferences</h3>
+          <p className="text-paragraph-xs text-text-sub-600">Manage how you receive notifications</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 p-4 rounded-xl bg-bg-weak-50 border border-stroke-soft-200">
+        <Info className="size-5 text-text-soft-400 shrink-0" weight="fill" />
+        <p className="text-paragraph-sm text-text-sub-600">
+          Notification preferences will be available once you're signed in.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// Novu Preferences Panel Component (with hooks)
+// ============================================
+
+function NovuPreferencesPanelWithNovu() {
   const { preferences, isLoading, error, refetch } = usePreferences()
   const [updating, setUpdating] = React.useState<string | null>(null)
 
@@ -292,4 +319,18 @@ function WorkflowPreferenceCard({ preference, updating, onToggle }: WorkflowPref
       )}
     </div>
   )
+}
+
+// ============================================
+// Exported Wrapper Component
+// ============================================
+
+export function NovuPreferencesPanel() {
+  const isNovuReady = React.useContext(NovuReadyContext)
+
+  if (!isNovuReady) {
+    return <NovuPreferencesPanelEmpty />
+  }
+
+  return <NovuPreferencesPanelWithNovu />
 }

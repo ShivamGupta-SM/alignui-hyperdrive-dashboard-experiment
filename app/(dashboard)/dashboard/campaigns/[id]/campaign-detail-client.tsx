@@ -15,7 +15,6 @@ import { Tracker } from '@/components/ui/tracker'
 import { BarList } from '@/components/ui/bar-list'
 import { AlignLineChart } from '@/components/claude-generated-components/charts'
 import { ConfirmationModal } from '@/components/dashboard/modals'
-import { useBreadcrumbs } from '@/contexts/breadcrumb-context'
 import {
   ArrowLeft,
   PauseCircle,
@@ -82,13 +81,6 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
   } | null>(null)
 
   const statusConfig = campaign ? CAMPAIGN_STATUS_CONFIG[campaign.status] : null
-
-  // Set breadcrumbs in header
-  useBreadcrumbs([
-    { label: 'Dashboard', href: '/dashboard' },
-    { label: 'Campaigns', href: '/dashboard/campaigns' },
-    { label: campaign?.title || 'Loading...' },
-  ])
 
   const formatCurrency = (amount: number) => {
     return `₹${amount.toLocaleString('en-IN')}`

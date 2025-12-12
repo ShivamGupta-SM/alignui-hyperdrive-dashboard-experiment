@@ -13,6 +13,7 @@ import type {
   Product,
   Invoice,
   Transaction,
+  ActiveHold,
   TeamMember,
   Notification,
   RecentActivity,
@@ -93,25 +94,33 @@ async function seedProducts(orgId: string, count: number = 10) {
   const categories = ['Electronics', 'Fashion', 'Beauty', 'Home & Living']
 
   for (let i = 0; i < count; i++) {
+    const category = db.categories.findFirst((q) => q.where({ name: randomElement(categories) }))
+    const platform = db.platforms.findFirst((q) => q.where({ slug: randomElement(platformSlugs) }))
+    const now = new Date().toISOString()
+    
     const product: Product = {
       id: generateId('prod'),
       organizationId: orgId,
       name: faker.commerce.productName(),
+      slug: faker.helpers.slugify(faker.commerce.productName()).toLowerCase(),
       description: faker.commerce.productDescription(),
-      price: faker.number.int({ min: 500, max: 10000 }),
-      mrp: faker.number.int({ min: 600, max: 12000 }),
       sku: faker.string.alphanumeric(8).toUpperCase(),
-      category: randomElement(categories),
-      images: [
+      price: faker.number.int({ min: 500, max: 10000 }),
+      productLink: faker.internet.url(),
+      productImages: [
         faker.image.urlLoremFlickr({ category: 'product' }),
         faker.image.urlLoremFlickr({ category: 'product' }),
       ],
-      platforms: faker.helpers.arrayElements(platformSlugs, { min: 1, max: 3 }),
+      categoryId: category?.id,
+      platformId: platform?.id,
       isActive: faker.datatype.boolean(0.9),
-      createdAt: faker.date.past({ years: 1 }),
-      updatedAt: faker.date.recent({ days: 30 }),
+      views: faker.number.int({ min: 0, max: 10000 }),
+      createdBy: DEFAULT_USER_ID,
+      updatedBy: undefined,
+      createdAt: now, // Encore format
+      updatedAt: now, // Encore format
     }
-    await db.products.create(product)
+    await db.products.create(product as Product)
     productsData.push(product)
   }
 
@@ -124,7 +133,7 @@ async function seedCampaigns(orgId: string, products: Product[], count: number =
 
   const campaignsData: Campaign[] = []
   const statuses: Campaign['status'][] = ['active', 'active', 'active', 'draft', 'pending_approval', 'completed', 'paused', 'ended']
-  const types: Campaign['type'][] = ['cashback', 'barter', 'hybrid']
+  const types: Campaign['campaignType'][] = ['cashback', 'barter', 'hybrid'] // Encore uses campaignType
 
   for (let i = 0; i < count; i++) {
     const status = statuses[i % statuses.length]
@@ -143,22 +152,25 @@ async function seedCampaigns(orgId: string, products: Product[], count: number =
       productId: product.id,
       title: `${product.name} - ${faker.company.catchPhrase()}`,
       description: faker.lorem.paragraph(),
-      type: randomElement(types),
+      campaignType: randomElement(types), // Encore format
       status,
       isPublic: faker.datatype.boolean(0.7),
-      startDate,
-      endDate,
-      submissionDeadlineDays: faker.number.int({ min: 3, max: 14 }),
+      startDate: startDate.toISOString(), // Encore uses ISO string
+      endDate: endDate.toISOString(), // Encore uses ISO string
+      enrollmentExpiryDays: faker.number.int({ min: 3, max: 14 }), // Encore format
       maxEnrollments,
       currentEnrollments,
       billRate: faker.number.int({ min: 100, max: 500 }),
       platformFee: faker.number.int({ min: 10, max: 50 }),
+      rebatePercentage: 10,
+      bonusAmount: 0,
+      slug: undefined,
       approvedCount,
       rejectedCount,
       pendingCount,
       totalPayout: approvedCount * faker.number.int({ min: 200, max: 1000 }),
-      createdAt: faker.date.past({ years: 1 }),
-      updatedAt: faker.date.recent({ days: 7 }),
+      createdAt: faker.date.past({ years: 1 }).toISOString(), // Encore uses ISO string
+      updatedAt: faker.date.recent({ days: 7 }).toISOString(), // Encore uses ISO string
     }
     await db.campaigns.create(campaign)
     campaignsData.push(campaign)
@@ -192,6 +204,10 @@ async function seedEnrollments(orgId: string, campaigns: Campaign[], count: numb
     const gstAmount = Math.round(billAmount * 0.18)
     const totalCost = billAmount + platformFee + gstAmount
 
+    const orderDate = faker.date.recent({ days: 30 })
+    const submissionDeadline = faker.date.future({ years: 0.1 })
+    const createdAt = faker.date.recent({ days: 30 })
+    
     const enrollment: Enrollment = {
       id: generateId('enr'),
       organizationId: orgId,
@@ -200,40 +216,41 @@ async function seedEnrollments(orgId: string, campaigns: Campaign[], count: numb
       status,
       orderId: `ORD-${faker.string.alphanumeric(10).toUpperCase()}`,
       orderValue,
-      orderDate: faker.date.recent({ days: 30 }),
-      platform: randomElement(platformNames),
-      submissionDeadline: faker.date.future({ years: 0.1 }),
-      billAmount,
-      platformFee,
-      gstAmount,
-      totalCost,
-      payoutAmount: status === 'approved' ? billAmount - platformFee : 0,
+      purchaseDate: orderDate.toISOString(), // Encore format
+      lockedRebatePercentage: 10, // Encore format
+      lockedBillRate: billAmount, // Encore format
+      lockedPlatformFee: platformFee, // Encore format
+      lockedBonusAmount: 0,
+      submittedAt: createdAt.toISOString(), // Encore format
+      approvedAt: status === 'approved' ? faker.date.recent({ days: 7 }).toISOString() : undefined,
+      rejectionCount: 0,
+      canResubmit: status === 'changes_requested',
+      expiresAt: submissionDeadline.toISOString(), // Encore format
       ocrData: {
         extractedOrderId: `ORD-${faker.string.alphanumeric(10).toUpperCase()}`,
         extractedAmount: orderValue,
-        extractedDate: faker.date.recent({ days: 30 }).toISOString(),
+        extractedDate: orderDate.toISOString(),
         confidence: faker.number.float({ min: 0.85, max: 0.99 }),
         isVerified: status === 'approved',
       },
       shopper: {
         id: generateId('shopper'),
-        name: faker.person.fullName(),
-        email: faker.internet.email(),
-        avatar: faker.image.avatar(),
+        displayName: faker.person.fullName(), // Encore format
+        avatarUrl: faker.image.avatar(), // Encore format
         previousEnrollments: faker.number.int({ min: 0, max: 20 }),
         approvalRate: faker.number.float({ min: 0.6, max: 1 }),
       },
-      history: [
-        {
-          id: generateId('hist'),
-          enrollmentId: '',
-          action: 'Enrolled',
-          description: 'Shopper enrolled in campaign',
-          performedAt: faker.date.recent({ days: 30 }),
-        },
-      ],
-      createdAt: faker.date.recent({ days: 30 }),
-      updatedAt: faker.date.recent({ days: 7 }),
+      campaign: {
+        id: campaign.id,
+        title: campaign.title,
+        status: campaign.status,
+      },
+      platform: {
+        id: `plat-${faker.number.int({ min: 1, max: 4 })}`,
+        name: randomElement(platformNames),
+      },
+      createdAt: createdAt.toISOString(), // Encore format
+      updatedAt: faker.date.recent({ days: 7 }).toISOString(), // Encore format
     }
     await db.enrollments.create(enrollment)
     enrollmentsData.push(enrollment)
@@ -243,36 +260,71 @@ async function seedEnrollments(orgId: string, campaigns: Campaign[], count: numb
 }
 
 async function seedTransactions(orgId: string, count: number = 30) {
-  const existingTransactions = db.transactions.findMany((q) => q.where({ organizationId: orgId }))
+  const existingTransactions = await db.transactions.findMany({ where: { organizationId: { equals: orgId } } })
   if (existingTransactions.length > 0) return existingTransactions
 
   const transactionsData: Transaction[] = []
-  const types: Transaction['type'][] = ['credit', 'hold_created', 'hold_committed', 'hold_voided', 'withdrawal', 'refund']
+  // Use Encore transaction types directly
+  const types: Transaction['type'][] = ['credit', 'hold', 'hold_committed', 'release', 'debit']
 
   for (let i = 0; i < count; i++) {
     const type = randomElement(types)
     const transaction: Transaction = {
       id: generateId('txn'),
-      organizationId: orgId,
+      walletId: `wallet-${orgId}`, // Encore format
+      organizationId: orgId, // Keep for filtering
       type,
       amount: faker.number.int({ min: 100, max: 50000 }),
       description: type === 'credit'
         ? 'Wallet top-up'
-        : type === 'hold_created'
+        : type === 'hold'
           ? 'Hold for campaign enrollment'
           : type === 'hold_committed'
             ? 'Payout released'
-            : type === 'withdrawal'
+            : type === 'debit'
               ? 'Withdrawal to bank account'
-              : faker.lorem.sentence(3),
+              : type === 'release'
+                ? 'Hold released'
+                : faker.lorem.sentence(3),
       reference: `REF-${faker.string.alphanumeric(8).toUpperCase()}`,
-      createdAt: faker.date.recent({ days: 60 }),
+      createdAt: faker.date.recent({ days: 60 }).toISOString(), // Encore uses ISO string
     }
     await db.transactions.create(transaction)
     transactionsData.push(transaction)
   }
 
   return transactionsData
+}
+
+async function seedActiveHolds(orgId: string, enrollments: Enrollment[]) {
+  const existingHolds = db.activeHolds.findMany((q) => q.where({ walletId: `wallet-${orgId}` }))
+  if (existingHolds.length > 0) return existingHolds
+
+  const holdsData: ActiveHold[] = []
+  const campaigns = db.campaigns.findMany((q) => q.where({ organizationId: orgId }))
+  
+  // Create holds for some enrollments
+  const enrollmentsWithHolds = enrollments.filter(e => e.status === 'awaiting_review' || e.status === 'approved').slice(0, 5)
+  
+  for (const enrollment of enrollmentsWithHolds) {
+    const campaign = campaigns.find(c => c.id === enrollment.campaignId)
+    if (!campaign) continue
+    
+    const hold: ActiveHold = {
+      id: generateId('hold'),
+      organizationId: orgId,
+      enrollmentId: enrollment.id, // Encore format
+      campaignId: campaign.id,
+      campaignTitle: campaign.title, // Encore format
+      amount: enrollment.lockedBillRate || 200, // Encore format
+      createdAt: new Date().toISOString(), // Encore format
+      expiresAt: enrollment.expiresAt, // Encore format
+    }
+    await db.activeHolds.create(hold)
+    holdsData.push(hold)
+  }
+
+  return holdsData
 }
 
 async function seedInvoices(orgId: string, count: number = 12) {
@@ -313,7 +365,7 @@ async function seedInvoices(orgId: string, count: number = 12) {
 }
 
 async function seedTeamMembers(orgId: string) {
-  const existingMembers = db.teamMembers.findMany((q) => q.where({ organizationId: orgId }))
+  const existingMembers = await db.teamMembers.findMany({ where: { organizationId: { equals: orgId } } })
   if (existingMembers.length > 0) return existingMembers
 
   const membersData: TeamMember[] = [
@@ -435,7 +487,7 @@ async function seedNotifications(orgId: string, userId: string, count: number = 
 }
 
 async function seedRecentActivity(orgId: string, count: number = 10) {
-  const existing = db.recentActivity.findMany((q) => q.where({ organizationId: orgId }))
+  const existing = db.recentActivity.findMany()
   if (existing.length > 0) return existing
 
   const activities: RecentActivity[] = []
@@ -467,7 +519,7 @@ async function seedRecentActivity(orgId: string, count: number = 10) {
 }
 
 async function seedDashboardStats(orgId: string) {
-  const existing = db.dashboardStats.findFirst((q) => q.where({ organizationId: orgId }))
+  const existing = await db.dashboardStats.findFirst({ where: { organizationId: { equals: orgId } } })
   if (existing) return existing
 
   // Calculate from actual data
@@ -521,8 +573,9 @@ export async function seedDatabase(scenario: SeedScenario = 'full', orgId: strin
   // Full scenario
   const products = await seedProducts(orgId, 10)
   const campaigns = await seedCampaigns(orgId, products, 8)
-  await seedEnrollments(orgId, campaigns, 50)
+  const enrollments = await seedEnrollments(orgId, campaigns, 50)
   await seedTransactions(orgId, 30)
+  await seedActiveHolds(orgId, enrollments)
   await seedInvoices(orgId, 12)
   await seedTeamMembers(orgId)
   await seedWalletBalance(orgId)

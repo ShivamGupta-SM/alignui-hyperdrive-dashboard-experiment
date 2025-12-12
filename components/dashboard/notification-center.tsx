@@ -669,7 +669,67 @@ interface NotificationPanelProps {
   onOpenChange: (open: boolean) => void
 }
 
-function NotificationPanelContent({
+/**
+ * Empty state shown when Novu is not configured or not ready
+ */
+function NotificationPanelEmpty({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
+  const router = useRouter()
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-stroke-soft-200 dark:border-neutral-800">
+        <div className="flex items-center gap-3">
+          <div className="size-10 rounded-xl bg-gradient-to-br from-primary-base to-primary-dark flex items-center justify-center shadow-sm">
+            <Bell className="size-5 text-white" weight="fill" />
+          </div>
+          <div>
+            <h2 className="text-label-md text-text-strong-950 dark:text-neutral-50">Notifications</h2>
+            <p className="text-paragraph-xs text-text-sub-600 dark:text-neutral-400">
+              All caught up
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Empty State */}
+      <div className="flex-1 flex flex-col items-center justify-center py-16 px-6 text-center">
+        <div className="size-16 rounded-2xl bg-gradient-to-br from-bg-weak-50 to-bg-soft-200 dark:from-neutral-800 dark:to-neutral-700 flex items-center justify-center mb-4">
+          <Bell className="size-8 text-text-soft-400 dark:text-neutral-500" weight="duotone" />
+        </div>
+        <p className="text-label-md text-text-strong-950 dark:text-neutral-50 mb-1">
+          Notifications unavailable
+        </p>
+        <p className="text-paragraph-sm text-text-sub-600 dark:text-neutral-400 max-w-[240px]">
+          Notification service is not configured or still loading.
+        </p>
+      </div>
+
+      {/* Footer */}
+      <div
+        className="border-t border-stroke-soft-200 dark:border-neutral-800 px-4 py-3"
+        style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            router.push('/dashboard/settings?tab=notifications')
+            onOpenChange(false)
+          }}
+          className="w-full text-center text-label-sm text-text-sub-600 dark:text-neutral-400 hover:text-text-strong-950 dark:hover:text-neutral-50 transition-colors py-2 min-h-11 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"
+        >
+          Notification Settings
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Main notification panel content that uses Novu hooks.
+ * Only render this component when inside NovuProvider.
+ */
+function NotificationPanelWithNovu({
   onOpenChange,
 }: {
   onOpenChange: (open: boolean) => void
@@ -1177,6 +1237,20 @@ function NotificationPanelContent({
   )
 }
 
+/**
+ * Wrapper that conditionally renders Novu content or empty state
+ * based on whether NovuProvider context is available.
+ */
+function NotificationPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
+  const isNovuReady = React.useContext(NovuReadyContext)
+
+  if (!isNovuReady) {
+    return <NotificationPanelEmpty onOpenChange={onOpenChange} />
+  }
+
+  return <NotificationPanelWithNovu onOpenChange={onOpenChange} />
+}
+
 export function NotificationPanel({ open, onOpenChange }: NotificationPanelProps) {
   const isMobile = useMediaQuery('(max-width: 639px)')
 
@@ -1270,7 +1344,7 @@ function NotificationCenterInner() {
  * Context to signal that we're inside NovuProvider.
  * This allows child components to safely check before using Novu hooks.
  */
-const NovuReadyContext = React.createContext<boolean>(false)
+export const NovuReadyContext = React.createContext<boolean>(false)
 
 /**
  * Provider component that wraps NotificationCenter children
@@ -1293,15 +1367,18 @@ export function NotificationCenter() {
   const isNovuReady = React.useContext(NovuReadyContext)
   const [isOpen, setIsOpen] = React.useState(false)
 
-  // If Novu is not ready yet, show a bell with loading state
-  // The bell is still clickable but shows 0 count
+  // If Novu is not ready yet, show a bell with 0 count
+  // Panel will show empty state when opened
   if (!isNovuReady) {
     return (
-      <NotificationBell
-        onClick={() => setIsOpen(true)}
-        count={0}
-        isOpen={isOpen}
-      />
+      <>
+        <NotificationBell
+          onClick={() => setIsOpen(true)}
+          count={0}
+          isOpen={isOpen}
+        />
+        <NotificationPanel open={isOpen} onOpenChange={setIsOpen} />
+      </>
     )
   }
 

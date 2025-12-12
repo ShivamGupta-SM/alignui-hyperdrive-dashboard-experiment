@@ -3,91 +3,45 @@
  */
 
 import { http } from 'msw'
-import { mockCategories, mockProducts } from '@/lib/mocks'
-import { LIMITS } from '@/lib/types/constants'
-import {
-  delay,
-  DELAY,
-  successResponse,
-  notFoundResponse,
-  paginatedResponse,
-  calculatePagination,
-  paginateArray,
-} from './utils'
+import { db } from '@/mocks/db'
+import { delay, DELAY, encoreUrl, encoreResponse, encoreListResponse, encoreNotFoundResponse } from './utils'
 
 export const categoriesHandlers = [
-  // GET /api/categories - List active categories (hierarchical)
-  http.get('/api/categories', async () => {
+  // GET /categories - List categories
+  http.get(encoreUrl('/categories'), async () => {
     await delay(DELAY.FAST)
-
-    const activeCategories = mockCategories.filter(c => c.isActive)
-    return successResponse(activeCategories)
+    const categories = db.categories.findMany()
+    return encoreListResponse(categories, categories.length, 0, 50)
   }),
 
-  // GET /api/categories/all - List all categories (flat, including inactive)
-  http.get('/api/categories/all', async () => {
+  // GET /categories/all - All categories
+  http.get(encoreUrl('/categories/all'), async () => {
     await delay(DELAY.FAST)
-
-    return successResponse(mockCategories)
+    const categories = db.categories.findMany()
+    return encoreResponse({ categories })
   }),
 
-  // GET /api/categories/:id - Get single category by ID
-  http.get('/api/categories/:id', async ({ params }) => {
+  // GET /categories/:id
+  http.get(encoreUrl('/categories/:id'), async ({ params }) => {
     await delay(DELAY.FAST)
-
     const { id } = params
     const category = mockCategories.find(c => c.id === id)
-
-    if (!category) {
-      return notFoundResponse('Category')
-    }
-
-    return successResponse(category)
+    if (!category) return encoreNotFoundResponse('Category')
+    return encoreResponse(category)
   }),
 
-  // GET /api/categories/name/:name - Get category by name/slug
-  http.get('/api/categories/name/:name', async ({ params }) => {
-    await delay(DELAY.FAST)
-
-    const { name } = params
-    const decodedName = decodeURIComponent(name as string).toLowerCase()
-
-    const category = mockCategories.find(
-      c => c.name.toLowerCase() === decodedName || c.slug === decodedName
-    )
-
-    if (!category) {
-      return notFoundResponse('Category')
-    }
-
-    return successResponse(category)
-  }),
-
-  // GET /api/categories/:id/products - Get products in a category
-  http.get('/api/categories/:id/products', async ({ params, request }) => {
+  // GET /categories/:id/products
+  http.get(encoreUrl('/categories/:id/products'), async ({ params, request }) => {
     await delay(DELAY.STANDARD)
-
     const { id } = params
     const url = new URL(request.url)
+    const skip = Number.parseInt(url.searchParams.get('skip') || '0', 10)
+    const take = Number.parseInt(url.searchParams.get('take') || '20', 10)
 
-    const page = Number.parseInt(url.searchParams.get('page') || '1', 10)
-    const limit = Number.parseInt(url.searchParams.get('limit') || String(LIMITS.DEFAULT_PAGE_SIZE), 10)
+    const category = db.categories.findFirst((q) => q.where({ id }))
+    if (!category) return encoreNotFoundResponse('Category')
 
-    const category = mockCategories.find(c => c.id === id)
-
-    if (!category) {
-      return notFoundResponse('Category')
-    }
-
-    // Filter products by category name (mock doesn't have categoryId)
-    const categoryProducts = mockProducts.filter(
-      p => p.category.toLowerCase() === category.name.toLowerCase()
-    )
-
-    const total = categoryProducts.length
-    const paginatedProducts = paginateArray(categoryProducts, page, limit)
-    const meta = calculatePagination(total, page, limit)
-
-    return paginatedResponse(paginatedProducts, meta)
+    const products = db.products.findMany((q) => q.where({ categoryId: category.id }))
+    return encoreListResponse(products.slice(skip, skip + take), products.length, skip, take)
   }),
 ]

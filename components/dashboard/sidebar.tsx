@@ -469,6 +469,8 @@ function OrganizationSwitcher({
   collapsed = false,
   isDarkMode,
 }: OrganizationSwitcherProps) {
+  console.log('[OrgSwitcher] organizations:', organizations?.length, 'current:', currentOrganization?.id)
+
   if (!currentOrganization) {
     return (
       <button

@@ -1,10 +1,10 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { getServerQueryClient } from '@/lib/get-query-client'
-import { getCampaignDetailData } from '@/lib/data/campaigns'
+import { getCampaignDetailData } from '@/lib/ssr-data'
 import { campaignKeys } from '@/lib/query-keys'
 import { CampaignDetailClient } from './campaign-detail-client'
 
-// Revalidate every 60 seconds (ISR) for better caching while staying fresh
+// Revalidate every 60 seconds (ISR)
 export const revalidate = 60
 
 export default async function CampaignDetailPage({

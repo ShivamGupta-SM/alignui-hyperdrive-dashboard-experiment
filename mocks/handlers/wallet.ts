@@ -1,354 +1,296 @@
 /**
- * Wallet API Mock Handlers
+ * Wallet API Mock Handlers - Type-Safe, DB Only
+ * 
+ * Uses MSW Data database - NO lib/mocks
  */
 
 import { http } from 'msw'
-import { mockWalletBalanceByOrg, mockTransactions, mockActiveHoldsByOrg } from '@/lib/mocks'
-import { LIMITS } from '@/lib/types/constants'
+import { db } from '@/mocks/db'
 import {
   delay,
   DELAY,
   getAuthContext,
-  successResponse,
-  errorResponse,
-  paginatedResponse,
-  calculatePagination,
-  paginateArray,
+  encoreUrl,
+  encoreResponse,
+  encoreListResponse,
+  encoreErrorResponse,
 } from './utils'
 
 export const walletHandlers = [
-  // GET /api/wallet
-  http.get('/api/wallet', async () => {
+  // GET /organizations/:orgId/wallet - Get wallet balance
+  http.get(encoreUrl('/organizations/:orgId/wallet'), async ({ params }) => {
     await delay(DELAY.FAST)
 
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
+    const rawOrgId = params.orgId as string
+    const orgId = (rawOrgId === 'default' || !rawOrgId) ? '1' : rawOrgId
+    
+    const wallet = db.walletBalances.findFirst((q) => q.where({ organizationId: orgId }))
+      || db.walletBalances.findFirst((q) => q.where({ organizationId: '1' }))
 
-    const balance = mockWalletBalanceByOrg[orgId] || mockWalletBalanceByOrg['1']
-    const activeHolds = mockActiveHoldsByOrg[orgId] || mockActiveHoldsByOrg['1']
-
-    const recentTransactions = mockTransactions
-      .filter(t => t.organizationId === orgId)
-      .slice(0, 5)
-
-    return successResponse({
-      balance,
-      recentTransactions,
-      activeHolds,
-    })
-  }),
-
-  // GET /api/wallet/data
-  http.get('/api/wallet/data', async () => {
-    await delay(DELAY.FAST)
-
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
-
-    const wallet = mockWalletBalanceByOrg[orgId] || mockWalletBalanceByOrg['1']
-    const activeHolds = mockActiveHoldsByOrg[orgId] || mockActiveHoldsByOrg['1']
-    const transactions = mockTransactions.filter(t => t.organizationId === orgId)
-
-    return successResponse({
-      wallet,
-      transactions,
-      activeHolds,
-    })
-  }),
-
-  // GET /api/wallet/transactions
-  http.get('/api/wallet/transactions', async ({ request }) => {
-    await delay(DELAY.STANDARD)
-
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
-    const url = new URL(request.url)
-
-    const page = Number.parseInt(url.searchParams.get('page') || '1', 10)
-    const limit = Number.parseInt(url.searchParams.get('limit') || String(LIMITS.DEFAULT_PAGE_SIZE), 10)
-    const type = url.searchParams.get('type')
-
-    let transactions = mockTransactions.filter(t => t.organizationId === orgId)
-
-    if (type && type !== 'all') {
-      transactions = transactions.filter(t => t.type === type)
+    if (!wallet) {
+      return encoreErrorResponse('Wallet not found', 404)
     }
 
-    // Sort by date (newest first)
-    transactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
-    const total = transactions.length
-    const paginatedTransactions = paginateArray(transactions, page, limit)
-    const meta = calculatePagination(total, page, limit)
-
-    return paginatedResponse(paginatedTransactions, meta)
-  }),
-
-  // POST /api/wallet/withdraw
-  // Matches Encore wallets.createOrganizationWithdrawal: { amount, notes? }
-  // Returns wallets.Withdrawal type
-  http.post('/api/wallet/withdraw', async ({ request }) => {
-    await delay(DELAY.SLOW)
-
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
-    const body = await request.json() as Record<string, unknown>
-
-    // Match Encore's createOrganizationWithdrawal params: { amount, notes? }
-    const { amount, notes } = body as { amount?: number; notes?: string }
-
-    if (!amount || amount < 1000) {
-      return errorResponse('Minimum withdrawal amount is ₹1,000', 400)
-    }
-
-    const balance = mockWalletBalanceByOrg[orgId] || mockWalletBalanceByOrg['1']
-
-    if (amount > balance.availableBalance) {
-      return errorResponse('Insufficient balance', 400)
-    }
-
-    // Return wallets.Withdrawal type matching Encore
-    const withdrawal = {
-      id: `wd-${Date.now()}`,
+    // Return full Wallet type as expected by Encore client
+    return encoreResponse({
+      id: `wallet-${orgId}`,
       holderId: orgId,
       holderType: 'organization' as const,
-      amount,
-      status: 'pending' as const,
-      withdrawalMethodId: undefined,
-      requiresApproval: amount >= 100000,
-      approvedBy: undefined,
-      approvedAt: undefined,
-      rejectionReason: undefined,
-      utr: undefined,
-      requestedAt: new Date().toISOString(),
-      processedAt: undefined,
-      notes,
-    }
-
-    return successResponse(withdrawal)
-  }),
-
-  // POST /api/wallet/add-funds
-  // Matches addFundsBodySchema: { amount, paymentMethod: 'upi' | 'netbanking' | 'card' }
-  http.post('/api/wallet/add-funds', async ({ request }) => {
-    await delay(DELAY.MEDIUM)
-
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
-    const body = await request.json() as Record<string, unknown>
-
-    // Match schema: paymentMethod (not method)
-    const { amount, paymentMethod } = body as {
-      amount?: number
-      paymentMethod?: 'upi' | 'netbanking' | 'card'
-    }
-
-    if (!amount || amount < 100) {
-      return errorResponse('Minimum amount is ₹100', 400)
-    }
-
-    if (!paymentMethod || !['upi', 'netbanking', 'card'].includes(paymentMethod)) {
-      return errorResponse('Invalid payment method', 400)
-    }
-
-    const balance = mockWalletBalanceByOrg[orgId] || mockWalletBalanceByOrg['1']
-
-    // Generate payment link for UPI/NetBanking
-    const paymentRequest = {
-      id: `pay-${Date.now()}`,
-      amount,
-      paymentMethod,
-      status: 'pending',
-      paymentLink: `https://pay.example.com/${Date.now()}`,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      currency: 'INR',
+      balance: wallet.availableBalance + wallet.heldAmount,
+      pendingBalance: wallet.heldAmount,
+      availableBalance: wallet.availableBalance,
+      creditLimit: wallet.creditLimit,
+      creditUtilized: wallet.creditUtilized,
       createdAt: new Date().toISOString(),
-    }
-
-    return successResponse({
-      paymentRequest,
-      currentBalance: balance.availableBalance,
     })
   }),
 
-  // POST /api/wallet/credit
-  // Matches creditRequestBodySchema: { amount, reason }
-  // This is for credit increase requests, not direct credit
-  http.post('/api/wallet/credit', async ({ request }) => {
-    await delay(DELAY.MEDIUM)
+  // GET /wallets/me - Encore client uses this
+  http.get(encoreUrl('/wallets/me'), async () => {
+    await delay(DELAY.FAST)
 
     const auth = getAuthContext()
-    const orgId = auth.organizationId
-    const body = await request.json() as Record<string, unknown>
+    const orgId = auth.organizationId || '1'
+    
+    const wallet = db.walletBalances.findFirst((q) => q.where({ organizationId: orgId }))
+      || db.walletBalances.findFirst((q) => q.where({ organizationId: '1' }))
 
-    // Match schema: reason (not description)
-    const { amount, reason } = body as {
-      amount?: number
-      reason?: string
+    if (!wallet) {
+      return encoreErrorResponse('Wallet not found', 404)
     }
 
-    if (!amount || amount < 10000) {
-      return errorResponse('Minimum credit request is ₹10,000', 400)
-    }
-
-    if (amount > 500000) {
-      return errorResponse('Maximum credit request is ₹5,00,000', 400)
-    }
-
-    if (!reason || reason.length < 10) {
-      return errorResponse('Please provide a reason (at least 10 characters)', 400)
-    }
-
-    // Return credit request response matching organizations.requestCreditIncrease
-    return successResponse({
-      success: true,
-      requestId: `cr-${Date.now()}`,
-      organizationId: orgId,
-      requestedAmount: amount,
-      reason,
-      status: 'pending_review',
-      submittedAt: new Date().toISOString(),
+    return encoreResponse({
+      id: `wallet-${orgId}`,
+      holderId: orgId,
+      holderType: 'organization' as const,
+      currency: 'INR',
+      balance: wallet.availableBalance + wallet.heldAmount,
+      pendingBalance: wallet.heldAmount,
+      availableBalance: wallet.availableBalance,
+      creditLimit: wallet.creditLimit,
+      creditUtilized: wallet.creditUtilized,
+      createdAt: new Date().toISOString(),
     })
   }),
 
-  // GET /api/wallet/withdrawals - List withdrawal history
-  http.get('/api/wallet/withdrawals', async ({ request }) => {
+  // GET /wallets/me/transactions
+  http.get(encoreUrl('/wallets/me/transactions'), async ({ request }) => {
     await delay(DELAY.STANDARD)
 
     const auth = getAuthContext()
-    const orgId = auth.organizationId
     const url = new URL(request.url)
 
-    const page = Number.parseInt(url.searchParams.get('page') || '1', 10)
-    const limit = Number.parseInt(url.searchParams.get('limit') || String(LIMITS.DEFAULT_PAGE_SIZE), 10)
-    const status = url.searchParams.get('status')
+    const skip = Number.parseInt(url.searchParams.get('skip') || '0', 10)
+    const take = Number.parseInt(url.searchParams.get('take') || '20', 10)
 
-    // Generate mock withdrawal history
-    const allWithdrawals = [
-      {
-        id: 'wd-1',
-        organizationId: orgId,
-        amount: 50000,
-        status: 'completed' as const,
-        bankAccountId: 'bank-1',
-        bankAccountName: 'HDFC Bank',
-        bankAccountLast4: '1234',
-        requestedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        processedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-        completedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        failureReason: null,
-        referenceNumber: 'REF-123456',
-      },
-      {
-        id: 'wd-2',
-        organizationId: orgId,
-        amount: 25000,
-        status: 'processing' as const,
-        bankAccountId: 'bank-1',
-        bankAccountName: 'HDFC Bank',
-        bankAccountLast4: '1234',
-        requestedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        processedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        completedAt: null,
-        failureReason: null,
-        referenceNumber: null,
-      },
-      {
-        id: 'wd-3',
-        organizationId: orgId,
-        amount: 75000,
-        status: 'pending' as const,
-        bankAccountId: 'bank-2',
-        bankAccountName: 'ICICI Bank',
-        bankAccountLast4: '5678',
-        requestedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        processedAt: null,
-        completedAt: null,
-        failureReason: null,
-        referenceNumber: null,
-      },
-    ]
+    const transactions = db.transactions.findMany((q) => q.where({ organizationId: auth.organizationId }))
+    const total = transactions.length
+    const paginatedTransactions = transactions.slice(skip, skip + take)
 
-    let withdrawals = allWithdrawals
-    if (status && status !== 'all') {
-      withdrawals = withdrawals.filter(w => w.status === status)
-    }
-
-    const total = withdrawals.length
-    const start = (page - 1) * limit
-    const paginatedWithdrawals = withdrawals.slice(start, start + limit)
-
-    return successResponse({
-      withdrawals: paginatedWithdrawals,
+    return encoreListResponse(
+      paginatedTransactions.map(t => ({
+        ...t,
+        createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : t.createdAt,
+      })),
       total,
-      page,
-      limit,
+      skip,
+      take
+    )
+  }),
+
+  // GET /organizations/:orgId/wallet/transactions
+  http.get(encoreUrl('/organizations/:orgId/wallet/transactions'), async ({ params, request }) => {
+    await delay(DELAY.STANDARD)
+
+    const { orgId } = params as { orgId: string }
+    const url = new URL(request.url)
+
+    const skip = Number.parseInt(url.searchParams.get('skip') || '0', 10)
+    const take = Number.parseInt(url.searchParams.get('take') || '20', 10)
+
+    const transactions = db.transactions.findMany((q) => q.where({ organizationId: orgId }))
+    const total = transactions.length
+    const paginatedTransactions = transactions.slice(skip, skip + take)
+
+    return encoreListResponse(
+      paginatedTransactions.map(t => ({
+        ...t,
+        createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : t.createdAt,
+      })),
+      total,
+      skip,
+      take
+    )
+  }),
+
+  // GET /organizations/:orgId/wallet/holds
+  http.get(encoreUrl('/organizations/:orgId/wallet/holds'), async ({ params }) => {
+    await delay(DELAY.FAST)
+
+    const { orgId } = params as { orgId: string }
+    const holds = db.activeHolds.findMany((q) => q.where({ walletId: `wallet-${orgId}` }))
+
+    return encoreResponse({
+      holds: holds.map(h => ({
+        ...h,
+        createdAt: h.createdAt instanceof Date ? h.createdAt.toISOString() : h.createdAt,
+      })),
     })
   }),
 
-  // GET /api/wallet/withdrawals/:id - Get single withdrawal
-  http.get('/api/wallet/withdrawals/:id', async ({ params }) => {
+  // POST /organizations/:orgId/wallet/top-up
+  http.post(encoreUrl('/organizations/:orgId/wallet/top-up'), async ({ params, request }) => {
+    await delay(DELAY.MEDIUM)
+
+    const { orgId } = params as { orgId: string }
+    const body = await request.json() as { amount: number }
+
+    const wallet = db.walletBalances.findFirst((q) => q.where({ organizationId: orgId }))
+    if (!wallet) {
+      return encoreErrorResponse('Wallet not found', 404)
+    }
+
+    const newBalance = wallet.availableBalance + body.amount
+
+    return encoreResponse({
+      success: true,
+      newBalance,
+      transactionId: `txn-${Date.now()}`,
+    })
+  }),
+
+  // POST /organizations/:orgId/wallet/withdraw
+  http.post(encoreUrl('/organizations/:orgId/wallet/withdraw'), async ({ params, request }) => {
+    await delay(DELAY.MEDIUM)
+
+    const { orgId } = params as { orgId: string }
+    const body = await request.json() as { amount: number; notes?: string }
+
+    const wallet = db.walletBalances.findFirst((q) => q.where({ organizationId: orgId }))
+    if (!wallet) {
+      return encoreErrorResponse('Wallet not found', 404)
+    }
+
+    if (body.amount > wallet.availableBalance) {
+      return encoreErrorResponse('Insufficient balance')
+    }
+
+    return encoreResponse({
+      id: `wd-${Date.now()}`,
+      amount: body.amount,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    })
+  }),
+
+  // GET /organizations/:orgId/withdrawals
+  http.get(encoreUrl('/organizations/:orgId/withdrawals'), async ({ params, request }) => {
+    await delay(DELAY.STANDARD)
+
+    const { orgId } = params as { orgId: string }
+    const url = new URL(request.url)
+
+    const skip = Number.parseInt(url.searchParams.get('skip') || '0', 10)
+    const take = Number.parseInt(url.searchParams.get('take') || '20', 10)
+
+    // Mock withdrawals
+    const withdrawals = [
+      { id: 'wd-1', organizationId: orgId, amount: 50000, status: 'completed', createdAt: new Date().toISOString() },
+      { id: 'wd-2', organizationId: orgId, amount: 25000, status: 'processing', createdAt: new Date().toISOString() },
+    ]
+
+    return encoreListResponse(withdrawals.slice(skip, skip + take), withdrawals.length, skip, take)
+  }),
+
+  // GET /withdrawals/:id
+  http.get(encoreUrl('/withdrawals/:id'), async ({ params }) => {
+    await delay(DELAY.FAST)
+
+    const { id } = params as { id: string }
+
+    return encoreResponse({
+      id,
+      organizationId: '1',
+      amount: 50000,
+      status: 'completed',
+      bankAccountId: 'bank-1',
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+    })
+  }),
+
+  // GET /withdrawals/stats
+  http.get(encoreUrl('/withdrawals/stats'), async () => {
+    await delay(DELAY.FAST)
+
+    return encoreResponse({
+      totalWithdrawn: 250000,
+      pendingWithdrawals: 25000,
+      thisMonthWithdrawn: 75000,
+      lastWithdrawalDate: new Date().toISOString(),
+      totalCount: 10,
+      totalAmount: 275000,
+      pendingApprovalCount: 2,
+      countByStatus: { completed: 8, pending: 2 },
+    })
+  }),
+
+  // POST /withdrawals/:id/cancel
+  http.post(encoreUrl('/withdrawals/:id/cancel'), async ({ params }) => {
+    await delay(DELAY.MEDIUM)
+
+    const { id } = params as { id: string }
+
+    return encoreResponse({
+      id,
+      status: 'cancelled',
+      cancelledAt: new Date().toISOString(),
+    })
+  }),
+
+  // GET /wallet/balance (legacy)
+  http.get(encoreUrl('/wallet/balance'), async () => {
     await delay(DELAY.FAST)
 
     const auth = getAuthContext()
-    const { id } = params
+    const wallet = db.walletBalances.findFirst((q) => q.where({ organizationId: auth.organizationId }))
+      || db.walletBalances.findFirst((q) => q.where({ organizationId: '1' }))
 
-    const withdrawal = {
-      id,
-      organizationId: auth.organizationId,
-      amount: 50000,
-      status: 'completed' as const,
-      bankAccountId: 'bank-1',
-      bankAccountName: 'HDFC Bank',
-      bankAccountLast4: '1234',
-      requestedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      processedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-      completedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      failureReason: null,
-      referenceNumber: 'REF-123456',
+    if (!wallet) {
+      return encoreErrorResponse('Wallet not found', 404)
     }
 
-    return successResponse(withdrawal)
-  }),
-
-  // POST /api/wallet/withdrawals/:id/cancel - Cancel withdrawal
-  http.post('/api/wallet/withdrawals/:id/cancel', async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
-    const { id } = params
-
-    return successResponse({
-      id,
-      status: 'cancelled',
-      message: 'Withdrawal cancelled successfully',
+    return encoreResponse({
+      availableBalance: wallet.availableBalance,
+      heldAmount: wallet.heldAmount,
+      creditLimit: wallet.creditLimit,
+      creditUtilized: wallet.creditUtilized,
     })
   }),
 
-  // GET /api/wallet/withdrawals/stats - Get withdrawal statistics
-  http.get('/api/wallet/withdrawals/stats', async () => {
-    await delay(DELAY.FAST)
+  // GET /wallet/transactions (legacy)
+  http.get(encoreUrl('/wallet/transactions'), async ({ request }) => {
+    await delay(DELAY.STANDARD)
 
-    const stats = {
-      totalWithdrawals: 12,
-      totalAmount: 425000,
-      pendingCount: 1,
-      pendingAmount: 25000,
-      processingCount: 0,
-      processingAmount: 0,
-      completedCount: 10,
-      completedAmount: 385000,
-      failedCount: 1,
-      failedAmount: 15000,
-      cancelledCount: 0,
-      cancelledAmount: 0,
-      thisMonthCount: 2,
-      thisMonthAmount: 75000,
-      lastMonthCount: 3,
-      lastMonthAmount: 125000,
-      averageWithdrawalAmount: 35417,
-      averageProcessingTime: 48,
-      successRate: 91,
-    }
+    const auth = getAuthContext()
+    const url = new URL(request.url)
 
-    return successResponse(stats)
+    const skip = Number.parseInt(url.searchParams.get('skip') || '0', 10)
+    const take = Number.parseInt(url.searchParams.get('take') || '20', 10)
+
+    const transactions = db.transactions.findMany((q) => q.where({ organizationId: auth.organizationId }))
+    const total = transactions.length
+    const paginatedTransactions = transactions.slice(skip, skip + take)
+
+    return encoreListResponse(
+      paginatedTransactions.map(t => ({
+        ...t,
+        createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : t.createdAt,
+      })),
+      total,
+      skip,
+      take
+    )
   }),
 ]

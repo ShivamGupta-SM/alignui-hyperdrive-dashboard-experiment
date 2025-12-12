@@ -1,110 +1,243 @@
 /**
- * MSW Handler Utilities
+ * MSW Handler Utilities - Type-Safe Edition (Strict Mode)
  *
- * Shared utilities for mock handlers including response helpers,
- * authentication simulation, and delay functions.
+ * NO defensive coding - if data is wrong, it MUST fail immediately.
+ * NO legacy responses - use typed helpers only.
+ *
+ * All response helpers enforce Encore types for end-to-end type safety.
  */
 
 import { HttpResponse, delay as mswDelay } from 'msw'
 
-// Simulated delays (in ms)
+// Import Encore types for type safety
+import type {
+  wallets,
+  organizations,
+  campaigns,
+  enrollments,
+  products,
+  invoices,
+  notifications,
+} from '@/lib/encore-browser'
+
+// =============================================================================
+// ENCORE URL HELPER
+// =============================================================================
+
+export const ENCORE_BASE_URL = process.env.NEXT_PUBLIC_ENCORE_URL || 'http://localhost:4000'
+
+export function encoreUrl(path: string): string {
+  return `${ENCORE_BASE_URL}${path}`
+}
+
+// =============================================================================
+// DELAYS
+// =============================================================================
+
 export const DELAY = {
   INSTANT: 0,
   FAST: 150,
   STANDARD: 300,
   MEDIUM: 500,
   SLOW: 800,
-  LONG_VERIFICATION: 1500,
 } as const
 
-// Helper to add realistic network delay
 export async function delay(ms: number = DELAY.STANDARD) {
   await mswDelay(ms)
 }
 
-// Mock authenticated user context
+// =============================================================================
+// AUTH CONTEXT
+// =============================================================================
+
 export interface AuthContext {
   userId: string
   organizationId: string
-  user: {
-    id: string
-    email: string
-    name: string
-    avatar?: string
-  }
+  role: 'admin' | 'member' | 'manager'
 }
 
-// Simulated auth context (in real app, this would come from session)
 export function getAuthContext(): AuthContext {
-  // Default mock user - in production MSW could read from cookies/localStorage
   return {
     userId: '1',
     organizationId: '1',
-    user: {
-      id: '1',
-      email: 'demo@hypedrive.test',
-      name: 'Demo User',
-      avatar: undefined,
-    },
+    role: 'admin',
   }
 }
 
-// Response helpers that match your API utils
-export function successResponse<T>(data: T, status = 200) {
-  return HttpResponse.json({ success: true, data }, { status })
+// =============================================================================
+// TYPE-SAFE RESPONSE HELPERS (STRICT - NO FALLBACKS)
+// =============================================================================
+
+/**
+ * Generic typed response - data MUST be valid object
+ */
+export function encoreResponse<T extends object>(data: T) {
+  return HttpResponse.json(data)
 }
 
-export function errorResponse(message: string, status = 400) {
-  return HttpResponse.json({ success: false, error: message }, { status })
-}
-
-export function unauthorizedResponse(message = 'Unauthorized') {
-  return HttpResponse.json({ success: false, error: message }, { status: 401 })
-}
-
-export function notFoundResponse(entity = 'Resource') {
-  return HttpResponse.json(
-    { success: false, error: `${entity} not found` },
-    { status: 404 }
-  )
-}
-
-export function serverErrorResponse(message = 'Internal server error') {
-  return HttpResponse.json({ success: false, error: message }, { status: 500 })
-}
-
-export interface PaginationMeta {
-  page: number
-  limit: number
-  total: number
-  totalPages: number
-  hasMore: boolean
-}
-
-export function paginatedResponse<T>(data: T[], meta: PaginationMeta) {
+/**
+ * Type-safe list response - STRICT pagination (no defaults)
+ */
+export function encoreListResponse<T>(
+  data: T[],
+  total: number,
+  skip: number,
+  take: number
+) {
   return HttpResponse.json({
-    success: true,
     data,
-    meta,
+    total,
+    skip,
+    take,
+    hasMore: skip + data.length < total,
   })
 }
 
-export function calculatePagination(
-  total: number,
-  page: number,
-  limit: number
-): PaginationMeta {
-  const totalPages = Math.ceil(total / limit)
-  return {
-    page,
-    limit,
-    total,
-    totalPages,
-    hasMore: page < totalPages,
-  }
+/**
+ * Error responses
+ */
+export function encoreErrorResponse(message: string, status = 400) {
+  return HttpResponse.json({ error: message, code: 'invalid_argument' }, { status })
 }
 
-export function paginateArray<T>(array: T[], page: number, limit: number): T[] {
-  const start = (page - 1) * limit
-  return array.slice(start, start + limit)
+export function encoreNotFoundResponse(entity: string) {
+  return HttpResponse.json({ error: `${entity} not found`, code: 'not_found' }, { status: 404 })
+}
+
+export function encoreUnauthorizedResponse(message: string) {
+  return HttpResponse.json({ error: message, code: 'unauthenticated' }, { status: 401 })
+}
+
+// =============================================================================
+// STRICTLY TYPED RESPONSE HELPERS
+// These enforce EXACT Encore types at compile time - NO EXCEPTIONS
+// =============================================================================
+
+/** Type-safe Wallet response */
+export function typedWalletResponse(wallet: wallets.Wallet) {
+  return HttpResponse.json(wallet)
+}
+
+/** Type-safe WalletTransaction list */
+export function typedTransactionListResponse(
+  data: wallets.WalletTransaction[],
+  total: number,
+  skip: number,
+  take: number
+) {
+  return encoreListResponse(data, total, skip, take)
+}
+
+/** Type-safe ActiveHold list */
+export function typedHoldsResponse(holds: { holds: wallets.ActiveHold[] }) {
+  return HttpResponse.json(holds)
+}
+
+/** Type-safe Dashboard response */
+export function typedDashboardResponse(data: organizations.DashboardOverviewResponse) {
+  return HttpResponse.json(data)
+}
+
+/** Type-safe Organization response */
+export function typedOrganizationResponse(org: organizations.Organization) {
+  return HttpResponse.json(org)
+}
+
+/** Type-safe Organization list */
+export function typedOrganizationListResponse(
+  data: organizations.Organization[],
+  total: number,
+  skip: number,
+  take: number
+) {
+  return encoreListResponse(data, total, skip, take)
+}
+
+/** Type-safe Campaign response */
+export function typedCampaignResponse(campaign: campaigns.CampaignWithStats) {
+  return HttpResponse.json(campaign)
+}
+
+/** Type-safe Campaign list */
+export function typedCampaignListResponse(
+  data: campaigns.CampaignWithStats[],
+  total: number,
+  skip: number,
+  take: number
+) {
+  return encoreListResponse(data, total, skip, take)
+}
+
+/** Type-safe Enrollment response */
+export function typedEnrollmentResponse(enrollment: enrollments.EnrollmentWithRelations) {
+  return HttpResponse.json(enrollment)
+}
+
+/** Type-safe Enrollment list */
+export function typedEnrollmentListResponse(
+  data: enrollments.EnrollmentWithRelations[],
+  total: number,
+  skip: number,
+  take: number
+) {
+  return encoreListResponse(data, total, skip, take)
+}
+
+/** Type-safe Product response */
+export function typedProductResponse(product: products.ProductWithStats) {
+  return HttpResponse.json(product)
+}
+
+/** Type-safe Product list */
+export function typedProductListResponse(
+  data: products.ProductWithStats[],
+  total: number,
+  skip: number,
+  take: number
+) {
+  return encoreListResponse(data, total, skip, take)
+}
+
+/** Type-safe Invoice response */
+export function typedInvoiceResponse(invoice: invoices.Invoice) {
+  return HttpResponse.json(invoice)
+}
+
+/** Type-safe Invoice list */
+export function typedInvoiceListResponse(
+  data: invoices.Invoice[],
+  total: number,
+  skip: number,
+  take: number
+) {
+  return encoreListResponse(data, total, skip, take)
+}
+
+/** Type-safe Notification response */
+export function typedNotificationResponse(notification: notifications.Notification) {
+  return HttpResponse.json(notification)
+}
+
+/** Type-safe Notification list */
+export function typedNotificationListResponse(
+  data: notifications.Notification[],
+  total: number,
+  skip: number,
+  take: number
+) {
+  return encoreListResponse(data, total, skip, take)
+}
+
+// =============================================================================
+// TYPE RE-EXPORTS
+// =============================================================================
+
+export type {
+  wallets,
+  organizations,
+  campaigns,
+  enrollments,
+  products,
+  invoices,
+  notifications,
 }

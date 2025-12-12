@@ -1,318 +1,181 @@
 /**
  * Team API Mock Handlers
+ * 
+ * Intercepts Encore API calls at localhost:4000/organizations/:orgId/members
  */
 
 import { http } from 'msw'
-import { mockTeamMembers } from '@/lib/mocks'
-import { DURATIONS, LIMITS } from '@/lib/types/constants'
+import { db } from '@/mocks/db'
 import {
   delay,
   DELAY,
-  getAuthContext,
-  successResponse,
-  notFoundResponse,
-  errorResponse,
-  paginatedResponse,
-  calculatePagination,
-  paginateArray,
+  encoreUrl,
+  encoreResponse,
+  encoreListResponse,
+  encoreErrorResponse,
+  encoreNotFoundResponse,
 } from './utils'
 
-// Valid role values matching API schema
-const VALID_ROLES = ['admin', 'manager', 'viewer'] as const
-type TeamRole = typeof VALID_ROLES[number]
+// Transform database member to Encore Member format
+function toEncoreMember(member: any) {
+  return {
+    id: member.id,
+    visitorUserId: member.userId || member.id,
+    organizationId: member.organizationId || '1',
+    role: member.role,
+    department: member.department || null,
+    jobTitle: member.position || null,
+    isActive: member.isActive ?? true,
+    user: {
+      name: member.name,
+      email: member.email,
+    },
+    createdAt: member.joinedAt instanceof Date ? member.joinedAt.toISOString() : member.joinedAt,
+  }
+}
 
-// Mock invitations storage
-const mockInvitations: Array<{
-  id: string
-  email: string
-  role: TeamRole
-  message?: string
-  organizationId: string
-  invitedBy: string
-  status: string
-  sentAt: string
-  expiresAt: string
-}> = []
+// Use database for invitations
 
 export const teamHandlers = [
-  // GET /api/team - Get team members (used by useTeamMembers hook)
-  http.get('/api/team', async ({ request }) => {
-    await delay(DELAY.FAST)
+  // GET /organizations/:orgId/members - List team members
+  http.get(encoreUrl('/organizations/:orgId/members'), async ({ params, request }) => {
+    await delay(DELAY.STANDARD)
 
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
+    const { orgId } = params as { orgId: string }
     const url = new URL(request.url)
 
+    const skip = Number.parseInt(url.searchParams.get('skip') || '0', 10)
+    const take = Number.parseInt(url.searchParams.get('take') || '20', 10)
     const role = url.searchParams.get('role')
-    const search = url.searchParams.get('search')
 
-    let members = mockTeamMembers.filter(m => m.organizationId === orgId)
+    let members = db.teamMembers.findMany((q) => q.where({ organizationId: orgId || '1' }))
 
-    if (role) {
+    if (role && role !== 'all') {
       members = members.filter(m => m.role === role)
-    }
-
-    if (search) {
-      const searchLower = search.toLowerCase()
-      members = members.filter(m =>
-        m.name.toLowerCase().includes(searchLower) ||
-        m.email.toLowerCase().includes(searchLower)
-      )
-    }
-
-    return successResponse(members)
-  }),
-
-  // GET /api/team/members
-  http.get('/api/team/members', async ({ request }) => {
-    await delay(DELAY.FAST)
-
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
-    const url = new URL(request.url)
-
-    const page = Number.parseInt(url.searchParams.get('page') || '1', 10)
-    const limit = Number.parseInt(url.searchParams.get('limit') || String(LIMITS.TEAM_MEMBERS_PAGE_SIZE), 10)
-    const role = url.searchParams.get('role')
-    const search = url.searchParams.get('search')
-
-    let members = mockTeamMembers.filter(m => m.organizationId === orgId)
-
-    if (role) {
-      members = members.filter(m => m.role === role)
-    }
-
-    if (search) {
-      const searchLower = search.toLowerCase()
-      members = members.filter(m =>
-        m.name.toLowerCase().includes(searchLower) ||
-        m.email.toLowerCase().includes(searchLower)
-      )
     }
 
     const total = members.length
-    const paginatedMembers = paginateArray(members, page, limit)
-    const meta = calculatePagination(total, page, limit)
+    const paginatedMembers = members.slice(skip, skip + take)
 
-    return paginatedResponse(paginatedMembers, meta)
+    return encoreListResponse(paginatedMembers.map(toEncoreMember), total, skip, take)
   }),
 
-  // GET /api/team/data
-  http.get('/api/team/data', async () => {
+  // GET /organizations/:orgId/members/:memberId - Get single member
+  http.get(encoreUrl('/organizations/:orgId/members/:memberId'), async ({ params }) => {
     await delay(DELAY.FAST)
 
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
+    const { orgId, memberId } = params as { orgId: string; memberId: string }
 
-    const members = mockTeamMembers.filter(m => m.organizationId === orgId)
-
-    // Stats match TeamStats type from use-team.ts
-    const stats = {
-      total: members.length,
-      admins: members.filter(m => m.role === 'admin' || m.role === 'owner').length,
-      viewers: members.filter(m => m.role === 'viewer').length,
-    }
-
-    return successResponse({
-      members,
-      stats,
-    })
-  }),
-
-  // GET /api/team/members/:id
-  http.get('/api/team/members/:id', async ({ params }) => {
-    await delay(DELAY.FAST)
-
-    const auth = getAuthContext()
-    const { id } = params
-
-    const member = mockTeamMembers.find(
-      m => m.id === id && m.organizationId === auth.organizationId
-    )
-
+    const member = db.teamMembers.findFirst((q) => q.where({ id: memberId, organizationId: orgId || '1' }))
     if (!member) {
-      return notFoundResponse('Team member')
+      return encoreNotFoundResponse('Team member')
     }
 
-    return successResponse(member)
+    return encoreResponse(toEncoreMember(member))
   }),
 
-  // POST /api/team/members (Invite)
-  // Schema: { email: z.string().email(), role: z.enum(['admin', 'manager', 'viewer']), message?: z.string().max(500) }
-  http.post('/api/team/members', async ({ request }) => {
+  // PATCH /organizations/:orgId/members/:memberId - Update member role
+  http.patch(encoreUrl('/organizations/:orgId/members/:memberId'), async ({ params, request }) => {
     await delay(DELAY.MEDIUM)
 
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
-    const body = await request.json() as Record<string, unknown>
+    const { orgId, memberId } = params as { orgId: string; memberId: string }
+    const body = await request.json() as { role?: string }
 
-    const { email, role, message } = body as {
-      email?: string
-      role?: string
-      message?: string
+    const member = db.teamMembers.findFirst((q) => q.where({ id: memberId, organizationId: orgId || '1' }))
+    if (!member) {
+      return encoreNotFoundResponse('Team member')
     }
 
-    if (!email) {
-      return errorResponse('Email is required', 400)
+    if (member.role === 'owner') {
+      return encoreErrorResponse('Cannot change owner role', 400)
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      return errorResponse('Invalid email address', 400)
+    return encoreResponse(toEncoreMember({ ...member, role: body.role || member.role }))
+  }),
+
+  // DELETE /organizations/:orgId/members/:memberId - Remove member
+  http.delete(encoreUrl('/organizations/:orgId/members/:memberId'), async ({ params }) => {
+    await delay(DELAY.MEDIUM)
+
+    const { orgId, memberId } = params as { orgId: string; memberId: string }
+
+    const member = db.teamMembers.findFirst((q) => q.where({ id: memberId, organizationId: orgId || '1' }))
+    if (!member) {
+      return encoreNotFoundResponse('Team member')
     }
 
-    if (!role) {
-      return errorResponse('Role is required', 400)
+    if (member.role === 'owner') {
+      return encoreErrorResponse('Cannot remove the organization owner', 400)
     }
 
-    // Validate role is one of the allowed values
-    if (!VALID_ROLES.includes(role as TeamRole)) {
-      return errorResponse(`Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`, 400)
-    }
+    return encoreResponse({ deleted: true })
+  }),
 
-    // Validate message length if provided
-    if (message && message.length > 500) {
-      return errorResponse('Message must be at most 500 characters', 400)
-    }
+  // POST /organizations/:orgId/invitations - Send invitation
+  http.post(encoreUrl('/organizations/:orgId/invitations'), async ({ params, request }) => {
+    await delay(DELAY.MEDIUM)
 
-    // Check if user is already a member
-    const existingMember = mockTeamMembers.find(
-      m => m.email === email && m.organizationId === orgId
-    )
-    if (existingMember) {
-      return errorResponse('This user is already a member of your team', 400)
-    }
+    const { orgId } = params as { orgId: string }
+    const body = await request.json() as { email: string; role?: string }
 
-    // Check user's permission
-    const currentUserRole = mockTeamMembers.find(
-      m => m.id === auth.userId && m.organizationId === orgId
-    )?.role
-
-    if (currentUserRole !== 'owner' && currentUserRole !== 'admin') {
-      return errorResponse('You do not have permission to invite members', 403)
+    if (!body.email) {
+      return encoreErrorResponse('Email is required', 400)
     }
 
     const invitation = {
       id: `inv-${Date.now()}`,
-      email,
-      role: role as TeamRole,
-      message,
       organizationId: orgId,
-      invitedBy: auth.userId,
-      status: 'pending',
-      sentAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + DURATIONS.INVITATION_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+      email: body.email,
+      role: body.role || 'member',
+      status: 'pending' as const,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     }
 
-    mockInvitations.push(invitation)
+    db.invitations.create({
+      ...invitation,
+      expiresAt: invitation.expiresAt.toISOString(),
+    })
 
-    return successResponse({
-      invitation,
-      message: `Invitation sent to ${email}`,
-    }, 201)
+    return encoreResponse({
+      id: invitation.id,
+      email: invitation.email,
+      role: invitation.role,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt.toISOString(),
+    })
   }),
 
-  // PATCH /api/team/members/:id
-  http.patch('/api/team/members/:id', async ({ params, request }) => {
-    await delay(DELAY.MEDIUM)
-
-    const auth = getAuthContext()
-    const { id } = params
-    const body = await request.json() as Record<string, unknown>
-
-    const member = mockTeamMembers.find(
-      m => m.id === id && m.organizationId === auth.organizationId
-    )
-
-    if (!member) {
-      return notFoundResponse('Team member')
-    }
-
-    // Check permissions
-    const currentUserRole = mockTeamMembers.find(
-      m => m.id === auth.userId && m.organizationId === auth.organizationId
-    )?.role
-
-    if (currentUserRole !== 'owner' && currentUserRole !== 'admin') {
-      return errorResponse('You do not have permission to update team members', 403)
-    }
-
-    // Cannot change owner role
-    if (member.role === 'owner' && body.role !== 'owner') {
-      return errorResponse('Cannot change the role of an owner', 400)
-    }
-
-    const updatedMember = {
-      ...member,
-      ...body,
-      updatedAt: new Date(),
-    }
-
-    return successResponse(updatedMember)
-  }),
-
-  // DELETE /api/team/members/:id
-  http.delete('/api/team/members/:id', async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
-    const auth = getAuthContext()
-    const { id } = params
-
-    const member = mockTeamMembers.find(
-      m => m.id === id && m.organizationId === auth.organizationId
-    )
-
-    if (!member) {
-      return notFoundResponse('Team member')
-    }
-
-    // Cannot remove owner
-    if (member.role === 'owner') {
-      return errorResponse('Cannot remove the owner from the team', 400)
-    }
-
-    // Check permissions
-    const currentUserRole = mockTeamMembers.find(
-      m => m.id === auth.userId && m.organizationId === auth.organizationId
-    )?.role
-
-    if (currentUserRole !== 'owner' && currentUserRole !== 'admin') {
-      return errorResponse('You do not have permission to remove team members', 403)
-    }
-
-    return successResponse({ message: 'Team member removed successfully' })
-  }),
-
-  // GET /api/team/invitations
-  http.get('/api/team/invitations', async () => {
+  // GET /organizations/:orgId/invitations - List invitations
+  http.get(encoreUrl('/organizations/:orgId/invitations'), async ({ params }) => {
     await delay(DELAY.FAST)
 
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
+    const { orgId } = params as { orgId: string }
 
-    const invitations = mockInvitations.filter(i => i.organizationId === orgId)
+    const invitations = db.invitations.findMany((q) => q.where({ organizationId: orgId }))
 
-    return successResponse(invitations)
+    return encoreResponse({
+      invitations: invitations.map(inv => ({
+        id: inv.id,
+        email: inv.email,
+        role: inv.role,
+        status: inv.status,
+        expiresAt: inv.expiresAt instanceof Date ? inv.expiresAt.toISOString() : inv.expiresAt,
+      })),
+    })
   }),
 
-  // DELETE /api/team/invitations/:id
-  http.delete('/api/team/invitations/:id', async ({ params }) => {
+  // DELETE /organizations/:orgId/invitations/:invitationId - Cancel invitation
+  http.delete(encoreUrl('/organizations/:orgId/invitations/:invitationId'), async ({ params }) => {
     await delay(DELAY.MEDIUM)
 
-    const auth = getAuthContext()
-    const { id } = params
-
-    const invitationIndex = mockInvitations.findIndex(
-      i => i.id === id && i.organizationId === auth.organizationId
-    )
-
-    if (invitationIndex === -1) {
-      return notFoundResponse('Invitation')
+    const { invitationId } = params as { invitationId: string }
+    
+    const invitation = db.invitations.findFirst((q) => q.where({ id: invitationId }))
+    if (!invitation) {
+      return encoreNotFoundResponse('Invitation')
     }
 
-    mockInvitations.splice(invitationIndex, 1)
-
-    return successResponse({ message: 'Invitation cancelled successfully' })
+    db.invitations.delete({ where: { id: invitationId } })
+    return encoreResponse({ deleted: true })
   }),
 ]

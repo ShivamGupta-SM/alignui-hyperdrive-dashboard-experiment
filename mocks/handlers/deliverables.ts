@@ -1,36 +1,49 @@
 /**
- * Deliverables API Mock Handlers
+ * Deliverables API Mock Handlers - DB Only
  */
 
 import { http } from 'msw'
-import { mockDeliverableTypes } from '@/lib/mocks'
-import {
-  delay,
-  DELAY,
-  successResponse,
-  notFoundResponse,
-} from './utils'
+import { db } from '@/mocks/db'
+import { delay, DELAY, encoreUrl, encoreResponse, encoreNotFoundResponse } from './utils'
+
+// Static deliverable types
+const deliverableTypes = [
+  { id: 'order_screenshot', name: 'Order Screenshot', description: 'Screenshot of confirmed order', icon: '📸' },
+  { id: 'delivery_photo', name: 'Delivery Photo', description: 'Photo of delivered product', icon: '📦' },
+  { id: 'product_review', name: 'Product Review', description: 'Written or video review', icon: '⭐' },
+  { id: 'social_media_post', name: 'Social Media Post', description: 'Post on social platform', icon: '📱' },
+  { id: 'unboxing_video', name: 'Unboxing Video', description: 'Video of product unboxing', icon: '🎬' },
+]
 
 export const deliverablesHandlers = [
-  // GET /api/deliverables - List all active deliverable types
-  http.get('/api/deliverables', async () => {
+  // GET /deliverables
+  http.get(encoreUrl('/deliverables'), async () => {
     await delay(DELAY.FAST)
-
-    const activeDeliverables = mockDeliverableTypes.filter(d => d.isActive)
-    return successResponse(activeDeliverables)
+    return encoreResponse({ deliverables: deliverableTypes })
   }),
 
-  // GET /api/deliverables/:id - Get single deliverable type
-  http.get('/api/deliverables/:id', async ({ params }) => {
+  // GET /deliverables/:id
+  http.get(encoreUrl('/deliverables/:id'), async ({ params }) => {
     await delay(DELAY.FAST)
-
     const { id } = params
-    const deliverable = mockDeliverableTypes.find(d => d.id === id)
+    const deliverable = deliverableTypes.find(d => d.id === id)
+    if (!deliverable) return encoreNotFoundResponse('Deliverable')
+    return encoreResponse(deliverable)
+  }),
 
-    if (!deliverable) {
-      return notFoundResponse('Deliverable type')
+  // GET /campaigns/:campaignId/deliverables
+  http.get(encoreUrl('/campaigns/:campaignId/deliverables'), async ({ params }) => {
+    await delay(DELAY.FAST)
+    const { campaignId } = params
+    
+    // Get from db
+    const deliverables = db.campaignDeliverables.findMany((q) => q.where({ campaignId: campaignId as string }))
+    
+    if (deliverables.length === 0) {
+      // Return default types if none configured
+      return encoreResponse({ deliverables: deliverableTypes })
     }
-
-    return successResponse(deliverable)
+    
+    return encoreResponse({ deliverables })
   }),
 ]

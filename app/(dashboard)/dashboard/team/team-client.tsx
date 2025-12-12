@@ -77,7 +77,8 @@ export function TeamClient() {
   const { data: teamData, isLoading } = useTeamData(organizationId)
   const { data: invitations = [] } = useInvitations(organizationId)
 
-  const members = teamData?.members || []
+  // Filter out any members with undefined user property (defensive programming)
+  const members = (teamData?.members || []).filter(m => m.user != null)
   const currentUserId = session?.user?.id || ''
 
   const formatDate = (date: Date | string) => {

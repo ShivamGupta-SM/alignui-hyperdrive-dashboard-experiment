@@ -1,6 +1,6 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { getServerQueryClient } from '@/lib/get-query-client'
-import { getEnrollmentDetailData } from '@/lib/data/enrollments'
+import { getEnrollmentDetailData } from '@/lib/ssr-data'
 import { enrollmentKeys } from '@/lib/query-keys'
 import { EnrollmentDetailClient } from './enrollment-detail-client'
 

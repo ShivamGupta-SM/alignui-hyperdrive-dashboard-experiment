@@ -1,47 +1,56 @@
 /**
  * Products API Mock Handlers
+ * 
+ * Intercepts Encore API calls at localhost:4000/products
  */
 
 import { http } from 'msw'
-import { mockProducts, mockCategories, mockPlatforms, mockCampaigns } from '@/lib/mocks'
-import { LIMITS } from '@/lib/types/constants'
+import { db } from '@/mocks/db'
 import {
   delay,
   DELAY,
   getAuthContext,
-  successResponse,
-  notFoundResponse,
-  errorResponse,
-  paginatedResponse,
-  calculatePagination,
-  paginateArray,
+  encoreUrl,
+  encoreResponse,
+  encoreListResponse,
+  encoreErrorResponse,
+  encoreNotFoundResponse,
 } from './utils'
 
+// Product already in Encore format from database, just add stats
+function toProductWithStats(product: any) {
+  const campaigns = db.campaigns.findMany((q) => q.where({ productId: product.id }))
+  
+  return {
+    isActive: product.isActive ?? true,
+    campaignCount: campaigns.length,
+    ...product, // All other fields already in Encore format
+  }
+}
+
 export const productsHandlers = [
-  // GET /api/products
-  http.get('/api/products', async ({ request }) => {
+  // GET /products - List products (Encore: products.listProducts)
+  http.get(encoreUrl('/products'), async ({ request }) => {
     await delay(DELAY.FAST)
 
     const auth = getAuthContext()
     const orgId = auth.organizationId
     const url = new URL(request.url)
 
-    const page = Number.parseInt(url.searchParams.get('page') || '1', 10)
-    const limit = Number.parseInt(url.searchParams.get('limit') || String(LIMITS.DEFAULT_PAGE_SIZE), 10)
-    const category = url.searchParams.get('category')
-    const platform = url.searchParams.get('platform')
+    const skip = Number.parseInt(url.searchParams.get('skip') || '0', 10)
+    const take = Number.parseInt(url.searchParams.get('take') || '20', 10)
+    const categoryId = url.searchParams.get('categoryId')
+    const platformId = url.searchParams.get('platformId')
     const search = url.searchParams.get('search')
 
-    let products = mockProducts.filter(p => p.organizationId === orgId)
+    let products = db.products.findMany((q) => q.where({ organizationId: orgId }))
 
-    if (category) {
-      products = products.filter(p => p.category === category)
+    if (categoryId) {
+      products = products.filter(p => p.category === categoryId)
     }
-
-    if (platform) {
-      products = products.filter(p => p.platform === platform)
+    if (platformId) {
+      products = products.filter(p => p.platform === platformId)
     }
-
     if (search) {
       const searchLower = search.toLowerCase()
       products = products.filter(p =>
@@ -50,459 +59,121 @@ export const productsHandlers = [
       )
     }
 
-    // Sort by most recently updated
     products.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
 
     const total = products.length
-    const paginatedProducts = paginateArray(products, page, limit)
-    const meta = calculatePagination(total, page, limit)
+    const paginatedProducts = products.slice(skip, skip + take)
 
-    return paginatedResponse(paginatedProducts, meta)
+    return encoreListResponse(paginatedProducts.map(toProductWithStats), total, skip, take)
   }),
 
-  // GET /api/products/data
-  http.get('/api/products/data', async ({ request }) => {
-    await delay(DELAY.FAST)
-
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
-    const url = new URL(request.url)
-    const category = url.searchParams.get('category')
-    const platform = url.searchParams.get('platform')
-
-    const allProducts = mockProducts.filter(p => p.organizationId === orgId)
-
-    let filteredProducts = allProducts
-    if (category) {
-      filteredProducts = filteredProducts.filter(p => p.category === category)
-    }
-    if (platform) {
-      filteredProducts = filteredProducts.filter(p => p.platform === platform)
-    }
-
-    // Get unique categories for filters
-    const uniqueCategories = [...new Set(allProducts.map(p => p.category))].filter(Boolean)
-
-    // Calculate stats to match client expectations
-    const stats = {
-      total: allProducts.length,
-      withCampaigns: allProducts.filter(p => p.campaignCount > 0).length,
-      totalCampaigns: allProducts.reduce((sum, p) => sum + p.campaignCount, 0),
-      categories: uniqueCategories.length,
-    }
-
-    return successResponse({
-      products: filteredProducts,
-      stats,
-    })
-  }),
-
-  // GET /api/products/:id
-  http.get('/api/products/:id', async ({ params }) => {
+  // GET /products/:id - Get product (Encore: products.getProduct)
+  http.get(encoreUrl('/products/:id'), async ({ params }) => {
     await delay(DELAY.FAST)
 
     const auth = getAuthContext()
     const { id } = params
 
-    const product = mockProducts.find(
-      p => p.id === id && p.organizationId === auth.organizationId
-    )
-
+    const product = db.products.findFirst((q) => q.where({ id, organizationId: auth.organizationId }))
     if (!product) {
-      return notFoundResponse('Product')
+      return encoreNotFoundResponse('Product')
     }
 
-    return successResponse(product)
+    return encoreResponse(toProductWithStats(product))
   }),
 
-  // POST /api/products
-  // Schema accepts: { name, description, image, category, platform, productUrl }
-  // API route converts to Encore: { name, description, categoryId, platformId, productLink, productImages[] }
-  // Returns products.Product type
-  http.post('/api/products', async ({ request }) => {
+  // POST /products - Create product (Encore: products.createProduct)
+  http.post(encoreUrl('/products'), async ({ request }) => {
     await delay(DELAY.MEDIUM)
 
     const auth = getAuthContext()
-    const orgId = auth.organizationId
-    const body = await request.json() as Record<string, unknown>
+    const body = await request.json() as { name: string; description?: string; categoryId?: string; platformId?: string }
 
-    const { name, description, image, category, platform, productUrl } = body as {
-      name?: string
-      description?: string
-      image?: string
-      category?: string
-      platform?: string
-      productUrl?: string
+    if (!body.name) {
+      return encoreErrorResponse('Product name is required', 400)
     }
 
-    if (!name || name.length < 2) {
-      return errorResponse('Name must be at least 2 characters', 400)
-    }
-
-    if (name.length > 200) {
-      return errorResponse('Name must be at most 200 characters', 400)
-    }
-
-    if (!category) {
-      return errorResponse('Category is required', 400)
-    }
-
-    if (!platform) {
-      return errorResponse('Platform is required', 400)
-    }
-
-    // Validate URLs if provided
-    if (productUrl) {
-      try {
-        new URL(productUrl)
-      } catch {
-        return errorResponse('Invalid product URL', 400)
-      }
-    }
-
-    if (image) {
-      try {
-        new URL(image)
-      } catch {
-        return errorResponse('Invalid image URL', 400)
-      }
-    }
-
-    // Return products.Product type matching Encore
-    // Include both Encore fields (categoryId, platformId, productLink, productImages)
-    // and frontend aliases (category, platform, productUrl, image)
     const newProduct = {
-      id: `product-${Date.now()}`,
-      organizationId: orgId,
-      name,
-      description: description || null,
-      // Encore field names
-      categoryId: category,
-      platformId: platform,
-      productLink: productUrl || null,
-      productImages: image ? [image] : [],
-      // Frontend aliases for backwards compatibility
-      category,
-      platform,
-      productUrl: productUrl || null,
-      image: image || null,
-      images: image ? [image] : [],
-      // Additional fields
+      id: `prod-${Date.now()}`,
+      organizationId: auth.organizationId,
+      name: body.name,
+      description: body.description || '',
+      category: body.categoryId,
+      platform: body.platformId,
+      image: undefined,
+      productUrl: undefined,
       campaignCount: 0,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-
-    return successResponse(newProduct, 201)
-  }),
-
-  // PATCH /api/products/:id
-  http.patch('/api/products/:id', async ({ params, request }) => {
-    await delay(DELAY.MEDIUM)
-
-    const auth = getAuthContext()
-    const { id } = params
-    const body = await request.json() as Record<string, unknown>
-
-    const product = mockProducts.find(
-      p => p.id === id && p.organizationId === auth.organizationId
-    )
-
-    if (!product) {
-      return notFoundResponse('Product')
-    }
-
-    const updatedProduct = {
-      ...product,
-      ...body,
+      createdAt: new Date(),
       updatedAt: new Date(),
     }
 
-    return successResponse(updatedProduct)
+    return encoreResponse(toProductWithStats(newProduct))
   }),
 
-  // DELETE /api/products/:id
-  http.delete('/api/products/:id', async ({ params }) => {
+  // PUT /products/:id - Update product
+  http.put(encoreUrl('/products/:id'), async ({ params, request }) => {
+    await delay(DELAY.MEDIUM)
+
+    const auth = getAuthContext()
+    const { id } = params
+    const body = await request.json() as { name?: string; description?: string }
+
+    const product = db.products.findFirst((q) => q.where({ id, organizationId: auth.organizationId }))
+    if (!product) {
+      return encoreNotFoundResponse('Product')
+    }
+
+    const updated = { ...product, ...body, updatedAt: new Date() }
+    return encoreResponse(toProductWithStats(updated))
+  }),
+
+  // DELETE /products/:id
+  http.delete(encoreUrl('/products/:id'), async ({ params }) => {
     await delay(DELAY.MEDIUM)
 
     const auth = getAuthContext()
     const { id } = params
 
-    const product = mockProducts.find(
-      p => p.id === id && p.organizationId === auth.organizationId
-    )
-
+    const product = db.products.findFirst((q) => q.where({ id, organizationId: auth.organizationId }))
     if (!product) {
-      return notFoundResponse('Product')
+      return encoreNotFoundResponse('Product')
     }
 
-    if (product.campaignCount > 0) {
-      return errorResponse('Cannot delete a product with active campaigns', 400)
+    const campaigns = db.campaigns.findMany((q) => q.where({ productId: id }))
+    if (campaigns.length > 0) {
+      return encoreErrorResponse('Cannot delete product with active campaigns', 400)
     }
 
-    return successResponse({ message: 'Product deleted successfully' })
+    return encoreResponse({ deleted: true })
   }),
 
-  // GET /api/categories
-  http.get('/api/categories', async ({ request }) => {
+  // GET /products/categories - List categories
+  http.get(encoreUrl('/products/categories'), async () => {
     await delay(DELAY.FAST)
-
-    const url = new URL(request.url)
-    const activeOnly = url.searchParams.get('activeOnly') === 'true'
-
-    let categories = [...mockCategories]
-
-    if (activeOnly) {
-      categories = categories.filter(c => c.isActive)
-    }
-
-    return successResponse(categories)
+    return encoreListResponse(mockCategories, mockCategories.length, 0, 50)
   }),
 
-  // GET /api/categories/all
-  http.get('/api/categories/all', async () => {
+  // GET /products/platforms - List platforms  
+  http.get(encoreUrl('/products/platforms'), async () => {
     await delay(DELAY.FAST)
-    return successResponse(mockCategories)
+    return encoreListResponse(mockPlatforms, mockPlatforms.length, 0, 50)
   }),
 
-  // GET /api/categories/:id
-  http.get('/api/categories/:id', async ({ params }) => {
-    await delay(DELAY.FAST)
-
-    const { id } = params
-    const category = mockCategories.find(c => c.id === id)
-
-    if (!category) {
-      return notFoundResponse('Category')
-    }
-
-    return successResponse(category)
-  }),
-
-  // GET /api/categories/name/:name
-  http.get('/api/categories/name/:name', async ({ params }) => {
-    await delay(DELAY.FAST)
-
-    const { name } = params
-    const category = mockCategories.find(
-      c => c.slug === name || c.name.toLowerCase() === (name as string).toLowerCase()
-    )
-
-    if (!category) {
-      return notFoundResponse('Category')
-    }
-
-    return successResponse(category)
-  }),
-
-  // GET /api/categories/:id/products
-  http.get('/api/categories/:id/products', async ({ params }) => {
-    await delay(DELAY.FAST)
-
-    const auth = getAuthContext()
-    const { id } = params
-
-    const category = mockCategories.find(c => c.id === id)
-
-    if (!category) {
-      return notFoundResponse('Category')
-    }
-
-    const products = mockProducts.filter(
-      p => p.organizationId === auth.organizationId && p.category === category.name
-    )
-
-    return successResponse({
-      category,
-      products,
-    })
-  }),
-
-  // GET /api/platforms
-  http.get('/api/platforms', async ({ request }) => {
-    await delay(DELAY.FAST)
-
-    const url = new URL(request.url)
-    const activeOnly = url.searchParams.get('activeOnly') === 'true'
-
-    let platforms = [...mockPlatforms]
-
-    if (activeOnly) {
-      platforms = platforms.filter(p => p.isActive)
-    }
-
-    return successResponse(platforms)
-  }),
-
-  // GET /api/platforms/active
-  http.get('/api/platforms/active', async () => {
-    await delay(DELAY.FAST)
-    return successResponse(mockPlatforms.filter(p => p.isActive))
-  }),
-
-  // GET /api/platforms/:id
-  http.get('/api/platforms/:id', async ({ params }) => {
-    await delay(DELAY.FAST)
-
-    const { id } = params
-    const platform = mockPlatforms.find(p => p.id === id)
-
-    if (!platform) {
-      return notFoundResponse('Platform')
-    }
-
-    return successResponse(platform)
-  }),
-
-  // GET /api/platforms/name/:name
-  http.get('/api/platforms/name/:name', async ({ params }) => {
-    await delay(DELAY.FAST)
-
-    const { name } = params
-    const platform = mockPlatforms.find(
-      p => p.slug === name || p.name.toLowerCase() === (name as string).toLowerCase()
-    )
-
-    if (!platform) {
-      return notFoundResponse('Platform')
-    }
-
-    return successResponse(platform)
-  }),
-
-  // POST /api/products/bulk-import - Bulk import products
-  http.post('/api/products/bulk-import', async ({ request }) => {
+  // POST /products/batch/import - Encore uses this URL
+  http.post(encoreUrl('/products/batch/import'), async ({ request }) => {
     await delay(DELAY.SLOW)
 
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
-    const body = await request.json() as Record<string, unknown>
+    const body = await request.json() as { products: Array<{ name: string }> }
 
-    const { products: importProducts } = body as {
-      products?: Array<{
-        name: string
-        description?: string
-        category: string
-        platform: string
-        productUrl?: string
-        price?: number
-        sku?: string
-      }>
+    if (!body.products || !Array.isArray(body.products)) {
+      return encoreErrorResponse('Products array is required', 400)
     }
 
-    if (!importProducts || !Array.isArray(importProducts) || importProducts.length === 0) {
-      return errorResponse('Products array is required', 400)
-    }
-
-    const results = {
-      totalProcessed: importProducts.length,
-      successCount: 0,
-      failedCount: 0,
-      errors: [] as Array<{ row: number; error: string }>,
-      products: [] as Array<{
-        id: string
-        organizationId: string
-        name: string
-        description?: string
-        category: string
-        platform: string
-        productUrl?: string
-        campaignCount: number
-        createdAt: Date
-        updatedAt: Date
-      }>,
-    }
-
-    importProducts.forEach((product, index) => {
-      // Validate required fields
-      if (!product.name || product.name.length < 2) {
-        results.failedCount++
-        results.errors.push({ row: index + 1, error: 'Name must be at least 2 characters' })
-        return
-      }
-
-      if (!product.category) {
-        results.failedCount++
-        results.errors.push({ row: index + 1, error: 'Category is required' })
-        return
-      }
-
-      if (!product.platform) {
-        results.failedCount++
-        results.errors.push({ row: index + 1, error: 'Platform is required' })
-        return
-      }
-
-      // Validate category exists
-      const categoryExists = mockCategories.some(
-        c => c.name.toLowerCase() === product.category.toLowerCase() || c.slug === product.category
-      )
-      if (!categoryExists) {
-        results.failedCount++
-        results.errors.push({ row: index + 1, error: `Invalid category: ${product.category}` })
-        return
-      }
-
-      // Validate platform exists
-      const platformExists = mockPlatforms.some(
-        p => p.name.toLowerCase() === product.platform.toLowerCase() || p.slug === product.platform
-      )
-      if (!platformExists) {
-        results.failedCount++
-        results.errors.push({ row: index + 1, error: `Invalid platform: ${product.platform}` })
-        return
-      }
-
-      // Create the product
-      results.successCount++
-      results.products.push({
-        id: `product-${Date.now()}-${index}`,
-        organizationId: orgId,
-        name: product.name,
-        description: product.description,
-        category: product.category,
-        platform: product.platform,
-        productUrl: product.productUrl,
-        campaignCount: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
+    return encoreResponse({
+      imported: body.products.length,
+      failed: 0,
+      errors: [],
+      total: body.products.length,
     })
-
-    return successResponse(results)
-  }),
-
-  // GET /api/products/:id/campaigns - Get campaigns using this product
-  http.get('/api/products/:id/campaigns', async ({ params }) => {
-    await delay(DELAY.FAST)
-
-    const auth = getAuthContext()
-    const { id } = params
-
-    const product = mockProducts.find(
-      p => p.id === id && p.organizationId === auth.organizationId
-    )
-
-    if (!product) {
-      return notFoundResponse('Product')
-    }
-
-    // Generate mock campaign summaries for this product
-    const productCampaigns = mockCampaigns
-      .filter(c => c.organizationId === auth.organizationId)
-      .slice(0, product.campaignCount || 3)
-      .map(c => ({
-        id: c.id,
-        title: c.title,
-        status: c.status,
-        enrollmentCount: Math.floor(Math.random() * 50) + 5,
-        approvalCount: Math.floor(Math.random() * 30) + 2,
-        totalPayout: Math.round(Math.random() * 100000) + 10000,
-        startDate: c.startDate,
-        endDate: c.endDate,
-      }))
-
-    return successResponse(productCampaigns)
   }),
 ]

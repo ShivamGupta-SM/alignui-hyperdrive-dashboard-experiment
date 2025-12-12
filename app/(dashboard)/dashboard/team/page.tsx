@@ -1,6 +1,6 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { getServerQueryClient } from '@/lib/get-query-client'
-import { getTeamData } from '@/lib/data/team'
+import { getTeamData } from '@/lib/ssr-data'
 import { teamKeys } from '@/lib/query-keys'
 import { TeamClient } from './team-client'
 

@@ -1,6 +1,6 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { getServerQueryClient } from '@/lib/get-query-client'
-import { getProducts } from '@/lib/data/products'
+import { getProductsData } from '@/lib/ssr-data'
 import { productKeys } from '@/lib/query-keys'
 import { ProductsClient } from './products-client'
 
@@ -13,7 +13,7 @@ export default async function ProductsPage() {
   // Prefetch products on server
   await queryClient.prefetchQuery({
     queryKey: productKeys.list({}),
-    queryFn: () => getProducts(),
+    queryFn: () => getProductsData(),
   })
 
   return (

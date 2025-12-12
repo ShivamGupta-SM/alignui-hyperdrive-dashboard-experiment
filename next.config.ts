@@ -15,6 +15,18 @@ const nextConfig: NextConfig = {
                 protocol: 'https',
                 hostname: 'logo.clearbit.com',
             },
+            {
+                protocol: 'https',
+                hostname: 'picsum.photos',
+            },
+            {
+                protocol: 'https',
+                hostname: 'loremflickr.com',
+            },
+            {
+                protocol: 'https',
+                hostname: '*.loremflickr.com',
+            },
         ],
     },
     // Exclude canvaskit-wasm from server-side bundling to avoid fs module errors

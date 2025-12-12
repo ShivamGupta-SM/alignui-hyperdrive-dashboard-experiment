@@ -6,8 +6,32 @@ import * as Button from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
 import { Tracker } from '@/components/ui/tracker'
 import { MetallicLogo } from '@/components/dashboard/metallic-logo'
-import { mockTestimonials } from '@/lib/mocks'
 import { MARKETING_STATS } from '@/lib/types/constants'
+
+// Static testimonials data
+const mockTestimonials = [
+  {
+    author: 'Priya Sharma',
+    role: 'Marketing Director',
+    company: 'FashionBrand Co.',
+    avatar: 'PS',
+    quote: 'Hypedrive transformed our influencer campaigns. The OCR verification saves us hours every day.',
+  },
+  {
+    author: 'Rahul Patel',
+    role: 'Growth Lead',
+    company: 'TechStartup Inc.',
+    avatar: 'RP',
+    quote: 'The wallet management and automatic payouts are game-changers. Highly recommended!',
+  },
+  {
+    author: 'Anjali Verma',
+    role: 'Brand Manager',
+    company: 'BeautyBrand Ltd.',
+    avatar: 'AV',
+    quote: 'Best platform for managing multiple campaigns. The analytics are incredibly insightful.',
+  },
+]
 import {
   Megaphone,
   ArrowRight,

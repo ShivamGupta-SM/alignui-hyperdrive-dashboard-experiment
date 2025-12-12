@@ -3,112 +3,55 @@
  */
 
 import { http } from 'msw'
-import { mockNotifications } from '@/lib/mocks'
-import {
-  delay,
-  DELAY,
-  getAuthContext,
-  successResponse,
-  notFoundResponse,
-  paginatedResponse,
-} from './utils'
+import { db } from '@/mocks/db'
+import { delay, DELAY, getAuthContext, encoreUrl, encoreResponse, encoreListResponse, encoreNotFoundResponse } from './utils'
 
 export const notificationsHandlers = [
-  // GET /api/notifications
-  http.get('/api/notifications', async ({ request }) => {
+  // GET /notifications
+  http.get(encoreUrl('/notifications'), async ({ request }) => {
     await delay(DELAY.FAST)
 
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
     const url = new URL(request.url)
-
-    const page = Number.parseInt(url.searchParams.get('page') || '1', 10)
-    const limit = Number.parseInt(url.searchParams.get('limit') || '20', 10)
-    const type = url.searchParams.get('type')
-    const unreadOnly = url.searchParams.get('unreadOnly') === 'true'
-
-    // Filter notifications for the organization
-    let notifications = mockNotifications.filter(n => n.organizationId === orgId)
-
-    // Filter by type if specified
-    if (type) {
-      notifications = notifications.filter(n => n.type === type)
-    }
-
-    // Filter by unread only if specified
-    if (unreadOnly) {
-      notifications = notifications.filter(n => !n.isRead)
-    }
-
-    // Sort by createdAt descending (most recent first)
-    notifications.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-
-    // Paginate
-    const startIndex = (page - 1) * limit
-    const endIndex = startIndex + limit
-    const paginatedNotifications = notifications.slice(startIndex, endIndex)
-
-    return paginatedResponse(paginatedNotifications, {
-      page,
-      limit,
-      total: notifications.length,
-      totalPages: Math.ceil(notifications.length / limit),
-      hasMore: page < Math.ceil(notifications.length / limit),
-    })
-  }),
-
-  // GET /api/notifications/unread-count
-  http.get('/api/notifications/unread-count', async () => {
-    await delay(DELAY.FAST)
+    const skip = Number.parseInt(url.searchParams.get('skip') || '0', 10)
+    const take = Number.parseInt(url.searchParams.get('take') || '20', 10)
 
     const auth = getAuthContext()
-    const orgId = auth.organizationId
+    const notifications = db.notifications.findMany((q) => q.where({ organizationId: auth.organizationId || '1' }))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-    const unreadCount = mockNotifications.filter(
-      n => n.organizationId === orgId && !n.isRead
-    ).length
-
-    return successResponse({ count: unreadCount })
+    return encoreListResponse(
+      notifications.slice(skip, skip + take).map(n => ({
+        ...n,
+        createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : n.createdAt, // Already ISO string from db
+      })),
+      notifications.length,
+      skip,
+      take
+    )
   }),
 
-  // POST /api/notifications/:id/read
-  http.post('/api/notifications/:id/read', async ({ params }) => {
+  // GET /notifications/unread-count
+  http.get(encoreUrl('/notifications/unread-count'), async () => {
     await delay(DELAY.FAST)
-
     const auth = getAuthContext()
+    const notifications = db.notifications.findMany((q) => q.where({ organizationId: auth.organizationId || '1' }))
+    const unreadCount = notifications.filter(n => !n.isRead).length
+    return encoreResponse({ count: unreadCount })
+  }),
+
+  // POST /notifications/:id/read
+  http.post(encoreUrl('/notifications/:id/read'), async ({ params }) => {
+    await delay(DELAY.FAST)
     const { id } = params
-
-    const notification = mockNotifications.find(
-      n => n.id === id && n.organizationId === auth.organizationId
-    )
-
-    if (!notification) {
-      return notFoundResponse('Notification')
-    }
-
-    // Mark as read (in real app, would update DB)
-    const updatedNotification = {
-      ...notification,
-      isRead: true,
-    }
-
-    return successResponse(updatedNotification)
+    const auth = getAuthContext()
+    const notification = db.notifications.findFirst((q) => q.where({ id, organizationId: auth.organizationId || '1' }))
+    if (!notification) return encoreNotFoundResponse('Notification')
+    return encoreResponse({ ...notification, isRead: true })
   }),
 
-  // POST /api/notifications/mark-all-read
-  http.post('/api/notifications/mark-all-read', async () => {
+  // POST /notifications/read-all
+  http.post(encoreUrl('/notifications/read-all'), async () => {
     await delay(DELAY.FAST)
-
-    const auth = getAuthContext()
-    const orgId = auth.organizationId
-
-    const unreadNotifications = mockNotifications.filter(
-      n => n.organizationId === orgId && !n.isRead
-    )
-
-    return successResponse({
-      message: 'All notifications marked as read',
-      count: unreadNotifications.length,
-    })
+    return encoreResponse({ success: true })
   }),
 ]

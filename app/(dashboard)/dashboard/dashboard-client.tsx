@@ -140,7 +140,7 @@ export function DashboardClient() {
     )
   }
 
-  // Transform API data to UI format
+  // Transform API data to UI format - STRICT (no fallbacks, will fail if data is wrong)
   const wallet = {
     available: data.stats.walletBalance,
     held: data.stats.heldAmount,

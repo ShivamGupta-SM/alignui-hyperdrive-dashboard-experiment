@@ -94,13 +94,53 @@ interface SettingsData {
   }
 }
 
-interface SettingsClientProps {
-  data: SettingsData
+// Default mock data for development
+const defaultData: SettingsData = {
+  user: {
+    name: 'Admin User',
+    email: 'admin@hypedrive.io',
+    phone: '+91 98765 43210',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
+    role: 'Admin',
+  },
+  organization: {
+    name: 'Nike',
+    slug: 'nike',
+    website: 'https://nike.com',
+    logo: undefined,
+    email: 'contact@nike.com',
+    phone: '+91 98765 43210',
+    address: '123 Business Park, Mumbai, Maharashtra 400001',
+    industry: 'fashion',
+  },
+  bankAccounts: [
+    {
+      id: 'bank-1',
+      bankName: 'HDFC Bank',
+      accountNumber: '****1234',
+      accountHolder: 'Nike India Pvt Ltd',
+      ifscCode: 'HDFC0001234',
+      isDefault: true,
+      isVerified: true,
+    },
+  ],
+  gstDetails: {
+    gstNumber: '27AABCU9603R1ZM',
+    legalName: 'Nike India Private Limited',
+    tradeName: 'Nike India',
+    state: 'Maharashtra',
+    stateCode: '27',
+    status: 'Active',
+    isVerified: true,
+  },
 }
 
-export function SettingsClient({ data }: SettingsClientProps) {
+export function SettingsClient() {
   // nuqs: URL state management for settings section
   const [activeSection, setActiveSection] = useSettingsSearchParams()
+  
+  // Use static data for now - in production would fetch via useSettingsData hook
+  const data = defaultData
 
   // nuqs: Update URL when section changes
   const handleSectionChange = (section: string) => {

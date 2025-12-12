@@ -3,59 +3,37 @@
  */
 
 import { http } from 'msw'
-import { mockPlatforms } from '@/lib/mocks'
-import {
-  delay,
-  DELAY,
-  successResponse,
-  notFoundResponse,
-} from './utils'
+import { db } from '@/mocks/db'
+import { delay, DELAY, encoreUrl, encoreResponse, encoreListResponse, encoreNotFoundResponse } from './utils'
 
 export const platformsHandlers = [
-  // GET /api/platforms - List all platforms
-  http.get('/api/platforms', async () => {
+  // GET /platforms - List platforms
+  http.get(encoreUrl('/platforms'), async () => {
     await delay(DELAY.FAST)
-
-    return successResponse(mockPlatforms)
+    const platforms = db.platforms.findMany()
+    return encoreListResponse(platforms, platforms.length, 0, 50)
   }),
 
-  // GET /api/platforms/active - List active platforms only
-  http.get('/api/platforms/active', async () => {
+  // GET /platforms/active - Encore client uses this
+  http.get(encoreUrl('/platforms/active'), async () => {
     await delay(DELAY.FAST)
-
-    const activePlatforms = mockPlatforms.filter(p => p.isActive)
-    return successResponse(activePlatforms)
+    const platforms = db.platforms.findMany()
+    return encoreListResponse(platforms, platforms.length, 0, 50)
   }),
 
-  // GET /api/platforms/:id - Get single platform by ID
-  http.get('/api/platforms/:id', async ({ params }) => {
+  // GET /platforms/all
+  http.get(encoreUrl('/platforms/all'), async () => {
     await delay(DELAY.FAST)
+    const platforms = db.platforms.findMany()
+    return encoreResponse({ platforms })
+  }),
 
+  // GET /platforms/:id
+  http.get(encoreUrl('/platforms/:id'), async ({ params }) => {
+    await delay(DELAY.FAST)
     const { id } = params
-    const platform = mockPlatforms.find(p => p.id === id)
-
-    if (!platform) {
-      return notFoundResponse('Platform')
-    }
-
-    return successResponse(platform)
-  }),
-
-  // GET /api/platforms/name/:name - Get platform by name/slug
-  http.get('/api/platforms/name/:name', async ({ params }) => {
-    await delay(DELAY.FAST)
-
-    const { name } = params
-    const decodedName = decodeURIComponent(name as string).toLowerCase()
-
-    const platform = mockPlatforms.find(
-      p => p.name.toLowerCase() === decodedName || p.slug === decodedName
-    )
-
-    if (!platform) {
-      return notFoundResponse('Platform')
-    }
-
-    return successResponse(platform)
+    const platform = db.platforms.findFirst((q) => q.where({ id }))
+    if (!platform) return encoreNotFoundResponse('Platform')
+    return encoreResponse(platform)
   }),
 ]

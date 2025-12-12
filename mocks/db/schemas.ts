@@ -38,13 +38,13 @@ export const EnrollmentStatusSchema = z.enum([
   'expired',
 ])
 
+// Use Encore transaction types directly
 export const TransactionTypeSchema = z.enum([
   'credit',
-  'hold_created',
+  'debit',
+  'hold',
+  'release',
   'hold_committed',
-  'hold_voided',
-  'withdrawal',
-  'refund',
 ])
 
 export const InvoiceStatusSchema = z.enum(['pending', 'paid', 'overdue', 'cancelled'])
@@ -66,28 +66,32 @@ export const InvitationStatusSchema = z.enum(['pending', 'accepted', 'expired'])
 // ENTITY SCHEMAS
 // =============================================================================
 
+// Match Encore CampaignWithStats format directly
 export const CampaignSchema = z.object({
   id: z.string(),
   organizationId: z.string(),
   productId: z.string(),
   title: z.string(),
   description: z.string().optional(),
-  type: CampaignTypeSchema,
+  campaignType: CampaignTypeSchema, // Encore uses campaignType
   status: CampaignStatusSchema,
   isPublic: z.boolean(),
-  startDate: z.coerce.date(),
-  endDate: z.coerce.date(),
-  submissionDeadlineDays: z.number(),
+  startDate: z.string(), // Encore uses ISO string
+  endDate: z.string(), // Encore uses ISO string
+  enrollmentExpiryDays: z.number(), // Encore uses enrollmentExpiryDays
   maxEnrollments: z.number(),
   currentEnrollments: z.number(),
   billRate: z.number().optional(),
   platformFee: z.number().optional(),
+  rebatePercentage: z.number().optional(),
+  bonusAmount: z.number().optional(),
+  slug: z.string().optional(),
   approvedCount: z.number(),
   rejectedCount: z.number(),
   pendingCount: z.number(),
   totalPayout: z.number(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  createdAt: z.string(), // Encore uses ISO string
+  updatedAt: z.string(), // Encore uses ISO string
 })
 
 export const CampaignDeliverableSchema = z.object({
@@ -103,9 +107,8 @@ export const CampaignDeliverableSchema = z.object({
 
 export const ShopperSchema = z.object({
   id: z.string(),
-  name: z.string(),
-  email: z.string(),
-  avatar: z.string().optional(),
+  displayName: z.string(), // Encore uses displayName
+  avatarUrl: z.string().optional(), // Encore uses avatarUrl
   previousEnrollments: z.number(),
   approvalRate: z.number(),
 })
@@ -138,6 +141,7 @@ export const EnrollmentHistoryItemSchema = z.object({
   performedAt: z.coerce.date(),
 })
 
+// Match Encore EnrollmentWithRelations format directly
 export const EnrollmentSchema = z.object({
   id: z.string(),
   organizationId: z.string(),
@@ -146,36 +150,50 @@ export const EnrollmentSchema = z.object({
   status: EnrollmentStatusSchema,
   orderId: z.string(),
   orderValue: z.number(),
-  orderDate: z.coerce.date(),
-  platform: z.string(),
-  submissionDeadline: z.coerce.date(),
-  billAmount: z.number(),
-  platformFee: z.number(),
-  gstAmount: z.number(),
-  totalCost: z.number(),
-  payoutAmount: z.number(),
+  purchaseDate: z.string().optional(), // Encore uses purchaseDate (ISO string)
+  lockedRebatePercentage: z.number(), // Encore uses lockedRebatePercentage
+  lockedBillRate: z.number(), // Encore uses lockedBillRate
+  lockedPlatformFee: z.number(), // Encore uses lockedPlatformFee
+  lockedBonusAmount: z.number().optional(),
+  submittedAt: z.string().optional(), // Encore uses ISO string
+  approvedAt: z.string().optional(), // Encore uses ISO string
+  rejectionCount: z.number(),
+  canResubmit: z.boolean(),
+  expiresAt: z.string().optional(), // Encore uses expiresAt (ISO string)
   ocrData: OcrDataSchema.optional(),
   shopper: ShopperSchema.optional(),
-  submissions: z.array(EnrollmentSubmissionSchema).optional(),
-  history: z.array(EnrollmentHistoryItemSchema).optional(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  campaign: z.object({
+    id: z.string(),
+    title: z.string(),
+    status: z.string(),
+  }).optional(),
+  platform: z.object({
+    id: z.string(),
+    name: z.string(),
+  }).optional(),
+  createdAt: z.string(), // Encore uses ISO string
+  updatedAt: z.string(), // Encore uses ISO string
 })
 
+// Match Encore ProductWithStats format
 export const ProductSchema = z.object({
   id: z.string(),
   organizationId: z.string(),
   name: z.string(),
+  slug: z.string().optional(),
   description: z.string().optional(),
+  sku: z.string(), // Encore requires sku
   price: z.number(),
-  mrp: z.number().optional(),
-  sku: z.string().optional(),
-  category: z.string().optional(),
-  images: z.array(z.string()).optional(),
-  platforms: z.array(z.string()).optional(),
+  productLink: z.string(), // Encore uses productLink
+  productImages: z.array(z.string()), // Encore uses productImages
+  categoryId: z.string().optional(), // Encore uses categoryId
+  platformId: z.string().optional(), // Encore uses platformId
   isActive: z.boolean(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  views: z.number().optional(),
+  createdBy: z.string().optional(),
+  updatedBy: z.string().optional(),
+  createdAt: z.string(), // Encore uses ISO string
+  updatedAt: z.string(), // Encore uses ISO string
 })
 
 export const InvoiceLineItemSchema = z.object({
@@ -199,15 +217,16 @@ export const InvoiceSchema = z.object({
   updatedAt: z.coerce.date(),
 })
 
+// Match Encore WalletTransaction format
 export const TransactionSchema = z.object({
   id: z.string(),
-  organizationId: z.string(),
+  walletId: z.string(), // Encore requires walletId
+  organizationId: z.string(), // Keep for filtering
   type: TransactionTypeSchema,
   amount: z.number(),
   description: z.string(),
   reference: z.string().optional(),
-  enrollmentId: z.string().optional(),
-  createdAt: z.coerce.date(),
+  createdAt: z.string(), // Encore uses ISO string
 })
 
 export const WalletBalanceSchema = z.object({
@@ -218,13 +237,16 @@ export const WalletBalanceSchema = z.object({
   creditUtilized: z.number(),
 })
 
+// Match Encore ActiveHold format
 export const ActiveHoldSchema = z.object({
   id: z.string(),
   organizationId: z.string(),
+  enrollmentId: z.string(), // Encore requires this
   campaignId: z.string(),
-  campaignName: z.string(),
-  enrollmentCount: z.number(),
-  holdAmount: z.number(),
+  campaignTitle: z.string(), // Encore uses campaignTitle
+  amount: z.number(), // Encore uses amount
+  createdAt: z.coerce.date(),
+  expiresAt: z.coerce.date().optional(),
 })
 
 export const TeamMemberSchema = z.object({

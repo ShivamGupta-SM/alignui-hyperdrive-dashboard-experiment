@@ -89,12 +89,13 @@ export function WalletClient() {
     }
   }
 
-  const formatCurrency = (amount: number) => `₹${amount.toLocaleString('en-IN')}`
+  const formatCurrency = (amount: number | undefined | null) => `₹${(amount ?? 0).toLocaleString('en-IN')}`
 
-  const formatCurrencyShort = (amount: number) => {
-    if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`
-    if (amount >= 1000) return `₹${(amount / 1000).toFixed(0)}K`
-    return `₹${amount.toLocaleString('en-IN')}`
+  const formatCurrencyShort = (amount: number | undefined | null) => {
+    const value = amount ?? 0
+    if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`
+    if (value >= 1000) return `₹${(value / 1000).toFixed(0)}K`
+    return `₹${value.toLocaleString('en-IN')}`
   }
 
   const formatDate = (date: Date | string) => {
@@ -547,7 +548,7 @@ export function WalletClient() {
                           {hold.campaignTitle}
                         </p>
                         <p className="text-paragraph-xs text-text-soft-400 mt-0.5">
-                          Enrollment: {hold.enrollmentId.slice(-8)}
+                          Enrollment: {hold.enrollmentId?.slice(-8) ?? 'N/A'}
                         </p>
                       </div>
                       <p className="text-label-md text-text-strong-950 font-semibold tabular-nums shrink-0 min-w-[60px] text-right">

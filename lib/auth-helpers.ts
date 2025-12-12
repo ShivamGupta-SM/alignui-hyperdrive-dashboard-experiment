@@ -1,10 +1,22 @@
 import { headers, cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { mockUser, mockOrganizations } from '@/lib/mocks'
 
 // Cookie name for active organization ID
 export const ACTIVE_ORG_COOKIE = 'active-organization-id'
+
+// Static mock data (would come from auth service in production)
+const mockUser = {
+  id: '1',
+  email: 'admin@hypedrive.io',
+  name: 'Admin User',
+  role: 'admin',
+}
+
+const mockOrganizations = [
+  { id: '1', name: 'Nike', slug: 'nike' },
+  { id: '2', name: 'Samsung', slug: 'samsung' },
+]
 
 // ============================================
 // Types
@@ -46,7 +58,6 @@ type AuthCheckResult = AuthResult | AuthError
 
 /**
  * Get authenticated user context for API routes
- * Used by Novu routes for subscriber authentication
  */
 export async function getAuthContext(_request?: NextRequest): Promise<AuthCheckResult> {
   const headersList = await headers()

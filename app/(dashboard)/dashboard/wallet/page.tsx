@@ -1,6 +1,6 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { getServerQueryClient } from '@/lib/get-query-client'
-import { getWalletData } from '@/lib/data/wallet'
+import { getWalletData } from '@/lib/ssr-data'
 import { walletKeys } from '@/lib/query-keys'
 import { WalletClient } from './wallet-client'
 

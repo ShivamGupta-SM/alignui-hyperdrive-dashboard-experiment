@@ -9,7 +9,7 @@ import { NotificationsDrawer } from '@/components/dashboard/notifications-drawer
 import { CommandMenu } from '@/components/dashboard/command-menu'
 import { SettingsPanel } from '@/components/dashboard/settings-panel'
 import { NovuProvider } from '@/components/dashboard/novu-provider'
-import { BreadcrumbProvider, useBreadcrumbItems } from '@/contexts/breadcrumb-context'
+import { useBreadcrumbs } from '@/hooks/use-breadcrumbs'
 import { useLocalStorage } from '@/hooks/use-local-storage'
 import { useSignOut } from '@/hooks/use-sign-out'
 import { useNotifications, useUnreadNotificationCount, useMarkAllNotificationsRead, useMarkNotificationRead } from '@/hooks/use-notifications'
@@ -28,11 +28,9 @@ interface DashboardShellProps {
 export function DashboardShell({ children, user, organizations }: DashboardShellProps) {
   return (
     <NovuProvider>
-      <BreadcrumbProvider>
-        <DashboardShellInner user={user} organizations={organizations}>
-          {children}
-        </DashboardShellInner>
-      </BreadcrumbProvider>
+      <DashboardShellInner user={user} organizations={organizations}>
+        {children}
+      </DashboardShellInner>
     </NovuProvider>
   )
 }
@@ -77,48 +75,8 @@ function DashboardShellInner({
     return organizations[0]
   }, [activeOrgId, organizations])
 
-  // Get breadcrumbs from context (set by pages), or auto-generate from pathname
-  const contextBreadcrumbs = useBreadcrumbItems()
-
-  // Auto-generate breadcrumbs from pathname when not set by page
-  const autoBreadcrumbs = React.useMemo(() => {
-    if (contextBreadcrumbs.length > 0) return contextBreadcrumbs
-
-    // Generate from pathname
-    const segments = pathname.split('/').filter(Boolean)
-    const items: { label: string; href?: string }[] = []
-
-    let currentPath = ''
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i]
-      currentPath += `/${segment}`
-
-      // Skip 'dashboard' prefix in display but keep in path
-      if (segment === 'dashboard' && i === 0) {
-        items.push({ label: 'Dashboard', href: '/dashboard' })
-        continue
-      }
-
-      // Format segment name (capitalize, replace hyphens with spaces)
-      const label = segment
-        .split('-')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ')
-
-      // Dynamic route segments (e.g., [id]) - just show as "Details" or skip
-      if (segment.startsWith('[') || /^\d+$/.test(segment)) {
-        items.push({ label: 'Details' })
-      } else {
-        const isLast = i === segments.length - 1
-        items.push({
-          label,
-          href: isLast ? undefined : currentPath
-        })
-      }
-    }
-
-    return items
-  }, [pathname, contextBreadcrumbs])
+  // Get auto-generated breadcrumbs from pathname
+  const breadcrumbItems = useBreadcrumbs()
 
   // Prevent hydration mismatch by using consistent initial state
   const [mounted, setMounted] = React.useState(false)
@@ -167,18 +125,25 @@ function DashboardShellInner({
   const { signOut: handleSignOut } = useSignOut('/sign-in')
 
   const handleOrganizationChange = React.useCallback((org: Organization) => {
+    console.log('[OrgSwitch] Switching to org:', org.id, org.name)
+
     // Close mobile sidebar immediately for better UX
     setMobileSidebarOpen(false)
 
     // Update local state immediately for instant UI feedback
     // This triggers the useEffect that syncs to cookie
     setActiveOrgId(org.id)
+    console.log('[OrgSwitch] localStorage updated to:', org.id)
 
     // Call API to switch organization on backend
     // On success: invalidates all queries and refreshes router (handled by hook)
     // On error: still works locally since we already updated localStorage/cookie
     switchOrganization.mutate(org.id, {
-      onError: () => {
+      onSuccess: () => {
+        console.log('[OrgSwitch] Success - queries invalidated, router refreshing')
+      },
+      onError: (error) => {
+        console.log('[OrgSwitch] Error:', error, '- manually invalidating')
         // API failed but local state already updated - manually invalidate and refresh
         queryClient.invalidateQueries()
         router.refresh()
@@ -279,13 +244,13 @@ function DashboardShellInner({
               user={user}
             />
             {/* Breadcrumbs - Below header, above content */}
-            {autoBreadcrumbs.length > 0 && (
+            {breadcrumbItems.length > 0 && (
               <nav
                 className="flex items-center gap-1.5 px-4 lg:px-6 py-2 border-b border-stroke-soft-200 bg-bg-weak-50/50"
                 aria-label="Breadcrumb"
               >
-                {autoBreadcrumbs.map((item, index) => {
-                  const isLast = index === autoBreadcrumbs.length - 1
+                {breadcrumbItems.map((item, index) => {
+                  const isLast = index === breadcrumbItems.length - 1
                   return (
                     <React.Fragment key={`breadcrumb-${item.label}-${index}`}>
                       {index > 0 && (
