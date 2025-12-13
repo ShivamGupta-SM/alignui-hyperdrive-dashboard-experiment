@@ -3,6 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useTheme } from 'next-themes'
 import { cn } from '@/utils/cn'
 import { AvatarWithFallback } from '@/components/ui/avatar'
 import * as Badge from '@/components/ui/badge'
@@ -31,21 +32,15 @@ import {
   DotsThree,
   X,
 } from '@phosphor-icons/react/dist/ssr'
-import type { Organization, User as UserType } from '@/lib/types'
+import { useSession } from '@/hooks/use-session'
+import { useOrganizations, useSwitchOrganization, useActiveOrganization } from '@/hooks/use-organizations'
+import { useSignOut } from '@/hooks/use-sign-out'
 import { ORGANIZATION_STATUS_CONFIG } from '@/lib/constants'
 
 interface SidebarProps {
   collapsed?: boolean
   onCollapsedChange?: (collapsed: boolean) => void
   pendingEnrollments?: number
-  organizations?: Organization[]
-  currentOrganization?: Organization | null
-  onOrganizationChange?: (org: Organization) => void
-  onCreateOrganization?: () => void
-  user?: UserType | null
-  isDarkMode?: boolean
-  onToggleDarkMode?: () => void
-  onSignOut?: () => void
   onMobileClose?: () => void
 }
 
@@ -193,17 +188,29 @@ const NavItem = React.memo(function NavItem({
 export function Sidebar({
   collapsed = false,
   pendingEnrollments = 0,
-  organizations = [],
-  currentOrganization,
-  onOrganizationChange,
-  onCreateOrganization,
-  user,
-  isDarkMode,
-  onToggleDarkMode,
-  onSignOut,
   onMobileClose,
 }: SidebarProps) {
   const pathname = usePathname()
+  const { theme, setTheme, resolvedTheme } = useTheme()
+  const { data: session } = useSession()
+  const user = session?.user
+  const { data: organizations = [], isLoading: isLoadingOrgs } = useOrganizations()
+  const currentOrganization = useActiveOrganization(organizations)
+  const switchOrganization = useSwitchOrganization()
+  const signOut = useSignOut()
+
+  const isDarkMode = resolvedTheme === 'dark'
+  const onToggleDarkMode = () => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+  const onSignOut = () => signOut.mutate()
+
+  const handleOrganizationChange = (org: Organization) => {
+    switchOrganization.mutate(org.id)
+  }
+
+  const handleCreateOrganization = () => {
+    // Navigate to onboarding or create org page
+    window.location.href = '/onboarding'
+  }
 
   const isActiveHref = (href: string) => {
     if (href === '/dashboard') {
@@ -247,10 +254,11 @@ export function Sidebar({
         <OrganizationSwitcher
           organizations={organizations}
           currentOrganization={currentOrganization}
-          onOrganizationChange={onOrganizationChange}
-          onCreateOrganization={onCreateOrganization}
+          onOrganizationChange={handleOrganizationChange}
+          onCreateOrganization={handleCreateOrganization}
           collapsed={collapsed}
           isDarkMode={isDarkMode}
+          isLoading={isLoadingOrgs}
         />
       </div>
 
@@ -310,7 +318,6 @@ export function Sidebar({
         {/* User Profile Menu */}
         {user && (
           <UserProfileMenu
-            user={user}
             collapsed={collapsed}
             isDarkMode={isDarkMode}
             onToggleDarkMode={onToggleDarkMode}
@@ -324,7 +331,6 @@ export function Sidebar({
 
 // User Profile Menu Component
 interface UserProfileMenuProps {
-  user: UserType
   collapsed: boolean
   isDarkMode?: boolean
   onToggleDarkMode?: () => void
@@ -332,12 +338,13 @@ interface UserProfileMenuProps {
 }
 
 function UserProfileMenu({
-  user,
   collapsed,
   isDarkMode,
   onToggleDarkMode,
   onSignOut,
 }: UserProfileMenuProps) {
+  const { data: session } = useSession()
+  const user = session?.user
   const trigger = (
     <button
       className={cn(
@@ -459,6 +466,7 @@ interface OrganizationSwitcherProps {
   onCreateOrganization?: () => void
   collapsed?: boolean
   isDarkMode?: boolean
+  isLoading?: boolean
 }
 
 function OrganizationSwitcher({
@@ -468,8 +476,8 @@ function OrganizationSwitcher({
   onCreateOrganization,
   collapsed = false,
   isDarkMode,
+  isLoading = false,
 }: OrganizationSwitcherProps) {
-  console.log('[OrgSwitcher] organizations:', organizations?.length, 'current:', currentOrganization?.id)
 
   if (!currentOrganization) {
     return (

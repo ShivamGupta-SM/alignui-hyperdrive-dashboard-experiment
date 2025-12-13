@@ -4,26 +4,23 @@
 
 import { http } from 'msw'
 import { db } from '@/mocks/db'
-import { delay, DELAY, encoreUrl, encoreResponse, encoreListResponse, encoreNotFoundResponse } from './utils'
+import { encoreUrl, encoreResponse, encoreListResponse, encoreNotFoundResponse } from './utils'
 
 export const platformsHandlers = [
   // GET /platforms - List platforms
   http.get(encoreUrl('/platforms'), async () => {
-    await delay(DELAY.FAST)
     const platforms = db.platforms.findMany()
     return encoreListResponse(platforms, platforms.length, 0, 50)
   }),
 
   // GET /platforms/active - Encore client uses this
   http.get(encoreUrl('/platforms/active'), async () => {
-    await delay(DELAY.FAST)
     const platforms = db.platforms.findMany()
     return encoreListResponse(platforms, platforms.length, 0, 50)
   }),
 
   // GET /platforms/all
   http.get(encoreUrl('/platforms/all'), async () => {
-    await delay(DELAY.FAST)
     const platforms = db.platforms.findMany()
     return encoreResponse({ platforms })
   }),

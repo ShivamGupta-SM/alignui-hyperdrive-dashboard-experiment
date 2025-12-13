@@ -1,5 +1,11 @@
 // Re-export all hooks for easy imports
 
+// Auth hooks (using Encore client + React Query)
+export * from './use-session'
+export * from './use-active-organization'
+export * from './use-organizations'
+export * from './use-sign-out'
+
 // Data fetching hooks (using Encore client directly)
 export * from './use-campaigns'
 export * from './use-enrollments'

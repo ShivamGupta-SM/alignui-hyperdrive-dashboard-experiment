@@ -4,7 +4,7 @@
 
 import { http } from 'msw'
 import { db } from '@/mocks/db'
-import { delay, DELAY, encoreUrl, encoreResponse, encoreErrorResponse } from './utils'
+import { encoreUrl, encoreResponse, encoreErrorResponse } from './utils'
 
 // Static user for auth
 const mockUser = {
@@ -18,7 +18,6 @@ const mockUser = {
 export const authHandlers = [
   // POST /auth/login
   http.post(encoreUrl('/auth/login'), async ({ request }) => {
-    await delay(DELAY.MEDIUM)
     const body = await request.json() as { email: string; password: string }
     
     if (!body.email || !body.password) {
@@ -40,13 +39,11 @@ export const authHandlers = [
 
   // POST /auth/logout
   http.post(encoreUrl('/auth/logout'), async () => {
-    await delay(DELAY.FAST)
     return encoreResponse({ success: true })
   }),
 
   // POST /auth/register
   http.post(encoreUrl('/auth/register'), async ({ request }) => {
-    await delay(DELAY.MEDIUM)
     const body = await request.json() as { email: string; password: string; name: string }
     
     if (!body.email || !body.password || !body.name) {
@@ -61,8 +58,6 @@ export const authHandlers = [
 
   // GET /auth/session
   http.get(encoreUrl('/auth/session'), async () => {
-    await delay(DELAY.FAST)
-    
     const orgs = db.organizationSettings.findMany({})
     
     return encoreResponse({
@@ -77,13 +72,11 @@ export const authHandlers = [
 
   // POST /auth/refresh
   http.post(encoreUrl('/auth/refresh'), async () => {
-    await delay(DELAY.FAST)
     return encoreResponse({ token: 'mock-refreshed-jwt-token' })
   }),
 
   // GET /shoppers/:id (shopper profile)
   http.get(encoreUrl('/shoppers/:id'), async ({ params }) => {
-    await delay(DELAY.FAST)
     const { id } = params
     
     // Find shopper from enrollments
@@ -104,8 +97,6 @@ export const authHandlers = [
 
   // GET /deliverables/types
   http.get(encoreUrl('/deliverables/types'), async () => {
-    await delay(DELAY.FAST)
-    
     const types = [
       { id: 'order_screenshot', name: 'Order Screenshot', description: 'Screenshot of confirmed order' },
       { id: 'delivery_photo', name: 'Delivery Photo', description: 'Photo of delivered product' },

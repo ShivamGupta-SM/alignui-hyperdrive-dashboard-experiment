@@ -7,8 +7,6 @@
 import { http } from 'msw'
 import { db } from '@/mocks/db'
 import {
-  delay,
-  DELAY,
   getAuthContext,
   encoreUrl,
   encoreResponse,
@@ -42,8 +40,6 @@ function toCampaignWithStats(campaign: any) {
 export const campaignsHandlers = [
   // GET /campaigns - List campaigns
   http.get(encoreUrl('/campaigns'), async ({ request }) => {
-    await delay(DELAY.STANDARD)
-
     const auth = getAuthContext()
     const orgId = auth.organizationId
     const url = new URL(request.url)
@@ -68,8 +64,6 @@ export const campaignsHandlers = [
 
   // GET /campaigns/:id - Get campaign
   http.get(encoreUrl('/campaigns/:id'), async ({ params }) => {
-    await delay(DELAY.FAST)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -83,8 +77,6 @@ export const campaignsHandlers = [
 
   // POST /campaigns - Create campaign
   http.post(encoreUrl('/campaigns'), async ({ request }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const body = await request.json() as { title: string; productId: string; type: string }
 
@@ -131,8 +123,6 @@ export const campaignsHandlers = [
 
   // PUT /campaigns/:id - Update campaign
   http.put(encoreUrl('/campaigns/:id'), async ({ params, request }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const { id } = params
     const body = await request.json()
@@ -156,8 +146,6 @@ export const campaignsHandlers = [
 
   // DELETE /campaigns/:id
   http.delete(encoreUrl('/campaigns/:id'), async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -175,8 +163,6 @@ export const campaignsHandlers = [
 
   // POST /campaigns/:id/activate
   http.post(encoreUrl('/campaigns/:id/activate'), async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -190,8 +176,6 @@ export const campaignsHandlers = [
 
   // POST /campaigns/:id/pause
   http.post(encoreUrl('/campaigns/:id/pause'), async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -205,8 +189,6 @@ export const campaignsHandlers = [
 
   // GET /campaigns/:id/enrollments - Get campaign enrollments
   http.get(encoreUrl('/campaigns/:id/enrollments'), async ({ params, request }) => {
-    await delay(DELAY.STANDARD)
-
     const auth = getAuthContext()
     const { id } = params
     const url = new URL(request.url)
@@ -228,8 +210,6 @@ export const campaignsHandlers = [
 
   // GET /campaigns/:id/stats
   http.get(encoreUrl('/campaigns/:id/stats'), async ({ params }) => {
-    await delay(DELAY.FAST)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -251,8 +231,6 @@ export const campaignsHandlers = [
 
   // POST /campaigns/:id/resume
   http.post(encoreUrl('/campaigns/:id/resume'), async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -266,8 +244,6 @@ export const campaignsHandlers = [
 
   // GET /campaigns/:id/performance
   http.get(encoreUrl('/campaigns/:id/performance'), async ({ params }) => {
-    await delay(DELAY.FAST)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -288,8 +264,6 @@ export const campaignsHandlers = [
 
   // GET /campaigns/:id/pricing
   http.get(encoreUrl('/campaigns/:id/pricing'), async ({ params }) => {
-    await delay(DELAY.FAST)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -310,8 +284,6 @@ export const campaignsHandlers = [
 
   // POST /campaigns/:id/archive
   http.post(encoreUrl('/campaigns/:id/archive'), async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -325,8 +297,6 @@ export const campaignsHandlers = [
 
   // POST /campaigns/:id/duplicate
   http.post(encoreUrl('/campaigns/:id/duplicate'), async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const { id } = params
 

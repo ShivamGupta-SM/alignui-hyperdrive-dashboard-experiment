@@ -4,26 +4,23 @@
 
 import { http } from 'msw'
 import { db } from '@/mocks/db'
-import { delay, DELAY, encoreUrl, encoreResponse, encoreListResponse, encoreNotFoundResponse } from './utils'
+import { encoreUrl, encoreResponse, encoreListResponse, encoreNotFoundResponse } from './utils'
 
 export const categoriesHandlers = [
   // GET /categories - List categories
   http.get(encoreUrl('/categories'), async () => {
-    await delay(DELAY.FAST)
     const categories = db.categories.findMany()
     return encoreListResponse(categories, categories.length, 0, 50)
   }),
 
   // GET /categories/all - All categories
   http.get(encoreUrl('/categories/all'), async () => {
-    await delay(DELAY.FAST)
     const categories = db.categories.findMany()
     return encoreResponse({ categories })
   }),
 
   // GET /categories/:id
   http.get(encoreUrl('/categories/:id'), async ({ params }) => {
-    await delay(DELAY.FAST)
     const { id } = params
     const category = mockCategories.find(c => c.id === id)
     if (!category) return encoreNotFoundResponse('Category')
@@ -32,7 +29,6 @@ export const categoriesHandlers = [
 
   // GET /categories/:id/products
   http.get(encoreUrl('/categories/:id/products'), async ({ params, request }) => {
-    await delay(DELAY.STANDARD)
     const { id } = params
     const url = new URL(request.url)
     const skip = Number.parseInt(url.searchParams.get('skip') || '0', 10)

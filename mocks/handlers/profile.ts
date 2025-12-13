@@ -4,7 +4,7 @@
 
 import { http } from 'msw'
 import { db } from '@/mocks/db'
-import { delay, DELAY, getAuthContext, encoreUrl, encoreResponse, encoreErrorResponse, encoreNotFoundResponse } from './utils'
+import { getAuthContext, encoreUrl, encoreResponse, encoreErrorResponse, encoreNotFoundResponse } from './utils'
 
 // Static user (would come from auth in real app)
 const mockUser = {
@@ -31,14 +31,12 @@ export const profileHandlers = [
 
   // PUT /profile
   http.put(encoreUrl('/profile'), async ({ request }) => {
-    await delay(DELAY.MEDIUM)
     const body = await request.json() as Record<string, unknown>
     return encoreResponse({ ...mockUser, ...body })
   }),
 
   // GET /profile/sessions
   http.get(encoreUrl('/profile/sessions'), async () => {
-    await delay(DELAY.FAST)
     return encoreResponse({ sessions: mockSessions })
   }),
 
@@ -70,7 +68,6 @@ export const profileHandlers = [
 
   // PUT /users/me
   http.put(encoreUrl('/users/me'), async ({ request }) => {
-    await delay(DELAY.MEDIUM)
     const body = await request.json() as Record<string, unknown>
     return encoreResponse({ ...mockUser, ...body })
   }),

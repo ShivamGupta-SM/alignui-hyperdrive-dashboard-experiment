@@ -1,21 +1,11 @@
-import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
-import { getServerQueryClient } from '@/lib/get-query-client'
 import { getSettingsData } from '@/lib/ssr-data'
-import { settingsKeys } from '@/hooks/use-settings'
 import { SettingsClient } from './settings-client'
 
+export const revalidate = 120
+
 export default async function SettingsPage() {
-  const queryClient = getServerQueryClient()
+  // Direct server fetch - pure RSC
+  const data = await getSettingsData()
 
-  // Prefetch settings data on server
-  await queryClient.prefetchQuery({
-    queryKey: settingsKeys.data(),
-    queryFn: () => getSettingsData(),
-  })
-
-  return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <SettingsClient />
-    </HydrationBoundary>
-  )
+  return <SettingsClient initialData={data} />
 }

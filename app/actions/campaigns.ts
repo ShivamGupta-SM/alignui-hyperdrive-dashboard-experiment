@@ -1,129 +1,185 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import type { Campaign, CampaignStatus, CampaignActionResult } from '@/lib/types'
-import {
-  createCampaignBodySchema,
-  updateCampaignBodySchema,
-  campaignStatusSchema,
-} from '@/lib/validations'
-import { getServerActionAuth } from '@/lib/auth-helpers'
+import { getEncoreClient } from '@/lib/encore'
+import type { campaigns, shared } from '@/lib/encore-client'
 
-export async function createCampaign(data: unknown): Promise<CampaignActionResult> {
-  // Authenticate
-  const auth = await getServerActionAuth()
-  if (!auth.success) {
-    return { success: false, error: auth.error }
+// ===========================================
+// CAMPAIGN CRUD ACTIONS
+// ===========================================
+
+export async function createCampaign(data: Partial<campaigns.CreateCampaignRequest>) {
+  const client = getEncoreClient()
+
+  try {
+    const response = await client.campaigns.createCampaign(data as campaigns.CreateCampaignRequest)
+    revalidatePath('/dashboard/campaigns')
+    return { success: true, campaign: response }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to create campaign' }
   }
+}
 
-  // Validate input
-  const validation = createCampaignBodySchema.safeParse(data)
-  if (!validation.success) {
-    return {
-      success: false,
-      error: validation.error.issues[0]?.message || 'Invalid input',
+export async function updateCampaign(id: string, data: Partial<campaigns.UpdateCampaignRequest>) {
+  const client = getEncoreClient()
+
+  try {
+    await client.campaigns.updateCampaign(id, data as campaigns.UpdateCampaignRequest)
+    revalidatePath('/dashboard/campaigns')
+    revalidatePath(`/dashboard/campaigns/${id}`)
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to update campaign' }
+  }
+}
+
+export async function deleteCampaign(id: string) {
+  const client = getEncoreClient()
+
+  try {
+    await client.campaigns.deleteCampaign(id)
+    revalidatePath('/dashboard/campaigns')
+    return { success: true, message: 'Campaign deleted' }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to delete campaign' }
+  }
+}
+
+// Duplicate campaign - Encore doesn't have a dedicated endpoint, so we:
+// 1. Get the campaign data
+// 2. Create a new campaign with same data (as draft)
+export async function duplicateCampaign(id: string) {
+  const client = getEncoreClient()
+
+  try {
+    const original = await client.campaigns.getCampaign(id)
+
+    // Create new campaign with same data but as draft
+    // Only use properties that exist on CreateCampaignRequest
+    const newCampaign = await client.campaigns.createCampaign({
+      productId: original.productId,
+      title: `${original.title} (Copy)`,
+      description: original.description || '',
+      startDate: original.startDate,
+      endDate: original.endDate,
+      maxEnrollments: original.maxEnrollments,
+      campaignType: original.campaignType,
+      isPublic: original.isPublic,
+    })
+
+    revalidatePath('/dashboard/campaigns')
+    return { success: true, campaign: newCampaign, message: 'Campaign duplicated as draft' }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to duplicate campaign' }
+  }
+}
+
+// ===========================================
+// CAMPAIGN STATUS TRANSITIONS
+// ===========================================
+
+export async function updateCampaignStatus(id: string, action: 'submit' | 'activate' | 'cancel' | 'end' | 'complete' | 'archive' | 'unarchive') {
+  const client = getEncoreClient()
+
+  try {
+    let result: campaigns.Campaign
+
+    switch (action) {
+      case 'submit':
+        result = await client.campaigns.submitForApproval(id)
+        break
+      case 'activate':
+        result = await client.campaigns.activateCampaign(id)
+        break
+      case 'cancel':
+        result = await client.campaigns.cancelCampaign(id)
+        break
+      case 'end':
+        result = await client.campaigns.endCampaign(id)
+        break
+      case 'complete':
+        result = await client.campaigns.completeCampaign(id)
+        break
+      case 'archive':
+        result = await client.campaigns.archiveCampaign(id)
+        break
+      case 'unarchive':
+        result = await client.campaigns.unarchiveCampaign(id)
+        break
+      default:
+        return { success: false, error: 'Invalid action' }
     }
+
+    revalidatePath('/dashboard/campaigns')
+    revalidatePath(`/dashboard/campaigns/${id}`)
+    return { success: true, campaign: result }
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : `Failed to ${action} campaign`
+    return { success: false, error: errorMessage }
   }
-
-  const validData = validation.data
-
-  // In a real app, this would insert into database
-  const newCampaign: Partial<Campaign> = {
-    id: `camp_${Date.now()}`,
-    organizationId: auth.context.organizationId,
-    productId: validData.productId,
-    title: validData.title,
-    description: validData.description,
-    type: validData.type,
-    status: 'draft' as CampaignStatus,
-    isPublic: validData.isPublic,
-    maxEnrollments: validData.maxEnrollments,
-    currentEnrollments: 0,
-    submissionDeadlineDays: validData.submissionDeadlineDays,
-    startDate: new Date(validData.startDate),
-    endDate: new Date(validData.endDate),
-    approvedCount: 0,
-    rejectedCount: 0,
-    pendingCount: 0,
-    totalPayout: 0,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  }
-
-  revalidatePath('/dashboard/campaigns')
-
-  return { success: true, campaign: newCampaign }
 }
 
-export async function updateCampaign(
-  id: string,
-  data: unknown
-): Promise<CampaignActionResult> {
-  // Validate id
-  if (!id || typeof id !== 'string') {
-    return { success: false, error: 'Campaign ID is required' }
-  }
+// Pause campaign
+export async function pauseCampaign(id: string, reason: string = 'Paused by user') {
+  const client = getEncoreClient()
 
-  // Validate input
-  const validation = updateCampaignBodySchema.safeParse(data)
-  if (!validation.success) {
+  try {
+    await client.campaigns.pauseCampaign(id, { reason })
+    revalidatePath('/dashboard/campaigns')
+    revalidatePath(`/dashboard/campaigns/${id}`)
+    return { success: true, message: 'Campaign paused' }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to pause campaign' }
+  }
+}
+
+// Resume campaign
+export async function resumeCampaign(id: string) {
+  const client = getEncoreClient()
+
+  try {
+    await client.campaigns.resumeCampaign(id)
+    revalidatePath('/dashboard/campaigns')
+    revalidatePath(`/dashboard/campaigns/${id}`)
+    return { success: true, message: 'Campaign resumed' }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to resume campaign' }
+  }
+}
+
+// Legacy function - now uses endCampaign from Encore
+export async function endCampaign(id: string) {
+  const client = getEncoreClient()
+
+  try {
+    await client.campaigns.endCampaign(id)
+    revalidatePath('/dashboard/campaigns')
+    revalidatePath(`/dashboard/campaigns/${id}`)
+    return { success: true, message: 'Campaign ended' }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to end campaign' }
+  }
+}
+
+// ===========================================
+// CAMPAIGN EXPORT
+// ===========================================
+
+export async function exportCampaignEnrollments(campaignId: string) {
+  const client = getEncoreClient()
+
+  try {
+    // Use Encore's export endpoint - returns data array for client-side CSV generation
+    const result = await client.enrollments.exportEnrollments(campaignId, {})
     return {
-      success: false,
-      error: validation.error.issues[0]?.message || 'Invalid input',
+      success: true,
+      message: 'Export ready',
+      data: result.data,
+      totalCount: result.totalCount,
+      campaignTitle: result.campaignTitle,
+      exportedAt: result.exportedAt,
     }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to export enrollments' }
   }
-
-  // In a real app, this would update the database
-  revalidatePath('/dashboard/campaigns')
-  revalidatePath(`/dashboard/campaigns/${id}`)
-
-  return { success: true }
-}
-
-export async function deleteCampaign(id: string): Promise<CampaignActionResult> {
-  // Validate id
-  if (!id || typeof id !== 'string') {
-    return { success: false, error: 'Campaign ID is required' }
-  }
-
-  // In a real app, this would delete from database
-  revalidatePath('/dashboard/campaigns')
-
-  return { success: true }
-}
-
-export async function updateCampaignStatus(id: string, status: unknown): Promise<CampaignActionResult> {
-  // Validate id
-  if (!id || typeof id !== 'string') {
-    return { success: false, error: 'Campaign ID is required' }
-  }
-
-  // Validate status
-  const statusValidation = campaignStatusSchema.safeParse(status)
-  if (!statusValidation.success) {
-    return {
-      success: false,
-      error: statusValidation.error.issues[0]?.message || 'Invalid status',
-    }
-  }
-
-  // In a real app, this would update the status in database
-  revalidatePath('/dashboard/campaigns')
-  revalidatePath(`/dashboard/campaigns/${id}`)
-
-  return { success: true, status: statusValidation.data }
-}
-
-export async function duplicateCampaign(id: string): Promise<CampaignActionResult> {
-  // Validate id
-  if (!id || typeof id !== 'string') {
-    return { success: false, error: 'Campaign ID is required' }
-  }
-
-  // In a real app, this would duplicate the campaign
-  const newId = `camp_${Date.now()}`
-
-  revalidatePath('/dashboard/campaigns')
-
-  return { success: true, newId }
 }

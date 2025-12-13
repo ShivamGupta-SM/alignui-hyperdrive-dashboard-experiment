@@ -4,7 +4,7 @@
 
 import { http } from 'msw'
 import { db } from '@/mocks/db'
-import { delay, DELAY, encoreUrl, encoreResponse, encoreNotFoundResponse } from './utils'
+import { encoreUrl, encoreResponse, encoreNotFoundResponse } from './utils'
 
 // Static deliverable types
 const deliverableTypes = [
@@ -18,13 +18,11 @@ const deliverableTypes = [
 export const deliverablesHandlers = [
   // GET /deliverables
   http.get(encoreUrl('/deliverables'), async () => {
-    await delay(DELAY.FAST)
     return encoreResponse({ deliverables: deliverableTypes })
   }),
 
   // GET /deliverables/:id
   http.get(encoreUrl('/deliverables/:id'), async ({ params }) => {
-    await delay(DELAY.FAST)
     const { id } = params
     const deliverable = deliverableTypes.find(d => d.id === id)
     if (!deliverable) return encoreNotFoundResponse('Deliverable')
@@ -33,7 +31,6 @@ export const deliverablesHandlers = [
 
   // GET /campaigns/:campaignId/deliverables
   http.get(encoreUrl('/campaigns/:campaignId/deliverables'), async ({ params }) => {
-    await delay(DELAY.FAST)
     const { campaignId } = params
     
     // Get from db

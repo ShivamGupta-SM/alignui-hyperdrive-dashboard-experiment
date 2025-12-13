@@ -10,25 +10,22 @@ import { CommandMenu } from '@/components/dashboard/command-menu'
 import { SettingsPanel } from '@/components/dashboard/settings-panel'
 import { NovuProvider } from '@/components/dashboard/novu-provider'
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs'
-import { useLocalStorage } from '@/hooks/use-local-storage'
 import { useSignOut } from '@/hooks/use-sign-out'
+import { useSession } from '@/hooks/use-session'
+import { useUIStore } from '@/lib/stores/ui-store'
 import { useNotifications, useUnreadNotificationCount, useMarkAllNotificationsRead, useMarkNotificationRead } from '@/hooks/use-notifications'
 import { useDashboard } from '@/hooks/use-dashboard'
-import { useSwitchOrganization } from '@/hooks/use-organizations'
 import { useTheme } from 'next-themes'
 import { cn } from '@/utils/cn'
-import type { Organization, User } from '@/lib/types'
 
 interface DashboardShellProps {
   children: React.ReactNode
-  user: User
-  organizations: Organization[]
 }
 
-export function DashboardShell({ children, user, organizations }: DashboardShellProps) {
+export function DashboardShell({ children }: DashboardShellProps) {
   return (
     <NovuProvider>
-      <DashboardShellInner user={user} organizations={organizations}>
+      <DashboardShellInner>
         {children}
       </DashboardShellInner>
     </NovuProvider>
@@ -37,18 +34,27 @@ export function DashboardShell({ children, user, organizations }: DashboardShell
 
 function DashboardShellInner({
   children,
-  user,
-  organizations,
-}: DashboardShellProps) {
+}: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const queryClient = useQueryClient()
   const { theme, setTheme, resolvedTheme } = useTheme()
-  const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage('sidebar-collapsed', false)
-  const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false)
-  const [notificationsOpen, setNotificationsOpen] = React.useState(false)
-  const [commandMenuOpen, setCommandMenuOpen] = React.useState(false)
-  const [settingsPanelOpen, setSettingsPanelOpen] = React.useState(false)
+  const {
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    mobileMenuOpen,
+    setMobileMenuOpen,
+    notificationsDrawerOpen,
+    setNotificationsDrawerOpen,
+    commandMenuOpen,
+    setCommandMenuOpen,
+    settingsPanelOpen,
+    setSettingsPanelOpen,
+  } = useUIStore()
+  
+  // Use Zustand mobile menu state
+  const mobileSidebarOpen = mobileMenuOpen
+  const setMobileSidebarOpen = setMobileMenuOpen
 
   // Notifications API integration
   const { data: notificationsData } = useNotifications()
@@ -60,21 +66,6 @@ function DashboardShellInner({
   const { data: dashboardData } = useDashboard()
   const pendingEnrollmentsCount = dashboardData?.stats?.pendingEnrollments ?? 0
 
-  // Organization switching mutation
-  const switchOrganization = useSwitchOrganization()
-
-  // Persist active organization ID in localStorage
-  const [activeOrgId, setActiveOrgId] = useLocalStorage<string | null>('active-organization-id', null)
-
-  // Get current organization from localStorage or fallback to first org
-  const currentOrganization = React.useMemo(() => {
-    if (activeOrgId) {
-      const found = organizations.find(org => org.id === activeOrgId)
-      if (found) return found
-    }
-    return organizations[0]
-  }, [activeOrgId, organizations])
-
   // Get auto-generated breadcrumbs from pathname
   const breadcrumbItems = useBreadcrumbs()
 
@@ -82,27 +73,23 @@ function DashboardShellInner({
   const [mounted, setMounted] = React.useState(false)
   React.useEffect(() => {
     setMounted(true)
-    // Sync localStorage org ID to cookie on mount (for initial page load)
-    if (activeOrgId) {
-      document.cookie = `active-organization-id=${activeOrgId}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
-    }
-  }, [activeOrgId])
+  }, [])
 
   // Close mobile sidebar on route change
   React.useEffect(() => {
-    setMobileSidebarOpen(false)
-  }, [pathname])
+    setMobileMenuOpen(false)
+  }, [pathname, setMobileMenuOpen])
 
   // Close mobile sidebar on route change or resize
   React.useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
-        setMobileSidebarOpen(false)
+        setMobileMenuOpen(false)
       }
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [])
+  }, [setMobileMenuOpen])
 
   // Command menu keyboard shortcut - stable listener without mobileSidebarOpen dependency
   React.useEffect(() => {
@@ -113,7 +100,7 @@ function DashboardShellInner({
       }
       // Close mobile sidebar on Escape - use functional update to avoid dependency
       if (e.key === 'Escape') {
-        setMobileSidebarOpen(false)
+        setMobileMenuOpen(false)
       }
     }
 
@@ -124,41 +111,9 @@ function DashboardShellInner({
   // Sign out - single source of truth
   const { signOut: handleSignOut } = useSignOut('/sign-in')
 
-  const handleOrganizationChange = React.useCallback((org: Organization) => {
-    console.log('[OrgSwitch] Switching to org:', org.id, org.name)
-
-    // Close mobile sidebar immediately for better UX
-    setMobileSidebarOpen(false)
-
-    // Update local state immediately for instant UI feedback
-    // This triggers the useEffect that syncs to cookie
-    setActiveOrgId(org.id)
-    console.log('[OrgSwitch] localStorage updated to:', org.id)
-
-    // Call API to switch organization on backend
-    // On success: invalidates all queries and refreshes router (handled by hook)
-    // On error: still works locally since we already updated localStorage/cookie
-    switchOrganization.mutate(org.id, {
-      onSuccess: () => {
-        console.log('[OrgSwitch] Success - queries invalidated, router refreshing')
-      },
-      onError: (error) => {
-        console.log('[OrgSwitch] Error:', error, '- manually invalidating')
-        // API failed but local state already updated - manually invalidate and refresh
-        queryClient.invalidateQueries()
-        router.refresh()
-      }
-    })
-  }, [setActiveOrgId, router, queryClient, switchOrganization])
-
-  const handleCreateOrganization = React.useCallback(() => {
-    setMobileSidebarOpen(false)
-    router.push('/onboarding')
-  }, [router])
-
   const handleMobileSidebarToggle = React.useCallback(() => {
-    setMobileSidebarOpen(prev => !prev)
-  }, [])
+    setMobileMenuOpen(!mobileMenuOpen)
+  }, [mobileMenuOpen, setMobileMenuOpen])
 
   // Don't render until mounted to prevent hydration mismatch
   // The skeleton must match the exact structure and dimensions of the real layout
@@ -218,14 +173,6 @@ function DashboardShellInner({
             collapsed={sidebarCollapsed}
             onCollapsedChange={setSidebarCollapsed}
             pendingEnrollments={pendingEnrollmentsCount}
-            organizations={organizations}
-            currentOrganization={currentOrganization}
-            onOrganizationChange={handleOrganizationChange}
-            onCreateOrganization={handleCreateOrganization}
-            user={user}
-            isDarkMode={resolvedTheme === 'dark'}
-            onToggleDarkMode={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-            onSignOut={handleSignOut}
           />
         </div>
 
@@ -236,12 +183,11 @@ function DashboardShellInner({
             {/* Header first - aligns with sidebar logo */}
             <Header
               unreadNotifications={unreadCount}
-              onNotificationsClick={() => setNotificationsOpen(true)}
+              onNotificationsClick={() => setNotificationsDrawerOpen(true)}
               onCommandMenuClick={() => setCommandMenuOpen(true)}
               sidebarCollapsed={sidebarCollapsed}
               onSidebarCollapsedChange={setSidebarCollapsed}
               onSettingsClick={() => setSettingsPanelOpen(true)}
-              user={user}
             />
             {/* Breadcrumbs - Below header, above content */}
             {breadcrumbItems.length > 0 && (
@@ -296,12 +242,11 @@ function DashboardShellInner({
         <div className="shrink-0 px-2 pt-2">
           <Header
             unreadNotifications={unreadCount}
-            onNotificationsClick={() => setNotificationsOpen(true)}
+            onNotificationsClick={() => setNotificationsDrawerOpen(true)}
             onCommandMenuClick={() => setCommandMenuOpen(true)}
             onMobileMenuClick={handleMobileSidebarToggle}
             isMobileSidebarOpen={mobileSidebarOpen}
             onSettingsClick={() => setSettingsPanelOpen(true)}
-            user={user}
           />
         </div>
 
@@ -318,14 +263,6 @@ function DashboardShellInner({
             <Sidebar
               collapsed={false}
               pendingEnrollments={pendingEnrollmentsCount}
-              organizations={organizations}
-              currentOrganization={currentOrganization}
-              onOrganizationChange={handleOrganizationChange}
-              onCreateOrganization={handleCreateOrganization}
-              user={user}
-              isDarkMode={theme === 'dark'}
-              onToggleDarkMode={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              onSignOut={handleSignOut}
               onMobileClose={() => setMobileSidebarOpen(false)}
             />
           </div>
@@ -371,8 +308,8 @@ function DashboardShellInner({
 
       {/* Notifications Drawer */}
       <NotificationsDrawer
-        open={notificationsOpen}
-        onOpenChange={setNotificationsOpen}
+        open={notificationsDrawerOpen}
+        onOpenChange={setNotificationsDrawerOpen}
         notifications={notificationsData?.data?.map(n => ({
           id: n.id,
           userId: n.userId || '1',
@@ -389,7 +326,7 @@ function DashboardShellInner({
           if (notification.actionUrl) {
             router.push(notification.actionUrl)
           }
-          setNotificationsOpen(false)
+          setNotificationsDrawerOpen(false)
         }}
       />
 
@@ -403,11 +340,6 @@ function DashboardShellInner({
       <SettingsPanel
         open={settingsPanelOpen}
         onOpenChange={setSettingsPanelOpen}
-        user={user}
-        organization={currentOrganization}
-        isDarkMode={theme === 'dark'}
-        onToggleDarkMode={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-        onSignOut={handleSignOut}
       />
     </div>
   )

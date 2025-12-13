@@ -20,9 +20,9 @@ import {
   Lightning,
   CaretRight,
 } from '@phosphor-icons/react'
-import { useDashboard } from '@/hooks/use-dashboard'
 import { Skeleton } from '@/components/ui/skeleton'
 import { THRESHOLDS } from '@/lib/types/constants'
+import type { organizations } from '@/lib/encore-client'
 
 // Helper to format currency in compact form (₹1.5L, ₹2.3Cr)
 const formatWalletAmount = (amount: number): string => {
@@ -79,12 +79,12 @@ function useFormattedDate() {
 // Loading skeleton
 function DashboardSkeleton() {
   return (
-    <div className="space-y-4 sm:space-y-5">
+    <div className="space-y-5 sm:space-y-6">
       {/* Header skeleton */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-4 w-24 mt-1" />
+          <Skeleton className="h-4 w-24 mt-0.5" />
         </div>
         <Skeleton className="h-9 w-32" />
       </div>
@@ -108,36 +108,31 @@ function DashboardSkeleton() {
   )
 }
 
-export function DashboardClient() {
-  const { data, isLoading, error } = useDashboard()
+interface DashboardClientProps {
+  initialData: organizations.DashboardOverviewResponse
+}
+
+export function DashboardClient({ initialData }: DashboardClientProps) {
   const currentTime = useHydratedTime()
   const formattedDate = useFormattedDate()
+
+  // Use server data directly - type-safe with Encore types
+  const data = initialData
 
   // Map pending enrollments with hours ago calculation (only after hydration)
   // NOTE: This useMemo must be called before any early returns to maintain hooks order
   const priorityEnrollments = useMemo(() => {
     if (!data) return []
-    if (!currentTime) return data.pendingEnrollments.slice(0, 3).map(e => ({ ...e, hoursAgo: 0 }))
-    return data.pendingEnrollments.slice(0, 3).map(e => ({
+    if (!currentTime) return data.pendingEnrollments.slice(0, 3).map((e) => ({ ...e, hoursAgo: 0 }))
+    return data.pendingEnrollments.slice(0, 3).map((e) => ({
       ...e,
       hoursAgo: getHoursAgo(e.createdAt, currentTime),
     }))
   }, [data, currentTime])
 
-  // Show skeleton during initial load (should be instant with SSR hydration)
-  if (isLoading && !data) {
+  // Simple loading check
+  if (!data) {
     return <DashboardSkeleton />
-  }
-
-  if (error || !data) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-text-sub-600">Failed to load dashboard data</p>
-        <Button.Root variant="neutral" size="small" className="mt-4" onClick={() => window.location.reload()}>
-          Retry
-        </Button.Root>
-      </div>
-    )
   }
 
   // Transform API data to UI format - STRICT (no fallbacks, will fail if data is wrong)
@@ -163,8 +158,8 @@ export function DashboardClient() {
     approvalRateTrend: data.stats.approvalRateTrend,
   }
 
-  const enrollmentChartData = data.enrollmentChart.map(d => ({ value: d.enrollments }))
-
+  const enrollmentChartData = data.enrollmentChart.map((d) => ({ value: d.enrollments }))
+  
   // Map top campaigns - use product image from API
   const topCampaigns = data.topCampaigns.slice(0, 3).map((c) => ({
     id: c.id,
@@ -194,12 +189,12 @@ export function DashboardClient() {
   const isEnrollmentOverdue = (hoursAgo: number) => hoursAgo > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS
 
   return (
-    <div className="space-y-4 sm:space-y-5">
+    <div className="space-y-5 sm:space-y-6">
       {/* HEADER */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Dashboard</h1>
-          <p className="text-paragraph-xs text-text-sub-600 mt-0.5 min-h-[1.25rem]">
+          <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5 min-h-[1.25rem]">
             {formattedDate || <span className="invisible">Loading...</span>}
           </p>
         </div>

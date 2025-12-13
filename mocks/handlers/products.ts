@@ -7,8 +7,6 @@
 import { http } from 'msw'
 import { db } from '@/mocks/db'
 import {
-  delay,
-  DELAY,
   getAuthContext,
   encoreUrl,
   encoreResponse,
@@ -31,8 +29,6 @@ function toProductWithStats(product: any) {
 export const productsHandlers = [
   // GET /products - List products (Encore: products.listProducts)
   http.get(encoreUrl('/products'), async ({ request }) => {
-    await delay(DELAY.FAST)
-
     const auth = getAuthContext()
     const orgId = auth.organizationId
     const url = new URL(request.url)
@@ -69,8 +65,6 @@ export const productsHandlers = [
 
   // GET /products/:id - Get product (Encore: products.getProduct)
   http.get(encoreUrl('/products/:id'), async ({ params }) => {
-    await delay(DELAY.FAST)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -84,8 +78,6 @@ export const productsHandlers = [
 
   // POST /products - Create product (Encore: products.createProduct)
   http.post(encoreUrl('/products'), async ({ request }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const body = await request.json() as { name: string; description?: string; categoryId?: string; platformId?: string }
 
@@ -129,8 +121,6 @@ export const productsHandlers = [
 
   // DELETE /products/:id
   http.delete(encoreUrl('/products/:id'), async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -149,20 +139,16 @@ export const productsHandlers = [
 
   // GET /products/categories - List categories
   http.get(encoreUrl('/products/categories'), async () => {
-    await delay(DELAY.FAST)
     return encoreListResponse(mockCategories, mockCategories.length, 0, 50)
   }),
 
   // GET /products/platforms - List platforms  
   http.get(encoreUrl('/products/platforms'), async () => {
-    await delay(DELAY.FAST)
     return encoreListResponse(mockPlatforms, mockPlatforms.length, 0, 50)
   }),
 
   // POST /products/batch/import - Encore uses this URL
   http.post(encoreUrl('/products/batch/import'), async ({ request }) => {
-    await delay(DELAY.SLOW)
-
     const body = await request.json() as { products: Array<{ name: string }> }
 
     if (!body.products || !Array.isArray(body.products)) {

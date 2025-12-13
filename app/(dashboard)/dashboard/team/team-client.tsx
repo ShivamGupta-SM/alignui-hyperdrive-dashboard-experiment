@@ -24,12 +24,16 @@ import {
 } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import { ROLE_OPTIONS } from '@/lib/constants'
-import { useTeamData, useInvitations, type Member } from '@/hooks/use-team'
+import { inviteMember, removeMember } from '@/app/actions/team'
+import { toast } from 'sonner'
+import { useSession } from '@/hooks/use-session'
+
+// Types (simplified for internal use or imported if shared)
+// Assuming Member type is available or just using the shape
+import type { Member } from '@/hooks/use-team' // Should prefer importing shared type if available, but hook export is okay for now or define locally.
 
 type TeamMember = Member
 type UserRole = 'owner' | 'admin' | 'manager' | 'viewer' | 'member'
-import { authClient } from '@/lib/auth-client'
-import { delay, DELAY } from '@/lib/utils/delay'
 
 // Map role to StatusBadge status
 const getRoleStatus = (role: string) => {
@@ -65,21 +69,32 @@ const getRoleIcon = (role: string) => {
   }
 }
 
-export function TeamClient() {
+interface TeamClientProps {
+  initialData?: {
+    members?: organizations.MemberResponse[]
+    invitations?: Array<{
+      id: string
+      email: string
+      role: string
+      status: string
+      createdAt: string
+      expiresAt: string
+    }>
+  }
+}
+
+export function TeamClient({ initialData }: TeamClientProps = {}) {
   const [isInviteModalOpen, setIsInviteModalOpen] = React.useState(false)
   const [isRemoveModalOpen, setIsRemoveModalOpen] = React.useState(false)
   const [selectedMember, setSelectedMember] = React.useState<TeamMember | null>(null)
 
   // Fetch team data (hydrated from SSR)
-  const { data: session } = authClient.useSession()
-  // Get organizationId from user's active organization or fallback
-  const organizationId = (session?.user as { activeOrganizationId?: string })?.activeOrganizationId || ''
-  const { data: teamData, isLoading } = useTeamData(organizationId)
-  const { data: invitations = [] } = useInvitations(organizationId)
-
-  // Filter out any members with undefined user property (defensive programming)
-  const members = (teamData?.members || []).filter(m => m.user != null)
-  const currentUserId = session?.user?.id || ''
+  const { data: session } = useSession()
+  
+  // Use server data
+  const members = initialData?.members ?? []
+  const invitations = initialData?.invitations ?? []
+  const currentUserId = session?.user?.id ? String(session.user.id) : ''
 
   const formatDate = (date: Date | string) => {
     return new Date(date).toLocaleDateString('en-IN', {
@@ -94,27 +109,8 @@ export function TeamClient() {
     total: members.length,
     admins: members.filter(m => m.role === 'admin' || m.role === 'owner').length,
     managers: members.filter(m => m.role === 'manager').length,
-    pending: invitations.filter(i => i.status === 'pending').length,
+    pending: invitations.filter((i) => i.status === 'pending').length,
   }), [members, invitations])
-
-  if (isLoading) {
-    return (
-      <div className="space-y-5 sm:space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-bg-weak-50 rounded w-32 mb-2" />
-          <div className="h-4 bg-bg-weak-50 rounded w-48" />
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="rounded-xl bg-bg-white-0 p-4 ring-1 ring-inset ring-stroke-soft-200 animate-pulse">
-              <div className="h-8 bg-bg-weak-50 rounded w-8 mb-2" />
-              <div className="h-6 bg-bg-weak-50 rounded w-12" />
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -408,19 +404,27 @@ function InviteMemberModal({ open, onOpenChange }: { open: boolean; onOpenChange
   const [email, setEmail] = React.useState('')
   const [role, setRole] = React.useState<UserRole>('manager')
   const [message, setMessage] = React.useState('')
-  const [isLoading, setIsLoading] = React.useState(false)
+  const [isPending, startTransition] = React.useTransition()
 
   const handleSubmit = async () => {
-    setIsLoading(true)
-    try {
-      await delay(DELAY.FORM)
-      onOpenChange(false)
-      setEmail('')
-      setRole('manager')
-      setMessage('')
-    } finally {
-      setIsLoading(false)
-    }
+    if (!email) return
+
+    startTransition(async () => {
+      try {
+        const res = await inviteMember(email, role)
+        if (res.success) {
+            toast.success('Invitation sent successfully')
+            onOpenChange(false)
+            setEmail('')
+            setRole('manager')
+            setMessage('')
+        } else {
+            toast.error(res.error || 'Failed to send invitation')
+        }
+      } catch(e) {
+          toast.error('An error occurred')
+      }
+    })
   }
 
   return (
@@ -509,15 +513,15 @@ function InviteMemberModal({ open, onOpenChange }: { open: boolean; onOpenChange
           </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button.Root variant="basic" onClick={() => onOpenChange(false)}>
+          <Button.Root variant="basic" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancel
           </Button.Root>
           <Button.Root
             variant="primary"
             onClick={handleSubmit}
-            disabled={isLoading || !email}
+            disabled={isPending || !email}
           >
-            {isLoading ? 'Sending...' : 'Send Invitation'}
+            {isPending ? 'Sending...' : 'Send Invitation'}
           </Button.Root>
         </Modal.Footer>
       </Modal.Content>
@@ -535,16 +539,24 @@ function RemoveMemberModal({
   onOpenChange: (open: boolean) => void
   member: TeamMember | null
 }) {
-  const [isLoading, setIsLoading] = React.useState(false)
+  const [isPending, startTransition] = React.useTransition()
 
   const handleRemove = async () => {
-    setIsLoading(true)
-    try {
-      await delay(DELAY.FORM)
-      onOpenChange(false)
-    } finally {
-      setIsLoading(false)
-    }
+    if (!member) return
+
+    startTransition(async () => {
+        try {
+            const res = await removeMember(member.id)
+            if (res.success) {
+                toast.success('Member removed successfully')
+                onOpenChange(false)
+            } else {
+                toast.error(res.error || 'Failed to remove member')
+            }
+        } catch(e) {
+            toast.error('An error occurred')
+        }
+    })
   }
 
   if (!member) return null
@@ -607,11 +619,11 @@ function RemoveMemberModal({
           </List.Root>
         </Modal.Body>
         <Modal.Footer>
-          <Button.Root variant="basic" onClick={() => onOpenChange(false)}>
+          <Button.Root variant="basic" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancel
           </Button.Root>
-          <Button.Root variant="error" onClick={handleRemove} disabled={isLoading}>
-            {isLoading ? 'Removing...' : 'Remove Member'}
+          <Button.Root variant="error" onClick={handleRemove} disabled={isPending}>
+            {isPending ? 'Removing...' : 'Remove Member'}
           </Button.Root>
         </Modal.Footer>
       </Modal.Content>

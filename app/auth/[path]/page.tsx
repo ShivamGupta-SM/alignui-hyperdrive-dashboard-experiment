@@ -1,4 +1,4 @@
-import { AuthView } from "@/lib/auth"
+import { redirect } from "next/navigation"
 import Link from "next/link"
 
 export default async function AuthPage({
@@ -8,21 +8,26 @@ export default async function AuthPage({
 }) {
     const { path } = await params
 
-    return (
-        <>
-            <AuthView path={path} />
-            {!["callback", "sign-out"].includes(path) && (
-                <p className="max-w-xs text-center text-paragraph-xs text-text-sub-600">
-                    By continuing, you agree to our{" "}
-                    <Link className="text-primary-base underline hover:text-primary-darker" href="/terms" target="_blank">
-                        Terms of Service
-                    </Link>{" "}
-                    and{" "}
-                    <Link className="text-primary-base underline hover:text-primary-darker" href="/privacy" target="_blank">
-                        Privacy Policy
-                    </Link>.
-                </p>
-            )}
-        </>
-    )
+    // Redirect to specific auth pages
+    if (path === 'sign-in') {
+        redirect('/sign-in')
+    }
+    if (path === 'sign-up') {
+        redirect('/sign-up')
+    }
+    if (path === 'callback') {
+        // OAuth callback - handle in a separate page if needed
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <p className="text-paragraph-sm text-text-sub-600">Processing authentication...</p>
+            </div>
+        )
+    }
+    if (path === 'sign-out') {
+        // Sign out handled by server action
+        redirect('/')
+    }
+
+    // Default: redirect to sign-in
+    redirect('/sign-in')
 }

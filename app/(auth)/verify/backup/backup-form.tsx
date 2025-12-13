@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import * as Button from '@/components/ui/button'
 import * as Input from '@/components/ui/input'
 import { Callout } from '@/components/ui/callout'
-import { delay, DELAY } from '@/lib/utils/delay'
 import { Key, ArrowLeft, ShieldWarning, Info } from '@phosphor-icons/react'
 
 export function BackupForm() {
@@ -29,7 +28,12 @@ export function BackupForm() {
 
     try {
       // TODO: Implement actual backup code verification
-      await delay(DELAY.FORM)
+      // const { verify2FABackupCode } = await import('@/app/actions/auth')
+      // const result = await verify2FABackupCode(code)
+      // if (!result.success) {
+      //   throw new Error(result.error)
+      // }
+      
       router.push('/dashboard')
     } catch {
       setError('Invalid backup code. Please try again.')

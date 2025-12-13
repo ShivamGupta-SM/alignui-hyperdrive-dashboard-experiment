@@ -8,8 +8,6 @@
 import { http } from 'msw'
 import { db } from '@/mocks/db'
 import {
-  delay,
-  DELAY,
   encoreUrl,
   encoreResponse,
 } from './utils'
@@ -17,8 +15,6 @@ import {
 export const dashboardHandlers = [
   // GET /organizations/:orgId/dashboard - Get dashboard overview
   http.get(encoreUrl('/organizations/:orgId/dashboard'), async ({ params }) => {
-    await delay(DELAY.STANDARD)
-
     const rawOrgId = params.orgId as string
     const orgId = (rawOrgId === 'default' || !rawOrgId) ? '1' : rawOrgId
 

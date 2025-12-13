@@ -3,7 +3,7 @@
 import { Inbox } from '@novu/nextjs'
 import { useTheme } from 'next-themes'
 import { Bell } from '@phosphor-icons/react'
-import { authClient } from '@/lib/auth-client'
+import { useSession } from '@/hooks/use-session'
 import { cn } from '@/utils/cn'
 
 /**
@@ -38,20 +38,20 @@ function BellButton({ count = 0 }: { count?: number }) {
 
 /**
  * Novu Inbox Component - Notification bell with dropdown panel
- * Uses Better-Auth session for subscriber identification.
+ * Uses Encore client session for subscriber identification.
  */
 export function NovuInbox() {
   const appId = process.env.NEXT_PUBLIC_NOVU_APP_ID
   const apiUrl = process.env.NEXT_PUBLIC_NOVU_API_URL
   const wsUrl = process.env.NEXT_PUBLIC_NOVU_WS_URL
   const { resolvedTheme } = useTheme()
-  const { data: session, isPending } = authClient.useSession()
+  const { data: session, isPending } = useSession()
 
   if (!appId) return null
   if (isPending) return <BellButton />
   if (!session?.user?.id) return <BellButton />
 
-  const subscriberId = session.user.id
+  const subscriberId = String(session.user.id)
   const isDark = resolvedTheme === 'dark'
 
   return (

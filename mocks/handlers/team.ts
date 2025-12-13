@@ -7,8 +7,6 @@
 import { http } from 'msw'
 import { db } from '@/mocks/db'
 import {
-  delay,
-  DELAY,
   encoreUrl,
   encoreResponse,
   encoreListResponse,
@@ -39,8 +37,6 @@ function toEncoreMember(member: any) {
 export const teamHandlers = [
   // GET /organizations/:orgId/members - List team members
   http.get(encoreUrl('/organizations/:orgId/members'), async ({ params, request }) => {
-    await delay(DELAY.STANDARD)
-
     const { orgId } = params as { orgId: string }
     const url = new URL(request.url)
 
@@ -62,8 +58,6 @@ export const teamHandlers = [
 
   // GET /organizations/:orgId/members/:memberId - Get single member
   http.get(encoreUrl('/organizations/:orgId/members/:memberId'), async ({ params }) => {
-    await delay(DELAY.FAST)
-
     const { orgId, memberId } = params as { orgId: string; memberId: string }
 
     const member = db.teamMembers.findFirst((q) => q.where({ id: memberId, organizationId: orgId || '1' }))
@@ -76,8 +70,6 @@ export const teamHandlers = [
 
   // PATCH /organizations/:orgId/members/:memberId - Update member role
   http.patch(encoreUrl('/organizations/:orgId/members/:memberId'), async ({ params, request }) => {
-    await delay(DELAY.MEDIUM)
-
     const { orgId, memberId } = params as { orgId: string; memberId: string }
     const body = await request.json() as { role?: string }
 
@@ -95,8 +87,6 @@ export const teamHandlers = [
 
   // DELETE /organizations/:orgId/members/:memberId - Remove member
   http.delete(encoreUrl('/organizations/:orgId/members/:memberId'), async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
     const { orgId, memberId } = params as { orgId: string; memberId: string }
 
     const member = db.teamMembers.findFirst((q) => q.where({ id: memberId, organizationId: orgId || '1' }))
@@ -147,8 +137,6 @@ export const teamHandlers = [
 
   // GET /organizations/:orgId/invitations - List invitations
   http.get(encoreUrl('/organizations/:orgId/invitations'), async ({ params }) => {
-    await delay(DELAY.FAST)
-
     const { orgId } = params as { orgId: string }
 
     const invitations = db.invitations.findMany((q) => q.where({ organizationId: orgId }))
@@ -166,8 +154,6 @@ export const teamHandlers = [
 
   // DELETE /organizations/:orgId/invitations/:invitationId - Cancel invitation
   http.delete(encoreUrl('/organizations/:orgId/invitations/:invitationId'), async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
     const { invitationId } = params as { invitationId: string }
     
     const invitation = db.invitations.findFirst((q) => q.where({ id: invitationId }))

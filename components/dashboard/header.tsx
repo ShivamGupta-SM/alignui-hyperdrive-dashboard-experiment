@@ -15,6 +15,8 @@ import {
   SquaresFour,
 } from '@phosphor-icons/react'
 
+import { useSession } from '@/hooks/use-session'
+
 interface HeaderProps {
   unreadNotifications?: number
   onNotificationsClick?: () => void
@@ -24,11 +26,6 @@ interface HeaderProps {
   onMobileMenuClick?: () => void
   isMobileSidebarOpen?: boolean
   onSettingsClick?: () => void
-  user?: {
-    name: string
-    email: string
-    avatar?: string
-  }
 }
 
 export function Header({
@@ -40,8 +37,9 @@ export function Header({
   onMobileMenuClick,
   isMobileSidebarOpen = false,
   onSettingsClick,
-  user,
 }: HeaderProps) {
+  const { data: session } = useSession()
+  const user = session?.user
   const { resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   

@@ -7,8 +7,6 @@
 import { http } from 'msw'
 import { db } from '@/mocks/db'
 import {
-  delay,
-  DELAY,
   getAuthContext,
   encoreUrl,
   encoreResponse,
@@ -25,8 +23,6 @@ function toEnrollmentWithRelations(enrollment: any) {
 export const enrollmentsHandlers = [
   // GET /enrollments - List enrollments
   http.get(encoreUrl('/enrollments'), async ({ request }) => {
-    await delay(DELAY.STANDARD)
-
     const auth = getAuthContext()
     const orgId = auth.organizationId
     const url = new URL(request.url)
@@ -55,8 +51,6 @@ export const enrollmentsHandlers = [
 
   // GET /enrollments/me - My enrollments (alias)
   http.get(encoreUrl('/enrollments/me'), async ({ request }) => {
-    await delay(DELAY.STANDARD)
-
     const auth = getAuthContext()
     const url = new URL(request.url)
 
@@ -81,9 +75,14 @@ export const enrollmentsHandlers = [
     await delay(DELAY.FAST)
 
     const auth = getAuthContext()
-    const id = params.id as string
+    const { id } = params
+    const enrollmentId = Array.isArray(id) ? id[0] : id
 
-    const enrollment = db.enrollments.findFirst((q) => q.where({ id, organizationId: auth.organizationId }))
+    if (!enrollmentId) {
+       return encoreNotFoundResponse('Enrollment')
+    }
+
+    const enrollment = db.enrollments.findFirst((q) => q.where({ id: enrollmentId as string, organizationId: auth.organizationId }))
     if (!enrollment) {
       return encoreNotFoundResponse('Enrollment')
     }
@@ -93,8 +92,6 @@ export const enrollmentsHandlers = [
 
   // POST /enrollments/:id/approve
   http.post(encoreUrl('/enrollments/:id/approve'), async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -116,8 +113,6 @@ export const enrollmentsHandlers = [
 
   // POST /enrollments/:id/reject
   http.post(encoreUrl('/enrollments/:id/reject'), async ({ params, request }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const { id } = params
     await request.json().catch(() => ({}))
@@ -139,8 +134,6 @@ export const enrollmentsHandlers = [
 
   // POST /enrollments/:id/request-changes
   http.post(encoreUrl('/enrollments/:id/request-changes'), async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
     const auth = getAuthContext()
     const { id } = params
 
@@ -158,8 +151,6 @@ export const enrollmentsHandlers = [
 
   // POST /enrollments/batch/approve - Bulk approve
   http.post(encoreUrl('/enrollments/batch/approve'), async ({ request }) => {
-    await delay(DELAY.SLOW)
-
     const auth = getAuthContext()
     const body = await request.json() as { enrollmentIds: string[] }
 
@@ -186,8 +177,6 @@ export const enrollmentsHandlers = [
 
   // POST /enrollments/batch/reject - Bulk reject
   http.post(encoreUrl('/enrollments/batch/reject'), async ({ request }) => {
-    await delay(DELAY.SLOW)
-
     const auth = getAuthContext()
     const body = await request.json() as { enrollmentIds: string[]; reason: string }
 
@@ -214,8 +203,6 @@ export const enrollmentsHandlers = [
 
   // GET /campaigns/:campaignId/enrollments
   http.get(encoreUrl('/campaigns/:campaignId/enrollments'), async ({ params, request }) => {
-    await delay(DELAY.STANDARD)
-
     const auth = getAuthContext()
     const { campaignId } = params
     const url = new URL(request.url)

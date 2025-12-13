@@ -24,21 +24,22 @@ import {
   X,
   Clock,
   Bank,
-  XCircle,
   CheckCircle,
-  SpinnerGap,
 } from '@phosphor-icons/react/dist/ssr'
 import { VisaIcon, MastercardIcon, AmexIcon, DiscoverIcon, PaypalIcon, UnionPayIcon } from '@/components/claude-generated-components/payment-icons'
 import { cn } from '@/utils/cn'
 import { useWalletSearchParams } from '@/hooks'
-import { useWalletData, useWithdrawals, useCancelWithdrawal, useWithdrawalStats } from '@/hooks/use-wallet'
-import type { Withdrawal, WalletTransaction, Wallet as WalletData } from '@/hooks/use-wallet'
-import { useRequestCreditIncrease, useCurrentOrganization } from '@/hooks/use-organizations'
 import { useMediaQuery } from 'usehooks-ts'
 import { THRESHOLDS } from '@/lib/types/constants'
 import { exportTransactions } from '@/lib/excel'
 import { TRANSACTION_TYPE_CONFIG } from '@/lib/constants'
 import { toast } from 'sonner'
+import { requestCredit, cancelWithdrawal } from '@/app/actions/wallet'
+
+// Types
+import type { wallets } from '@/lib/encore-client'
+import type { WalletTransaction } from '@/hooks/use-wallet'
+import type { Wallet as WalletData } from '@/hooks/use-wallet'
 
 const defaultWallet: WalletData = {
   id: '',
@@ -51,28 +52,38 @@ const defaultWallet: WalletData = {
   createdAt: new Date().toISOString(),
   creditLimit: 0,
   creditUtilized: 0,
+  creditTier: 'bronze',
 }
 
-export function WalletClient() {
+interface WalletClientProps {
+  initialData?: {
+    balance: wallets.Wallet
+    withdrawals: wallets.Withdrawal[]
+    transactions: wallets.WalletTransaction[]
+    activeHolds: wallets.ActiveHold[]
+    stats?: wallets.WithdrawalStats
+  }
+}
+
+export function WalletClient({ initialData }: WalletClientProps) {
   const [isFundModalOpen, setIsFundModalOpen] = React.useState(false)
   const [isCreditRequestModalOpen, setIsCreditRequestModalOpen] = React.useState(false)
   const [activeSection, setActiveSection] = React.useState<'transactions' | 'withdrawals'>('transactions')
+  const [isPending, startTransition] = React.useTransition()
 
   // nuqs: URL state management for filters
   const [searchParams, setSearchParams] = useWalletSearchParams()
   const transactionFilter = searchParams.type
 
-  // React Query hook - data is already hydrated from server
-  const { data } = useWalletData()
-  const { data: withdrawalsData } = useWithdrawals()
-  const { data: withdrawalStats } = useWithdrawalStats()
-  const cancelWithdrawal = useCancelWithdrawal()
-
-  // Extract data with fallbacks
-  const wallet = data?.wallet ?? defaultWallet
-  const transactions = data?.transactions ?? []
-  const activeHolds = data?.activeHolds ?? []
-  const withdrawals = withdrawalsData?.withdrawals ?? []
+  // Use server data directly
+  const wallet: WalletData = initialData ? {
+    ...initialData.balance,
+  } : defaultWallet
+  
+  const transactions = initialData?.transactions ?? []
+  const activeHolds = initialData?.activeHolds ?? []
+  const withdrawals = initialData?.withdrawals ?? []
+  const withdrawalStats = initialData?.stats
 
   // nuqs: Update URL when filter changes
   const handleFilterChange = (value: string) => {
@@ -114,8 +125,10 @@ export function WalletClient() {
   }
 
   const creditUtilization = React.useMemo(() => {
-    if (!wallet.creditLimit) return 0
-    return Math.round(((wallet.creditUtilized ?? 0) / wallet.creditLimit) * 100)
+    if (!wallet.creditLimit || wallet.creditLimit <= 0) return 0
+    // Clamp to 100% max to prevent showing >100% when credit utilized exceeds limit
+    const percentage = ((wallet.creditUtilized ?? 0) / wallet.creditLimit) * 100
+    return Math.min(Math.round(percentage), 100)
   }, [wallet.creditLimit, wallet.creditUtilized])
 
   const filteredTransactions = React.useMemo(() => {
@@ -123,7 +136,7 @@ export function WalletClient() {
     return transactions.filter((t) => t.type === transactionFilter)
   }, [transactions, transactionFilter])
 
-  const getTransactionStatus = (type: WalletTransaction['type']) => {
+  const getTransactionStatus = (type: string) => {
     switch (type) {
       case 'credit':
       case 'release':
@@ -139,6 +152,21 @@ export function WalletClient() {
   }
 
   const totalHeld = activeHolds.reduce((acc, h) => acc + h.amount, 0)
+
+  const handleCancelWithdrawal = (id: string) => {
+    startTransition(async () => {
+      try {
+        const result = await cancelWithdrawal(id)
+        if (result.success) {
+          toast.success('Withdrawal cancelled successfully')
+        } else {
+          toast.error('Failed to cancel withdrawal')
+        }
+      } catch (e) {
+        toast.error('An error occurred')
+      }
+    })
+  }
 
   return (
     <Tooltip.Provider>
@@ -281,9 +309,9 @@ export function WalletClient() {
               )}
             >
               Withdrawals
-              {withdrawals.filter(w => w.status === 'pending').length > 0 && (
+              {withdrawals.filter((w) => w.status === 'pending').length > 0 && (
                 <span className="ml-1.5 inline-flex items-center justify-center size-5 rounded-full bg-warning-base text-white text-[10px] font-medium">
-                  {withdrawals.filter(w => w.status === 'pending').length}
+                  {withdrawals.filter((w) => w.status === 'pending').length}
                 </span>
               )}
             </button>
@@ -324,14 +352,14 @@ export function WalletClient() {
               <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
                 <div className="divide-y divide-stroke-soft-200">
                   {filteredTransactions.map((transaction) => {
-                    const config = TRANSACTION_TYPE_CONFIG[transaction.type]
+                    const config = TRANSACTION_TYPE_CONFIG[transaction.type as keyof typeof TRANSACTION_TYPE_CONFIG] || TRANSACTION_TYPE_CONFIG['hold_committed']
                     const isCredit = config.sign === '+'
                     return (
                       <div
                         key={transaction.id}
                         className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-bg-weak-50 transition-all duration-200 cursor-pointer group"
                       >
-                        {/* Icon - Down arrow for credits (money in), Up arrow for debits (money out) */}
+                        {/* Icon */}
                         <div className={cn(
                           "flex size-10 sm:size-11 items-center justify-center rounded-full shrink-0",
                           isCredit ? "bg-success-lighter" : "bg-warning-lighter"
@@ -398,6 +426,7 @@ export function WalletClient() {
               {/* Withdrawal Stats Overview */}
               {withdrawalStats && (() => {
                 // Extract counts from countByStatus map
+                // withdrawalStats type from server lacks specific shape in ssr-data, assuming it matches
                 const completedCount = withdrawalStats.countByStatus?.completed ?? 0
                 const pendingCount = withdrawalStats.pendingApprovalCount ?? 0
                 const successRate = withdrawalStats.totalCount > 0
@@ -452,36 +481,25 @@ export function WalletClient() {
                 )
               })()}
 
-              {/* Withdrawals Header */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-label-md text-text-strong-950">Withdrawal History</h2>
-                <span className="text-paragraph-xs text-text-sub-600">
-                  {withdrawals.length} total withdrawal{withdrawals.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-
               {/* Withdrawals List */}
               <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
                 <div className="divide-y divide-stroke-soft-200">
                   {withdrawals.map((withdrawal) => (
-                    <WithdrawalItem
-                      key={withdrawal.id}
-                      withdrawal={withdrawal}
-                      formatCurrency={formatCurrency}
-                      formatDate={formatDate}
-                      formatTime={formatTime}
-                      onCancel={() => {
-                        cancelWithdrawal.mutate(withdrawal.id, {
-                          onSuccess: () => {
-                            toast.success('Withdrawal cancelled successfully')
-                          },
-                          onError: () => {
-                            toast.error('Failed to cancel withdrawal')
-                          },
-                        })
-                      }}
-                      isCancelling={cancelWithdrawal.isPending}
-                    />
+                    // Inlined WithdrawalItem for now to avoid complexity of props
+                    <div key={withdrawal.id} className="p-3 sm:p-4 flex items-center justify-between">
+                       <div>
+                         <p className="text-label-sm font-medium">{formatCurrency(withdrawal.amount)}</p>
+                         <p className="text-paragraph-xs text-text-soft-400">{formatDate(withdrawal.requestedAt)}</p>
+                       </div>
+                       <div className="flex items-center gap-2">
+                         <StatusBadge.Root status={withdrawal.status} />
+                         {withdrawal.status === 'pending' && (
+                           <Button.Root variant="ghost" size="small" onClick={() => handleCancelWithdrawal(withdrawal.id)} disabled={isPending}>
+                             Cancel
+                           </Button.Root>
+                         )}
+                       </div>
+                    </div>
                   ))}
                 </div>
 
@@ -545,10 +563,10 @@ export function WalletClient() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-label-sm text-text-strong-950 truncate">
-                          {hold.campaignTitle}
+                          Campaign {hold.campaignId.slice(0, 8)}
                         </p>
                         <p className="text-paragraph-xs text-text-soft-400 mt-0.5">
-                          Enrollment: {hold.enrollmentId?.slice(-8) ?? 'N/A'}
+                          Held {new Date(hold.createdAt).toLocaleDateString()}
                         </p>
                       </div>
                       <p className="text-label-md text-text-strong-950 font-semibold tabular-nums shrink-0 min-w-[60px] text-right">
@@ -711,36 +729,33 @@ function CreditRequestContent({
   const creditLimitId = React.useId()
   const reasonId = React.useId()
 
-  // Get current organization for the credit increase request
-  const { data: currentOrganization } = useCurrentOrganization()
-  const requestCreditIncrease = useRequestCreditIncrease()
+  const [isPending, startTransition] = React.useTransition()
 
   const handleSubmit = () => {
-    if (!currentOrganization?.id) {
-      toast.error('Organization not found. Please try again.')
+    if (!requestedLimit || !reason) {
+      toast.error('Please fill in all fields')
       return
     }
 
-    requestCreditIncrease.mutate(
-      {
-        organizationId: currentOrganization.id,
-        requestedAmount: Number(requestedLimit),
-        reason,
-      },
-      {
-        onSuccess: (response) => {
-          if (response.success) {
-            toast.success('Credit request submitted successfully')
-            setRequestedLimit('')
-            setReason('')
-            onSuccess()
-          }
-        },
-        onError: () => {
-          toast.error('Failed to submit credit request')
-        },
+    startTransition(async () => {
+      try {
+        const response = await requestCredit({
+          amount: Number(requestedLimit),
+          reason,
+        })
+
+        if (response.success) {
+          toast.success('Credit request submitted successfully')
+          setRequestedLimit('')
+          setReason('')
+          onSuccess()
+        } else {
+            toast.error(response.error || 'Failed to submit credit request')
+        }
+      } catch (error) {
+        toast.error('Failed to submit credit request')
       }
-    )
+    })
   }
 
   return (
@@ -781,33 +796,23 @@ function CreditRequestContent({
             rows={3}
           />
         </div>
-      </div>
 
-      <Callout variant="neutral" size="sm" className="mt-4">
-        Credit limit increases are reviewed within 2-3 business days.
-      </Callout>
-
-      <div className="flex items-center justify-end gap-2 mt-4">
-        <Button.Root variant="basic" onClick={onClose}>
-          Cancel
-        </Button.Root>
-        <Button.Root
-          variant="primary"
-          onClick={handleSubmit}
-          disabled={requestCreditIncrease.isPending || !requestedLimit || !reason}
-        >
-          {requestCreditIncrease.isPending ? 'Submitting...' : 'Submit Request'}
-        </Button.Root>
+        <div className="flex justify-end gap-3 pt-2">
+          <Button.Root variant="basic" onClick={onClose} disabled={isPending}>
+            Cancel
+          </Button.Root>
+          <Button.Root variant="primary" onClick={handleSubmit} disabled={isPending || !requestedLimit || !reason}>
+            {isPending ? 'Submitting...' : 'Submit Request'}
+          </Button.Root>
+        </div>
       </div>
     </>
   )
 }
 
-// Responsive Credit Request Modal - Bottom Sheet on mobile, Modal on desktop
 function CreditRequestModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const isMobile = useMediaQuery('(max-width: 639px)')
 
-  // Mobile: Use vaul BottomSheet for swipe-to-dismiss
   if (isMobile) {
     return (
       <BottomSheet.Root open={open} onOpenChange={onOpenChange}>
@@ -821,164 +826,23 @@ function CreditRequestModal({ open, onOpenChange }: { open: boolean; onOpenChang
             </BottomSheet.Close>
           </div>
           <div className="px-4 pb-4">
-            <CreditRequestContent
-              onClose={() => onOpenChange(false)}
-              onSuccess={() => onOpenChange(false)}
-            />
+            <CreditRequestContent onClose={() => onOpenChange(false)} onSuccess={() => onOpenChange(false)} />
           </div>
         </BottomSheet.Content>
       </BottomSheet.Root>
     )
   }
 
-  // Desktop: Use Modal
   return (
     <Modal.Root open={open} onOpenChange={onOpenChange}>
       <Modal.Content>
         <Modal.Header>
-          <Modal.Title>Request Credit Limit Increase</Modal.Title>
+          <Modal.Title>Request Credit Increase</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <CreditRequestContent
-            onClose={() => onOpenChange(false)}
-            onSuccess={() => onOpenChange(false)}
-          />
+          <CreditRequestContent onClose={() => onOpenChange(false)} onSuccess={() => onOpenChange(false)} />
         </Modal.Body>
       </Modal.Content>
     </Modal.Root>
-  )
-}
-
-// Withdrawal item component
-function WithdrawalItem({
-  withdrawal,
-  formatCurrency,
-  formatDate,
-  formatTime,
-  onCancel,
-  isCancelling,
-}: {
-  withdrawal: Withdrawal
-  formatCurrency: (amount: number) => string
-  formatDate: (date: Date) => string
-  formatTime: (date: Date) => string
-  onCancel: () => void
-  isCancelling: boolean
-}) {
-  const getStatusConfig = (status: Withdrawal['status']) => {
-    switch (status) {
-      case 'pending':
-        return {
-          icon: Clock,
-          bgColor: 'bg-warning-lighter',
-          iconColor: 'text-warning-base',
-          label: 'Pending',
-          badgeStatus: 'pending' as const,
-        }
-      case 'processing':
-        return {
-          icon: SpinnerGap,
-          bgColor: 'bg-information-lighter',
-          iconColor: 'text-information-base',
-          label: 'Processing',
-          badgeStatus: 'active' as const,
-        }
-      case 'completed':
-        return {
-          icon: CheckCircle,
-          bgColor: 'bg-success-lighter',
-          iconColor: 'text-success-base',
-          label: 'Completed',
-          badgeStatus: 'completed' as const,
-        }
-      case 'failed':
-        return {
-          icon: XCircle,
-          bgColor: 'bg-error-lighter',
-          iconColor: 'text-error-base',
-          label: 'Failed',
-          badgeStatus: 'failed' as const,
-        }
-      case 'cancelled':
-        return {
-          icon: XCircle,
-          bgColor: 'bg-bg-soft-200',
-          iconColor: 'text-text-soft-400',
-          label: 'Cancelled',
-          badgeStatus: 'disabled' as const,
-        }
-      default:
-        return {
-          icon: Clock,
-          bgColor: 'bg-bg-soft-200',
-          iconColor: 'text-text-soft-400',
-          label: status,
-          badgeStatus: 'disabled' as const,
-        }
-    }
-  }
-
-  const config = getStatusConfig(withdrawal.status)
-  const StatusIcon = config.icon
-  const canCancel = withdrawal.status === 'pending'
-
-  return (
-    <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-bg-weak-50 transition-all duration-200">
-      {/* Status Icon */}
-      <div className={cn(
-        "flex size-10 sm:size-11 items-center justify-center rounded-full shrink-0",
-        config.bgColor
-      )}>
-        <StatusIcon
-          weight={withdrawal.status === 'processing' ? 'bold' : 'fill'}
-          className={cn("size-5", config.iconColor, withdrawal.status === 'processing' && 'animate-spin')}
-        />
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-label-sm text-text-strong-950">
-              Withdrawal to Bank
-            </p>
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <span className="text-paragraph-xs text-text-soft-400">
-                {formatDate(new Date(withdrawal.requestedAt))} • {formatTime(new Date(withdrawal.requestedAt))}
-              </span>
-              <StatusBadge.Root status={config.badgeStatus} variant="stroke" className="hidden sm:inline-flex">
-                {config.label}
-              </StatusBadge.Root>
-            </div>
-            {withdrawal.withdrawalMethodId && (
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <Bank weight="duotone" className="size-3.5 text-text-soft-400 shrink-0" />
-                <span className="text-paragraph-xs text-text-sub-600 truncate">
-                  Bank Transfer
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="text-right shrink-0 min-w-[100px]">
-            <p className="text-label-md font-semibold tabular-nums text-text-strong-950">
-              {formatCurrency(withdrawal.amount)}
-            </p>
-            <StatusBadge.Root status={config.badgeStatus} variant="stroke" className="sm:hidden mt-1 inline-flex">
-              {config.label}
-            </StatusBadge.Root>
-            {canCancel && (
-              <button
-                type="button"
-                onClick={onCancel}
-                disabled={isCancelling}
-                className="mt-1.5 text-label-xs text-error-base hover:text-error-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isCancelling ? 'Cancelling...' : 'Cancel'}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
   )
 }

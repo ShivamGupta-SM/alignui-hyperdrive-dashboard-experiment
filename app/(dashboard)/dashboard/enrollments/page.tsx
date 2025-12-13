@@ -1,10 +1,6 @@
-import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
-import { getServerQueryClient } from '@/lib/get-query-client'
 import { getEnrollmentsData } from '@/lib/ssr-data'
-import { enrollmentKeys } from '@/lib/query-keys'
 import { EnrollmentsClient } from './enrollments-client'
 
-// Revalidate every 60 seconds (ISR)
 export const revalidate = 60
 
 export default async function EnrollmentsPage({
@@ -14,17 +10,9 @@ export default async function EnrollmentsPage({
 }) {
   const params = await searchParams
   const statusFilter = params.status || 'all'
-  const queryClient = getServerQueryClient()
 
-  // Prefetch enrollments data on server
-  await queryClient.prefetchQuery({
-    queryKey: enrollmentKeys.data(statusFilter),
-    queryFn: () => getEnrollmentsData(statusFilter),
-  })
+  // Direct server fetch - pure RSC
+  const data = await getEnrollmentsData(statusFilter)
 
-  return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <EnrollmentsClient initialStatus={statusFilter} />
-    </HydrationBoundary>
-  )
+  return <EnrollmentsClient initialData={data} initialStatus={statusFilter} />
 }

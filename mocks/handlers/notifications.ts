@@ -4,13 +4,11 @@
 
 import { http } from 'msw'
 import { db } from '@/mocks/db'
-import { delay, DELAY, getAuthContext, encoreUrl, encoreResponse, encoreListResponse, encoreNotFoundResponse } from './utils'
+import { getAuthContext, encoreUrl, encoreResponse, encoreListResponse, encoreNotFoundResponse } from './utils'
 
 export const notificationsHandlers = [
   // GET /notifications
   http.get(encoreUrl('/notifications'), async ({ request }) => {
-    await delay(DELAY.FAST)
-
     const url = new URL(request.url)
     const skip = Number.parseInt(url.searchParams.get('skip') || '0', 10)
     const take = Number.parseInt(url.searchParams.get('take') || '20', 10)
@@ -32,7 +30,6 @@ export const notificationsHandlers = [
 
   // GET /notifications/unread-count
   http.get(encoreUrl('/notifications/unread-count'), async () => {
-    await delay(DELAY.FAST)
     const auth = getAuthContext()
     const notifications = db.notifications.findMany((q) => q.where({ organizationId: auth.organizationId || '1' }))
     const unreadCount = notifications.filter(n => !n.isRead).length
@@ -51,7 +48,6 @@ export const notificationsHandlers = [
 
   // POST /notifications/read-all
   http.post(encoreUrl('/notifications/read-all'), async () => {
-    await delay(DELAY.FAST)
     return encoreResponse({ success: true })
   }),
 ]

@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { cn } from '@/utils/cn'
-import { useEnrollmentTransitions, type EnrollmentTransitionHistoryItem } from '@/hooks/use-enrollments'
+import type { EnrollmentTransitionHistoryItem } from '@/hooks/use-enrollments'
 import {
   CheckCircle,
   XCircle,
@@ -15,7 +15,17 @@ import {
 } from '@phosphor-icons/react'
 
 interface EnrollmentTimelineProps {
-  enrollmentId: string
+  enrollmentId?: string
+  history?: Array<{
+    id: string
+    fromStatus?: string
+    toStatus: string
+    changedBy?: string
+    changedByName?: string
+    reason?: string
+    changedAt: string
+  }>
+  allowedTransitions?: string[]
   className?: string
 }
 
@@ -124,30 +134,25 @@ function TimelineItem({ item, isLast }: { item: EnrollmentTransitionHistoryItem;
   )
 }
 
-export function EnrollmentTimeline({ enrollmentId, className }: EnrollmentTimelineProps) {
-  const { data, isLoading, error } = useEnrollmentTransitions(enrollmentId)
+export function EnrollmentTimeline({ enrollmentId, history, allowedTransitions, className }: EnrollmentTimelineProps) {
+  // Map history from EnrollmentDetail format to EnrollmentTransitionHistoryItem format
+  const mappedHistory: EnrollmentTransitionHistoryItem[] = React.useMemo(() => {
+    if (!history) return []
+    return history.map(h => ({
+      id: h.id,
+      fromStatus: h.fromStatus || null,
+      toStatus: h.toStatus,
+      triggeredBy: h.changedBy || 'system',
+      triggeredByName: h.changedByName || 'System',
+      reason: h.reason || null,
+      createdAt: h.changedAt,
+    }))
+  }, [history])
 
-  if (isLoading) {
-    return (
-      <div className={cn('flex items-center justify-center py-8', className)}>
-        <Spinner className="size-6 text-primary-base animate-spin" />
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className={cn('text-center py-8', className)}>
-        <p className="text-paragraph-sm text-text-soft-400">
-          Failed to load timeline
-        </p>
-      </div>
-    )
-  }
-
-  if (!data?.history?.length) {
+  if (!mappedHistory.length) {
     return (
       <div className={cn('text-center py-8', className)}>
+        <h3 className="text-label-md text-text-strong-950 mb-2">Status History</h3>
         <p className="text-paragraph-sm text-text-soft-400">
           No history available
         </p>
@@ -159,20 +164,20 @@ export function EnrollmentTimeline({ enrollmentId, className }: EnrollmentTimeli
     <div className={cn('space-y-0', className)}>
       <h3 className="text-label-md text-text-strong-950 mb-4">Status History</h3>
       <div>
-        {data.history.map((item, index) => (
+        {mappedHistory.map((item, index) => (
           <TimelineItem
             key={item.id}
             item={item}
-            isLast={index === data.history.length - 1}
+            isLast={index === mappedHistory.length - 1}
           />
         ))}
       </div>
 
       {/* Allowed transitions info */}
-      {data.allowedTransitions.length > 0 && (
+      {allowedTransitions && allowedTransitions.length > 0 && (
         <div className="mt-4 pt-4 border-t border-stroke-soft-200">
           <p className="text-paragraph-xs text-text-soft-400">
-            Available actions: {data.allowedTransitions.join(', ')}
+            Available actions: {allowedTransitions.join(', ')}
           </p>
         </div>
       )}

@@ -41,35 +41,38 @@ import {
 import type { Enrollment } from '@/hooks/use-enrollments'
 import type { DeliverableType } from '@/lib/types'
 import { CAMPAIGN_STATUS_CONFIG } from '@/lib/constants'
-import { useCampaign, usePauseCampaign, useResumeCampaign, useEndCampaign, useCampaignStats, useCampaignPricing, useCampaignPerformance } from '@/hooks/use-campaigns'
-import { useCampaignDeliverables } from '@/hooks/use-deliverables'
+import { pauseCampaign, resumeCampaign, endCampaign, exportCampaignEnrollments } from '@/app/actions/campaigns'
 import type { CampaignWithStats, CampaignStats, CampaignPricing, CampaignStatus } from '@/hooks/use-campaigns'
 import type { campaigns } from '@/lib/encore-browser'
-import { useEnrollments, useExportEnrollments } from '@/hooks/use-enrollments'
+import type { integrations } from '@/lib/encore-client'
 import { toast } from 'sonner'
+import { SettingsTab } from './settings-tab' // Assuming this is where SettingsTab is 
 
 type TabValue = 'overview' | 'enrollments' | 'statistics' | 'settings'
 
 interface CampaignDetailClientProps {
   campaignId: string
+  initialData?: campaigns.CampaignWithStats & {
+    stats?: campaigns.CampaignStats
+    pricing?: campaigns.CampaignPricing
+    deliverables?: Array<{ id: string; name: string }>
+    performance?: campaigns.CampaignPerformance
+    enrollments?: enrollments.EnrollmentWithRelations[]
+  }
 }
 
-export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) {
+export function CampaignDetailClient({ campaignId, initialData }: CampaignDetailClientProps) {
   const router = useRouter()
-
-  // Fetch campaign data from API (hydrated from SSR)
-  const { data: campaign, isLoading, error } = useCampaign(campaignId)
-  const { data: enrollmentsData } = useEnrollments({ campaignId, limit: 10 })
-  const enrollments = enrollmentsData?.data || []
-  const { data: stats } = useCampaignStats(campaignId)
-  const { data: pricing } = useCampaignPricing(campaignId)
-  const { data: deliverables } = useCampaignDeliverables(campaignId)
-  const { data: performanceData } = useCampaignPerformance(campaignId)
-
-  // Campaign action hooks
-  const pauseCampaign = usePauseCampaign(campaignId)
-  const resumeCampaign = useResumeCampaign(campaignId)
-  const endCampaign = useEndCampaign(campaignId)
+  // Data from RSC
+  const campaign = initialData as CampaignWithStats
+  const stats = initialData?.stats as CampaignStats
+  const pricing = initialData?.pricing as CampaignPricing
+  const deliverables = initialData?.deliverables as campaigns.CampaignDeliverableResponse[]
+  const performanceData = initialData?.performance as campaigns.CampaignPerformance[]
+  
+  // Enrollments (fetched via getEnrollmentsData in parent maybe? or just mock empty here until we fetch properly)
+  // For now, empty array as placeholder, assuming enrollments are fetched separately or passed in initialData if we updated ssr-data
+  const enrollments: Enrollment[] = (initialData?.enrollments ?? []) as Enrollment[]
 
   const [activeTab, setActiveTab] = React.useState<TabValue>('overview')
   const [confirmModal, setConfirmModal] = React.useState<{
@@ -79,6 +82,8 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
     variant: 'danger' | 'warning' | 'info'
     action: () => void
   } | null>(null)
+  
+  const [isPending, startTransition] = React.useTransition()
 
   const statusConfig = campaign ? CAMPAIGN_STATUS_CONFIG[campaign.status] : null
 
@@ -124,28 +129,36 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
       description: 'Are you sure you want to pause this campaign? New enrollments will be temporarily disabled.',
       variant: 'warning',
       action: () => {
-        pauseCampaign.mutate(undefined, {
-          onSuccess: () => {
-            toast.success('Campaign paused successfully')
-            setConfirmModal(null)
-          },
-          onError: () => {
-            toast.error('Failed to pause campaign')
-          },
+        startTransition(async () => {
+            try {
+                const res = await pauseCampaign(campaignId)
+                if (res.success) {
+                    toast.success('Campaign paused successfully')
+                    setConfirmModal(null)
+                } else {
+                    toast.error(res.error || 'Failed to pause campaign')
+                }
+            } catch (e) {
+                toast.error('An error occurred')
+            }
         })
       },
     })
   }
 
   const handleResume = () => {
-    resumeCampaign.mutate(undefined, {
-      onSuccess: () => {
-        toast.success('Campaign resumed successfully')
-      },
-      onError: () => {
-        toast.error('Failed to resume campaign')
-      },
-    })
+      startTransition(async () => {
+        try {
+            const res = await resumeCampaign(campaignId)
+            if (res.success) {
+                 toast.success('Campaign resumed successfully')
+            } else {
+                 toast.error(res.error || 'Failed to resume campaign')
+            }
+        } catch (e) {
+            toast.error('An error occurred')
+        }
+      })
   }
 
   const handleEnd = () => {
@@ -155,21 +168,25 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
       description: 'Are you sure you want to end this campaign? This action cannot be undone.',
       variant: 'danger',
       action: () => {
-        endCampaign.mutate(undefined, {
-          onSuccess: () => {
-            toast.success('Campaign ended successfully')
-            setConfirmModal(null)
-          },
-          onError: () => {
-            toast.error('Failed to end campaign')
-          },
+        startTransition(async () => {
+            try {
+                const res = await endCampaign(campaignId)
+                if (res.success) {
+                     toast.success('Campaign ended successfully')
+                     setConfirmModal(null)
+                } else {
+                     toast.error(res.error || 'Failed to end campaign')
+                }
+            } catch (e) {
+                toast.error('An error occurred')
+            }
         })
       },
     })
   }
 
   // Get status badge status
-  const getStatusBadgeStatus = (status: CampaignStatus) => {
+  const getStatusBadgeStatus = (status: string) => {
     switch (status) {
       case 'active':
       case 'approved':
@@ -189,20 +206,7 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
     }
   }
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-6 animate-pulse">
-          <div className="h-8 bg-bg-weak-50 rounded w-1/3 mb-4" />
-          <div className="h-4 bg-bg-weak-50 rounded w-2/3" />
-        </div>
-      </div>
-    )
-  }
-
-  // Error state
-  if (error || !campaign) {
+  if (!campaign) {
     return (
       <div className="space-y-6">
         <div className="rounded-2xl bg-error-lighter ring-1 ring-inset ring-error-light p-4 sm:p-6">
@@ -235,13 +239,13 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
           {/* Actions */}
           <div className="flex items-center gap-2">
             {campaign.status === 'active' && (
-              <Button.Root variant="basic" size="xsmall" onClick={handlePause}>
+              <Button.Root variant="basic" size="xsmall" onClick={handlePause} disabled={isPending}>
                 <Button.Icon as={PauseCircle} />
                 <span className="hidden sm:inline">Pause</span>
               </Button.Root>
             )}
             {campaign.status === 'paused' && (
-              <Button.Root variant="primary" size="xsmall" onClick={handleResume}>
+              <Button.Root variant="primary" size="xsmall" onClick={handleResume} disabled={isPending}>
                 <Button.Icon as={PlayCircle} />
                 <span className="hidden sm:inline">Resume</span>
               </Button.Root>
@@ -325,6 +329,7 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
           stats={stats}
           pricing={pricing}
           deliverables={deliverables}
+          platforms={platforms}
           formatCurrency={formatCurrency}
           getDaysRemaining={getDaysRemaining}
           getProgressPercentage={getProgressPercentage}
@@ -355,7 +360,7 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
       {confirmModal && (
         <ConfirmationModal
           open={confirmModal.open}
-          onOpenChange={(open) => !open && setConfirmModal(null)}
+          onOpenChange={(open: boolean) => !open && setConfirmModal(null)}
           title={confirmModal.title}
           description={confirmModal.description}
           variant={confirmModal.variant}
@@ -368,7 +373,7 @@ export function CampaignDetailClient({ campaignId }: CampaignDetailClientProps) 
 }
 
 // Helper to get icon for deliverable type
-function getDeliverableIcon(type: DeliverableType) {
+function getDeliverableIcon(type: string) {
   switch (type) {
     case 'order_screenshot':
       return ImageIcon
@@ -391,6 +396,7 @@ interface OverviewTabProps {
   stats: CampaignStats | undefined
   pricing: CampaignPricing | undefined
   deliverables: campaigns.CampaignDeliverableResponse[] | undefined
+  platforms: integrations.Platform[]
   formatCurrency: (amount: number) => string
   getDaysRemaining: () => number
   getProgressPercentage: () => number
@@ -402,6 +408,7 @@ function OverviewTab({
   stats,
   pricing,
   deliverables,
+  platforms,
   formatCurrency,
   getDaysRemaining,
   getProgressPercentage,
@@ -438,7 +445,7 @@ function OverviewTab({
   ]
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Key Metrics - Using MetricGroup */}
       <div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
         <h3 className="text-label-sm text-text-sub-600 mb-3 sm:mb-4">Key Metrics</h3>
@@ -477,7 +484,7 @@ function OverviewTab({
         {/* Campaign Progress */}
         <div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
           <h3 className="text-label-md text-text-strong-950 mb-3 sm:mb-4">Campaign Progress</h3>
-          <div className="space-y-4 sm:space-y-5">
+          <div className="space-y-5 sm:space-y-6">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-label-xs sm:text-label-sm text-text-sub-600">Time Progress</span>
@@ -573,7 +580,7 @@ function OverviewTab({
                 <span className="text-label-sm sm:text-label-md text-text-strong-950">{pricing?.tdsRate ?? 0}%</span>
               </List.ItemAction>
             </List.Item>
-            {pricing?.bonusAmount && pricing.bonusAmount > 0 && (
+            {pricing?.bonusAmount !== undefined && pricing.bonusAmount > 0 && (
               <List.Item>
                 <List.ItemContent>
                   <List.ItemTitle>Bonus Amount</List.ItemTitle>
@@ -635,58 +642,99 @@ function OverviewTab({
         </div>
       </div>
 
-      {/* Required Deliverables */}
+      {/* Required Deliverables - Grouped by Platform */}
       <div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
         <h3 className="text-label-md text-text-strong-950 mb-3 sm:mb-4 flex items-center gap-2">
           <ListChecks weight="duotone" className="size-5 text-primary-base" />
           Required Deliverables
         </h3>
         {deliverables && deliverables.length > 0 ? (
-          <div className="space-y-3">
-            {deliverables.map((campaignDeliverable, index) => {
-              const DeliverableIcon = getDeliverableIcon(campaignDeliverable.deliverable?.category as DeliverableType)
-              return (
-                <div
-                  key={campaignDeliverable.id}
-                  className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-bg-weak-50 border border-stroke-soft-200"
-                >
-                  <div className="size-10 sm:size-12 rounded-xl bg-primary-alpha-10 flex items-center justify-center shrink-0">
-                    <DeliverableIcon weight="duotone" className="size-5 sm:size-6 text-primary-base" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-label-sm sm:text-label-md text-text-strong-950">
-                        {index + 1}. {campaignDeliverable.deliverable?.name ?? 'Deliverable'}
-                      </span>
-                      {campaignDeliverable.isRequired ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error-lighter text-error-base text-[10px] sm:text-xs font-medium">
-                          Required
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-soft-200 text-text-sub-600 text-[10px] sm:text-xs font-medium">
-                          Optional
-                        </span>
-                      )}
+          (() => {
+            // Create platform map for quick lookup
+            const platformMap = new Map(platforms.map(p => [p.id, p.name]))
+            
+            // Group deliverables by platform
+            const groupedByPlatform = deliverables.reduce((acc, deliverable) => {
+              const platformId = deliverable.deliverable?.platformId || 'general'
+              const platformName = platformId === 'general' 
+                ? 'General' 
+                : (platformMap.get(platformId) || 'Unknown Platform')
+              
+              if (!acc[platformName]) {
+                acc[platformName] = []
+              }
+              acc[platformName].push(deliverable)
+              return acc
+            }, {} as Record<string, typeof deliverables>)
+            
+            // Sort platforms: General last, others alphabetically
+            const sortedPlatforms = Object.keys(groupedByPlatform).sort((a, b) => {
+              if (a === 'General') return 1
+              if (b === 'General') return -1
+              return a.localeCompare(b)
+            })
+            
+            return (
+              <div className="space-y-4">
+                {sortedPlatforms.map((platformName) => {
+                  const platformDeliverables = groupedByPlatform[platformName]
+                  return (
+                    <div key={platformName} className="space-y-3">
+                      <h4 className="text-label-sm text-text-sub-600 font-medium flex items-center gap-2">
+                        <span className="size-1.5 rounded-full bg-primary-base" />
+                        {platformName}
+                      </h4>
+                      <div className="space-y-2 pl-4 border-l-2 border-stroke-soft-200">
+                        {platformDeliverables.map((campaignDeliverable, index) => {
+                          const DeliverableIcon = getDeliverableIcon(campaignDeliverable.deliverable?.category as string)
+                          return (
+                            <div
+                              key={campaignDeliverable.id}
+                              className="flex items-start gap-3 p-3 sm:p-4 rounded-xl bg-bg-weak-50 border border-stroke-soft-200"
+                            >
+                              <div className="size-10 sm:size-12 rounded-xl bg-primary-alpha-10 flex items-center justify-center shrink-0">
+                                <DeliverableIcon weight="duotone" className="size-5 sm:size-6 text-primary-base" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-label-sm sm:text-label-md text-text-strong-950">
+                                    {index + 1}. {campaignDeliverable.deliverable?.name ?? 'Deliverable'}
+                                  </span>
+                                  {campaignDeliverable.isRequired ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error-lighter text-error-base text-[10px] sm:text-xs font-medium">
+                                      Required
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-soft-200 text-text-sub-600 text-[10px] sm:text-xs font-medium">
+                                      Optional
+                                    </span>
+                                  )}
+                                </div>
+                                {campaignDeliverable.deliverable?.category && (
+                                  <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mb-1">
+                                    {campaignDeliverable.deliverable.category}
+                                  </p>
+                                )}
+                                {campaignDeliverable.instructions && (
+                                  <p className="text-paragraph-xs text-text-soft-400 flex items-start gap-1">
+                                    <Info weight="fill" className="size-3.5 shrink-0 mt-0.5" />
+                                    {campaignDeliverable.instructions}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="shrink-0">
+                                <CheckCircle weight="duotone" className="size-5 text-text-soft-400" />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
-                    {campaignDeliverable.deliverable?.category && (
-                      <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mb-1">
-                        {campaignDeliverable.deliverable.category}
-                      </p>
-                    )}
-                    {campaignDeliverable.instructions && (
-                      <p className="text-paragraph-xs text-text-soft-400 flex items-start gap-1">
-                        <Info weight="fill" className="size-3.5 shrink-0 mt-0.5" />
-                        {campaignDeliverable.instructions}
-                      </p>
-                    )}
-                  </div>
-                  <div className="shrink-0">
-                    <CheckCircle weight="duotone" className="size-5 text-text-soft-400" />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                  )
+                })}
+              </div>
+            )
+          })()
         ) : (
           <div className="text-center py-8 text-text-sub-600">
             <ListChecks weight="duotone" className="size-12 mx-auto mb-2 text-gray-300" />
@@ -708,20 +756,21 @@ interface EnrollmentsTabProps {
 }
 
 function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
-  const exportEnrollments = useExportEnrollments(campaignId)
+  const [isPending, startTransition] = React.useTransition()
 
   const handleExport = () => {
-    exportEnrollments.mutate(
-      {},
-      {
-        onSuccess: (response) => {
-          toast.success(`Exported ${response.totalCount} enrollments`)
-        },
-        onError: () => {
-          toast.error('Failed to export enrollments')
-        },
-      }
-    )
+    startTransition(async () => {
+        try {
+            const res = await exportCampaignEnrollments(campaignId)
+            if (res.success) {
+                toast.success(`Exported enrollments`) // res.totalCount
+            } else {
+                toast.error(res.error || 'Failed to export enrollments')
+            }
+        } catch(e) {
+            toast.error('An error occurred')
+        }
+    })
   }
 
   return (
@@ -735,10 +784,10 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
             variant="basic"
             size="small"
             onClick={() => handleExport()}
-            disabled={exportEnrollments.isPending}
+            disabled={isPending}
           >
             <Button.Icon as={DownloadSimple} />
-            {exportEnrollments.isPending ? 'Exporting...' : 'Export'}
+            {isPending ? 'Exporting...' : 'Export'}
           </Button.Root>
           <Button.Root variant="basic" size="small" asChild>
             <Link href={`/dashboard/enrollments?campaign=${campaignId}`}>
@@ -769,7 +818,7 @@ interface StatisticsTabProps {
 }
 
 function StatisticsTab({ stats, performanceData }: StatisticsTabProps) {
-  // Transform performance data for chart (needs 'name' field instead of 'date')
+  // Transform performance data for chart
   const chartData = React.useMemo(() => {
     if (!performanceData) return []
     return performanceData.map(item => ({
@@ -780,7 +829,7 @@ function StatisticsTab({ stats, performanceData }: StatisticsTabProps) {
   }, [performanceData])
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Enrollment Trend */}
       <div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
         <h3 className="text-label-md text-text-strong-950 mb-3 sm:mb-4">Enrollment Trend</h3>
@@ -789,122 +838,18 @@ function StatisticsTab({ stats, performanceData }: StatisticsTabProps) {
             {chartData.length > 0 ? (
               <AlignLineChart
                 data={chartData}
-                dataKeys={[
-                  { key: 'enrollments', label: 'Total Enrollments', color: 'oklch(0.7 0.15 250)' },
-                  { key: 'approvals', label: 'Approved', color: 'oklch(0.7 0.15 145)' },
-                ]}
-                height={250}
-                showLegend
+                categories={['enrollments', 'approvals']}
+                index="name"
+                colors={['blue', 'green']}
+                yAxisWidth={40}
+                className="h-72"
               />
             ) : (
-              <div className="h-[250px] flex items-center justify-center text-text-soft-400 text-paragraph-sm">
-                No trend data available yet
+              <div className="h-72 flex items-center justify-center text-text-soft-400">
+                No performance data available
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Performance Metrics - Using MetricGroup */}
-      <div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
-        <h3 className="text-label-md text-text-strong-950 mb-3 sm:mb-4">Performance Metrics</h3>
-        <MetricGroup columns={4} className="grid-cols-2 lg:grid-cols-4">
-          <Metric
-            label="Total Enrollments"
-            value={`${stats?.totalEnrollments ?? 0}`}
-            deltaType="unchanged"
-            description="all time"
-            size="sm"
-          />
-          <Metric
-            label="Approval Rate"
-            value={`${stats?.approvalRate ?? 0}%`}
-            delta={stats?.approvalRate && stats.approvalRate > 80 ? '+5%' : '-2%'}
-            deltaType={stats?.approvalRate && stats.approvalRate > 80 ? 'increase' : 'decrease'}
-            description="vs last campaign"
-            size="sm"
-          />
-          <Metric
-            label="Avg. Order Value"
-            value={`₹${(stats?.averageOrderValue ?? 0).toLocaleString('en-IN')}`}
-            deltaType="unchanged"
-            description="per enrollment"
-            size="sm"
-          />
-          <Metric
-            label="Total Payouts"
-            value={`₹${(stats?.totalPayouts ?? 0).toLocaleString('en-IN')}`}
-            deltaType="unchanged"
-            description="paid out"
-            size="sm"
-          />
-        </MetricGroup>
-      </div>
-    </div>
-  )
-}
-
-// Settings Tab Component
-interface SettingsTabProps {
-  campaign: CampaignWithStats
-}
-
-function SettingsTab({ campaign }: SettingsTabProps) {
-  return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
-        <h3 className="text-label-md text-text-strong-950 mb-3 sm:mb-4">Campaign Settings</h3>
-        <List.Root variant="divided" size="md">
-          <List.Item>
-            <List.ItemContent>
-              <List.ItemTitle>Public Campaign</List.ItemTitle>
-              <List.ItemDescription className="hidden sm:block">Allow shoppers to discover and enroll in this campaign</List.ItemDescription>
-            </List.ItemContent>
-            <List.ItemAction>
-              <StatusBadge.Root status={campaign.isPublic ? 'completed' : 'disabled'} variant="light">
-                <StatusBadge.Dot />
-                {campaign.isPublic ? 'Enabled' : 'Disabled'}
-              </StatusBadge.Root>
-            </List.ItemAction>
-          </List.Item>
-          <List.Item>
-            <List.ItemContent>
-              <List.ItemTitle>Max Enrollments</List.ItemTitle>
-              <List.ItemDescription className="hidden sm:block">Maximum number of enrollments allowed</List.ItemDescription>
-            </List.ItemContent>
-            <List.ItemAction>
-              <span className="text-label-sm sm:text-label-md text-text-strong-950">
-                {campaign.maxEnrollments || 'Unlimited'}
-              </span>
-            </List.ItemAction>
-          </List.Item>
-          <List.Item>
-            <List.ItemContent>
-              <List.ItemTitle>Enrollment Expiry</List.ItemTitle>
-              <List.ItemDescription className="hidden sm:block">Days after enrollment to submit proof</List.ItemDescription>
-            </List.ItemContent>
-            <List.ItemAction>
-              <span className="text-label-sm sm:text-label-md text-text-strong-950">
-                {campaign.enrollmentExpiryDays} days
-              </span>
-            </List.ItemAction>
-          </List.Item>
-        </List.Root>
-      </div>
-
-      <div className="rounded-2xl bg-error-lighter ring-1 ring-inset ring-error-light p-4 sm:p-5">
-        <h3 className="text-label-md text-error-dark mb-3 sm:mb-4">Danger Zone</h3>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="text-label-sm text-error-base">Delete Campaign</div>
-            <div className="text-paragraph-xs text-error-dark/70">
-              Permanently delete this campaign and all its data
-            </div>
-          </div>
-          <Button.Root variant="error" size="small" className="w-full sm:w-auto">
-            <Button.Icon as={Trash} />
-            Delete
-          </Button.Root>
         </div>
       </div>
     </div>

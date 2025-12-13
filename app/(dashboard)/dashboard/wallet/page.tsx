@@ -1,21 +1,11 @@
-import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
-import { getServerQueryClient } from '@/lib/get-query-client'
 import { getWalletData } from '@/lib/ssr-data'
-import { walletKeys } from '@/lib/query-keys'
 import { WalletClient } from './wallet-client'
 
+export const revalidate = 30
+
 export default async function WalletPage() {
-  const queryClient = getServerQueryClient()
+  // Direct server fetch - pure RSC
+  const data = await getWalletData()
 
-  // Prefetch wallet data on server
-  await queryClient.prefetchQuery({
-    queryKey: walletKeys.data(),
-    queryFn: () => getWalletData(),
-  })
-
-  return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <WalletClient />
-    </HydrationBoundary>
-  )
+  return <WalletClient initialData={data} />
 }

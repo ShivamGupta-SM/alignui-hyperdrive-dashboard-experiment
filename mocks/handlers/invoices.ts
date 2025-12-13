@@ -4,13 +4,11 @@
 
 import { http } from 'msw'
 import { db } from '@/mocks/db'
-import { delay, DELAY, getAuthContext, encoreUrl, encoreResponse, encoreListResponse, encoreNotFoundResponse } from './utils'
+import { getAuthContext, encoreUrl, encoreResponse, encoreListResponse, encoreNotFoundResponse } from './utils'
 
 export const invoicesHandlers = [
   // GET /invoices
   http.get(encoreUrl('/invoices'), async ({ request }) => {
-    await delay(DELAY.STANDARD)
-
     const auth = getAuthContext()
     const url = new URL(request.url)
 
@@ -55,8 +53,6 @@ export const invoicesHandlers = [
 
   // GET /invoices/:id
   http.get(encoreUrl('/invoices/:id'), async ({ params }) => {
-    await delay(DELAY.FAST)
-
     const auth = getAuthContext()
     const { id } = params
 

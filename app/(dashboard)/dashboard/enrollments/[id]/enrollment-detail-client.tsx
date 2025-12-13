@@ -22,19 +22,21 @@ import {
 import { cn } from '@/utils/cn'
 import { ENROLLMENT_STATUS_CONFIG, REJECTION_REASONS } from '@/lib/constants'
 import {
-  useEnrollment,
   useApproveEnrollment,
   useRejectEnrollment,
   useRequestEnrollmentChanges,
   type Enrollment,
 } from '@/hooks/use-enrollments'
+import { updateEnrollmentStatus, requestEnrollmentChanges } from '@/app/actions/enrollments'
 import type { EnrollmentStatus } from '@/lib/types'
+import { EnrollmentTimeline } from '@/components/dashboard/enrollment-timeline'
+import type { enrollments } from '@/lib/encore-client'
 
 // Helper to calculate costs from Encore enrollment
-function calculateCosts(enrollment: Enrollment) {
-  const billAmount = enrollment.orderValue * (enrollment.lockedBillRate / 100)
+function calculateCosts(enrollment: Enrollment | enrollments.EnrollmentDetail) {
+  const billAmount = enrollment.orderValue * ((enrollment as any).lockedBillRate / 100)
   const gstAmount = billAmount * 0.18 // 18% GST
-  const platformFee = enrollment.orderValue * (enrollment.lockedPlatformFee / 100)
+  const platformFee = enrollment.orderValue * ((enrollment as any).lockedPlatformFee / 100)
   const totalCost = billAmount + gstAmount + platformFee
   return { billAmount, gstAmount, platformFee, totalCost }
 }
@@ -54,9 +56,10 @@ const getStatusBadgeStatus = (status: EnrollmentStatus) => {
 
 interface EnrollmentDetailClientProps {
   enrollmentId: string
+  initialData?: enrollments.EnrollmentDetail | unknown
 }
 
-export function EnrollmentDetailClient({ enrollmentId }: EnrollmentDetailClientProps) {
+export function EnrollmentDetailClient({ enrollmentId, initialData }: EnrollmentDetailClientProps) {
   const router = useRouter()
 
   const [isApproveModalOpen, setIsApproveModalOpen] = React.useState(false)
@@ -66,73 +69,74 @@ export function EnrollmentDetailClient({ enrollmentId }: EnrollmentDetailClientP
   const [changesComment, setChangesComment] = React.useState('')
 
   // Fetch enrollment data from API (hydrated from SSR)
-  const { data: enrollment, isLoading: isLoadingEnrollment, error } = useEnrollment(enrollmentId)
+  // React Query hook removed - using server data via initialData
+  // const { data: enrollment, isLoading: isLoadingEnrollment, error } = useEnrollment(enrollmentId)
+  
+  const enrollmentDetail = initialData as enrollments.EnrollmentDetail | undefined
+  // Use enrollmentDetail directly - it has all the fields we need
+  const enrollment = enrollmentDetail as unknown as Enrollment & enrollments.EnrollmentDetail
+  const isLoadingEnrollment = !enrollmentDetail
+  const error = null
 
-  // Action mutations
-  const approveEnrollment = useApproveEnrollment(enrollmentId)
-  const rejectEnrollment = useRejectEnrollment(enrollmentId)
-  const requestChanges = useRequestEnrollmentChanges(enrollmentId)
-
-  const statusConfig = enrollment ? ENROLLMENT_STATUS_CONFIG[enrollment.status] : null
-
+  // Action handlers
+  const statusConfig = enrollmentDetail ? ENROLLMENT_STATUS_CONFIG[enrollmentDetail.status] : null
   const formatCurrency = (amount: number) => `₹${amount.toLocaleString('en-IN')}`
   const formatDate = (date: Date) => new Date(date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })
-
-  const isLoading = approveEnrollment.isPending || rejectEnrollment.isPending || requestChanges.isPending
+  const isLoading = false // pure server actions don't track loading state this way automatically, could use useTransition
 
   const handleApprove = async () => {
-    approveEnrollment.mutate(undefined, {
-      onSuccess: () => {
+    try {
+      const result = await updateEnrollmentStatus(enrollmentId, 'approved')
+      if (result.success) {
         toast.success('Enrollment approved successfully')
         setIsApproveModalOpen(false)
         router.push('/dashboard/enrollments')
-      },
-      onError: (error) => {
-        toast.error(error.message || 'Failed to approve enrollment')
-      },
-    })
+      } else {
+        toast.error(result.error || 'Failed to approve enrollment')
+      }
+    } catch (error) {
+       toast.error('An unexpected error occurred')
+    }
   }
 
   const handleReject = async () => {
     if (!rejectionReason) return
 
-    rejectEnrollment.mutate(
-      { reasons: [rejectionReason], notes: '' },
-      {
-        onSuccess: () => {
-          toast.success('Enrollment rejected')
-          setIsRejectModalOpen(false)
-          router.push('/dashboard/enrollments')
-        },
-        onError: (error) => {
-          toast.error(error.message || 'Failed to reject enrollment')
-        },
+    try {
+      const result = await updateEnrollmentStatus(enrollmentId, 'rejected', rejectionReason)
+      if (result.success) {
+        toast.success('Enrollment rejected')
+        setIsRejectModalOpen(false)
+        router.push('/dashboard/enrollments')
+      } else {
+        toast.error(result.error || 'Failed to reject enrollment')
       }
-    )
+    } catch (error) {
+      toast.error('An unexpected error occurred')
+    }
   }
 
   const handleRequestChanges = async () => {
     if (!changesComment.trim()) return
 
-    requestChanges.mutate(
-      { requestedChanges: [changesComment.trim()] },
-      {
-        onSuccess: () => {
-          toast.success('Changes requested from shopper')
-          setIsChangesModalOpen(false)
-          router.push('/dashboard/enrollments')
-        },
-        onError: (error) => {
-          toast.error(error.message || 'Failed to request changes')
-        },
+    try {
+      const result = await requestEnrollmentChanges(enrollmentId, changesComment.trim())
+      if (result.success) {
+        toast.success('Changes requested from shopper')
+        setIsChangesModalOpen(false)
+        router.push('/dashboard/enrollments')
+      } else {
+        toast.error(result.error || 'Failed to request changes')
       }
-    )
+    } catch (error) {
+      toast.error('An unexpected error occurred')
+    }
   }
 
   // Loading state
   if (isLoadingEnrollment) {
     return (
-      <div className="space-y-4 sm:space-y-5 max-w-4xl mx-auto">
+      <div className="space-y-5 sm:space-y-6 max-w-4xl mx-auto">
         <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5 animate-pulse">
           <div className="h-6 bg-gray-200 rounded w-24 mb-4" />
           <div className="flex items-center gap-3">
@@ -150,11 +154,13 @@ export function EnrollmentDetailClient({ enrollmentId }: EnrollmentDetailClientP
   // Error state
   if (error) {
     return (
-      <div className="space-y-4 sm:space-y-5 max-w-4xl mx-auto">
+      <div className="space-y-5 sm:space-y-6 max-w-4xl mx-auto">
         <div className="rounded-2xl bg-error-lighter border border-error-base/20 p-4 sm:p-5 text-center">
           <Warning className="size-8 text-error-base mx-auto mb-2" />
           <p className="text-label-md text-error-base mb-1">Failed to load enrollment</p>
-          <p className="text-paragraph-sm text-text-sub-600">{error.message}</p>
+          <p className="text-paragraph-sm text-text-sub-600">
+            {error instanceof Error ? error.message : 'An unknown error occurred'}
+          </p>
           <Button.Root variant="basic" className="mt-4" onClick={() => router.back()}>
             <Button.Icon as={ArrowLeft} />
             Go Back
@@ -167,7 +173,7 @@ export function EnrollmentDetailClient({ enrollmentId }: EnrollmentDetailClientP
   // No enrollment data
   if (!enrollment || !statusConfig) {
     return (
-      <div className="space-y-4 sm:space-y-5 max-w-4xl mx-auto">
+      <div className="space-y-5 sm:space-y-6 max-w-4xl mx-auto">
         <div className="rounded-2xl bg-warning-lighter border border-warning-base/20 p-4 sm:p-5 text-center">
           <Warning className="size-8 text-warning-base mx-auto mb-2" />
           <p className="text-label-md text-warning-base mb-1">Enrollment not found</p>
@@ -182,7 +188,7 @@ export function EnrollmentDetailClient({ enrollmentId }: EnrollmentDetailClientP
   }
 
   return (
-    <div className="space-y-4 sm:space-y-5 max-w-4xl mx-auto pb-24 sm:pb-0">
+    <div className="space-y-5 sm:space-y-6 max-w-4xl mx-auto pb-24 sm:pb-0">
       {/* Header Card */}
       <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         {/* Top row: Back + Actions + Status */}
@@ -302,56 +308,12 @@ export function EnrollmentDetailClient({ enrollmentId }: EnrollmentDetailClientP
         )
       })()}
 
-      {/* Status Info */}
+      {/* Status Timeline - Using EnrollmentTimeline component with history from API */}
       <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <ClockCounterClockwise weight="duotone" className="size-4 text-gray-500" />
-          Status Timeline
-        </h2>
-        <div className="space-y-3">
-          <div className="flex gap-3">
-            <div className="flex flex-col items-center">
-              <div className="size-2 rounded-full bg-blue-500" />
-              <div className="w-px flex-1 bg-gray-200" />
-            </div>
-            <div className="flex-1 pb-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-gray-900">Created</span>
-                <span className="text-xs text-gray-400">{formatDate(new Date(enrollment.createdAt))}</span>
-              </div>
-              <p className="text-xs text-gray-500">Enrollment created</p>
-            </div>
-          </div>
-          {enrollment.submittedAt && (
-            <div className="flex gap-3">
-              <div className="flex flex-col items-center">
-                <div className="size-2 rounded-full bg-green-500" />
-                <div className="w-px flex-1 bg-gray-200" />
-              </div>
-              <div className="flex-1 pb-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-gray-900">Submitted</span>
-                  <span className="text-xs text-gray-400">{formatDate(new Date(enrollment.submittedAt))}</span>
-                </div>
-                <p className="text-xs text-gray-500">Deliverables submitted for review</p>
-              </div>
-            </div>
-          )}
-          {enrollment.approvedAt && (
-            <div className="flex gap-3">
-              <div className="flex flex-col items-center">
-                <div className="size-2 rounded-full bg-green-500" />
-              </div>
-              <div className="flex-1 pb-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-gray-900">Approved</span>
-                  <span className="text-xs text-gray-400">{formatDate(new Date(enrollment.approvedAt))}</span>
-                </div>
-                <p className="text-xs text-gray-500">Enrollment approved for payout</p>
-              </div>
-            </div>
-          )}
-        </div>
+        <EnrollmentTimeline 
+          enrollmentId={enrollmentId}
+          history={enrollmentDetail?.history}
+        />
       </div>
 
       {/* Action Buttons */}

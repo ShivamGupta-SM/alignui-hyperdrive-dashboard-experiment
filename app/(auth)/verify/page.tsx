@@ -2,15 +2,16 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import * as Button from '@/components/ui/button'
 import * as DigitInput from '@/components/ui/digit-input'
 import { Callout } from '@/components/ui/callout'
-import { delay, DELAY } from '@/lib/utils/delay'
 import { ShieldCheck, ArrowClockwise, Key } from '@phosphor-icons/react'
 
 export default function VerifyPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const twoFactorToken = searchParams.get('token')
   const [code, setCode] = React.useState('')
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState('')
@@ -33,24 +34,40 @@ export default function VerifyPage() {
       return
     }
 
+    if (!twoFactorToken) {
+      setError('Invalid verification token')
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      // TODO: Implement actual 2FA verification
-      await delay(DELAY.FORM)
-      router.push('/dashboard')
-    } catch {
+      const { verify2FATotp } = await import('@/app/actions/auth')
+      const result = await verify2FATotp(twoFactorToken, code)
+      
+      if (result.success) {
+        router.push('/dashboard')
+        router.refresh()
+      } else {
+        setError(result.error || 'Invalid code. Please try again.')
+      }
+    } catch (err) {
       setError('Invalid code. Please try again.')
     } finally {
       setIsLoading(false)
     }
-  }, [code, router])
+  }, [code, router, twoFactorToken])
 
   const handleResend = async () => {
-    if (resendCooldown > 0) return
+    if (resendCooldown > 0 || !twoFactorToken) return
 
     setResendCooldown(30)
-    // TODO: Implement resend logic
+    try {
+      const { send2FAOtp } = await import('@/app/actions/auth')
+      await send2FAOtp(twoFactorToken)
+    } catch {
+      // Silently fail - user can try again
+    }
   }
 
   // Auto-submit when code is complete

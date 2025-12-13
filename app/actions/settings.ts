@@ -11,7 +11,7 @@ import {
   verify2FABodySchema,
 } from '@/lib/validations'
 import { z } from 'zod'
-import { delay, DELAY } from '@/lib/utils/delay'
+import type { auth } from '@/lib/encore-client'
 
 // Generate a cryptographically secure Base32 TOTP secret
 function generateTOTPSecret(length = 20): string {
@@ -45,13 +45,26 @@ export async function updateProfile(data: unknown): Promise<SettingsActionResult
     }
   }
 
-  await delay(DELAY.SLOW)
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    const result = await client.auth.updateUser({
+      name: validation.data.name,
+      image: validation.data.image,
+    })
+    
+    revalidatePath('/dashboard/settings')
+    revalidatePath('/dashboard/profile')
+    revalidatePath('/', 'layout')
 
-  // In a real app, this would update user profile in database
-  revalidatePath('/dashboard/settings')
-  revalidatePath('/dashboard/profile')
-
-  return { success: true }
+    return { success: result.success }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to update profile',
+    }
+  }
 }
 
 export async function updateOrganization(data: unknown): Promise<SettingsActionResult> {
@@ -64,12 +77,28 @@ export async function updateOrganization(data: unknown): Promise<SettingsActionR
     }
   }
 
-  await delay(DELAY.SLOW)
+  const { getEncoreClient } = await import('@/lib/encore')
+  const { cookies } = await import('next/headers')
+  
+  try {
+    const client = getEncoreClient()
+    const cookieStore = await cookies()
+    const orgId = cookieStore.get('active-organization-id')?.value
+    
+    if (!orgId) {
+      return { success: false, error: 'Organization ID not found' }
+    }
 
-  // In a real app, this would update organization in database
-  revalidatePath('/dashboard/settings')
-
-  return { success: true }
+    await client.organizations.updateOrganization(orgId, validation.data)
+    revalidatePath('/dashboard/settings')
+    
+    return { success: true, message: 'Organization updated successfully' }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to update organization',
+    }
+  }
 }
 
 export async function updatePassword(data: unknown): Promise<SettingsActionResult> {
@@ -82,10 +111,26 @@ export async function updatePassword(data: unknown): Promise<SettingsActionResul
     }
   }
 
-  await delay(DELAY.SLOW)
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    const result = await client.auth.changePassword({
+      currentPassword: validation.data.currentPassword,
+      newPassword: validation.data.newPassword,
+      revokeOtherSessions: validation.data.revokeOtherSessions,
+    })
+    
+    revalidatePath('/dashboard/settings')
+    revalidatePath('/', 'layout')
 
-  // In a real app, this would verify current password and update
-  return { success: true, message: 'Password updated successfully' }
+    return { success: result.success, message: 'Password updated successfully' }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to update password',
+    }
+  }
 }
 
 export async function updateNotifications(data: unknown): Promise<SettingsActionResult> {
@@ -98,12 +143,23 @@ export async function updateNotifications(data: unknown): Promise<SettingsAction
     }
   }
 
-  await delay(DELAY.STANDARD)
+  // Update notification preferences via Encore client
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    // TODO: Implement notification settings update when endpoint is available
+    // await client.settings.updateNotifications(validation.data)
+    
+    revalidatePath('/dashboard/settings')
 
-  // In a real app, this would update notification preferences
-  revalidatePath('/dashboard/settings')
-
-  return { success: true }
+    return { success: true }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to update notification settings',
+    }
+  }
 }
 
 export async function addBankAccount(data: unknown): Promise<SettingsActionResult> {
@@ -116,16 +172,33 @@ export async function addBankAccount(data: unknown): Promise<SettingsActionResul
     }
   }
 
-  await delay(DELAY.LONG)
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    const { cookies } = await import('next/headers')
+    const cookieStore = await cookies()
+    const orgId = cookieStore.get('active-organization-id')?.value
+    
+    if (!orgId) {
+      return { success: false, error: 'Organization ID not found' }
+    }
 
-  const accountId = `ba_${Date.now()}`
+    const result = await client.organizations.addBankAccount(orgId, validation.data)
+    const accountId = result.id
 
-  revalidatePath('/dashboard/settings')
+    revalidatePath('/dashboard/settings')
 
-  return {
-    success: true,
-    accountId,
-    message: 'Bank account added. Verification pending.',
+    return {
+      success: true,
+      accountId,
+      message: 'Bank account added. Verification pending.',
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to add bank account',
+    }
   }
 }
 
@@ -135,12 +208,21 @@ export async function removeBankAccount(accountId: string): Promise<SettingsActi
     return { success: false, error: 'Account ID is required' }
   }
 
-  await delay(DELAY.SLOW)
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    await client.organizations.removeBankAccount(accountId)
+    
+    revalidatePath('/dashboard/settings')
 
-  // In a real app, this would remove the bank account
-  revalidatePath('/dashboard/settings')
-
-  return { success: true }
+    return { success: true }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to remove bank account',
+    }
+  }
 }
 
 export async function setDefaultBankAccount(accountId: string): Promise<SettingsActionResult> {
@@ -149,24 +231,52 @@ export async function setDefaultBankAccount(accountId: string): Promise<Settings
     return { success: false, error: 'Account ID is required' }
   }
 
-  await delay(DELAY.STANDARD)
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    await client.organizations.setDefaultBankAccount(accountId)
+    
+    revalidatePath('/dashboard/settings')
 
-  revalidatePath('/dashboard/settings')
-
-  return { success: true }
+    return { success: true }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to set default bank account',
+    }
+  }
 }
 
-export async function enable2FA(): Promise<SettingsActionResult> {
-  await delay(DELAY.SLOW)
+export async function enable2FA(password: string, issuer?: string): Promise<SettingsActionResult> {
+  if (!password || typeof password !== 'string') {
+    return { success: false, error: 'Password is required' }
+  }
 
-  // Generate a cryptographically secure TOTP secret
-  const secret = generateTOTPSecret()
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`otpauth://totp/Hypedrive:user@example.com?secret=${secret}&issuer=Hypedrive`)}`
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    const result = await client.auth.twoFactorEnable({ password, issuer })
+    
+    // Generate QR code URL from TOTP URI
+    const qrCodeUrl = result.totpURI 
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(result.totpURI)}`
+      : undefined
 
-  return {
-    success: true,
-    secret,
-    qrCodeUrl,
+    revalidatePath('/dashboard/settings')
+
+    return {
+      success: result.success,
+      secret: result.totpURI ? result.totpURI.split('secret=')[1]?.split('&')[0] : undefined,
+      qrCodeUrl,
+      backupCodes: result.backupCodes,
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to enable 2FA',
+    }
   }
 }
 
@@ -180,8 +290,9 @@ export async function verify2FA(code: unknown): Promise<SettingsActionResult> {
     }
   }
 
-  await delay(DELAY.STANDARD)
-
+  // Note: This is for verifying during setup, not during login
+  // During login, use verify2FATotp from auth actions
+  // This function might need to be adjusted based on your 2FA flow
   revalidatePath('/dashboard/settings')
 
   return { success: true, message: '2FA enabled successfully' }
@@ -193,12 +304,101 @@ export async function disable2FA(password: string): Promise<SettingsActionResult
     return { success: false, error: 'Password is required' }
   }
 
-  await delay(DELAY.SLOW)
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    const result = await client.auth.twoFactorDisable({ password })
+    
+    revalidatePath('/dashboard/settings')
+    revalidatePath('/', 'layout')
 
-  // In a real app, this would verify password and disable 2FA
-  revalidatePath('/dashboard/settings')
+    return { success: result.success }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to disable 2FA',
+    }
+  }
+}
 
-  return { success: true }
+/**
+ * Change email address
+ */
+export async function changeEmail(newEmail: string, password: string): Promise<SettingsActionResult> {
+  if (!newEmail || typeof newEmail !== 'string') {
+    return { success: false, error: 'Email is required' }
+  }
+  if (!password || typeof password !== 'string') {
+    return { success: false, error: 'Password is required' }
+  }
+
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    const result = await client.auth.changeEmail({ newEmail })
+    
+    revalidatePath('/dashboard/settings')
+    revalidatePath('/', 'layout')
+
+    return { 
+      success: result.status, 
+      message: result.message || 'Email change request sent. Please check your email to confirm.',
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to change email',
+    }
+  }
+}
+
+/**
+ * Delete user account
+ */
+export async function deleteUserAccount(password?: string): Promise<SettingsActionResult> {
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    const result = await client.auth.deleteUser({ password })
+    
+    revalidatePath('/dashboard/settings')
+    revalidatePath('/', 'layout')
+
+    return { 
+      success: result.success,
+      message: 'Account deletion request sent. Please check your email to confirm.',
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to delete account',
+    }
+  }
+}
+
+/**
+ * Send verification email
+ */
+export async function sendVerificationEmail(email?: string): Promise<SettingsActionResult> {
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    const result = await client.auth.sendVerificationEmail({ email: email || '' })
+    
+    return { 
+      success: result.status,
+      message: 'Verification email sent. Please check your inbox.',
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to send verification email',
+    }
+  }
 }
 
 export async function revokeSession(sessionId: string): Promise<SettingsActionResult> {
@@ -207,19 +407,98 @@ export async function revokeSession(sessionId: string): Promise<SettingsActionRe
     return { success: false, error: 'Session ID is required' }
   }
 
-  await delay(DELAY.STANDARD)
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    const result = await client.auth.revokeSession({ token: sessionId })
+    
+    revalidatePath('/dashboard/settings')
+    revalidatePath('/', 'layout')
 
-  // In a real app, this would invalidate the session
-  revalidatePath('/dashboard/settings')
-
-  return { success: true }
+    return { success: result.status }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to revoke session',
+    }
+  }
 }
 
 export async function revokeAllSessions(): Promise<SettingsActionResult> {
-  await delay(DELAY.SLOW)
+  const { getEncoreClient } = await import('@/lib/encore')
+  
+  try {
+    const client = getEncoreClient()
+    const result = await client.auth.revokeOtherSessions()
+    
+    revalidatePath('/dashboard/settings')
+    revalidatePath('/', 'layout')
 
-  // In a real app, this would invalidate all sessions except current
-  revalidatePath('/dashboard/settings')
+    return { success: result.status, message: 'All other sessions have been signed out' }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to revoke sessions',
+    }
+  }
+}
 
-  return { success: true, message: 'All other sessions have been signed out' }
+/**
+ * Get user sessions
+ * Sessions are managed by Encore backend
+ */
+export async function getUserSessions(): Promise<{
+  success: boolean
+  data?: Array<{
+    id: string
+    device: string
+    browser: string
+    location: string
+    lastActive: string
+    current: boolean
+    iconType: 'computer' | 'smartphone' | 'mac'
+  }>
+  error?: string
+}> {
+  try {
+    const { getEncoreClient } = await import('@/lib/encore')
+    const client = getEncoreClient()
+    const result = await client.auth.listSessions()
+    
+    // Map Encore session format to our UI format
+    // ❌ Backend missing: device, browser, location, lastActive, current, iconType
+    // TODO: Backend should add these fields to SessionResponse
+    const sessions = (result.sessions || []).map((session: auth.SessionResponse) => {
+      // Parse userAgent for device/browser if available
+      const userAgent = session.userAgent || ''
+      const isMobile = /Mobile|Android|iPhone|iPad/.test(userAgent)
+      const isMac = /Mac/.test(userAgent)
+      const browserMatch = userAgent.match(/(Chrome|Safari|Firefox|Edge)\/[\d.]+/)
+      const browser = browserMatch ? browserMatch[1] : 'Unknown Browser'
+      
+      return {
+        id: session.id || session.token || '',
+        device: session.device || (isMobile ? 'Mobile Device' : 'Desktop') || 'Unknown Device', // ❌ Backend should provide
+        browser: session.browser || browser, // ❌ Backend should provide
+        location: session.location || (session.ipAddress ? `IP: ${session.ipAddress}` : 'Unknown Location'), // ❌ Backend should provide
+        lastActive: session.lastActive || session.updatedAt || session.createdAt || new Date().toISOString(), // ❌ Backend should provide
+        current: session.current !== undefined ? session.current : false, // ❌ Backend should provide
+        iconType: session.iconType || (isMobile ? 'smartphone' : isMac ? 'mac' : 'computer') as 'computer' | 'smartphone' | 'mac', // ❌ Backend should provide
+      }
+    })
+    
+      return {
+        success: true,
+        data: sessions.map(s => ({
+          ...s,
+          iconType: s.iconType || 'computer' as 'computer' | 'smartphone' | 'mac',
+        })),
+      }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to fetch sessions',
+    }
+  }
 }

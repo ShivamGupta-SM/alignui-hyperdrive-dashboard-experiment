@@ -1,10 +1,6 @@
-import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
-import { getServerQueryClient } from '@/lib/get-query-client'
 import { getCampaignsData } from '@/lib/ssr-data'
-import { campaignKeys } from '@/lib/query-keys'
 import { CampaignsClient } from './campaigns-client'
 
-// Revalidate every 60 seconds (ISR)
 export const revalidate = 60
 
 export default async function CampaignsPage({
@@ -14,17 +10,9 @@ export default async function CampaignsPage({
 }) {
   const params = await searchParams
   const statusFilter = params.status || 'all'
-  const queryClient = getServerQueryClient()
 
-  // Prefetch campaigns data on server
-  await queryClient.prefetchQuery({
-    queryKey: campaignKeys.data(statusFilter),
-    queryFn: () => getCampaignsData(statusFilter),
-  })
+  // Direct server fetch - pure RSC, no React Query
+  const data = await getCampaignsData(statusFilter)
 
-  return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <CampaignsClient initialStatus={statusFilter} />
-    </HydrationBoundary>
-  )
+  return <CampaignsClient initialData={data} initialStatus={statusFilter} />
 }

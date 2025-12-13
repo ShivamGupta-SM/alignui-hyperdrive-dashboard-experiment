@@ -3,6 +3,8 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import * as Button from '@/components/ui/button'
 import * as Input from '@/components/ui/input'
 import * as Checkbox from '@/components/ui/checkbox'
@@ -13,80 +15,48 @@ import { GoogleLogo, Eye, EyeSlash, Envelope, Lock, WarningCircle, ShieldCheck }
 
 export default function SignInPage() {
   const router = useRouter()
-  const [formData, setFormData] = React.useState<SignInFormData>({
-    email: '',
-    password: '',
-    rememberMe: false,
-  })
   const [showPassword, setShowPassword] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
-  const [errors, setErrors] = React.useState<Partial<Record<keyof SignInFormData, string>>>({})
   const [formError, setFormError] = React.useState('')
-  const [touched, setTouched] = React.useState<Partial<Record<keyof SignInFormData, boolean>>>({})
 
-  const validateField = (field: keyof SignInFormData, value: unknown) => {
-    const partialData = { ...formData, [field]: value }
-    const result = signInSchema.safeParse(partialData)
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<SignInFormData>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+      rememberMe: false,
+    },
+  })
 
-    if (!result.success) {
-      const fieldError = result.error.issues?.find(issue => issue.path[0] === field)
-      return fieldError?.message
-    }
-    return undefined
-  }
-
-  const handleBlur = (field: keyof SignInFormData) => {
-    setTouched(prev => ({ ...prev, [field]: true }))
-    const error = validateField(field, formData[field])
-    setErrors(prev => ({ ...prev, [field]: error }))
-  }
-
-  const handleChange = (field: keyof SignInFormData, value: unknown) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-    // Clear error when user starts typing
-    if (touched[field] && errors[field]) {
-      const error = validateField(field, value)
-      setErrors(prev => ({ ...prev, [field]: error }))
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const onSubmit = async (data: SignInFormData) => {
     setFormError('')
-
-    // Validate all fields
-    const result = signInSchema.safeParse(formData)
-    if (!result.success) {
-      const newErrors: Partial<Record<keyof SignInFormData, string>> = {}
-      result.error.issues?.forEach(issue => {
-        const field = issue.path[0] as keyof SignInFormData
-        if (!newErrors[field]) {
-          newErrors[field] = issue.message
-        }
-      })
-      setErrors(newErrors)
-      setTouched({ email: true, password: true })
-      return
-    }
-
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/auth/sign-in/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      })
+      const { signInEmail } = await import('@/app/actions')
+      const result = await signInEmail(data.email, data.password, data.rememberMe)
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Invalid email or password')
+      if (!result.success) {
+        throw new Error(result.error || 'Invalid email or password')
       }
 
-      router.push('/dashboard')
+      // Handle 2FA if required
+      if (result.requiresTwoFactor) {
+        router.push(`/verify?token=${result.twoFactorToken}`)
+        return
+      }
+
+      // Redirect will be handled by server action if needed
+      if (!result.redirect) {
+        // Trigger session refetch (like Better Auth does)
+        // router.refresh() will trigger useSession to refetch
+        router.push('/dashboard')
+        router.refresh()
+      }
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Invalid email or password. Please try again.')
     } finally {
@@ -97,24 +67,20 @@ export default function SignInPage() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
     try {
-      // Mock Google OAuth - in production, this would redirect to Google
-      // For demo, we create a mock Google user session
-      const response = await fetch('/api/auth/sign-in/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: 'google.user@gmail.com',
-          password: 'google-oauth-mock',
-        }),
-      })
+      const { signInSocial } = await import('@/app/actions')
+      const result = await signInSocial('google')
 
-      if (!response.ok) {
-        throw new Error('Google sign-in failed')
+      if (!result.success) {
+        throw new Error(result.error || 'Google sign-in failed')
       }
 
-      router.push('/dashboard')
-    } catch {
-      setFormError('Failed to sign in with Google. Please try again.')
+      // If redirect is needed, it will be handled by the server action
+      if (!result.redirect) {
+        router.push('/dashboard')
+        router.refresh()
+      }
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to sign in with Google. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -142,32 +108,29 @@ export default function SignInPage() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5" noValidate>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-5" noValidate>
           <div>
             <label htmlFor="email" className="block text-label-sm text-text-strong-950 mb-2">
               Email address
             </label>
-            <Input.Root hasError={touched.email && !!errors.email}>
+            <Input.Root hasError={!!errors.email}>
               <Input.Wrapper>
                 <Input.Icon as={Envelope} />
                 <Input.El
                   id="email"
                   type="email"
                   placeholder="you@company.com"
-                  value={formData.email}
-                  onChange={(e) => handleChange('email', e.target.value)}
-                  onBlur={() => handleBlur('email')}
-                  required
+                  {...register('email')}
                   autoComplete="email"
-                  aria-invalid={touched.email && !!errors.email}
+                  aria-invalid={!!errors.email}
                   aria-describedby={errors.email ? 'email-error' : undefined}
                 />
               </Input.Wrapper>
             </Input.Root>
-            {touched.email && errors.email && (
+            {errors.email && (
               <p id="email-error" className="flex items-center gap-1.5 mt-2 text-paragraph-xs text-error-base" role="alert">
                 <WarningCircle weight="fill" className="size-3.5 shrink-0" />
-                {errors.email}
+                {errors.email.message}
               </p>
             )}
           </div>
@@ -176,19 +139,16 @@ export default function SignInPage() {
             <label htmlFor="password" className="block text-label-sm text-text-strong-950 mb-2">
               Password
             </label>
-            <Input.Root hasError={touched.password && !!errors.password}>
+            <Input.Root hasError={!!errors.password}>
               <Input.Wrapper>
                 <Input.Icon as={Lock} />
                 <Input.El
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Enter your password"
-                  value={formData.password}
-                  onChange={(e) => handleChange('password', e.target.value)}
-                  onBlur={() => handleBlur('password')}
-                  required
+                  {...register('password')}
                   autoComplete="current-password"
-                  aria-invalid={touched.password && !!errors.password}
+                  aria-invalid={!!errors.password}
                   aria-describedby={errors.password ? 'password-error' : undefined}
                 />
                 <button
@@ -205,10 +165,10 @@ export default function SignInPage() {
                 </button>
               </Input.Wrapper>
             </Input.Root>
-            {touched.password && errors.password && (
+            {errors.password && (
               <p id="password-error" className="flex items-center gap-1.5 mt-2 text-paragraph-xs text-error-base" role="alert">
                 <WarningCircle weight="fill" className="size-3.5 shrink-0" />
-                {errors.password}
+                {errors.password.message}
               </p>
             )}
           </div>
@@ -216,8 +176,7 @@ export default function SignInPage() {
           <div className="flex items-center justify-between">
             <label className="flex items-center gap-2.5 cursor-pointer group">
               <Checkbox.Root
-                checked={formData.rememberMe}
-                onCheckedChange={(checked) => handleChange('rememberMe', checked === true)}
+                {...register('rememberMe')}
                 aria-label="Remember me on this device"
               />
               <span className="text-paragraph-sm text-text-sub-600 group-hover:text-text-strong-950 transition-colors">

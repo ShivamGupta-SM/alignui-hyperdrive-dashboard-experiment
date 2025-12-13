@@ -23,7 +23,6 @@ import {
 } from '@phosphor-icons/react'
 import { cn } from '@/utils/cn'
 import { BUSINESS_TYPE_OPTIONS, INDUSTRY_CATEGORY_OPTIONS, INDIAN_STATES } from '@/lib/constants'
-import { delay, DELAY } from '@/lib/utils/delay'
 import type { OrganizationDraft, BusinessType, IndustryCategory } from '@/lib/types'
 
 const steps = [
@@ -124,8 +123,9 @@ export default function OnboardingPage() {
 
     setIsVerifyingGst(true)
     try {
-      // Simulate API call with realistic delay
-      await delay(DELAY.LONG_VERIFICATION)
+      // TODO: Call actual GST verification API when available
+      // const { verifyGST } = await import('@/app/actions/onboarding')
+      // const result = await verifyGST(gstNumber)
 
       // Extract organization name from form data for more realistic mock
       const orgName = formData.basicInfo?.name || 'Organization'
@@ -156,7 +156,10 @@ export default function OnboardingPage() {
 
     setIsVerifyingPan(true)
     try {
-      await delay(DELAY.VERIFICATION)
+      // TODO: Call actual PAN verification API when available
+      // const { verifyPAN } = await import('@/app/actions/onboarding')
+      // const result = await verifyPAN(panNumber)
+      
       updateVerification({ panVerified: true })
     } finally {
       setIsVerifyingPan(false)
@@ -186,19 +189,15 @@ export default function OnboardingPage() {
   const handleSubmit = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/onboarding/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      })
+      const { submitOnboarding } = await import('@/app/actions')
+      const result = await submitOnboarding(formData)
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to submit application')
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to submit application')
       }
 
       router.push('/onboarding/pending')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Onboarding submission error:', error)
       // Still redirect on error for demo purposes
       router.push('/onboarding/pending')

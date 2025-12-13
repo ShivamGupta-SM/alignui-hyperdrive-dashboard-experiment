@@ -29,10 +29,10 @@ import {
 } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import type { auth } from '@/lib/encore-browser'
-import { useProfileData } from '@/hooks/use-profile'
+import type { auth as authServer } from '@/lib/encore-client'
+// import { useProfileData } from '@/hooks/use-profile'
 
 type User = auth.User
-import { delay, DELAY } from '@/lib/utils/delay'
 
 // Icon mapping for sessions
 const getSessionIcon = (iconType: string) => {
@@ -48,30 +48,61 @@ const getSessionIcon = (iconType: string) => {
 
 type TabValue = 'profile' | 'security' | 'notifications' | 'sessions'
 
-export function ProfileClient() {
-  const { data: profileData } = useProfileData()
+interface ProfileClientProps {
+  initialData?: {
+    user?: {
+      id: string
+      name: string
+      email: string
+      phone?: string
+      role: string
+      image?: string | null
+      emailVerified?: boolean
+      twoFactorEnabled?: boolean
+    }
+    sessions?: Array<{
+      id: string
+      device: string
+      browser: string
+      location: string
+      lastActive: string
+      current: boolean
+      iconType: 'computer' | 'smartphone' | 'mac'
+      userAgent?: string
+    }>
+    activeOrganizationId?: string
+  }
+}
+
+export function ProfileClient({ initialData }: ProfileClientProps = {}) {
+  // React Query hook removed - using server data via initialData
+  // const { data: profileData } = useProfileData()
+  
   const [activeTab, setActiveTab] = React.useState<TabValue>('profile')
-  const [user, setUser] = React.useState<User | null>(null)
+  // Initialize from props
+  const [user, setUser] = React.useState<User | null>(initialData?.user || null)
   const [isSaving, setIsSaving] = React.useState(false)
 
-  // Update local user state when profileData changes
+  // Update local user state when profileData changes - Removed
+  /*
   React.useEffect(() => {
     if (profileData?.user) {
       setUser(profileData.user)
     }
   }, [profileData])
+  */
 
   const sessions = React.useMemo(() => {
-    if (!profileData?.sessions) return []
-    return profileData.sessions.map((session) => ({
+    if (!initialData?.sessions) return []
+    return initialData.sessions.map((session) => ({
       ...session,
       icon: getSessionIcon(session.userAgent?.includes('iPhone') ? 'smartphone' : session.userAgent?.includes('Mac') ? 'mac' : 'computer'),
     }))
-  }, [profileData?.sessions])
+  }, [initialData])
 
   if (!user) {
     return (
-      <div className="animate-pulse space-y-4 sm:space-y-6">
+      <div className="animate-pulse space-y-5 sm:space-y-6">
         <div className="h-8 w-48 bg-bg-soft-200 rounded" />
         <div className="h-40 bg-bg-soft-200 rounded-xl" />
       </div>
@@ -79,11 +110,11 @@ export function ProfileClient() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">My Account</h1>
-        <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-1">
+        <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
           Manage your profile, security, and preferences
         </p>
       </div>
@@ -160,7 +191,10 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      await delay(DELAY.FORM)
+      // TODO: Call actual updateProfile server action
+      // const { updateProfile } = await import('@/app/actions/settings')
+      // await updateProfile({ name, email })
+      
       setUser((prev) => prev ? { ...prev, name, email } : null)
     } finally {
       setIsSaving(false)
@@ -168,7 +202,7 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Avatar Section */}
       <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-6">
         <h3 className="text-label-sm sm:text-label-md text-text-strong-950 mb-3 sm:mb-4">Profile Photo</h3>
@@ -261,7 +295,10 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
   const handleChangePassword = async () => {
     setIsSaving(true)
     try {
-      await delay(DELAY.FORM)
+      // TODO: Call actual updatePassword server action
+      // const { updatePassword } = await import('@/app/actions/settings')
+      // await updatePassword({ currentPassword, newPassword, confirmPassword })
+      
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
@@ -567,7 +604,9 @@ function SessionsTab({ sessions }: SessionsTabProps) {
   const handleRevoke = async (sessionId: string) => {
     setRevoking(sessionId)
     try {
-      await delay(DELAY.FORM)
+      // TODO: Call actual revokeSession server action
+      // const { revokeSession } = await import('@/app/actions/settings')
+      // await revokeSession(sessionId)
     } finally {
       setRevoking(null)
     }
@@ -576,7 +615,9 @@ function SessionsTab({ sessions }: SessionsTabProps) {
   const handleRevokeAll = async () => {
     setRevoking('all')
     try {
-      await delay(DELAY.FORM)
+      // TODO: Call actual revokeAllSessions server action
+      // const { revokeAllSessions } = await import('@/app/actions/settings')
+      // await revokeAllSessions()
     } finally {
       setRevoking(null)
     }

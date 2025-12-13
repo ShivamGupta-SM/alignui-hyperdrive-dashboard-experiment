@@ -7,8 +7,6 @@
 import { http } from 'msw'
 import { db } from '@/mocks/db'
 import {
-  delay,
-  DELAY,
   getAuthContext,
   encoreUrl,
   encoreResponse,
@@ -19,8 +17,6 @@ import {
 export const walletHandlers = [
   // GET /organizations/:orgId/wallet - Get wallet balance
   http.get(encoreUrl('/organizations/:orgId/wallet'), async ({ params }) => {
-    await delay(DELAY.FAST)
-
     const rawOrgId = params.orgId as string
     const orgId = (rawOrgId === 'default' || !rawOrgId) ? '1' : rawOrgId
     
@@ -48,8 +44,6 @@ export const walletHandlers = [
 
   // GET /wallets/me - Encore client uses this
   http.get(encoreUrl('/wallets/me'), async () => {
-    await delay(DELAY.FAST)
-
     const auth = getAuthContext()
     const orgId = auth.organizationId || '1'
     
@@ -76,8 +70,6 @@ export const walletHandlers = [
 
   // GET /wallets/me/transactions
   http.get(encoreUrl('/wallets/me/transactions'), async ({ request }) => {
-    await delay(DELAY.STANDARD)
-
     const auth = getAuthContext()
     const url = new URL(request.url)
 
@@ -101,8 +93,6 @@ export const walletHandlers = [
 
   // GET /organizations/:orgId/wallet/transactions
   http.get(encoreUrl('/organizations/:orgId/wallet/transactions'), async ({ params, request }) => {
-    await delay(DELAY.STANDARD)
-
     const { orgId } = params as { orgId: string }
     const url = new URL(request.url)
 
@@ -126,8 +116,6 @@ export const walletHandlers = [
 
   // GET /organizations/:orgId/wallet/holds
   http.get(encoreUrl('/organizations/:orgId/wallet/holds'), async ({ params }) => {
-    await delay(DELAY.FAST)
-
     const { orgId } = params as { orgId: string }
     const holds = db.activeHolds.findMany((q) => q.where({ walletId: `wallet-${orgId}` }))
 
@@ -141,8 +129,6 @@ export const walletHandlers = [
 
   // POST /organizations/:orgId/wallet/top-up
   http.post(encoreUrl('/organizations/:orgId/wallet/top-up'), async ({ params, request }) => {
-    await delay(DELAY.MEDIUM)
-
     const { orgId } = params as { orgId: string }
     const body = await request.json() as { amount: number }
 
@@ -162,8 +148,6 @@ export const walletHandlers = [
 
   // POST /organizations/:orgId/wallet/withdraw
   http.post(encoreUrl('/organizations/:orgId/wallet/withdraw'), async ({ params, request }) => {
-    await delay(DELAY.MEDIUM)
-
     const { orgId } = params as { orgId: string }
     const body = await request.json() as { amount: number; notes?: string }
 
@@ -186,8 +170,6 @@ export const walletHandlers = [
 
   // GET /organizations/:orgId/withdrawals
   http.get(encoreUrl('/organizations/:orgId/withdrawals'), async ({ params, request }) => {
-    await delay(DELAY.STANDARD)
-
     const { orgId } = params as { orgId: string }
     const url = new URL(request.url)
 
@@ -205,8 +187,6 @@ export const walletHandlers = [
 
   // GET /withdrawals/:id
   http.get(encoreUrl('/withdrawals/:id'), async ({ params }) => {
-    await delay(DELAY.FAST)
-
     const { id } = params as { id: string }
 
     return encoreResponse({
@@ -222,8 +202,6 @@ export const walletHandlers = [
 
   // GET /withdrawals/stats
   http.get(encoreUrl('/withdrawals/stats'), async () => {
-    await delay(DELAY.FAST)
-
     return encoreResponse({
       totalWithdrawn: 250000,
       pendingWithdrawals: 25000,
@@ -238,8 +216,6 @@ export const walletHandlers = [
 
   // POST /withdrawals/:id/cancel
   http.post(encoreUrl('/withdrawals/:id/cancel'), async ({ params }) => {
-    await delay(DELAY.MEDIUM)
-
     const { id } = params as { id: string }
 
     return encoreResponse({
@@ -271,8 +247,6 @@ export const walletHandlers = [
 
   // GET /wallet/transactions (legacy)
   http.get(encoreUrl('/wallet/transactions'), async ({ request }) => {
-    await delay(DELAY.STANDARD)
-
     const auth = getAuthContext()
     const url = new URL(request.url)
 

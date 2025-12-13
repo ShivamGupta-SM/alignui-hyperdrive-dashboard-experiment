@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { useTheme } from 'next-themes'
 import { cn } from '@/utils/cn'
 import * as Avatar from '@/components/ui/avatar'
 import * as Switch from '@/components/ui/switch'
@@ -28,22 +29,13 @@ import {
   Check,
   Plus,
 } from '@phosphor-icons/react'
+import { useSession } from '@/hooks/use-session'
+import { useActiveOrganization, useOrganizations } from '@/hooks/use-organizations'
+import { useSignOut } from '@/hooks/use-sign-out'
 
 interface SettingsPanelProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  user: {
-    name: string
-    email: string
-    avatar?: string
-    role?: string
-  }
-  organization?: {
-    name: string
-  }
-  isDarkMode?: boolean
-  onToggleDarkMode?: () => void
-  onSignOut?: () => void
 }
 
 type SubPanelType = 'profile' | 'password' | 'notifications' | 'org-settings' | 'team' | 'billing' | 'help' | 'docs' | 'contact' | null
@@ -51,12 +43,18 @@ type SubPanelType = 'profile' | 'password' | 'notifications' | 'org-settings' | 
 export function SettingsPanel({
   open,
   onOpenChange,
-  user,
-  organization,
-  isDarkMode = false,
-  onToggleDarkMode,
-  onSignOut,
 }: SettingsPanelProps) {
+  const { theme, setTheme, resolvedTheme } = useTheme()
+  const { data: session } = useSession()
+  const user = session?.user
+  const { data: organizations = [] } = useOrganizations()
+  const currentOrganization = useActiveOrganization(organizations)
+  const signOut = useSignOut()
+
+  const isDarkMode = resolvedTheme === 'dark'
+  const onToggleDarkMode = () => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+  const onSignOut = () => signOut.mutate()
+  const organization = currentOrganization ? { name: currentOrganization.name } : undefined
   const [activeSubPanel, setActiveSubPanel] = React.useState<SubPanelType>(null)
 
   // Close panel handler
@@ -112,11 +110,6 @@ export function SettingsPanel({
         {/* Main Panel or Sub Panel */}
         {activeSubPanel === null ? (
           <MainSettingsPanel
-            user={user}
-            organization={organization}
-            isDarkMode={isDarkMode}
-            onToggleDarkMode={onToggleDarkMode}
-            onSignOut={onSignOut}
             onClose={handleClose}
             onMenuClick={handleMenuClick}
           />
@@ -137,42 +130,47 @@ export function SettingsPanel({
 // MAIN SETTINGS PANEL
 // ===========================================
 interface MainSettingsPanelProps {
-  user: SettingsPanelProps['user']
-  organization?: SettingsPanelProps['organization']
-  isDarkMode?: boolean
-  onToggleDarkMode?: () => void
-  onSignOut?: () => void
   onClose: () => void
   onMenuClick: (panel: SubPanelType) => void
 }
 
 function MainSettingsPanel({
-  user,
-  organization,
-  isDarkMode,
-  onToggleDarkMode,
-  onSignOut,
   onClose,
   onMenuClick,
 }: MainSettingsPanelProps) {
+  const { theme, setTheme, resolvedTheme } = useTheme()
+  const { data: session } = useSession()
+  const user = session?.user
+  const { data: organizations = [] } = useOrganizations()
+  const currentOrganization = useActiveOrganization(organizations)
+  const signOut = useSignOut()
+
+  const isDarkMode = resolvedTheme === 'dark'
+  const onToggleDarkMode = () => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+  const onSignOut = () => signOut.mutate()
+  const organization = currentOrganization ? { name: currentOrganization.name } : undefined
   return (
     <div className="flex h-full flex-col">
       {/* Header - Consistent with notifications drawer */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-stroke-soft-200">
         <div className="flex items-center gap-3">
-          <Avatar.Root size="40" color="blue" className="ring-2 ring-primary-base/20">
-            {user.avatar ? (
-              <Avatar.Image src={user.avatar} alt={user.name} />
-            ) : (
-              <span className="text-label-md font-semibold">
-                {user.name.charAt(0).toUpperCase()}
-              </span>
-            )}
-          </Avatar.Root>
-          <div>
-            <h2 className="text-label-md text-text-strong-950">{user.name}</h2>
-            <p className="text-paragraph-xs text-text-sub-600">{user.email}</p>
-          </div>
+          {user && (
+            <>
+              <Avatar.Root size="40" color="blue" className="ring-2 ring-primary-base/20">
+                {user.image ? (
+                  <Avatar.Image src={user.image} alt={user.name || ''} />
+                ) : (
+                  <span className="text-label-md font-semibold">
+                    {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </Avatar.Root>
+              <div>
+                <h2 className="text-label-md text-text-strong-950">{user.name || 'User'}</h2>
+                <p className="text-paragraph-xs text-text-sub-600">{user.email || ''}</p>
+              </div>
+            </>
+          )}
         </div>
         <button
           type="button"
@@ -191,7 +189,7 @@ function MainSettingsPanel({
           <div className="flex items-center gap-3 rounded-xl bg-gradient-to-br from-primary-base/5 to-purple-500/5 p-4 ring-1 ring-inset ring-stroke-soft-200">
             <div className="flex-1 min-w-0">
               <p className="text-paragraph-sm text-text-sub-600">
-                {user.role || 'Admin'} at <span className="font-medium text-text-strong-950">{organization?.name || 'Organization'}</span>
+                {user?.role || 'Admin'} at <span className="font-medium text-text-strong-950">{organization?.name || 'Organization'}</span>
               </p>
             </div>
             <button

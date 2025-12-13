@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { NovuProvider as NovuReactProvider } from '@novu/react'
-import { authClient } from '@/lib/auth-client'
+import { useSession } from '@/hooks/use-session'
 import { NovuReadyProvider } from '@/components/dashboard/notification-center'
 
 interface NovuProviderProps {
@@ -13,7 +13,7 @@ interface NovuProviderProps {
  * Novu Provider Component
  *
  * Wraps the app with NovuProvider for headless notification hooks.
- * Uses Better-Auth session for subscriber identification.
+ * Uses Encore client session for subscriber identification.
  *
  * Backend handles subscriber sync via Novu API when user authenticates.
  */
@@ -22,7 +22,7 @@ export function NovuProvider({ children }: NovuProviderProps) {
   const apiUrl = process.env.NEXT_PUBLIC_NOVU_API_URL
   const socketUrl = process.env.NEXT_PUBLIC_NOVU_WS_URL
 
-  const { data: session, isPending } = authClient.useSession()
+  const { data: session, isPending } = useSession()
 
   // If Novu is not configured, just render children
   if (!appId) {
@@ -40,7 +40,7 @@ export function NovuProvider({ children }: NovuProviderProps) {
   }
 
   // Use user ID as subscriber ID - backend syncs this with Novu
-  const subscriberId = session.user.id
+  const subscriberId = String(session.user.id)
 
   return (
     <NovuReactProvider

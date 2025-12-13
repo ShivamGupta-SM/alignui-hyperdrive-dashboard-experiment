@@ -3,12 +3,11 @@
  */
 
 import { http } from 'msw'
-import { delay, DELAY, encoreUrl, encoreResponse, encoreErrorResponse } from './utils'
+import { encoreUrl, encoreResponse, encoreErrorResponse } from './utils'
 
 export const onboardingHandlers = [
   // POST /onboarding/submit
   http.post(encoreUrl('/onboarding/submit'), async ({ request }) => {
-    await delay(DELAY.SLOW)
     const body = await request.json() as { organizationName: string; gstNumber?: string }
     
     if (!body.organizationName) {
@@ -24,7 +23,6 @@ export const onboardingHandlers = [
 
   // GET /onboarding/status
   http.get(encoreUrl('/onboarding/status'), async () => {
-    await delay(DELAY.FAST)
     return encoreResponse({
       status: 'verified',
       completedSteps: ['basic_info', 'gst_verification', 'bank_account'],

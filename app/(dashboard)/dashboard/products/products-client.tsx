@@ -25,39 +25,43 @@ import {
 import { cn } from '@/utils/cn'
 import { toast } from 'sonner'
 import type { products } from '@/lib/encore-browser'
-import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useBulkImportProducts } from '@/hooks/use-products'
-import type { BulkImportProduct, BulkImportResult } from '@/hooks/use-products'
-import { useCategories } from '@/hooks/use-categories'
-import { usePlatforms } from '@/hooks/use-platforms'
+import { createProduct, updateProduct, deleteProduct, bulkImportProducts } from '@/app/actions/products'
 
 type Product = products.ProductWithStats
 
 // Get stats from products
 const getStats = (productList: Product[]) => {
   const total = productList.length
-  const withCampaigns = productList.filter(p => p.campaignCount > 0).length
-  const totalCampaigns = productList.reduce((acc, p) => acc + p.campaignCount, 0)
+  const withCampaigns = productList.filter((p) => (p.campaignCount || 0) > 0).length
+  const totalCampaigns = productList.reduce((acc, p) => acc + (p.campaignCount || 0), 0)
   const categories = new Set(productList.map(p => p.categoryId).filter(Boolean)).size
 
   return { total, withCampaigns, totalCampaigns, categories }
 }
 
-export function ProductsClient() {
-  // API hooks
-  const { data: productsData } = useProducts()
-  const products = productsData?.data ?? []
-  const { data: categoriesData, isLoading: isLoadingCategories } = useCategories()
-  const categories = categoriesData?.data ?? []
-  const { data: platformsData, isLoading: isLoadingPlatforms } = usePlatforms()
-  const platforms = platformsData?.data ?? []
-  const deleteProduct = useDeleteProduct()
-  const bulkImport = useBulkImportProducts()
+interface ProductsClientProps {
+  initialData?: {
+    data: Product[]
+    total?: number
+    categories?: { id: string; name: string }[]
+    platforms?: { id: string; name: string }[]
+  }
+}
+
+export function ProductsClient({ initialData }: ProductsClientProps = {}) {
+  // Use server data directly
+  const products = (initialData?.data ?? []) as Product[]
+  const categories = initialData?.categories ?? []
+  const platforms = initialData?.platforms ?? []
+
   const [search, setSearch] = React.useState('')
   const [categoryFilter, setCategoryFilter] = React.useState('all')
   const [platformFilter, setPlatformFilter] = React.useState('all')
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false)
   const [isBulkImportModalOpen, setIsBulkImportModalOpen] = React.useState(false)
   const [editingProduct, setEditingProduct] = React.useState<Product | null>(null)
+  
+  const [isPending, startTransition] = React.useTransition()
 
   const filteredProducts = React.useMemo(() => {
     let result = products
@@ -85,21 +89,25 @@ export function ProductsClient() {
 
   const handleDeleteProduct = (productId: string) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
-      deleteProduct.mutate(productId, {
-        onSuccess: () => {
-          toast.success('Product deleted successfully')
-        },
-        onError: (error) => {
-          toast.error(error instanceof Error ? error.message : 'Failed to delete product')
-        },
-      })
+        startTransition(async () => {
+            try {
+                const res = await deleteProduct(productId)
+                if (res.success) {
+                    toast.success('Product deleted successfully')
+                } else {
+                    toast.error(res.error || 'Failed to delete product')
+                }
+            } catch (e) {
+                toast.error('An error occurred')
+            }
+        })
     }
   }
 
   return (
-    <div className="space-y-4 sm:space-y-5">
+    <div className="space-y-5 sm:space-y-6">
       {/* Page Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Products</h1>
           <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
@@ -163,9 +171,9 @@ export function ProductsClient() {
 
           {/* Right: Filters - Side by side on all screens */}
           <div className="flex items-center gap-2">
-            <Select.Root value={categoryFilter} onValueChange={setCategoryFilter} disabled={isLoadingCategories}>
+            <Select.Root value={categoryFilter} onValueChange={setCategoryFilter}>
               <Select.Trigger className="flex-1 sm:w-40">
-                <Select.Value placeholder={isLoadingCategories ? "Loading..." : "Category"} />
+                <Select.Value placeholder="Category" />
               </Select.Trigger>
               <Select.Content>
                 <Select.Item value="all">All Categories</Select.Item>
@@ -174,9 +182,9 @@ export function ProductsClient() {
                 ))}
               </Select.Content>
             </Select.Root>
-            <Select.Root value={platformFilter} onValueChange={setPlatformFilter} disabled={isLoadingPlatforms}>
+            <Select.Root value={platformFilter} onValueChange={setPlatformFilter}>
               <Select.Trigger className="flex-1 sm:w-40">
-                <Select.Value placeholder={isLoadingPlatforms ? "Loading..." : "Platform"} />
+                <Select.Value placeholder="Platform" />
               </Select.Trigger>
               <Select.Content>
                 <Select.Item value="all">All Platforms</Select.Item>
@@ -268,15 +276,12 @@ export function ProductsClient() {
         product={editingProduct}
         categories={categories}
         platforms={platforms}
-        isLoadingCategories={isLoadingCategories}
-        isLoadingPlatforms={isLoadingPlatforms}
       />
 
       {/* Bulk Import Modal */}
       <BulkImportModal
         open={isBulkImportModalOpen}
         onOpenChange={setIsBulkImportModalOpen}
-        bulkImport={bulkImport}
         categories={categories}
         platforms={platforms}
       />
@@ -327,7 +332,7 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
         )}
 
         {/* Campaign badge - top left */}
-        {product.campaignCount > 0 && (
+        {(product.campaignCount || 0) > 0 && (
           <div className="absolute top-2 left-2">
             <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-black/60 backdrop-blur-sm text-white">
               <Megaphone weight="duotone" className="size-3.5" />
@@ -416,14 +421,9 @@ interface ProductModalProps {
   product?: Product | null
   categories: Array<{ id: string; name: string; icon?: string }>
   platforms: Array<{ id: string; name: string }>
-  isLoadingCategories: boolean
-  isLoadingPlatforms: boolean
 }
 
-function ProductModal({ open, onOpenChange, product, categories, platforms, isLoadingCategories, isLoadingPlatforms }: ProductModalProps) {
-  const createProduct = useCreateProduct()
-  const updateProduct = useUpdateProduct(product?.id || '')
-
+function ProductModal({ open, onOpenChange, product, categories, platforms }: ProductModalProps) {
   const [name, setName] = React.useState(product?.name || '')
   const [description, setDescription] = React.useState(product?.description || '')
   const [category, setCategory] = React.useState(product?.categoryId || '')
@@ -431,8 +431,8 @@ function ProductModal({ open, onOpenChange, product, categories, platforms, isLo
   const [productUrl, setProductUrl] = React.useState(product?.productLink || '')
   const [price, setPrice] = React.useState(product?.price?.toString() || '')
   const [sku, setSku] = React.useState(product?.sku || '')
-
-  const isLoading = createProduct.isPending || updateProduct.isPending
+  
+  const [isPending, startTransition] = React.useTransition()
 
   React.useEffect(() => {
     if (product) {
@@ -465,27 +465,29 @@ function ProductModal({ open, onOpenChange, product, categories, platforms, isLo
       sku: sku || `SKU-${Date.now()}`,
     }
 
-    if (product) {
-      updateProduct.mutate(data, {
-        onSuccess: () => {
-          toast.success('Product updated successfully')
-          onOpenChange(false)
-        },
-        onError: (error) => {
-          toast.error(error instanceof Error ? error.message : 'Failed to update product')
-        },
-      })
-    } else {
-      createProduct.mutate(data, {
-        onSuccess: () => {
-          toast.success('Product created successfully')
-          onOpenChange(false)
-        },
-        onError: (error) => {
-          toast.error(error instanceof Error ? error.message : 'Failed to create product')
-        },
-      })
-    }
+    startTransition(async () => {
+        try {
+            if (product) {
+                const res = await updateProduct(product.id, data)
+                if (res.success) {
+                    toast.success('Product updated successfully')
+                    onOpenChange(false)
+                } else {
+                    toast.error(res.error || 'Failed to update product')
+                }
+            } else {
+                const res = await createProduct(data)
+                if (res.success) {
+                    toast.success('Product created successfully')
+                    onOpenChange(false)
+                } else {
+                    toast.error(res.error || 'Failed to create product')
+                }
+            }
+        } catch(e) {
+            toast.error('An error occurred')
+        }
+    })
   }
 
   return (
@@ -535,14 +537,16 @@ function ProductModal({ open, onOpenChange, product, categories, platforms, isLo
                 <label className="block text-label-sm text-text-strong-950 mb-2">
                   Category <span className="text-error-base">*</span>
                 </label>
-                <Select.Root value={category} onValueChange={setCategory} disabled={isLoadingCategories}>
+                <Select.Root value={category} onValueChange={setCategory}>
                   <Select.Trigger>
-                    <Select.Value placeholder={isLoadingCategories ? "Loading..." : "Select category"} />
+                    <Select.Value placeholder="Select category" />
                   </Select.Trigger>
                   <Select.Content>
-                    {categories.map((cat) => (
+                    {categories.length > 0 ? categories.map((cat) => (
                       <Select.Item key={cat.id} value={cat.name}>{cat.name}</Select.Item>
-                    ))}
+                    )) : (
+                        <Select.Item value="none">No categories</Select.Item>
+                    )}
                   </Select.Content>
                 </Select.Root>
               </div>
@@ -550,14 +554,16 @@ function ProductModal({ open, onOpenChange, product, categories, platforms, isLo
                 <label className="block text-label-sm text-text-strong-950 mb-2">
                   Platform <span className="text-error-base">*</span>
                 </label>
-                <Select.Root value={platform} onValueChange={setPlatform} disabled={isLoadingPlatforms}>
+                <Select.Root value={platform} onValueChange={setPlatform}>
                   <Select.Trigger>
-                    <Select.Value placeholder={isLoadingPlatforms ? "Loading..." : "Select platform"} />
+                    <Select.Value placeholder="Select platform" />
                   </Select.Trigger>
                   <Select.Content>
-                    {platforms.map((p) => (
+                    {platforms.length > 0 ? platforms.map((p) => (
                       <Select.Item key={p.id} value={p.name}>{p.name}</Select.Item>
-                    ))}
+                    )) : (
+                        <Select.Item value="none">No platforms</Select.Item>
+                    )}
                   </Select.Content>
                 </Select.Root>
               </div>
@@ -627,15 +633,15 @@ function ProductModal({ open, onOpenChange, product, categories, platforms, isLo
           </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button.Root variant="basic" onClick={() => onOpenChange(false)}>
+          <Button.Root variant="basic" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancel
           </Button.Root>
           <Button.Root
             variant="primary"
             onClick={handleSubmit}
-            disabled={isLoading || !name || !category || !platform}
+            disabled={isPending || !name || !category || !platform}
           >
-            {isLoading ? 'Saving...' : product ? 'Save Changes' : 'Add Product'}
+            {isPending ? 'Saving...' : product ? 'Save Changes' : 'Add Product'}
           </Button.Root>
         </Modal.Footer>
       </Modal.Content>
@@ -647,15 +653,15 @@ function ProductModal({ open, onOpenChange, product, categories, platforms, isLo
 interface BulkImportModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  bulkImport: ReturnType<typeof useBulkImportProducts>
   categories: Array<{ id: string; name: string }>
   platforms: Array<{ id: string; name: string }>
 }
 
-function BulkImportModal({ open, onOpenChange, bulkImport, categories, platforms }: BulkImportModalProps) {
-  const [importData, setImportData] = React.useState<BulkImportProduct[]>([])
-  const [result, setResult] = React.useState<BulkImportResult | null>(null)
+function BulkImportModal({ open, onOpenChange, categories, platforms }: BulkImportModalProps) {
+  const [importData, setImportData] = React.useState<any[]>([])
+  const [result, setResult] = React.useState<any | null>(null)
   const [step, setStep] = React.useState<'upload' | 'preview' | 'result'>('upload')
+  const [isPending, startTransition] = React.useTransition()
 
   // Reset state when modal closes
   React.useEffect(() => {
@@ -695,7 +701,7 @@ function BulkImportModal({ open, onOpenChange, bulkImport, categories, platforms
       }
 
       // Parse data rows
-      const products: BulkImportProduct[] = []
+      const products: Partial<products.CreateProductRequest>[] = []
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''))
         if (values[nameIdx]) {
@@ -724,19 +730,20 @@ function BulkImportModal({ open, onOpenChange, bulkImport, categories, platforms
   }
 
   const handleImport = () => {
-    bulkImport.mutate(
-      { products: importData },
-      {
-        onSuccess: (response) => {
-          setResult(response)
-          setStep('result')
-          toast.success(`Successfully imported ${response.imported} products`)
-        },
-        onError: () => {
-          toast.error('Failed to import products')
-        },
-      }
-    )
+    startTransition(async () => {
+        try {
+            const response = await bulkImportProducts(importData)
+            if (response.success) {
+                setResult(response)
+                setStep('result')
+                toast.success(`Successfully imported ${response.imported} products`)
+            } else {
+                toast.error(response.error || 'Failed to import products')
+            }
+        } catch(e) {
+            toast.error('An error occurred')
+        }
+    })
   }
 
   return (
@@ -788,7 +795,7 @@ Adidas Tee,Cotton t-shirt,Apparel,Flipkart,https://...`}
                 ))}
                 {importData.length > 10 && (
                   <div className="p-3 text-paragraph-xs text-text-soft-400 text-center">
-                    ...and {importData.length - 10} more products
+                    + {importData.length - 10} more items
                   </div>
                 )}
               </div>
@@ -796,34 +803,25 @@ Adidas Tee,Cotton t-shirt,Apparel,Flipkart,https://...`}
           )}
 
           {step === 'result' && result && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-lg bg-success-lighter p-3 text-center">
-                  <div className="text-title-h5 text-success-base font-semibold">{result.imported}</div>
-                  <div className="text-paragraph-xs text-success-dark">Imported</div>
+             <div className="space-y-4">
+                <div className="rounded-lg bg-success-lighter p-4 text-center">
+                    <div className="mx-auto size-12 rounded-full bg-success-base flex items-center justify-center mb-3">
+                         <CloudArrowUp className="size-6 text-white" />
+                    </div>
+                    <h3 className="text-label-lg font-semibold text-text-strong-950">Import Successful</h3>
+                    <p className="text-paragraph-sm text-text-sub-600 mt-1">
+                        {result.message}
+                    </p>
                 </div>
-                <div className="rounded-lg bg-error-lighter p-3 text-center">
-                  <div className="text-title-h5 text-error-base font-semibold">{result.failed}</div>
-                  <div className="text-paragraph-xs text-error-dark">Failed</div>
-                </div>
-                <div className="rounded-lg bg-bg-weak-50 p-3 text-center">
-                  <div className="text-title-h5 text-text-strong-950 font-semibold">{result.imported + result.failed}</div>
-                  <div className="text-paragraph-xs text-text-sub-600">Total</div>
-                </div>
-              </div>
-              {result.errors.length > 0 && (
-                <div className="rounded-lg border border-error-light bg-error-lighter/50 p-3">
-                  <p className="text-label-xs text-error-base mb-2">Errors:</p>
-                  <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {result.errors.map((err, idx) => (
-                      <p key={`error-${idx}`} className="text-paragraph-xs text-error-dark">
-                        {err}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                {result.errors && result.errors.length > 0 && (
+                     <div className="rounded-lg bg-error-lighter p-4">
+                        <h4 className="text-label-sm font-medium text-error-base mb-2">Errors</h4>
+                        <ul className="list-disc list-inside text-paragraph-xs text-text-sub-600">
+                             {result.errors.map((e: string, i: number) => <li key={i}>{e}</li>)}
+                        </ul>
+                     </div>
+                )}
+             </div>
           )}
         </Modal.Body>
         <Modal.Footer>
@@ -834,22 +832,18 @@ Adidas Tee,Cotton t-shirt,Apparel,Flipkart,https://...`}
           )}
           {step === 'preview' && (
             <>
-              <Button.Root variant="basic" onClick={() => setStep('upload')}>
+              <Button.Root variant="basic" onClick={() => setStep('upload')} disabled={isPending}>
                 Back
               </Button.Root>
-              <Button.Root
-                variant="primary"
-                onClick={handleImport}
-                disabled={bulkImport.isPending}
-              >
-                {bulkImport.isPending ? 'Importing...' : `Import ${importData.length} Products`}
+              <Button.Root variant="primary" onClick={handleImport} disabled={isPending}>
+                {isPending ? 'Importing...' : 'Import Products'}
               </Button.Root>
             </>
           )}
-          {step === 'result' && (
-            <Button.Root variant="primary" onClick={() => onOpenChange(false)}>
-              Done
-            </Button.Root>
+           {step === 'result' && (
+              <Button.Root variant="primary" onClick={() => onOpenChange(false)}>
+                  Done
+              </Button.Root>
           )}
         </Modal.Footer>
       </Modal.Content>

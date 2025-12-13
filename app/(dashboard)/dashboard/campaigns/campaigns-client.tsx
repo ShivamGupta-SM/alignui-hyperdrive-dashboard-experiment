@@ -16,6 +16,9 @@ import { useCampaignSearchParams } from '@/hooks'
 import { useCampaignsData, useSearchCampaigns } from '@/hooks/use-campaigns'
 import { exportCampaigns } from '@/lib/excel'
 import type { CampaignStatus } from '@/lib/types'
+import type { campaigns } from '@/lib/encore-client'
+
+type CampaignWithStats = campaigns.CampaignWithStats
 
 const statusTabs = [
   { value: 'all', label: 'All' },
@@ -27,9 +30,14 @@ const statusTabs = [
 
 interface CampaignsClientProps {
   initialStatus?: string
+  initialData?: {
+    campaigns?: CampaignWithStats[]
+    data?: CampaignWithStats[]
+    total?: number
+  }
 }
 
-export function CampaignsClient({ initialStatus = 'all' }: CampaignsClientProps) {
+export function CampaignsClient({ initialStatus = 'all', initialData }: CampaignsClientProps) {
   const router = useRouter()
   const [, startTransition] = React.useTransition()
   const [searchQuery, setSearchQuery] = React.useState('')
@@ -47,8 +55,11 @@ export function CampaignsClient({ initialStatus = 'all' }: CampaignsClientProps)
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  // React Query hook - data is already hydrated from server
-  const { data } = useCampaignsData(statusFilter)
+  // React Query hook removed - using server data via initialData
+  // const { data } = useCampaignsData(statusFilter)
+  
+  // Use initialData which is passed from server component - type-safe
+  const campaignsData = (initialData?.campaigns ?? initialData?.data ?? []) as CampaignWithStats[]
 
   // Search hook - only active when there's a search query
   const { data: searchResults, isLoading: isSearching } = useSearchCampaigns({
@@ -56,12 +67,14 @@ export function CampaignsClient({ initialStatus = 'all' }: CampaignsClientProps)
     status: statusFilter !== 'all' ? statusFilter as CampaignStatus : undefined,
   })
 
-  // Extract data with fallbacks - use search results when searching
+  // Use server data first, fallback to query data - type-safe
+  const queryCampaigns: CampaignWithStats[] = data?.campaigns ?? []
+  const serverCampaigns: CampaignWithStats[] = campaignsData
   const isSearchActive = debouncedQuery.length >= 2
-  const campaigns = isSearchActive ? (searchResults?.data ?? []) : (data?.campaigns ?? [])
-  const allCampaigns = data?.allCampaigns ?? []
+  const campaigns: CampaignWithStats[] = isSearchActive ? (searchResults?.data ?? []) : (serverCampaigns.length > 0 ? serverCampaigns : queryCampaigns)
+  const allCampaigns: CampaignWithStats[] = data?.allCampaigns ?? campaigns
   const stats = data?.stats ?? {
-    total: 0,
+    total: campaigns.length,
     active: 0,
     endingSoon: 0,
     draft: 0,
@@ -113,7 +126,7 @@ export function CampaignsClient({ initialStatus = 'all' }: CampaignsClientProps)
   // Excel export handler
   const handleExport = () => {
     try {
-      exportCampaigns(allCampaigns)
+      exportCampaigns(allCampaigns as CampaignWithStats[])
       toast.success('Campaigns exported to Excel')
     } catch {
       toast.error('Failed to export campaigns')
@@ -122,10 +135,10 @@ export function CampaignsClient({ initialStatus = 'all' }: CampaignsClientProps)
 
   return (
     <Tooltip.Provider>
-      <div className="space-y-4 sm:space-y-5">
+      <div className="space-y-5 sm:space-y-6">
         {/* Page Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
             <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Campaigns</h1>
             <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
               Manage your influencer marketing campaigns
@@ -305,7 +318,7 @@ export function CampaignsClient({ initialStatus = 'all' }: CampaignsClientProps)
           </EmptyState.Root>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3 items-stretch">
-            {campaigns.map((campaign) => (
+            {campaigns.map((campaign: CampaignWithStats) => (
               <CampaignCard
                 key={campaign.id}
                 campaign={campaign}

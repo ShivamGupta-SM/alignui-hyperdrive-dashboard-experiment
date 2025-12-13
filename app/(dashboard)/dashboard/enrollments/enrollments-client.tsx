@@ -20,14 +20,33 @@ import {
   SquaresFour,
   ArrowRight,
   Warning,
+  CaretUp,
+  CaretDown,
+  ArrowsDownUp,
+  CaretLeft,
+  CaretRight,
 } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import { useEnrollmentSearchParams } from '@/hooks'
-import { useEnrollmentsData, type Enrollment } from '@/hooks/use-enrollments'
+import { type Enrollment } from '@/hooks/use-enrollments'
 import { useDebounceValue } from 'usehooks-ts'
 import { exportEnrollments } from '@/lib/excel'
 import { bulkUpdateEnrollments } from '@/app/actions'
 import type { EnrollmentStatus } from '@/lib/types'
+import type { enrollments } from '@/lib/encore-client'
+import {
+  type ColumnDef,
+  type SortingState,
+  type ColumnFiltersState,
+  type VisibilityState,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+import * as Table from '@/components/ui/table'
 
 // Helper functions
 const getTimeAgo = (date: Date | string): string => {
@@ -83,9 +102,22 @@ const getStatusLabel = (status: EnrollmentStatus) => {
 
 interface EnrollmentsClientProps {
   initialStatus?: string
+  initialData?: {
+    enrollments: Enrollment[]
+    data?: Enrollment[]
+    total?: number
+    stats?: {
+      total: number
+      pending: number
+      overdue: number
+      approved: number
+      rejected: number
+      totalValue: number
+    }
+  }
 }
 
-export function EnrollmentsClient({ initialStatus = 'all' }: EnrollmentsClientProps) {
+export function EnrollmentsClient({ initialStatus = 'all', initialData }: EnrollmentsClientProps) {
   const router = useRouter()
   const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [viewMode, setViewMode] = React.useState<'list' | 'compact'>('list')
@@ -96,20 +128,21 @@ export function EnrollmentsClient({ initialStatus = 'all' }: EnrollmentsClientPr
   const statusFilter = searchParams.status || initialStatus
   const [search, setSearch] = React.useState(searchParams.search)
 
-  // React Query hook - data is already hydrated from server
-  const { data } = useEnrollmentsData(statusFilter)
+  // React Query hook removed - using server data via initialData
+  // const { data } = useEnrollmentsData(statusFilter)
 
-  // Extract data with fallbacks
-  const enrollments = data?.enrollments ?? []
-  const allEnrollments = data?.allEnrollments ?? []
-  const stats = data?.stats ?? {
-    total: 0,
+  // Use server data directly - type-safe with Encore types
+  const enrollmentsList: enrollments.EnrollmentWithRelations[] = (initialData?.enrollments ?? initialData?.data ?? [])
+  const allEnrollments = enrollments
+  const stats = initialData?.stats ?? {
+    total: enrollmentsList.length,
     pending: 0,
     overdue: 0,
     approved: 0,
     rejected: 0,
     totalValue: 0,
   }
+
 
   // usehooks-ts: Debounce search input to avoid excessive URL updates
   const [debouncedSearch] = useDebounceValue(search, 300)
@@ -170,20 +203,27 @@ export function EnrollmentsClient({ initialStatus = 'all' }: EnrollmentsClientPr
     }
   }
 
+  // Filter enrollments by status
+  const statusFilteredEnrollments = React.useMemo(() => {
+    if (statusFilter === 'all') return allEnrollments
+    return allEnrollments.filter((e) => e.status === statusFilter)
+  }, [allEnrollments, statusFilter])
+
+  // Filter by search
   const filteredEnrollments = React.useMemo(() => {
-    if (!search) return enrollments
+    if (!search) return statusFilteredEnrollments
 
     const searchLower = search.toLowerCase()
-    return enrollments.filter(
+    return statusFilteredEnrollments.filter(
       (e) =>
         e.shopperId.toLowerCase().includes(searchLower) ||
         e.orderId.toLowerCase().includes(searchLower)
     )
-  }, [enrollments, search])
+  }, [statusFilteredEnrollments, search])
 
   // Tracker data
   const trackerData = React.useMemo(() => {
-    return allEnrollments.map(e => {
+    return allEnrollments.map((e: enrollments.EnrollmentWithRelations) => {
       switch (e.status) {
         case 'approved': return { status: 'success' as const, tooltip: e.orderId || e.shopperId }
         case 'awaiting_review':
@@ -202,21 +242,6 @@ export function EnrollmentsClient({ initialStatus = 'all' }: EnrollmentsClientPr
     setSearchParams({ status: value as typeof statusFilter, page: 1 })
   }
 
-  const handleSelect = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedIds([...selectedIds, id])
-    } else {
-      setSelectedIds(selectedIds.filter((i) => i !== id))
-    }
-  }
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedIds(filteredEnrollments.filter(e => e.status === 'awaiting_review').map((e) => e.id))
-    } else {
-      setSelectedIds([])
-    }
-  }
 
   const getStatusCount = (status: string) => {
     if (status === 'all') return allEnrollments.length
@@ -224,10 +249,266 @@ export function EnrollmentsClient({ initialStatus = 'all' }: EnrollmentsClientPr
   }
 
   const formatCurrency = (amount: number) => `₹${amount.toLocaleString('en-IN')}`
+  const formatDate = (date: Date | string) => {
+    return new Date(date).toLocaleDateString('en-IN', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+
+  // Table columns definition
+  const columns: ColumnDef<enrollments.EnrollmentWithRelations>[] = React.useMemo(() => [
+    {
+      id: 'select',
+      header: ({ table }) => {
+        const selectableCount = filteredEnrollments.filter(e => e.status === 'awaiting_review').length
+        const selectedCount = selectedIds.length
+        return (
+          <Checkbox.Root
+            checked={selectableCount > 0 && selectedCount === selectableCount}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                const selectableIds = filteredEnrollments
+                  .filter(e => e.status === 'awaiting_review')
+                  .map(e => e.id)
+                setSelectedIds(selectableIds)
+              } else {
+                setSelectedIds([])
+              }
+            }}
+            aria-label="Select all"
+          />
+        )
+      },
+      cell: ({ row }) => {
+        const canSelect = row.original.status === 'awaiting_review'
+        return (
+          <Checkbox.Root
+            checked={selectedIds.includes(row.original.id)}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                setSelectedIds([...selectedIds, row.original.id])
+              } else {
+                setSelectedIds(selectedIds.filter(id => id !== row.original.id))
+              }
+            }}
+            disabled={!canSelect}
+            aria-label="Select row"
+          />
+        )
+      },
+      enableSorting: false,
+      enableHiding: false,
+      size: 50,
+    },
+    {
+      accessorKey: 'orderId',
+      header: ({ column }) => {
+        return (
+          <button
+            type="button"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            className="flex items-center gap-1.5 hover:text-text-strong-950 transition-colors"
+          >
+            Order ID
+            {column.getIsSorted() === 'asc' ? (
+              <CaretUp className="size-3.5" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <CaretDown className="size-3.5" />
+            ) : (
+              <ArrowsDownUp className="size-3.5 text-text-soft-400" />
+            )}
+          </button>
+        )
+      },
+      cell: ({ row }) => {
+        const enrollment = row.original
+        const displayName = enrollment.orderId || enrollment.shopperId.slice(0, 8)
+        return (
+          <div className="flex items-center gap-3">
+            <Avatar.Root size="32" color={getAvatarColor(displayName)}>
+              {displayName.charAt(0).toUpperCase()}
+            </Avatar.Root>
+            <div>
+              <div className="text-label-sm text-text-strong-950 font-medium">
+                {enrollment.orderId || `#${enrollment.shopperId.slice(0, 8)}`}
+              </div>
+              <div className="text-paragraph-xs text-text-sub-600">
+                {enrollment.shopperId.slice(0, 8)}...
+              </div>
+            </div>
+          </div>
+        )
+      },
+      size: 200,
+    },
+    {
+      accessorKey: 'campaignId',
+      header: 'Campaign',
+      cell: ({ row }) => {
+        const campaignId = row.original.campaignId
+        return (
+          <div className="text-paragraph-sm text-text-strong-950">
+            {campaignId.slice(0, 12)}...
+          </div>
+        )
+      },
+      size: 150,
+    },
+    {
+      accessorKey: 'status',
+      header: ({ column }) => {
+        return (
+          <button
+            type="button"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            className="flex items-center gap-1.5 hover:text-text-strong-950 transition-colors"
+          >
+            Status
+            {column.getIsSorted() === 'asc' ? (
+              <CaretUp className="size-3.5" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <CaretDown className="size-3.5" />
+            ) : (
+              <ArrowsDownUp className="size-3.5 text-text-soft-400" />
+            )}
+          </button>
+        )
+      },
+      cell: ({ row }) => {
+        const enrollment = row.original
+        const enrollmentOverdue = enrollment.status === 'awaiting_review' && isOverdue(enrollment.createdAt)
+        return (
+          <div className="flex items-center gap-2">
+            <StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="light">
+              {getStatusLabel(enrollment.status)}
+            </StatusBadge.Root>
+            {enrollmentOverdue && (
+              <span className="flex items-center gap-0.5 text-[10px] font-medium text-error-base bg-error-base/10 px-1.5 py-0.5 rounded-full">
+                <Warning weight="fill" className="size-3" />
+                Overdue
+              </span>
+            )}
+          </div>
+        )
+      },
+      size: 150,
+    },
+    {
+      accessorKey: 'orderValue',
+      header: ({ column }) => {
+        return (
+          <button
+            type="button"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            className="flex items-center gap-1.5 hover:text-text-strong-950 transition-colors"
+          >
+            Order Value
+            {column.getIsSorted() === 'asc' ? (
+              <CaretUp className="size-3.5" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <CaretDown className="size-3.5" />
+            ) : (
+              <ArrowsDownUp className="size-3.5 text-text-soft-400" />
+            )}
+          </button>
+        )
+      },
+      cell: ({ row }) => {
+        return (
+          <div className="text-label-sm text-text-strong-950 font-semibold">
+            {formatCurrency(row.original.orderValue)}
+          </div>
+        )
+      },
+      size: 120,
+    },
+    {
+      accessorKey: 'createdAt',
+      header: ({ column }) => {
+        return (
+          <button
+            type="button"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            className="flex items-center gap-1.5 hover:text-text-strong-950 transition-colors"
+          >
+            Date
+            {column.getIsSorted() === 'asc' ? (
+              <CaretUp className="size-3.5" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <CaretDown className="size-3.5" />
+            ) : (
+              <ArrowsDownUp className="size-3.5 text-text-soft-400" />
+            )}
+          </button>
+        )
+      },
+      cell: ({ row }) => {
+        return (
+          <div>
+            <div className="text-paragraph-sm text-text-strong-950">
+              {formatDate(row.original.createdAt)}
+            </div>
+            <div className="text-paragraph-xs text-text-sub-600">
+              {getTimeAgo(row.original.createdAt)}
+            </div>
+          </div>
+        )
+      },
+      size: 140,
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => {
+        return (
+          <Button.Root
+            variant="ghost"
+            size="xsmall"
+            onClick={() => router.push(`/dashboard/enrollments/${row.original.id}`)}
+          >
+            View
+            <Button.Icon as={ArrowRight} />
+          </Button.Root>
+        )
+      },
+      enableSorting: false,
+      size: 100,
+    },
+  ], [selectedIds, filteredEnrollments, router, formatCurrency, formatDate, getTimeAgo])
+
+  // Table state
+  const [sorting, setSorting] = React.useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+
+  // Initialize table
+  const table = useReactTable({
+    data: filteredEnrollments,
+    columns,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+    },
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
+  })
 
   return (
     <Tooltip.Provider>
-    <div className="space-y-4 sm:space-y-5">
+    <div className="space-y-5 sm:space-y-6">
       {/* Overdue Alert */}
       {stats.overdue > 0 && (
         <div className="flex items-center gap-3 rounded-xl bg-linear-to-r from-error-lighter to-error-lighter/50 p-3 ring-1 ring-inset ring-error-base/20">
@@ -249,8 +530,8 @@ export function EnrollmentsClient({ initialStatus = 'all' }: EnrollmentsClientPr
       )}
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Enrollments</h1>
           <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
             Review and manage campaign enrollments
@@ -402,29 +683,110 @@ export function EnrollmentsClient({ initialStatus = 'all' }: EnrollmentsClientPr
         </div>
       )}
 
-      {/* Enrollments List */}
-      {filteredEnrollments.length === 0 ? (
-        <div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-8 sm:p-12 text-center">
-          <div className="size-12 mx-auto mb-4 rounded-full bg-success-lighter flex items-center justify-center">
-            <Check className="size-6 text-success-base" />
+      {/* Enrollments Table */}
+      {viewMode === 'list' ? (
+        <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table.Root>
+              <Table.Header>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <Table.Row key={headerGroup.id} className="hover:bg-transparent">
+                    {headerGroup.headers.map((header) => (
+                      <Table.Head
+                        key={header.id}
+                        style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
+                        className={cn(
+                          header.id === 'select' && 'w-12 px-4',
+                          header.id === 'actions' && 'w-24',
+                          'first:pl-6 last:pr-6'
+                        )}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </Table.Head>
+                    ))}
+                  </Table.Row>
+                ))}
+              </Table.Header>
+              <Table.Body>
+                {table.getRowModel().rows?.length ? (
+                  table.getRowModel().rows.map((row) => (
+                    <Table.Row
+                      key={row.id}
+                      data-state={selectedIds.includes(row.original.id) && 'selected'}
+                      className={cn(
+                        'cursor-pointer transition-colors group',
+                        selectedIds.includes(row.original.id) && 'bg-primary-lighter/30',
+                        row.original.status === 'awaiting_review' && isOverdue(row.original.createdAt) && 'bg-error-lighter/20',
+                        'hover:bg-bg-weak-50'
+                      )}
+                      onClick={() => router.push(`/dashboard/enrollments/${row.original.id}`)}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <Table.Cell
+                          key={cell.id}
+                          className={cn(
+                            'first:pl-6 last:pr-6',
+                            cell.column.id === 'select' && 'w-12'
+                          )}
+                          onClick={(e) => {
+                            // Prevent navigation when clicking checkbox or action button
+                            if (cell.column.id === 'select' || cell.column.id === 'actions') {
+                              e.stopPropagation()
+                            }
+                          }}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </Table.Cell>
+                      ))}
+                    </Table.Row>
+                  ))
+                ) : (
+                  <Table.Empty
+                    colSpan={columns.length}
+                    icon={<Check className="size-8 text-text-soft-400" />}
+                    title="No enrollments found"
+                    description="No enrollments match your current filters."
+                  />
+                )}
+              </Table.Body>
+            </Table.Root>
           </div>
-          <h3 className="text-label-md text-text-strong-950 mb-1">All caught up!</h3>
-          <p className="text-paragraph-sm text-text-sub-600">
-            No enrollments match your current filters.
-          </p>
-        </div>
-      ) : viewMode === 'list' ? (
-        <div className="space-y-2 sm:space-y-3">
-          {filteredEnrollments.map((enrollment) => (
-            <EnrollmentListItem
-              key={enrollment.id}
-              enrollment={enrollment}
-              formatCurrency={formatCurrency}
-              selected={selectedIds.includes(enrollment.id)}
-              onSelect={(checked) => handleSelect(enrollment.id, checked)}
-              onClick={() => router.push(`/dashboard/enrollments/${enrollment.id}`)}
-            />
-          ))}
+
+          {/* Pagination */}
+          {table.getPageCount() > 1 && (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-stroke-soft-200 bg-bg-weak-50">
+              <div className="text-paragraph-sm text-text-sub-600">
+                Showing <span className="font-medium text-text-strong-950">{table.getRowModel().rows.length}</span> of{' '}
+                <span className="font-medium text-text-strong-950">{filteredEnrollments.length}</span> enrollments
+              </div>
+              <div className="flex items-center gap-2">
+                <Button.Root
+                  variant="basic"
+                  size="xsmall"
+                  onClick={() => table.previousPage()}
+                  disabled={!table.getCanPreviousPage()}
+                >
+                  <Button.Icon as={CaretLeft} />
+                  Previous
+                </Button.Root>
+                <div className="text-paragraph-sm text-text-sub-600 px-3">
+                  Page <span className="font-medium text-text-strong-950">{table.getState().pagination.pageIndex + 1}</span> of{' '}
+                  <span className="font-medium text-text-strong-950">{table.getPageCount()}</span>
+                </div>
+                <Button.Root
+                  variant="basic"
+                  size="xsmall"
+                  onClick={() => table.nextPage()}
+                  disabled={!table.getCanNextPage()}
+                >
+                  Next
+                  <Button.Icon as={CaretRight} />
+                </Button.Root>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -436,13 +798,6 @@ export function EnrollmentsClient({ initialStatus = 'all' }: EnrollmentsClientPr
               onClick={() => router.push(`/dashboard/enrollments/${enrollment.id}`)}
             />
           ))}
-        </div>
-      )}
-
-      {/* Pagination info */}
-      {filteredEnrollments.length > 0 && (
-        <div className="text-center text-paragraph-xs text-text-sub-600">
-          Showing {filteredEnrollments.length} of {allEnrollments.length} enrollments
         </div>
       )}
     </div>

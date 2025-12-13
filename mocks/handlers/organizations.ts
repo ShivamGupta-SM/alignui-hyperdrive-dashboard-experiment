@@ -5,8 +5,6 @@
 import { http } from 'msw'
 import { db } from '@/mocks/db'
 import {
-  delay,
-  DELAY,
   getAuthContext,
   encoreUrl,
   encoreResponse,
@@ -16,8 +14,6 @@ import {
 export const organizationsHandlers = [
   // GET /organizations/me - Get my organizations
   http.get(encoreUrl('/organizations/me'), async () => {
-    await delay(DELAY.FAST)
-    
     const orgs = db.organizationSettings.findMany({})
     
     return encoreResponse({ 
@@ -32,8 +28,6 @@ export const organizationsHandlers = [
 
   // GET /organizations/:id - Get organization
   http.get(encoreUrl('/organizations/:id'), async ({ params }) => {
-    await delay(DELAY.FAST)
-
     const { id } = params as { id: string }
     const org = db.organizationSettings.findFirst((q) => q.where({ organizationId: id }))
 
@@ -71,8 +65,6 @@ export const organizationsHandlers = [
 
   // PUT /organizations/:id - Update organization
   http.put(encoreUrl('/organizations/:id'), async ({ params, request }) => {
-    await delay(DELAY.MEDIUM)
-
     const { id } = params as { id: string }
     const body = await request.json() as Record<string, unknown>
 
@@ -93,8 +85,6 @@ export const organizationsHandlers = [
 
   // POST /organizations - Create organization
   http.post(encoreUrl('/organizations'), async ({ request }) => {
-    await delay(DELAY.MEDIUM)
-
     const body = await request.json() as { name: string; logo?: string }
     
     const newOrg = {

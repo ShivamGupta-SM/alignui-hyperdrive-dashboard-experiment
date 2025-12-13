@@ -8,30 +8,8 @@ import { Tracker } from '@/components/ui/tracker'
 import { MetallicLogo } from '@/components/dashboard/metallic-logo'
 import { MARKETING_STATS } from '@/lib/types/constants'
 
-// Static testimonials data
-const mockTestimonials = [
-  {
-    author: 'Priya Sharma',
-    role: 'Marketing Director',
-    company: 'FashionBrand Co.',
-    avatar: 'PS',
-    quote: 'Hypedrive transformed our influencer campaigns. The OCR verification saves us hours every day.',
-  },
-  {
-    author: 'Rahul Patel',
-    role: 'Growth Lead',
-    company: 'TechStartup Inc.',
-    avatar: 'RP',
-    quote: 'The wallet management and automatic payouts are game-changers. Highly recommended!',
-  },
-  {
-    author: 'Anjali Verma',
-    role: 'Brand Manager',
-    company: 'BeautyBrand Ltd.',
-    avatar: 'AV',
-    quote: 'Best platform for managing multiple campaigns. The analytics are incredibly insightful.',
-  },
-]
+// Testimonials will be fetched from API/CMS if needed
+// For now, testimonials section is removed to avoid hard-coded data
 import {
   Megaphone,
   ArrowRight,
@@ -731,37 +709,11 @@ function TestimonialsSection() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {mockTestimonials.map((testimonial, index) => (
-            <div
-              key={testimonial.author}
-              className="rounded-2xl bg-bg-white-0 p-6 shadow-custom-sm ring-1 ring-stroke-soft-200"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              {/* Stars */}
-              <div className="flex gap-1 mb-4">
-                {['star-1', 'star-2', 'star-3', 'star-4', 'star-5'].map((key) => (
-                  <Star key={key} weight="fill" className="size-4 text-warning-base" />
-                ))}
-              </div>
-
-              <blockquote className="text-paragraph-md text-text-sub-600 mb-6">
-                &ldquo;{testimonial.quote}&rdquo;
-              </blockquote>
-
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center size-10 rounded-full bg-primary-lighter text-primary-base text-label-sm font-semibold">
-                  {testimonial.avatar}
-                </div>
-                <div>
-                  <div className="text-label-sm text-text-strong-950">{testimonial.author}</div>
-                  <div className="text-paragraph-xs text-text-sub-600">
-                    {testimonial.role}, {testimonial.company}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* Testimonials section removed - will be populated from API/CMS when available */}
+        <div className="text-center py-12">
+          <p className="text-paragraph-md text-text-sub-600">
+            Customer testimonials will be displayed here when available.
+          </p>
         </div>
       </div>
     </section>

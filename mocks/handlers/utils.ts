@@ -7,7 +7,7 @@
  * All response helpers enforce Encore types for end-to-end type safety.
  */
 
-import { HttpResponse, delay as mswDelay } from 'msw'
+import { HttpResponse } from 'msw'
 
 // Import Encore types for type safety
 import type {
@@ -31,20 +31,10 @@ export function encoreUrl(path: string): string {
 }
 
 // =============================================================================
-// DELAYS
+// DELAYS - Removed artificial delays
 // =============================================================================
-
-export const DELAY = {
-  INSTANT: 0,
-  FAST: 150,
-  STANDARD: 300,
-  MEDIUM: 500,
-  SLOW: 800,
-} as const
-
-export async function delay(ms: number = DELAY.STANDARD) {
-  await mswDelay(ms)
-}
+// Note: MSW handlers can use mswDelay directly if needed for testing
+// For production, remove all delays for faster responses
 
 // =============================================================================
 // AUTH CONTEXT

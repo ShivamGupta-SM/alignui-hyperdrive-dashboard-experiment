@@ -21,7 +21,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import { useInvoiceSearchParams } from '@/hooks'
-import { useInvoicesData } from '@/hooks/use-invoices'
+// import { useInvoicesData } from '@/hooks/use-invoices'
 import { useDebounceValue, useMediaQuery } from 'usehooks-ts'
 import { exportInvoices } from '@/lib/excel'
 import { toast } from 'sonner'
@@ -36,7 +36,19 @@ const periodFilters = [
   { value: 'last_3_months', label: '3 Months' },
 ]
 
-export function InvoicesClient() {
+interface InvoicesClientProps {
+  initialData?: {
+    invoices: Invoice[]
+    stats?: {
+      count: number
+      totalAmount: number
+      totalGst: number
+      totalEnrollments: number
+    }
+  }
+}
+
+export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
   const [selectedInvoice, setSelectedInvoice] = React.useState<Invoice | null>(null)
   const [downloadingId, setDownloadingId] = React.useState<string | null>(null)
 
@@ -51,14 +63,14 @@ export function InvoicesClient() {
   const periodFilter = searchParams.period
   const [search, setSearch] = React.useState(searchParams.search)
 
-  // React Query hook - data is already hydrated from server
-  const { data } = useInvoicesData()
+  // React Query hook removed - using server data via initialData
+  // const { data } = useInvoicesData()
 
-  // Extract data with fallbacks
-  const initialInvoices = data?.invoices ?? []
-  const allInvoices = data?.allInvoices ?? []
-  const initialStats = data?.stats ?? {
-    count: 0,
+  // Use initialData directly - type-safe with Encore types
+  const invoicesList: invoices.Invoice[] = (initialData?.invoices ?? [])
+  const allInvoices = invoicesList
+  const initialStats = initialData?.stats ?? {
+    count: invoicesList.length,
     totalAmount: 0,
     totalGst: 0,
     totalEnrollments: 0,
@@ -89,8 +101,17 @@ export function InvoicesClient() {
     e?.stopPropagation()
     setDownloadingId(invoice.id)
     try {
-      const response = await fetch(`/api/invoices/${invoice.id}/pdf`)
+      const { generateInvoicePDF } = await import('@/app/actions')
+      const result = await generateInvoicePDF(invoice.id)
+      
+      if (!result.success || !result.pdfUrl) {
+        throw new Error(result.error || 'Failed to generate PDF')
+      }
+
+      // Fetch the PDF from the URL
+      const response = await fetch(result.pdfUrl)
       if (!response.ok) throw new Error('Failed to download PDF')
+      
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -99,8 +120,9 @@ export function InvoicesClient() {
       a.click()
       URL.revokeObjectURL(url)
       toast.success(`Downloaded ${invoice.invoiceNumber}.pdf`)
-    } catch {
-      toast.error('Failed to download invoice PDF')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to download invoice PDF'
+      toast.error(errorMessage)
     } finally {
       setDownloadingId(null)
     }
@@ -130,24 +152,24 @@ export function InvoicesClient() {
   }
 
   const filteredInvoices = React.useMemo(() => {
-    let result = initialInvoices
+    let result = allInvoices
 
     // Only apply period filters after hydration (when referenceDate is set)
     if (referenceDate && periodFilter !== 'all') {
       if (periodFilter === 'this_month') {
-        result = result.filter(i =>
+        result = result.filter((i) =>
           new Date(i.createdAt).getMonth() === referenceDate.getMonth() &&
           new Date(i.createdAt).getFullYear() === referenceDate.getFullYear()
         )
       } else if (periodFilter === 'last_month') {
         const lastMonth = new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 1, 1)
-        result = result.filter(i =>
+        result = result.filter((i) =>
           new Date(i.createdAt).getMonth() === lastMonth.getMonth() &&
           new Date(i.createdAt).getFullYear() === lastMonth.getFullYear()
         )
       } else if (periodFilter === 'last_3_months') {
         const threeMonthsAgo = new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 3, 1)
-        result = result.filter(i => new Date(i.createdAt) >= threeMonthsAgo)
+        result = result.filter((i) => new Date(i.createdAt) >= threeMonthsAgo)
       }
     }
 
@@ -156,21 +178,21 @@ export function InvoicesClient() {
     }
 
     return result
-  }, [initialInvoices, periodFilter, search, referenceDate])
+  }, [allInvoices, periodFilter, search, referenceDate])
 
   const stats = React.useMemo(() => ({
     count: filteredInvoices.length,
     totalAmount: filteredInvoices.reduce((acc, i) => acc + i.totalAmount, 0),
     totalGst: filteredInvoices.reduce((acc, i) => acc + i.gstAmount, 0),
-    totalEnrollments: filteredInvoices.reduce((acc, i) => acc + i.enrollmentCount, 0),
+    totalEnrollments: filteredInvoices.reduce((acc, i) => acc + (i.enrollmentCount || 0), 0),
   }), [filteredInvoices])
 
   return (
     <Tooltip.Provider>
-    <div className="space-y-4 sm:space-y-5">
+    <div className="space-y-5 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Invoices</h1>
           <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
             Weekly billing records

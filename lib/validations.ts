@@ -205,7 +205,8 @@ export const bulkUpdateEnrollmentBodySchema = z.object({
 // Wallet schemas for API
 export const withdrawalBodySchema = z.object({
   amount: z.number().min(1000, 'Minimum withdrawal amount is ₹1,000'),
-  bankAccountId: z.string().min(1, 'Bank account is required'),
+  notes: z.string().max(500).optional(),
+  bankAccountId: z.string().optional(), // Backend handles this, but UI might send it
 })
 
 export const addFundsBodySchema = z.object({

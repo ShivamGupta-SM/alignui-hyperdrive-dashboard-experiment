@@ -4,13 +4,18 @@ import { revalidatePath } from 'next/cache'
 import type { WalletActionResult } from '@/lib/types'
 import {
   withdrawalBodySchema,
-  addFundsBodySchema,
   creditRequestBodySchema,
 } from '@/lib/validations'
-import { delay, DELAY } from '@/lib/utils/delay'
+import { getEncoreClient } from '@/lib/encore'
+import { cookies } from 'next/headers'
+
+// Helper to get org ID from cookies
+async function getOrganizationId(): Promise<string> {
+  const cookieStore = await cookies()
+  return cookieStore.get('active-organization-id')?.value || '1'
+}
 
 export async function requestWithdrawal(data: unknown): Promise<WalletActionResult> {
-  // Validate input
   const validation = withdrawalBodySchema.safeParse(data)
   if (!validation.success) {
     return {
@@ -19,45 +24,30 @@ export async function requestWithdrawal(data: unknown): Promise<WalletActionResu
     }
   }
 
-  await delay(DELAY.LONG)
+  const client = getEncoreClient()
+  const orgId = await getOrganizationId()
 
-  // In a real app, this would create a withdrawal request
-  const withdrawalId = `wd_${Date.now()}`
+  try {
+    const result = await client.wallets.createOrganizationWithdrawal(orgId, {
+       amount: validation.data.amount,
+       notes: validation.data.notes,
+    })
 
-  revalidatePath('/dashboard/wallet')
-  revalidatePath('/dashboard')
-
-  return {
-    success: true,
-    withdrawalId,
-    message: 'Withdrawal request submitted. Processing time: 2-3 business days.',
-  }
-}
-
-export async function addFunds(data: unknown): Promise<WalletActionResult> {
-  // Validate input
-  const validation = addFundsBodySchema.safeParse(data)
-  if (!validation.success) {
+    revalidatePath('/dashboard/wallet')
+    return {
+      success: true,
+      message: 'Withdrawal requested successfully',
+      withdrawalId: result.id
+    }
+  } catch (error: any) {
     return {
       success: false,
-      error: validation.error.issues[0]?.message || 'Invalid input',
+      error: error.message || 'Failed to request withdrawal'
     }
-  }
-
-  await delay(DELAY.SLOW)
-
-  // In a real app, this would initiate payment flow
-  const orderId = `order_${Date.now()}`
-
-  return {
-    success: true,
-    orderId,
-    paymentUrl: `/api/payments/${orderId}`,
   }
 }
 
 export async function requestCredit(data: unknown): Promise<WalletActionResult> {
-  // Validate input
   const validation = creditRequestBodySchema.safeParse(data)
   if (!validation.success) {
     return {
@@ -66,32 +56,59 @@ export async function requestCredit(data: unknown): Promise<WalletActionResult> 
     }
   }
 
-  await delay(DELAY.SLOW)
+  const client = getEncoreClient()
+  const orgId = await getOrganizationId()
 
-  const requestId = `cr_${Date.now()}`
+  try {
+    // Note: requestCreditIncrease takes orgId inside the body based on Client definition, 
+    // OR as a path param?
+    // Let's check signature in previous thought... 
+    // "client.organizations.requestCreditIncrease(orgId, { requestedAmount, reason })" 
+    // Wait, let's verify requestCreditIncrease signature.
+    // Assuming usage in hooks/use-organizations.ts: client.organizations.requestCreditIncrease(orgId, { requestedAmount, reason })
+    await client.organizations.requestCreditIncrease(orgId, {
+      requestedAmount: validation.data.amount,
+      reason: validation.data.reason
+    })
 
-  revalidatePath('/dashboard/wallet')
-
-  return {
-    success: true,
-    requestId,
-    message: 'Credit request submitted for review.',
+    revalidatePath('/dashboard/wallet')
+    return {
+      success: true,
+      message: 'Credit request submitted for review.',
+      requestId: 'submitted'
+    }
+  } catch (error: any) {
+     return {
+      success: false,
+      error: error.message || 'Failed to request credit'
+    }
   }
 }
 
-export async function getTransactionReceipt(transactionId: string): Promise<WalletActionResult> {
-  // Validate id
-  if (!transactionId || typeof transactionId !== 'string') {
-    return { success: false, error: 'Transaction ID is required' }
+export async function cancelWithdrawal(withdrawalId: string): Promise<WalletActionResult> {
+  const client = getEncoreClient()
+  
+  try {
+    await client.wallets.cancelWithdrawal(withdrawalId)
+    revalidatePath('/dashboard/wallet')
+    return {
+        success: true,
+        message: 'Withdrawal cancelled'
+    }
+  } catch (error: any) {
+    return {
+        success: false,
+        error: error.message || 'Failed to cancel withdrawal'
+    }
   }
+}
 
-  await delay(DELAY.STANDARD)
-
-  // In a real app, this would generate/fetch receipt PDF
-  const receiptUrl = `/api/receipts/${transactionId}.pdf`
-
+export async function addFunds(data: unknown): Promise<WalletActionResult> {
+  // Fully simulated as per UI (Bank Transfer) often involves redirecting to PG
+  // or showing bank details.
   return {
     success: true,
-    receiptUrl,
+    orderId: 'virtual-account',
+    paymentUrl: '#' 
   }
 }

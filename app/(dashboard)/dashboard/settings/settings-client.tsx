@@ -16,7 +16,17 @@ import {
   updateOrganization,
   updatePassword,
   revokeAllSessions,
+  changeEmail,
+  deleteUserAccount,
+  sendVerificationEmail,
 } from '@/app/actions'
+import {
+  enable2FA,
+  disable2FA,
+  get2FATotpURI,
+  generate2FABackupCodes,
+  view2FABackupCodes,
+} from '@/app/actions/auth'
 import {
   Buildings,
   Bank,
@@ -63,6 +73,7 @@ interface SettingsData {
     phone: string
     avatar?: string
     role: string
+    emailVerified?: boolean
   }
   organization: {
     name: string
@@ -94,53 +105,34 @@ interface SettingsData {
   }
 }
 
-// Default mock data for development
-const defaultData: SettingsData = {
-  user: {
-    name: 'Admin User',
-    email: 'admin@hypedrive.io',
-    phone: '+91 98765 43210',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
-    role: 'Admin',
-  },
-  organization: {
-    name: 'Nike',
-    slug: 'nike',
-    website: 'https://nike.com',
-    logo: undefined,
-    email: 'contact@nike.com',
-    phone: '+91 98765 43210',
-    address: '123 Business Park, Mumbai, Maharashtra 400001',
-    industry: 'fashion',
-  },
-  bankAccounts: [
-    {
-      id: 'bank-1',
-      bankName: 'HDFC Bank',
-      accountNumber: '****1234',
-      accountHolder: 'Nike India Pvt Ltd',
-      ifscCode: 'HDFC0001234',
-      isDefault: true,
-      isVerified: true,
-    },
-  ],
-  gstDetails: {
-    gstNumber: '27AABCU9603R1ZM',
-    legalName: 'Nike India Private Limited',
-    tradeName: 'Nike India',
-    state: 'Maharashtra',
-    stateCode: '27',
-    status: 'Active',
-    isVerified: true,
-  },
+interface SettingsClientProps {
+  initialData?: SettingsData
 }
 
-export function SettingsClient() {
+export function SettingsClient({ initialData }: SettingsClientProps = {}) {
   // nuqs: URL state management for settings section
   const [activeSection, setActiveSection] = useSettingsSearchParams()
   
-  // Use static data for now - in production would fetch via useSettingsData hook
-  const data = defaultData
+  // Use server data - must be provided from server
+  if (!initialData) {
+    return (
+      <div className="animate-fade-in">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Settings</h1>
+            <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
+              Manage your account and preferences
+            </p>
+          </div>
+        </div>
+        <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-8 text-center">
+          <p className="text-paragraph-sm text-text-sub-600">Loading settings...</p>
+        </div>
+      </div>
+    )
+  }
+  
+  const data = initialData
 
   // nuqs: Update URL when section changes
   const handleSectionChange = (section: string) => {
@@ -150,11 +142,13 @@ export function SettingsClient() {
   return (
     <div className="animate-fade-in">
       {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Settings</h1>
-        <p className="text-paragraph-sm text-text-sub-600 mt-1">
-          Manage your account and preferences
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Settings</h1>
+          <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
+            Manage your account and preferences
+          </p>
+        </div>
       </div>
 
       {/* Mobile Navigation - Horizontal scroll pills */}
@@ -314,19 +308,7 @@ function ProfileSection({ user }: { user: SettingsData['user'] }) {
             </FormField>
 
             <FormField label="Email Address">
-              <Input.Root>
-                <Input.Wrapper>
-                  <Input.Icon as={Envelope} />
-                  <Input.El
-                    value={user.email}
-                    disabled
-                    className="text-text-soft-400"
-                  />
-                </Input.Wrapper>
-              </Input.Root>
-              <p className="mt-1.5 text-paragraph-xs text-text-soft-400">
-                Contact support to change email
-              </p>
+              <ChangeEmailField email={user.email} />
             </FormField>
 
             <FormField label="Phone Number">
@@ -652,7 +634,7 @@ function BillingSection({ bankAccounts, organization }: { bankAccounts: Settings
           <MapPin className="size-5 text-text-soft-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-label-sm text-text-strong-950">{organization.name}</p>
-            <p className="text-paragraph-sm text-text-sub-600 mt-1">{organization.address}</p>
+            <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">{organization.address}</p>
           </div>
         </div>
       </SettingsCard>
@@ -885,10 +867,10 @@ function SecuritySection() {
   React.useEffect(() => {
     async function fetchSessions() {
       try {
-        const response = await fetch('/api/profile/sessions')
-        if (response.ok) {
-          const data = await response.json()
-          setSessions(data.data || [])
+        const { getUserSessions } = await import('@/app/actions')
+        const result = await getUserSessions()
+        if (result.success && result.data) {
+          setSessions(result.data as Session[])
         }
       } finally {
         setIsLoadingSessions(false)
@@ -1023,12 +1005,94 @@ function SecuritySection() {
       </SettingsCard>
 
       {/* Two-Factor Authentication */}
-      <SettingsCard title="Two-Factor Auth">
-        <ToggleRow
-          title="Enable 2FA"
-          description="Use authenticator app"
-          defaultChecked={false}
-        />
+      <TwoFactorAuthSection />
+
+      {/* Email Verification */}
+      <SettingsCard title="Email Verification">
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200 flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-full bg-primary-lighter shrink-0">
+              <Envelope className="size-5 text-primary-base" />
+            </div>
+            <div className="flex-1">
+              <p className="text-label-sm text-text-strong-950">Email Status</p>
+              <p className="text-paragraph-xs text-text-sub-600">
+                {user.emailVerified ? 'Your email is verified' : 'Please verify your email address'}
+              </p>
+            </div>
+            {!user.emailVerified && (
+              <Button.Root
+                variant="primary"
+                size="small"
+                onClick={async () => {
+                  try {
+                    const result = await sendVerificationEmail(user.email)
+                    if (result.success) {
+                      toast.success(result.message || 'Verification email sent')
+                    } else {
+                      toast.error(result.error || 'Failed to send verification email')
+                    }
+                  } catch {
+                    toast.error('Something went wrong. Please try again.')
+                  }
+                }}
+              >
+                Resend Verification
+              </Button.Root>
+            )}
+          </div>
+        </div>
+      </SettingsCard>
+
+      {/* Change Email */}
+      <SettingsCard title="Change Email">
+        <ChangeEmailForm currentEmail={user.email} />
+      </SettingsCard>
+
+      {/* Delete Account */}
+      <SettingsCard title="Delete Account" variant="danger">
+        <div className="p-4 rounded-xl bg-error-lighter/30 border border-error-base/20">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <Warning className="size-5 text-error-base shrink-0 mt-0.5" weight="fill" />
+              <div>
+                <h4 className="text-label-sm text-text-strong-950">Delete Account</h4>
+                <p className="text-paragraph-xs text-text-sub-600 mt-0.5">
+                  Permanently delete your account and all associated data. This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            <Button.Root
+              variant="error"
+              size="small"
+              className="shrink-0 w-full sm:w-auto"
+              onClick={async () => {
+                if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+                  return
+                }
+                
+                const password = prompt('Please enter your password to confirm account deletion:')
+                if (!password) {
+                  return
+                }
+
+                try {
+                  const result = await deleteUserAccount(password)
+                  if (result.success) {
+                    toast.success(result.message || 'Account deletion request sent. Please check your email.')
+                    router.push('/sign-in')
+                  } else {
+                    toast.error(result.error || 'Failed to delete account')
+                  }
+                } catch {
+                  toast.error('Something went wrong. Please try again.')
+                }
+              }}
+            >
+              Delete Account
+            </Button.Root>
+          </div>
+        </div>
       </SettingsCard>
 
       {/* Active Sessions */}
@@ -1239,5 +1303,384 @@ function CardFooter({
         {isLoading ? 'Saving...' : 'Save Changes'}
       </Button.Root>
     </div>
+  )
+}
+
+// ===========================================
+// CHANGE EMAIL COMPONENTS
+// ===========================================
+function ChangeEmailField({ email }: { email: string }) {
+  const [isChanging, setIsChanging] = React.useState(false)
+  const [newEmail, setNewEmail] = React.useState('')
+  const [password, setPassword] = React.useState('')
+  const [showPassword, setShowPassword] = React.useState(false)
+  const [isLoading, setIsLoading] = React.useState(false)
+
+  if (!isChanging) {
+    return (
+      <>
+        <Input.Root>
+          <Input.Wrapper>
+            <Input.Icon as={Envelope} />
+            <Input.El
+              value={email}
+              disabled
+              className="text-text-soft-400"
+            />
+          </Input.Wrapper>
+        </Input.Root>
+        <div className="flex items-center justify-between mt-1.5">
+          <p className="text-paragraph-xs text-text-soft-400">
+            Contact support to change email
+          </p>
+          <Button.Root
+            variant="ghost"
+            size="xsmall"
+            onClick={() => setIsChanging(true)}
+          >
+            Change
+          </Button.Root>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <Input.Root>
+        <Input.Wrapper>
+          <Input.Icon as={Envelope} />
+          <Input.El
+            type="email"
+            placeholder="Enter new email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+          />
+        </Input.Wrapper>
+      </Input.Root>
+      <Input.Root>
+        <Input.Wrapper>
+          <Input.Icon as={Lock} />
+          <Input.El
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Enter your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
+          >
+            {showPassword ? <EyeSlash className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        </Input.Wrapper>
+      </Input.Root>
+      <div className="flex items-center gap-2">
+        <Button.Root
+          variant="primary"
+          size="small"
+          disabled={isLoading || !newEmail || !password}
+          onClick={async () => {
+            setIsLoading(true)
+            try {
+              const result = await changeEmail(newEmail, password)
+              if (result.success) {
+                toast.success(result.message || 'Email change request sent. Please check your email.')
+                setIsChanging(false)
+                setNewEmail('')
+                setPassword('')
+              } else {
+                toast.error(result.error || 'Failed to change email')
+              }
+            } catch {
+              toast.error('Something went wrong. Please try again.')
+            } finally {
+              setIsLoading(false)
+            }
+          }}
+        >
+          {isLoading ? 'Sending...' : 'Send Request'}
+        </Button.Root>
+        <Button.Root
+          variant="ghost"
+          size="small"
+          onClick={() => {
+            setIsChanging(false)
+            setNewEmail('')
+            setPassword('')
+          }}
+        >
+          Cancel
+        </Button.Root>
+      </div>
+    </div>
+  )
+}
+
+function ChangeEmailForm({ currentEmail }: { currentEmail: string }) {
+  const [newEmail, setNewEmail] = React.useState('')
+  const [password, setPassword] = React.useState('')
+  const [showPassword, setShowPassword] = React.useState(false)
+  const [isLoading, setIsLoading] = React.useState(false)
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200">
+        <p className="text-paragraph-sm text-text-sub-600">
+          To change your email address, enter your new email and current password. 
+          You'll receive a confirmation email at your new address.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <FormField label="New Email Address">
+          <Input.Root>
+            <Input.Wrapper>
+              <Input.Icon as={Envelope} />
+              <Input.El
+                type="email"
+                placeholder="Enter new email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+              />
+            </Input.Wrapper>
+          </Input.Root>
+        </FormField>
+
+        <FormField label="Current Password">
+          <Input.Root>
+            <Input.Wrapper>
+              <Input.Icon as={Lock} />
+              <Input.El
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
+              >
+                {showPassword ? <EyeSlash className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </Input.Wrapper>
+          </Input.Root>
+        </FormField>
+      </div>
+
+      <div className="pt-4 border-t border-stroke-soft-200 flex justify-end">
+        <Button.Root
+          variant="primary"
+          onClick={async () => {
+            setIsLoading(true)
+            try {
+              const result = await changeEmail(newEmail, password)
+              if (result.success) {
+                toast.success(result.message || 'Email change request sent. Please check your email.')
+                setNewEmail('')
+                setPassword('')
+              } else {
+                toast.error(result.error || 'Failed to change email')
+              }
+            } catch {
+              toast.error('Something went wrong. Please try again.')
+            } finally {
+              setIsLoading(false)
+            }
+          }}
+          disabled={isLoading || !newEmail || !password}
+        >
+          {isLoading ? 'Sending...' : 'Send Change Request'}
+        </Button.Root>
+      </div>
+    </div>
+  )
+}
+
+// ===========================================
+// TWO-FACTOR AUTHENTICATION SECTION
+// ===========================================
+function TwoFactorAuthSection() {
+  const [is2FAEnabled, setIs2FAEnabled] = React.useState(false)
+  const [isSettingUp, setIsSettingUp] = React.useState(false)
+  const [qrCodeUrl, setQrCodeUrl] = React.useState<string | null>(null)
+  const [backupCodes, setBackupCodes] = React.useState<string[]>([])
+  const [showBackupCodes, setShowBackupCodes] = React.useState(false)
+  const [password, setPassword] = React.useState('')
+  const [showPassword, setShowPassword] = React.useState(false)
+  const [isLoading, setIsLoading] = React.useState(false)
+  const [verificationCode, setVerificationCode] = React.useState('')
+
+  const handleEnable2FA = async () => {
+    if (!password) {
+      toast.error('Password is required')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const result = await enable2FA(password)
+      if (result.success) {
+        setQrCodeUrl(result.qrCodeUrl || null)
+        setBackupCodes(result.backupCodes || [])
+        setIsSettingUp(true)
+        toast.success('2FA setup initiated. Scan the QR code with your authenticator app.')
+      } else {
+        toast.error(result.error || 'Failed to enable 2FA')
+      }
+    } catch {
+      toast.error('Something went wrong. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDisable2FA = async () => {
+    const pwd = prompt('Enter your password to disable 2FA:')
+    if (!pwd) return
+
+    setIsLoading(true)
+    try {
+      const result = await disable2FA(pwd)
+      if (result.success) {
+        setIs2FAEnabled(false)
+        setIsSettingUp(false)
+        setQrCodeUrl(null)
+        setBackupCodes([])
+        toast.success('2FA disabled successfully')
+      } else {
+        toast.error(result.error || 'Failed to disable 2FA')
+      }
+    } catch {
+      toast.error('Something went wrong. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <SettingsCard title="Two-Factor Authentication">
+      <div className="space-y-4">
+        {!is2FAEnabled && !isSettingUp && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200">
+              <p className="text-paragraph-sm text-text-sub-600">
+                Add an extra layer of security to your account by enabling two-factor authentication.
+              </p>
+            </div>
+
+            <FormField label="Password">
+              <Input.Root>
+                <Input.Wrapper>
+                  <Input.Icon as={Lock} />
+                  <Input.El
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
+                  >
+                    {showPassword ? <EyeSlash className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </Input.Wrapper>
+              </Input.Root>
+            </FormField>
+
+            <div className="pt-4 border-t border-stroke-soft-200 flex justify-end">
+              <Button.Root
+                variant="primary"
+                onClick={handleEnable2FA}
+                disabled={isLoading || !password}
+              >
+                {isLoading ? 'Setting up...' : 'Enable 2FA'}
+              </Button.Root>
+            </div>
+          </div>
+        )}
+
+        {isSettingUp && qrCodeUrl && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200 text-center">
+              <p className="text-paragraph-sm text-text-sub-600 mb-4">
+                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+              </p>
+              <div className="flex justify-center">
+                <img src={qrCodeUrl} alt="2FA QR Code" className="rounded-lg border border-stroke-soft-200" />
+              </div>
+            </div>
+
+            {backupCodes.length > 0 && (
+              <div className="p-4 rounded-xl bg-warning-lighter/30 border border-warning-base/20">
+                <p className="text-label-sm text-text-strong-950 mb-2">Backup Codes</p>
+                <p className="text-paragraph-xs text-text-sub-600 mb-3">
+                  Save these codes in a safe place. You can use them to access your account if you lose your device.
+                </p>
+                <div className="grid grid-cols-2 gap-2 font-mono text-paragraph-xs">
+                  {backupCodes.map((code, idx) => (
+                    <div key={idx} className="p-2 bg-bg-white-0 rounded border border-stroke-soft-200">
+                      {code}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-stroke-soft-200 flex justify-end gap-2">
+              <Button.Root
+                variant="ghost"
+                onClick={() => {
+                  setIsSettingUp(false)
+                  setQrCodeUrl(null)
+                  setBackupCodes([])
+                  setPassword('')
+                }}
+              >
+                Cancel
+              </Button.Root>
+              <Button.Root
+                variant="primary"
+                onClick={() => {
+                  setIs2FAEnabled(true)
+                  setIsSettingUp(false)
+                  toast.success('2FA enabled successfully')
+                }}
+              >
+                Complete Setup
+              </Button.Root>
+            </div>
+          </div>
+        )}
+
+        {is2FAEnabled && !isSettingUp && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-success-lighter/30 border border-success-base/20 flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-success-lighter shrink-0">
+                <ShieldCheck className="size-5 text-success-base" />
+              </div>
+              <div className="flex-1">
+                <p className="text-label-sm text-text-strong-950">2FA is enabled</p>
+                <p className="text-paragraph-xs text-text-sub-600">Your account is protected with two-factor authentication</p>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-stroke-soft-200 flex justify-end">
+              <Button.Root
+                variant="error"
+                onClick={handleDisable2FA}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Disabling...' : 'Disable 2FA'}
+              </Button.Root>
+            </div>
+          </div>
+        )}
+      </div>
+    </SettingsCard>
   )
 }

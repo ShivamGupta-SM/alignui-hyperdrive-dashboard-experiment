@@ -3,6 +3,8 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import * as Button from '@/components/ui/button'
 import * as Input from '@/components/ui/input'
 import * as ProgressBar from '@/components/ui/progress-bar'
@@ -10,16 +12,30 @@ import * as Divider from '@/components/ui/divider'
 import { Callout } from '@/components/ui/callout'
 import { GoogleLogo, Eye, EyeSlash, Envelope, Lock, UserPlus, Check, X } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
+import { signUpSchema, type SignUpFormData } from '@/lib/validations'
 
 export default function SignUpPage() {
   const router = useRouter()
-  const [email, setEmail] = React.useState('')
-  const [password, setPassword] = React.useState('')
-  const [confirmPassword, setConfirmPassword] = React.useState('')
   const [showPassword, setShowPassword] = React.useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState('')
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<SignUpFormData>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
+  })
+
+  const password = watch('password')
 
   // Password requirements
   const passwordRequirements = React.useMemo(() => ({
@@ -54,35 +70,21 @@ export default function SignUpPage() {
     return 'green'
   }, [passwordStrength])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const onSubmit = async (data: SignUpFormData) => {
     setError('')
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
-
-    if (passwordStrength < 50) {
-      setError('Please use a stronger password')
-      return
-    }
-
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/auth/sign-up/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name: email.split('@')[0] }),
-      })
+      const { signUpEmail } = await import('@/app/actions')
+      const result = await signUpEmail(data.email, data.password, data.email.split('@')[0])
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to create account')
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create account')
       }
 
+      // Trigger session refetch (like Better Auth does)
       router.push('/onboarding')
+      router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account')
     } finally {
@@ -93,24 +95,20 @@ export default function SignUpPage() {
   const handleGoogleSignUp = async () => {
     setIsLoading(true)
     try {
-      // Mock Google OAuth - in production, this would redirect to Google
-      const response = await fetch('/api/auth/sign-up/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: `google.user.${Date.now()}@gmail.com`,
-          password: 'google-oauth-mock',
-          name: 'Google User',
-        }),
-      })
+      const { signInSocial } = await import('@/app/actions')
+      const result = await signInSocial('google')
 
-      if (!response.ok) {
-        throw new Error('Google sign-up failed')
+      if (!result.success) {
+        throw new Error(result.error || 'Google sign-up failed')
       }
 
-      router.push('/onboarding')
-    } catch {
-      setError('Failed to sign up with Google. Please try again.')
+      // If redirect is needed, it will be handled by the server action
+      if (!result.redirect) {
+        router.push('/onboarding')
+        router.refresh()
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to sign up with Google. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -138,42 +136,48 @@ export default function SignUpPage() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-5" noValidate>
           <div>
             <label htmlFor="email" className="block text-label-sm text-text-strong-950 mb-2">
               Email address
             </label>
-            <Input.Root>
+            <Input.Root hasError={!!errors.email}>
               <Input.Wrapper>
                 <Input.Icon as={Envelope} />
                 <Input.El
                   id="email"
                   type="email"
                   placeholder="you@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+                  {...register('email')}
                   autoComplete="email"
+                  aria-invalid={!!errors.email}
+                  aria-describedby={errors.email ? 'email-error' : undefined}
                 />
               </Input.Wrapper>
             </Input.Root>
+            {errors.email && (
+              <p id="email-error" className="flex items-center gap-1.5 mt-2 text-paragraph-xs text-error-base" role="alert">
+                <X weight="bold" className="size-3.5 shrink-0" />
+                {errors.email.message}
+              </p>
+            )}
           </div>
 
           <div>
             <label htmlFor="password" className="block text-label-sm text-text-strong-950 mb-2">
               Password
             </label>
-            <Input.Root>
+            <Input.Root hasError={!!errors.password}>
               <Input.Wrapper>
                 <Input.Icon as={Lock} />
                 <Input.El
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Create a strong password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
+                  {...register('password')}
                   autoComplete="new-password"
+                  aria-invalid={!!errors.password}
+                  aria-describedby={errors.password ? 'password-error' : undefined}
                 />
                 <button
                   type="button"
@@ -189,6 +193,12 @@ export default function SignUpPage() {
                 </button>
               </Input.Wrapper>
             </Input.Root>
+            {errors.password && (
+              <p id="password-error" className="flex items-center gap-1.5 mt-2 text-paragraph-xs text-error-base" role="alert">
+                <X weight="bold" className="size-3.5 shrink-0" />
+                {errors.password.message}
+              </p>
+            )}
 
             {/* Password Strength Indicator */}
             {password && (
@@ -227,17 +237,17 @@ export default function SignUpPage() {
             <label htmlFor="confirmPassword" className="block text-label-sm text-text-strong-950 mb-2">
               Confirm password
             </label>
-            <Input.Root hasError={confirmPassword.length > 0 && password !== confirmPassword}>
+            <Input.Root hasError={!!errors.confirmPassword}>
               <Input.Wrapper>
                 <Input.Icon as={Lock} />
                 <Input.El
                   id="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="Confirm your password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
+                  {...register('confirmPassword')}
                   autoComplete="new-password"
+                  aria-invalid={!!errors.confirmPassword}
+                  aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
                 />
                 <button
                   type="button"
@@ -253,16 +263,10 @@ export default function SignUpPage() {
                 </button>
               </Input.Wrapper>
             </Input.Root>
-            {confirmPassword && password !== confirmPassword && (
-              <p className="flex items-center gap-1.5 mt-2 text-paragraph-xs text-error-base">
-                <X weight="bold" className="size-3.5" />
-                Passwords do not match
-              </p>
-            )}
-            {confirmPassword && password === confirmPassword && password.length > 0 && (
-              <p className="flex items-center gap-1.5 mt-2 text-paragraph-xs text-success-base">
-                <Check weight="bold" className="size-3.5" />
-                Passwords match
+            {errors.confirmPassword && (
+              <p id="confirmPassword-error" className="flex items-center gap-1.5 mt-2 text-paragraph-xs text-error-base" role="alert">
+                <X weight="bold" className="size-3.5 shrink-0" />
+                {errors.confirmPassword.message}
               </p>
             )}
           </div>

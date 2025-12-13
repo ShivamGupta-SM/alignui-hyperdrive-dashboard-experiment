@@ -2,28 +2,45 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import * as Button from '@/components/ui/button'
 import * as Input from '@/components/ui/input'
 import { Callout } from '@/components/ui/callout'
-import { delay, DELAY } from '@/lib/utils/delay'
-import { ArrowLeft, Envelope } from '@phosphor-icons/react'
+import { ArrowLeft, Envelope, WarningCircle } from '@phosphor-icons/react'
+import { forgotPasswordSchema, type ForgotPasswordFormData } from '@/lib/validations'
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = React.useState('')
   const [isLoading, setIsLoading] = React.useState(false)
   const [success, setSuccess] = React.useState(false)
   const [error, setError] = React.useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ForgotPasswordFormData>({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: {
+      email: '',
+    },
+  })
+
+  const onSubmit = async (data: ForgotPasswordFormData) => {
     setError('')
     setIsLoading(true)
 
     try {
-      await delay(DELAY.FORM)
-      setSuccess(true)
-    } catch {
-      setError('Failed to send reset email')
+      const { forgotPassword } = await import('@/app/actions/auth')
+      const result = await forgotPassword(data.email)
+      
+      if (result.success) {
+        setSuccess(true)
+      } else {
+        setError(result.error || 'Failed to send reset email')
+      }
+    } catch (err) {
+      setError('Failed to send reset email. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -62,27 +79,38 @@ export default function ForgotPasswordPage() {
             {success ? (
               <div className="space-y-6">
                 <Callout variant="success">
-                  <strong>Check your email!</strong> We've sent a password reset link to {email}
+                  <strong>Check your email!</strong> We've sent a password reset link to your email address
                 </Callout>
                 <Button.Root variant="basic" className="w-full" asChild>
                   <Link href="/sign-in">Back to Sign In</Link>
                 </Button.Root>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
                 <div>
-                  <Input.Root>
+                  <label htmlFor="email" className="block text-label-sm text-text-strong-950 mb-2">
+                    Email address
+                  </label>
+                  <Input.Root hasError={!!errors.email}>
                     <Input.Wrapper>
+                      <Input.Icon as={Envelope} />
                       <Input.El
+                        id="email"
                         type="email"
-                        placeholder="Email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
+                        placeholder="you@company.com"
+                        {...register('email')}
                         autoComplete="email"
+                        aria-invalid={!!errors.email}
+                        aria-describedby={errors.email ? 'email-error' : undefined}
                       />
                     </Input.Wrapper>
                   </Input.Root>
+                  {errors.email && (
+                    <p id="email-error" className="flex items-center gap-1.5 mt-2 text-paragraph-xs text-error-base" role="alert">
+                      <WarningCircle weight="fill" className="size-3.5 shrink-0" />
+                      {errors.email.message}
+                    </p>
+                  )}
                 </div>
 
                 <Button.Root

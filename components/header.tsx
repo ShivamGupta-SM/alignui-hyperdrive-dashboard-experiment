@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { useContext } from 'react';
-import { AuthUIContext, UserAvatar } from '@/lib/auth';
+import { useSession } from '@/hooks/use-session';
+import { UserAvatar } from '@/components/user-avatar';
 import * as Button from '@/components/ui/button';
 import { Logo } from '@/components/ui/logo';
 import { House } from '@phosphor-icons/react';
@@ -14,12 +14,6 @@ const DynamicThemeSwitch = dynamic(() => import('./theme-switch'), {
 });
 
 export default function Header() {
-  const {
-    basePath,
-    hooks: { useSession },
-    viewPaths,
-  } = useContext(AuthUIContext);
-
   const { data: sessionData, isPending } = useSession();
   const user = sessionData?.user;
 
@@ -44,18 +38,18 @@ export default function Header() {
                 </Link>
               </Button.Root>
               <Link href='/dashboard'>
-                <UserAvatar user={user} className='size-9' />
+                <UserAvatar user={user} size='40' className='size-9' />
               </Link>
             </div>
           ) : (
             <div className='flex items-center gap-2'>
               <Button.Root variant='ghost' size='small' asChild>
-                <Link href={`${basePath}/${viewPaths.SIGN_IN}`}>
+                <Link href='/sign-in'>
                   Sign In
                 </Link>
               </Button.Root>
               <Button.Root variant='primary' size='small' asChild>
-                <Link href={`${basePath}/${viewPaths.SIGN_UP}`}>
+                <Link href='/sign-up'>
                   Sign Up
                 </Link>
               </Button.Root>

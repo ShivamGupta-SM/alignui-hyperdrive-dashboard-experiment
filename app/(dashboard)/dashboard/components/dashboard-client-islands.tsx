@@ -25,7 +25,7 @@ export function DashboardHeader() {
   }, [])
 
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="min-w-0">
         <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Dashboard</h1>
         <p className="text-paragraph-xs text-text-sub-600 mt-0.5 min-h-[1.25rem]">

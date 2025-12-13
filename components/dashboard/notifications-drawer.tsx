@@ -45,64 +45,6 @@ interface NotificationsDrawerProps {
   isLoading?: boolean
 }
 
-// Mock notifications for fallback (using Encore NotificationType values)
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    userId: '1',
-    type: 'enrollment_approved',
-    title: 'Enrollment Approved',
-    message: 'Your enrollment in Nike Summer Sale was approved',
-    actionUrl: '/dashboard/enrollments/1',
-    actionLabel: 'View Details',
-    isRead: false,
-    createdAt: new Date(Date.now() - 2 * 60 * 1000),
-  },
-  {
-    id: '2',
-    userId: '1',
-    type: 'campaign_approved',
-    title: 'Campaign Live!',
-    message: '"Winter Collection" is now active and accepting enrollments',
-    actionUrl: '/dashboard/campaigns/1',
-    actionLabel: 'View Campaign',
-    isRead: false,
-    createdAt: new Date(Date.now() - 15 * 60 * 1000),
-  },
-  {
-    id: '3',
-    userId: '1',
-    type: 'payment_received',
-    title: 'Payment Received',
-    message: '₹50,000 has been credited to your wallet',
-    actionUrl: '/dashboard/wallet',
-    actionLabel: 'View Wallet',
-    isRead: true,
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-  },
-  {
-    id: '4',
-    userId: '1',
-    type: 'invoice_generated',
-    title: 'New Invoice',
-    message: 'Invoice #INV-2024-001 has been generated',
-    actionUrl: '/dashboard/invoices',
-    actionLabel: 'View Invoice',
-    isRead: true,
-    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
-  },
-  {
-    id: '5',
-    userId: '1',
-    type: 'kyc_verified',
-    title: 'KYC Verified',
-    message: 'Your KYC verification has been completed',
-    actionUrl: '/dashboard/settings',
-    actionLabel: 'View Settings',
-    isRead: true,
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-  },
-]
 
 // Icon mapping for Encore NotificationType
 const notificationIcons: Partial<Record<NotificationType, React.ElementType>> = {
@@ -223,7 +165,7 @@ const notificationStyles: Partial<Record<NotificationType, { bg: string; icon: s
 export function NotificationsDrawer({
   open,
   onOpenChange,
-  notifications = mockNotifications,
+  notifications = [],
   onMarkAllRead,
   onMarkAsRead,
   onNotificationClick,
