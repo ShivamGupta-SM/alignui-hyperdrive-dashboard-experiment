@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { cn } from '@/utils/cn'
 import * as Button from '@/components/ui/button'
+import * as Badge from '@/components/ui/badge'
 import { Tracker } from '@/components/ui/tracker'
 import { SparkChart } from '@/components/ui/spark-chart'
 import {
@@ -285,9 +286,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-stroke-soft-200/60 text-paragraph-xs">
             <span className="text-text-soft-400">{formatWalletAmount(wallet.held)} held</span>
             {isLowBalance && (
-              <span className="text-label-xs font-medium text-warning-base bg-warning-base/10 px-2 py-0.5 rounded-full uppercase">
+              <Badge.Root color="orange" variant="lighter" size="small">
                 Low Balance
-              </span>
+              </Badge.Root>
             )}
           </div>
         </Link>
@@ -310,9 +311,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               <Clock weight="duotone" className="size-5" />
             </div>
             {hasOverdue && (
-              <span className="text-label-xs font-medium text-error-base bg-error-base/10 px-2 py-0.5 rounded-full uppercase">
+              <Badge.Root color="red" variant="lighter" size="small">
                 {metrics.pendingOverdue} overdue
-              </span>
+              </Badge.Root>
             )}
           </div>
           <div className="text-title-h5 text-text-strong-950 font-semibold">
@@ -516,7 +517,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 <div className="flex items-start gap-3 sm:hidden">
                   <div className="relative size-12 rounded-lg overflow-hidden shrink-0 ring-1 ring-inset ring-stroke-soft-200 bg-bg-weak-50">
                     {enrollment.campaign?.product?.image && (
-                      <Image src={enrollment.campaign.product.image} alt="" fill sizes="48px" className="object-contain p-0.5" />
+                      <Image src={enrollment.campaign.product.image} alt="Product" fill sizes="48px" className="object-contain p-1.5" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -548,7 +549,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
                 <div className="hidden sm:flex items-center gap-4">
                   <div className="relative size-10 rounded-lg overflow-hidden shrink-0 ring-1 ring-inset ring-stroke-soft-200 bg-bg-weak-50">
                     {enrollment.campaign?.product?.image && (
-                      <Image src={enrollment.campaign.product.image} alt="" fill sizes="40px" className="object-contain p-0.5" />
+                      <Image src={enrollment.campaign.product.image} alt="Product" fill sizes="40px" className="object-contain p-1" />
                     )}
                   </div>
 

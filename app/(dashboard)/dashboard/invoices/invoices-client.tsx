@@ -51,6 +51,7 @@ interface InvoicesClientProps {
 export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
   const [selectedInvoice, setSelectedInvoice] = React.useState<Invoice | null>(null)
   const [downloadingId, setDownloadingId] = React.useState<string | null>(null)
+  const [isExportingEnrollments, setIsExportingEnrollments] = React.useState(false)
 
   // Hydration-safe: Reference date for period filtering (set after mount to avoid SSR mismatch)
   const [referenceDate, setReferenceDate] = React.useState<Date | null>(null)
@@ -93,6 +94,94 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
       toast.success('Invoices exported to Excel')
     } catch {
       toast.error('Failed to export invoices')
+    }
+  }
+
+  // Export invoice enrollments handler
+  const handleExportEnrollments = async (invoiceId: string) => {
+    setIsExportingEnrollments(true)
+    try {
+      const { getInvoiceEnrollmentIds } = await import('@/app/actions/invoices')
+      const result = await getInvoiceEnrollmentIds(invoiceId)
+      
+      if (!result.success || !result.enrollmentIds || result.enrollmentIds.length === 0) {
+        toast.error(result.error || 'No enrollments found for this invoice')
+        return
+      }
+
+      // Fetch enrollments individually (or use existing data if available)
+      const { getEncoreBrowserClient } = await import('@/lib/encore-browser')
+      const client = getEncoreBrowserClient()
+      
+      // Fetch enrollments by IDs
+      const enrollmentPromises = result.enrollmentIds.map(id => 
+        client.enrollments.getEnrollment(id).catch(() => null)
+      )
+      const enrollments = (await Promise.all(enrollmentPromises)).filter(Boolean)
+      
+      if (enrollments.length === 0) {
+        toast.error('Failed to fetch enrollment data')
+        return
+      }
+
+      // Export to CSV
+      const { exportToCSV } = await import('@/lib/excel')
+      exportToCSV(
+        enrollments.map((e) => {
+          const billAmount = e.orderValue * ((e.lockedBillRate ?? 0) / 100)
+          const gstAmount = billAmount * 0.18
+          const platformFee = e.orderValue * ((e.lockedPlatformFee ?? 0) / 100)
+          const totalCost = billAmount + gstAmount + platformFee
+          const rebatePercentage = e.lockedRebatePercentage ?? 0
+          const bonusAmount = e.lockedBonusAmount ?? 0
+          const shopperPayout = e.orderValue * (rebatePercentage / 100) + bonusAmount
+
+          return {
+            enrollmentId: e.id,
+            orderId: e.orderId,
+            orderValue: e.orderValue,
+            purchaseDate: e.purchaseDate ? new Date(e.purchaseDate).toLocaleDateString() : '',
+            shopperId: e.shopperId,
+            status: e.status,
+            rebatePercentage,
+            bonusAmount,
+            shopperPayout: Math.round(shopperPayout * 100) / 100,
+            billAmount: Math.round(billAmount * 100) / 100,
+            platformFee: Math.round(platformFee * 100) / 100,
+            gstAmount: Math.round(gstAmount * 100) / 100,
+            totalCost: Math.round(totalCost * 100) / 100,
+            submittedAt: e.submittedAt ? new Date(e.submittedAt).toLocaleDateString() : '',
+            approvedAt: e.approvedAt ? new Date(e.approvedAt).toLocaleDateString() : '',
+            createdAt: new Date(e.createdAt).toLocaleDateString(),
+          }
+        }),
+        `invoice-${result.invoiceNumber}-enrollments-${new Date().toISOString().split('T')[0]}`,
+        [
+          { key: 'enrollmentId', header: 'Enrollment ID' },
+          { key: 'orderId', header: 'Order ID' },
+          { key: 'orderValue', header: 'Order Value (₹)' },
+          { key: 'purchaseDate', header: 'Purchase Date' },
+          { key: 'shopperId', header: 'Shopper ID' },
+          { key: 'status', header: 'Status' },
+          { key: 'rebatePercentage', header: 'Rebate %' },
+          { key: 'bonusAmount', header: 'Bonus Amount (₹)' },
+          { key: 'shopperPayout', header: 'Shopper Payout (₹)' },
+          { key: 'billAmount', header: 'Bill Amount (₹)' },
+          { key: 'platformFee', header: 'Platform Fee (₹)' },
+          { key: 'gstAmount', header: 'GST (₹)' },
+          { key: 'totalCost', header: 'Total Cost (₹)' },
+          { key: 'submittedAt', header: 'Submitted At' },
+          { key: 'approvedAt', header: 'Approved At' },
+          { key: 'createdAt', header: 'Created At' },
+        ]
+      )
+      
+      toast.success(`Exported ${enrollments.length} enrollments to CSV`)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to export enrollments'
+      toast.error(errorMessage)
+    } finally {
+      setIsExportingEnrollments(false)
     }
   }
 
@@ -294,6 +383,8 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
         formatDate={formatDateFull}
         onDownloadPDF={handleDownloadPDF}
         downloadingId={downloadingId}
+        onExportEnrollments={handleExportEnrollments}
+        isExportingEnrollments={isExportingEnrollments}
       />
     </div>
     </Tooltip.Provider>
@@ -395,12 +486,16 @@ function InvoiceContent({
   formatDate,
   onDownloadPDF,
   isDownloading,
+  onExportEnrollments,
+  isExportingEnrollments,
 }: {
   invoice: Invoice
   formatCurrency: (n: number) => string
   formatDate: (d: Date | string | undefined) => string
   onDownloadPDF: (invoice: Invoice) => Promise<void>
   isDownloading: boolean
+  onExportEnrollments: (invoiceId: string) => Promise<void>
+  isExportingEnrollments: boolean
 }) {
   return (
     <>
@@ -491,7 +586,7 @@ function InvoiceContent({
 
       {/* Footer with actions */}
       <div className="px-4 py-3 bg-bg-weak-50 border-t border-stroke-soft-200">
-        <div className="flex items-center justify-center gap-3 mb-2">
+        <div className="flex items-center justify-center gap-3 mb-2 flex-wrap">
           <Button.Root
             variant="basic"
             size="xsmall"
@@ -505,6 +600,17 @@ function InvoiceContent({
             <Button.Icon as={Printer} />
             Print
           </Button.Root>
+          {invoice.enrollmentCount > 0 && (
+            <Button.Root
+              variant="basic"
+              size="xsmall"
+              onClick={() => handleExportEnrollments(invoice.id)}
+              disabled={isExportingEnrollments}
+            >
+              <Button.Icon as={isExportingEnrollments ? SpinnerGap : DownloadSimple} className={isExportingEnrollments ? 'animate-spin' : ''} />
+              Export Enrollments
+            </Button.Root>
+          )}
         </div>
         <p className="text-[10px] text-text-sub-600 text-center">Thank you for your business!</p>
         <p className="text-[9px] text-text-soft-400 mt-0.5 text-center">support@hypedrive.io • hypedrive.io</p>
@@ -555,6 +661,8 @@ function InvoiceModal({
             formatDate={formatDate}
             onDownloadPDF={onDownloadPDF}
             isDownloading={isDownloading}
+            onExportEnrollments={onExportEnrollments}
+            isExportingEnrollments={isExportingEnrollments}
           />
         </BottomSheet.Content>
       </BottomSheet.Root>

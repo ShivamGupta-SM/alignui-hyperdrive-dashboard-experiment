@@ -137,7 +137,7 @@ export const CampaignCard = React.memo(function CampaignCard({
                   alt="Product"
                   fill
                   sizes="56px"
-                  className="object-contain p-1.5"
+                  className="object-contain p-2"
                 />
               </div>
             ) : (
@@ -299,17 +299,17 @@ export const CampaignListItem = React.memo(function CampaignListItem({
   return (
     <div className="flex items-center gap-3 py-3 border-b border-stroke-soft-200 last:border-0">
       {productImage ? (
-        <div className="relative size-10 rounded-lg overflow-hidden bg-bg-weak-50">
+        <div className="relative size-10 rounded-lg overflow-hidden bg-bg-weak-50 ring-1 ring-inset ring-stroke-soft-200">
           <Image
             src={productImage}
             alt="Product"
             fill
             sizes="40px"
-            className="object-cover"
+            className="object-contain p-1"
           />
         </div>
       ) : (
-        <div className="size-10 rounded-lg bg-bg-weak-50 flex items-center justify-center">
+        <div className="size-10 rounded-lg bg-bg-weak-50 flex items-center justify-center ring-1 ring-inset ring-stroke-soft-200">
           <ImageIcon className="size-4 text-text-soft-400" />
         </div>
       )}

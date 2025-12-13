@@ -28,6 +28,8 @@ import {
 } from '@phosphor-icons/react/dist/ssr'
 import { VisaIcon, MastercardIcon, AmexIcon, DiscoverIcon, PaypalIcon, UnionPayIcon } from '@/components/claude-generated-components/payment-icons'
 import { cn } from '@/utils/cn'
+import { creditRequestSchema, type CreditRequestFormData } from '@/lib/validations'
+import { requestCredit } from '@/app/actions'
 import { useWalletSearchParams } from '@/hooks'
 import { useMediaQuery } from 'usehooks-ts'
 import { THRESHOLDS } from '@/lib/types/constants'
@@ -492,7 +494,7 @@ export function WalletClient({ initialData }: WalletClientProps) {
                          <p className="text-paragraph-xs text-text-soft-400">{formatDate(withdrawal.requestedAt)}</p>
                        </div>
                        <div className="flex items-center gap-2">
-                         <StatusBadge.Root status={withdrawal.status} />
+                         <StatusBadge.Root status={withdrawal.status} variant="lighter" />
                          {withdrawal.status === 'pending' && (
                            <Button.Root variant="ghost" size="small" onClick={() => handleCancelWithdrawal(withdrawal.id)} disabled={isPending}>
                              Cancel
@@ -765,47 +767,51 @@ function CreditRequestContent({
         <span className="text-label-md text-text-strong-950 font-semibold">₹5,00,000</span>
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <label htmlFor={creditLimitId} className="block text-label-sm text-text-strong-950 mb-1.5">
-            Requested Credit Limit <span className="text-error-base">*</span>
-          </label>
-          <Input.Root>
-            <Input.Wrapper>
-              <span className="text-text-sub-600">₹</span>
-              <Input.El
-                id={creditLimitId}
-                type="number"
-                placeholder="2,50,000"
-                value={requestedLimit}
-                onChange={(e) => setRequestedLimit(e.target.value)}
-              />
-            </Input.Wrapper>
-          </Input.Root>
-        </div>
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-label-sm text-text-strong-950 mb-1.5">
+              Requested Credit Limit <span className="text-error-base">*</span>
+            </label>
+            <Input.Root>
+              <Input.Wrapper>
+                <span className="text-text-sub-600">₹</span>
+                <Input.El
+                  {...register('requestedLimit', { valueAsNumber: true })}
+                  type="number"
+                  placeholder="2,50,000"
+                />
+              </Input.Wrapper>
+            </Input.Root>
+            {errors.requestedLimit && (
+              <p className="mt-1 text-paragraph-xs text-error-base">{errors.requestedLimit.message}</p>
+            )}
+          </div>
 
-        <div>
-          <label htmlFor={reasonId} className="block text-label-sm text-text-strong-950 mb-1.5">
-            Reason for Request <span className="text-error-base">*</span>
-          </label>
-          <Textarea.Root
-            id={reasonId}
-            placeholder="Explain why you need a higher credit limit..."
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={3}
-          />
-        </div>
+          <div>
+            <label className="block text-label-sm text-text-strong-950 mb-1.5">
+              Reason for Request <span className="text-error-base">*</span>
+            </label>
+            <Textarea.Root
+              {...register('reason')}
+              placeholder="Explain why you need a higher credit limit..."
+              rows={3}
+            />
+            {errors.reason && (
+              <p className="mt-1 text-paragraph-xs text-error-base">{errors.reason.message}</p>
+            )}
+          </div>
 
-        <div className="flex justify-end gap-3 pt-2">
-          <Button.Root variant="basic" onClick={onClose} disabled={isPending}>
-            Cancel
-          </Button.Root>
-          <Button.Root variant="primary" onClick={handleSubmit} disabled={isPending || !requestedLimit || !reason}>
-            {isPending ? 'Submitting...' : 'Submit Request'}
-          </Button.Root>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button.Root type="button" variant="basic" onClick={onClose} disabled={isPending}>
+              Cancel
+            </Button.Root>
+            <Button.Root type="submit" variant="primary" disabled={isPending}>
+              {isPending ? 'Submitting...' : 'Submit Request'}
+            </Button.Root>
+          </div>
         </div>
-      </div>
+      </form>
     </>
   )
 }

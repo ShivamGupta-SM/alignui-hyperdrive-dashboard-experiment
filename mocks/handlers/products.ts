@@ -14,11 +14,12 @@ import {
   encoreErrorResponse,
   encoreNotFoundResponse,
 } from './utils'
+import { delay, DELAY } from '@/mocks/utils/delay'
 
 // Product already in Encore format from database, just add stats
 function toProductWithStats(product: any) {
   const campaigns = db.campaigns.findMany((q) => q.where({ productId: product.id }))
-  
+
   return {
     isActive: product.isActive ?? true,
     campaignCount: campaigns.length,

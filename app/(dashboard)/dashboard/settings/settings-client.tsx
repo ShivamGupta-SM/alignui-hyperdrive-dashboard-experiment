@@ -55,6 +55,7 @@ import {
   EyeSlash,
 } from '@phosphor-icons/react'
 import { NovuPreferencesPanel } from '@/components/dashboard/novu-preferences'
+import { updateProfileBodySchema, updateOrganizationBodySchema, changePasswordSchema, bankAccountBodySchema, type UpdateProfileBody, type UpdateOrganizationBody, type ChangePasswordFormData, type BankAccountBody } from '@/lib/validations'
 
 // Settings sections - matches Settings Panel structure for consistency
 const settingsSections = [
@@ -228,15 +229,25 @@ export function SettingsClient({ initialData }: SettingsClientProps = {}) {
 // PROFILE SECTION
 // ===========================================
 function ProfileSection({ user }: { user: SettingsData['user'] }) {
-  const [name, setName] = React.useState(user.name)
-  const [phone, setPhone] = React.useState(user.phone)
   const [saved, setSaved] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
 
-  const handleSave = async () => {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<UpdateProfileBody>({
+    resolver: zodResolver(updateProfileBodySchema),
+    defaultValues: {
+      name: user.name,
+      phone: user.phone || '',
+    },
+  })
+
+  const onSubmit = async (data: UpdateProfileBody) => {
     setIsLoading(true)
     try {
-      const result = await updateProfile({ name, phone })
+      const result = await updateProfile(data)
       if (result.success) {
         setSaved(true)
         toast.success('Profile updated successfully')
@@ -294,13 +305,12 @@ function ProfileSection({ user }: { user: SettingsData['user'] }) {
       <SettingsCard title="Personal Information">
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="Full Name" required>
+            <FormField label="Full Name" required error={errors.name?.message}>
               <Input.Root>
                 <Input.Wrapper>
                   <Input.Icon as={User} />
                   <Input.El
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    {...register('name')}
                     placeholder="Enter your name"
                   />
                 </Input.Wrapper>
@@ -311,13 +321,12 @@ function ProfileSection({ user }: { user: SettingsData['user'] }) {
               <ChangeEmailField email={user.email} />
             </FormField>
 
-            <FormField label="Phone Number">
+            <FormField label="Phone Number" error={errors.phone?.message}>
               <Input.Root>
                 <Input.Wrapper>
                   <Input.Icon as={Phone} />
                   <Input.El
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    {...register('phone')}
                     placeholder="+91 98765 43210"
                     type="tel"
                   />
@@ -350,18 +359,29 @@ function ProfileSection({ user }: { user: SettingsData['user'] }) {
 // ORGANIZATION SECTION
 // ===========================================
 function OrganizationSection({ organization }: { organization: SettingsData['organization'] }) {
-  const [name, setName] = React.useState(organization.name)
-  const [website, setWebsite] = React.useState(organization.website)
-  const [email, setEmail] = React.useState(organization.email)
-  const [phone, setPhone] = React.useState(organization.phone)
-  const [industry, setIndustry] = React.useState(organization.industry)
   const [saved, setSaved] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
 
-  const handleSave = async () => {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<UpdateOrganizationBody>({
+    resolver: zodResolver(updateOrganizationBodySchema),
+    defaultValues: {
+      name: organization.name,
+      website: organization.website || '',
+      email: organization.email || '',
+      phone: organization.phone || '',
+      industry: organization.industry || '',
+      address: organization.address || '',
+    },
+  })
+
+  const onSubmit = async (data: UpdateOrganizationBody) => {
     setIsLoading(true)
     try {
-      const result = await updateOrganization({ name, website, email, phone, industry })
+      const result = await updateOrganization(data)
       if (result.success) {
         setSaved(true)
         toast.success('Organization updated successfully')
@@ -453,13 +473,12 @@ function OrganizationSection({ organization }: { organization: SettingsData['org
               </Input.Root>
             </FormField>
 
-            <FormField label="Website">
+            <FormField label="Website" error={errors.website?.message}>
               <Input.Root>
                 <Input.Wrapper>
                   <Input.Icon as={Globe} />
                   <Input.El
-                    value={website}
-                    onChange={(e) => setWebsite(e.target.value)}
+                    {...register('website')}
                     placeholder="https://example.com"
                     type="url"
                   />
@@ -467,8 +486,8 @@ function OrganizationSection({ organization }: { organization: SettingsData['org
               </Input.Root>
             </FormField>
 
-            <FormField label="Industry">
-              <Select.Root value={industry} onValueChange={setIndustry}>
+            <FormField label="Industry" error={errors.industry?.message}>
+              <Select.Root {...register('industry')}>
                 <Select.Trigger className="w-full">
                   <Select.Value placeholder="Select industry" />
                 </Select.Trigger>
@@ -482,13 +501,12 @@ function OrganizationSection({ organization }: { organization: SettingsData['org
               </Select.Root>
             </FormField>
 
-            <FormField label="Email">
+            <FormField label="Email" error={errors.email?.message}>
               <Input.Root>
                 <Input.Wrapper>
                   <Input.Icon as={Envelope} />
                   <Input.El
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    {...register('email')}
                     placeholder="hello@company.com"
                     type="email"
                   />
@@ -496,13 +514,12 @@ function OrganizationSection({ organization }: { organization: SettingsData['org
               </Input.Root>
             </FormField>
 
-            <FormField label="Phone">
+            <FormField label="Phone" error={errors.phone?.message}>
               <Input.Root>
                 <Input.Wrapper>
                   <Input.Icon as={Phone} />
                   <Input.El
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    {...register('phone')}
                     placeholder="+91 98765 43210"
                     type="tel"
                   />
@@ -511,12 +528,12 @@ function OrganizationSection({ organization }: { organization: SettingsData['org
             </FormField>
 
             <div className="sm:col-span-2">
-              <FormField label="Address">
+              <FormField label="Address" error={errors.address?.message}>
                 <Input.Root>
                   <Input.Wrapper>
                     <Input.Icon as={MapPin} />
                     <Input.El
-                      defaultValue={organization.address}
+                      {...register('address')}
                       placeholder="Enter business address"
                     />
                   </Input.Wrapper>
@@ -525,7 +542,7 @@ function OrganizationSection({ organization }: { organization: SettingsData['org
             </div>
           </div>
 
-          <CardFooter saved={saved} isLoading={isLoading} onSave={handleSave} />
+          <CardFooter saved={saved} isLoading={isLoading} onSave={handleSubmit(onSubmit)} />
         </div>
       </SettingsCard>
 
@@ -600,11 +617,11 @@ function BillingSection({ bankAccounts, organization }: { bankAccounts: Settings
                     </div>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       {account.isDefault && (
-                        <Badge.Root color="blue" variant="light" size="small">Primary</Badge.Root>
+                        <Badge.Root color="blue" variant="lighter" size="small">Primary</Badge.Root>
                       )}
                       {account.isVerified && (
-                        <Badge.Root color="green" variant="light" size="small">
-                          <SealCheck className="size-3 mr-0.5" />
+                        <Badge.Root color="green" variant="lighter" size="small">
+                          <Badge.Icon as={SealCheck} weight="duotone" />
                           Verified
                         </Badge.Root>
                       )}
@@ -681,8 +698,8 @@ function GstSection({ gstDetails }: { gstDetails: SettingsData['gstDetails'] }) 
         title="GST Details"
         badge={
           gstDetails.isVerified && (
-            <Badge.Root color="green" variant="light" size="small">
-              <SealCheck className="size-3 mr-1" />
+            <Badge.Root color="green" variant="lighter" size="small">
+              <Badge.Icon as={SealCheck} weight="duotone" />
               Verified
             </Badge.Root>
           )
@@ -695,7 +712,7 @@ function GstSection({ gstDetails }: { gstDetails: SettingsData['gstDetails'] }) 
               <span className="text-label-xs text-text-sub-600 uppercase tracking-wider">GST Number</span>
               <Badge.Root
                 color={gstDetails.status === 'Active' ? 'green' : 'gray'}
-                variant="light"
+                variant="lighter"
                 size="small"
               >
                 {gstDetails.status || 'Active'}
@@ -856,13 +873,25 @@ function SecuritySection() {
   const router = useRouter()
   const [showCurrentPassword, setShowCurrentPassword] = React.useState(false)
   const [showNewPassword, setShowNewPassword] = React.useState(false)
-  const [currentPassword, setCurrentPassword] = React.useState('')
-  const [newPassword, setNewPassword] = React.useState('')
-  const [confirmPassword, setConfirmPassword] = React.useState('')
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false)
   const [isPasswordLoading, setIsPasswordLoading] = React.useState(false)
   const [isSessionLoading, setIsSessionLoading] = React.useState(false)
   const [sessions, setSessions] = React.useState<Session[]>([])
   const [isLoadingSessions, setIsLoadingSessions] = React.useState(true)
+
+  const {
+    register: registerPassword,
+    handleSubmit: handlePasswordSubmit,
+    formState: { errors: passwordErrors },
+    reset: resetPasswordForm,
+  } = useForm<ChangePasswordFormData>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    },
+  })
 
   React.useEffect(() => {
     async function fetchSessions() {
@@ -879,19 +908,13 @@ function SecuritySection() {
     fetchSessions()
   }, [])
 
-  const handleUpdatePassword = async () => {
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match')
-      return
-    }
+  const onPasswordSubmit = async (data: ChangePasswordFormData) => {
     setIsPasswordLoading(true)
     try {
-      const result = await updatePassword({ currentPassword, newPassword })
+      const result = await updatePassword({ currentPassword: data.currentPassword, newPassword: data.newPassword })
       if (result.success) {
         toast.success(result.message || 'Password updated successfully')
-        setCurrentPassword('')
-        setNewPassword('')
-        setConfirmPassword('')
+        resetPasswordForm()
       } else {
         toast.error(result.error || 'Failed to update password')
       }
@@ -934,73 +957,79 @@ function SecuritySection() {
             </div>
           </div>
 
-          <div className="grid gap-4">
-            <FormField label="Current Password">
-              <Input.Root>
-                <Input.Wrapper>
-                  <Input.Icon as={Lock} />
-                  <Input.El
-                    type={showCurrentPassword ? 'text' : 'password'}
-                    placeholder="Enter current password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
-                  >
-                    {showCurrentPassword ? <EyeSlash className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </Input.Wrapper>
-              </Input.Root>
-            </FormField>
+          <form onSubmit={handlePasswordSubmit(onPasswordSubmit)}>
+            <div className="grid gap-4">
+              <FormField label="Current Password" error={passwordErrors.currentPassword?.message}>
+                <Input.Root>
+                  <Input.Wrapper>
+                    <Input.Icon as={Lock} />
+                    <Input.El
+                      {...registerPassword('currentPassword')}
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      placeholder="Enter current password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
+                    >
+                      {showCurrentPassword ? <EyeSlash className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </Input.Wrapper>
+                </Input.Root>
+              </FormField>
 
-            <FormField label="New Password">
-              <Input.Root>
-                <Input.Wrapper>
-                  <Input.Icon as={Lock} />
-                  <Input.El
-                    type={showNewPassword ? 'text' : 'password'}
-                    placeholder="Enter new password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
-                  >
-                    {showNewPassword ? <EyeSlash className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </Input.Wrapper>
-              </Input.Root>
-            </FormField>
+              <FormField label="New Password" error={passwordErrors.newPassword?.message}>
+                <Input.Root>
+                  <Input.Wrapper>
+                    <Input.Icon as={Lock} />
+                    <Input.El
+                      {...registerPassword('newPassword')}
+                      type={showNewPassword ? 'text' : 'password'}
+                      placeholder="Enter new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
+                    >
+                      {showNewPassword ? <EyeSlash className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </Input.Wrapper>
+                </Input.Root>
+              </FormField>
 
-            <FormField label="Confirm Password">
-              <Input.Root>
-                <Input.Wrapper>
-                  <Input.Icon as={Lock} />
-                  <Input.El
-                    type="password"
-                    placeholder="Confirm new password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                  />
-                </Input.Wrapper>
-              </Input.Root>
-            </FormField>
-          </div>
+              <FormField label="Confirm Password" error={passwordErrors.confirmPassword?.message}>
+                <Input.Root>
+                  <Input.Wrapper>
+                    <Input.Icon as={Lock} />
+                    <Input.El
+                      {...registerPassword('confirmPassword')}
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="Confirm new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
+                    >
+                      {showConfirmPassword ? <EyeSlash className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </Input.Wrapper>
+                </Input.Root>
+              </FormField>
+            </div>
 
-          <div className="pt-4 border-t border-stroke-soft-200 flex justify-end">
-            <Button.Root
-              variant="primary"
-              onClick={handleUpdatePassword}
-              disabled={isPasswordLoading || !currentPassword || !newPassword || !confirmPassword}
-            >
-              {isPasswordLoading ? 'Updating...' : 'Update Password'}
-            </Button.Root>
-          </div>
+            <div className="pt-4 border-t border-stroke-soft-200 flex justify-end">
+              <Button.Root
+                type="submit"
+                variant="primary"
+                disabled={isPasswordLoading}
+              >
+                {isPasswordLoading ? 'Updating...' : 'Update Password'}
+              </Button.Root>
+            </div>
+          </form>
         </div>
       </SettingsCard>
 
@@ -1189,10 +1218,12 @@ function SettingsCard({ title, action, badge, variant = 'default', children }: S
 function FormField({
   label,
   required,
+  error,
   children
 }: {
   label: string
   required?: boolean
+  error?: string
   children: React.ReactNode
 }) {
   const id = React.useId()
@@ -1263,7 +1294,7 @@ function SessionRow({ device, location, lastActive, isCurrent, icon: Icon }: Ses
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-label-sm text-text-strong-950">{device}</span>
             {isCurrent && (
-              <Badge.Root color="green" variant="light" size="small">Current</Badge.Root>
+              <Badge.Root color="green" variant="lighter" size="small">Current</Badge.Root>
             )}
           </div>
           <p className="text-paragraph-xs text-text-sub-600 truncate">

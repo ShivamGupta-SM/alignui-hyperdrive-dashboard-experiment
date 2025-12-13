@@ -30,7 +30,7 @@ import {
 import { updateEnrollmentStatus, requestEnrollmentChanges } from '@/app/actions/enrollments'
 import type { EnrollmentStatus } from '@/lib/types'
 import { EnrollmentTimeline } from '@/components/dashboard/enrollment-timeline'
-import type { enrollments } from '@/lib/encore-client'
+import type { enrollments, campaigns, integrations } from '@/lib/encore-client'
 
 // Helper to calculate costs from Encore enrollment
 function calculateCosts(enrollment: Enrollment | enrollments.EnrollmentDetail) {
@@ -56,7 +56,10 @@ const getStatusBadgeStatus = (status: EnrollmentStatus) => {
 
 interface EnrollmentDetailClientProps {
   enrollmentId: string
-  initialData?: enrollments.EnrollmentDetail | unknown
+  initialData?: (enrollments.EnrollmentDetail & {
+    platforms?: integrations.Platform[]
+    campaignDeliverables?: campaigns.CampaignDeliverableResponse[]
+  }) | unknown
 }
 
 export function EnrollmentDetailClient({ enrollmentId, initialData }: EnrollmentDetailClientProps) {
@@ -202,7 +205,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
             <span className="text-label-sm">Back</span>
           </button>
 
-          <StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="light">
+          <StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="lighter">
             <StatusBadge.Dot />
             {statusConfig.label}
           </StatusBadge.Root>
@@ -307,6 +310,176 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
           </div>
         )
       })()}
+
+      {/* Required Deliverables - Categorized by Platform */}
+      {enrollmentDetail?.submissions && enrollmentDetail.submissions.length > 0 && (
+        <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
+            <ListChecks weight="duotone" className="size-5 text-primary-base" />
+            Required Deliverables
+          </h2>
+          {(() => {
+            const platforms = (enrollmentDetail as any).platforms || []
+            const campaignDeliverables = (enrollmentDetail as any).campaignDeliverables || []
+            
+            // Create platform map for quick lookup
+            const platformMap = new Map(platforms.map((p: integrations.Platform) => [p.id, p.name]))
+            
+            // Create deliverable map to get platformId from campaignDeliverableId
+            const deliverablePlatformMap = new Map(
+              campaignDeliverables.map((cd: campaigns.CampaignDeliverableResponse) => [
+                cd.id,
+                cd.deliverable?.platformId || 'general'
+              ])
+            )
+            
+            // Group submissions by platform
+            const groupedByPlatform = enrollmentDetail.submissions.reduce((acc, submission) => {
+              const platformId = deliverablePlatformMap.get(submission.campaignDeliverableId) || 'general'
+              const platformName = platformId === 'general' 
+                ? 'General' 
+                : (platformMap.get(platformId) || 'Unknown Platform')
+              
+              if (!acc[platformName]) {
+                acc[platformName] = []
+              }
+              acc[platformName].push(submission)
+              return acc
+            }, {} as Record<string, typeof enrollmentDetail.submissions>)
+            
+            // Sort platforms: General last, others alphabetically
+            const sortedPlatforms = Object.keys(groupedByPlatform).sort((a, b) => {
+              if (a === 'General') return 1
+              if (b === 'General') return -1
+              return a.localeCompare(b)
+            })
+            
+            return (
+              <div className="space-y-4">
+                {sortedPlatforms.map((platformName) => {
+                  const platformSubmissions = groupedByPlatform[platformName]
+                  return (
+                    <div key={platformName} className="space-y-3">
+                      <h4 className="text-label-sm text-text-sub-600 font-medium flex items-center gap-2">
+                        <span className="size-1.5 rounded-full bg-primary-base" />
+                        {platformName}
+                      </h4>
+                      <div className="space-y-2 pl-4 border-l-2 border-stroke-soft-200">
+                        {platformSubmissions.map((submission, index) => {
+                          const DeliverableIcon = getDeliverableIcon(submission.deliverableName)
+                          const isSubmitted = !!submission.submittedAt
+                          const hasLink = !!submission.proofLink
+                          const hasScreenshot = !!submission.proofScreenshot
+                          
+                          return (
+                            <div
+                              key={submission.id}
+                              className={cn(
+                                "flex items-start gap-3 p-3 sm:p-4 rounded-xl border",
+                                isSubmitted
+                                  ? "bg-success-lighter/30 border-success-base/20"
+                                  : "bg-bg-weak-50 border-stroke-soft-200"
+                              )}
+                            >
+                              <div className={cn(
+                                "size-10 sm:size-12 rounded-xl flex items-center justify-center shrink-0",
+                                isSubmitted
+                                  ? "bg-success-lighter"
+                                  : "bg-primary-alpha-10"
+                              )}>
+                                <DeliverableIcon 
+                                  weight="duotone" 
+                                  className={cn(
+                                    "size-5 sm:size-6",
+                                    isSubmitted ? "text-success-base" : "text-primary-base"
+                                  )} 
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-label-sm sm:text-label-md text-text-strong-950">
+                                    {index + 1}. {submission.deliverableName}
+                                  </span>
+                                  {submission.isRequired ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error-lighter text-error-base text-[10px] sm:text-xs font-medium">
+                                      Required
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-soft-200 text-text-sub-600 text-[10px] sm:text-xs font-medium">
+                                      Optional
+                                    </span>
+                                  )}
+                                  {isSubmitted && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success-lighter text-success-base text-[10px] sm:text-xs font-medium">
+                                      <Check weight="bold" className="size-3" />
+                                      Submitted
+                                    </span>
+                                  )}
+                                </div>
+                                {submission.deliverableDescription && (
+                                  <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mb-1">
+                                    {submission.deliverableDescription}
+                                  </p>
+                                )}
+                                {submission.instructions && (
+                                  <p className="text-paragraph-xs text-text-soft-400 flex items-start gap-1 mb-2">
+                                    <Info weight="fill" className="size-3.5 shrink-0 mt-0.5" />
+                                    {submission.instructions}
+                                  </p>
+                                )}
+                                {isSubmitted && (
+                                  <div className="flex flex-wrap gap-2 mt-2">
+                                    {hasLink && submission.proofLink && (
+                                      <a
+                                        href={submission.proofLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary-alpha-10 text-primary-base text-paragraph-xs hover:bg-primary-alpha-20 transition-colors"
+                                      >
+                                        <LinkIcon weight="duotone" className="size-3.5" />
+                                        View Link
+                                      </a>
+                                    )}
+                                    {hasScreenshot && submission.proofScreenshot && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          // Open screenshot in modal or new tab
+                                          window.open(submission.proofScreenshot, '_blank')
+                                        }}
+                                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary-alpha-10 text-primary-base text-paragraph-xs hover:bg-primary-alpha-20 transition-colors"
+                                      >
+                                        <ImageIcon weight="duotone" className="size-3.5" />
+                                        View Screenshot
+                                      </button>
+                                    )}
+                                    {submission.submittedAt && (
+                                      <span className="text-paragraph-xs text-text-soft-400">
+                                        Submitted: {formatDate(new Date(submission.submittedAt))}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="shrink-0">
+                                {isSubmitted ? (
+                                  <CheckCircle weight="duotone" className="size-5 text-success-base" />
+                                ) : (
+                                  <ClockCounterClockwise weight="duotone" className="size-5 text-text-soft-400" />
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
+        </div>
+      )}
 
       {/* Status Timeline - Using EnrollmentTimeline component with history from API */}
       <div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
@@ -544,6 +717,30 @@ function StatCard({
       )}>{value}</span>
     </div>
   )
+}
+
+// Helper function to get deliverable icon based on name/category
+function getDeliverableIcon(name: string) {
+  const lowerName = name.toLowerCase()
+  if (lowerName.includes('screenshot') || lowerName.includes('image') || lowerName.includes('photo')) {
+    return ImageIcon
+  }
+  if (lowerName.includes('link') || lowerName.includes('url')) {
+    return LinkIcon
+  }
+  if (lowerName.includes('video')) {
+    return VideoCamera
+  }
+  if (lowerName.includes('review') || lowerName.includes('rating') || lowerName.includes('star')) {
+    return Star
+  }
+  if (lowerName.includes('share') || lowerName.includes('social')) {
+    return ShareNetwork
+  }
+  if (lowerName.includes('text') || lowerName.includes('description')) {
+    return ClipboardText
+  }
+  return ListChecks
 }
 
 // Helper component for detail rows

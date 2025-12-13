@@ -1,0 +1,61 @@
+kon kon se pages me abhi bhi hard coded components hai unke jo bhi missing endpoints ya incomplete endpoints wo humare docs me edit kar k daal do , backend par banwa lemnge ya sahi kara lenge
+
+onboarding campaigns aur product forms ka kya hua? usme rhf +zod use ho rha? wo forms na humari baki saari ui se consistent dikhna chahiye. vaul dependency use kar sko toh kar lena
+
+kya jina kuch client par abhi handle kar rhe , itna hi kuch rsc +server actions me standard tarike se hota hai. mere liye yeh bahut naya hai. but tum internet par  research kar lo
+
+aur pata karna latest next js patterns se kaha kah deviate ho rhe hai hum
+
+saare frontend k business pages audit kar batao report me kisi end point me kuch kami reh gyi kya ? ya kisme kisme kya kya reh gyi?
+
+next js 16 aur 15 k latest practices dekhna, hum kuch outdated tarike se kar rhe kya?
+
+tumne jo kuch bhi naya ui banaya hai usme proper align ui ya uske components ka use kiya ya nahi? kahi kuch missing toh nahi reh gya
+
+campaigns page me jo enrollments ka tab hai and jo enrollments page hai wo do same dikhne chahiye. tanstack table wale jaisa. secondly dono ko click karne par enrollment details par pahuchna chahiye, aisa link ui me aur kis kis jagah missing hai codebase me use fix kar do.
+
+enrollments wale page par kisi ek particular campaign ke enrollments koi dekhna chahe toh uska option hona chahiye
+
+type check karna ek baar
+
+humaare saare types ek single source se infer ho rhe ya fragmented aur layed hai? agar aisa hai toh document kar do
+
+fix bhi kar do
+
+encore k client se infer ho rhe types?
+
+jo abhi ka folder structure hai us se better soch sakte ho kya ffrontend wale me
+
+invoice ka pdf zoho books se bhi laa skte hai kya, zoho books deta hai pdf k endpoints?
+
+next js jaisa bolta hai humara error handling waisa hi hai ya alag hai?
+
+encore ts k apis ko mock karne ka sabse aasan tarika kya hai?
+
+humara jo home page hai na, usme se saare mettalic wale logos hata do
+
+safe area ka nested setup nahi kar dena. global aur component level par ki dono nest ho kar gande dikhne lage
+
+modal bahut tricky hote hai, make sure mobile aur desktop dono par sahi dikhe. mobile par shayad vaul use ho rha hoga. make sure buttons are postioning scrolling behaviour sab kuch perfect and responsive ho. kabhi kabhi maine dekha hai buttons k niche khali area bach jata hai ya align nahi hote sahi se. kabhi kabhi yeh bhi dekha hai ki modals lambe ya chaude hone par view port se bahar jaa rhe hote hai so puch audit kar lo. agar problem dikhe toh fix karna
+
+ek copy to clipboard wali dependency thi na? , usko use karna acha rahega kya? kuch ache features milte hai toh integrate kar do virtual account wale page par
+
+form intutive hone chahiye and koi bhi validation buggy nahi hona chahiye jo galat message dikhaye ya user aage hi nahi badh paaye
+
+humaare platform aur catagory based filters jah bhi hai functional hai? inke liye bhi endpoints hai na? use ho rhe hai?
+
+team invite proper better auth wali apis encore k client se use kar rhi ha na?
+
+kahi kuch state management sahi se nahi ho rha ho toh audit karo
+
+dashboard page k stat cards consistent nahi dikh rhe hai yaar. naa baki page se , naa aapas me
+
+back account add karte samay peeny drop validation ho rhi ya nahi, agar nahi ho rhi toh ui bana do aas paas ka ui dekh kar bilkul consistent aur responsive.  and apis ya toh integrate kar do verification wali ya missing hai toh docs me document kar do
+
+multistep wale forms ko bhi rhf me migrate kiya ya nahi? nahi kiya toh kar do.
+
+SSR data wala tumhara jo file hai wo standard practice hai?
+
+internet par search karna , kaise karte yeh latest
+
+ui me jaha jah bhi back button dikhane ki jarurat hai usko bilkul polished sleek aur baki ui k sath consistent banan , across the app same dikhne chahiye

@@ -284,7 +284,7 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
         {/* Title + Status */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
           <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">{campaign.title}</h1>
-          <StatusBadge.Root status={getStatusBadgeStatus(campaign.status)} variant="light">
+          <StatusBadge.Root status={getStatusBadgeStatus(campaign.status)} variant="lighter">
             <StatusBadge.Dot />
             {statusConfig?.label || campaign.status}
           </StatusBadge.Root>
@@ -762,13 +762,34 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
     startTransition(async () => {
         try {
             const res = await exportCampaignEnrollments(campaignId)
-            if (res.success) {
-                toast.success(`Exported enrollments`) // res.totalCount
+            if (res.success && res.data) {
+                // Convert backend export data to CSV
+                const { exportToCSV } = await import('@/lib/excel')
+                exportToCSV(
+                    res.data,
+                    `campaign-${campaignId}-enrollments-${new Date().toISOString().split('T')[0]}`,
+                    [
+                        { key: 'enrollmentId', header: 'Enrollment ID' },
+                        { key: 'orderId', header: 'Order ID' },
+                        { key: 'orderValue', header: 'Order Value (₹)' },
+                        { key: 'purchaseDate', header: 'Purchase Date' },
+                        { key: 'shopperName', header: 'Shopper Name' },
+                        { key: 'shopperEmail', header: 'Shopper Email' },
+                        { key: 'status', header: 'Status' },
+                        { key: 'rebatePercentage', header: 'Rebate %' },
+                        { key: 'bonusAmount', header: 'Bonus Amount (₹)' },
+                        { key: 'shopperPayout', header: 'Shopper Payout (₹)' },
+                        { key: 'submittedAt', header: 'Submitted At' },
+                        { key: 'approvedAt', header: 'Approved At' },
+                        { key: 'createdAt', header: 'Created At' },
+                    ]
+                )
+                toast.success(`Exported ${res.totalCount} enrollments to CSV`)
             } else {
                 toast.error(res.error || 'Failed to export enrollments')
             }
         } catch(e) {
-            toast.error('An error occurred')
+            toast.error('An error occurred while exporting')
         }
     })
   }

@@ -1,7 +1,10 @@
 'use client'
 
 import * as React from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import * as Button from '@/components/ui/button'
+import * as Badge from '@/components/ui/badge'
 import * as Avatar from '@/components/ui/avatar'
 import { AvatarWithFallback } from '@/components/ui/avatar'
 import * as StatusBadge from '@/components/ui/status-badge'
@@ -27,6 +30,7 @@ import { ROLE_OPTIONS } from '@/lib/constants'
 import { inviteMember, removeMember } from '@/app/actions/team'
 import { toast } from 'sonner'
 import { useSession } from '@/hooks/use-session'
+import { inviteMemberSchema, type InviteMemberFormData } from '@/lib/validations'
 
 // Types (simplified for internal use or imported if shared)
 // Assuming Member type is available or just using the shape
@@ -219,8 +223,8 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
                     <p className="text-paragraph-xs text-text-sub-600">{member.user.email}</p>
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-2">
-                        <StatusBadge.Root status={getRoleStatus(member.role)} variant="light">
-                          <StatusBadge.Icon as={RoleIcon} />
+                        <StatusBadge.Root status={getRoleStatus(member.role)} variant="lighter">
+                          <StatusBadge.Icon as={RoleIcon} weight="duotone" />
                           {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                         </StatusBadge.Root>
                       </div>
@@ -258,8 +262,8 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
                     <p className="text-paragraph-xs text-text-sub-600">{member.user.email}</p>
                   </div>
 
-                  <StatusBadge.Root status={getRoleStatus(member.role)} variant="light" className="shrink-0">
-                    <StatusBadge.Icon as={RoleIcon} />
+                  <StatusBadge.Root status={getRoleStatus(member.role)} variant="lighter" className="shrink-0">
+                    <StatusBadge.Icon as={RoleIcon} weight="duotone" />
                     {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                   </StatusBadge.Root>
 
@@ -372,9 +376,9 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
                     <div className="flex items-center gap-2">
                       <span className="text-label-sm text-text-strong-950">{role.label}</span>
                       {role.value === 'owner' && (
-                        <span className="text-[9px] uppercase tracking-wider text-success-base bg-success-lighter px-1.5 py-0.5 rounded font-medium">
+                        <Badge.Root color="green" variant="lighter" size="small">
                           Full Access
-                        </span>
+                        </Badge.Root>
                       )}
                     </div>
                     <p className="text-paragraph-xs text-text-sub-600 mt-0.5">{role.description}</p>
@@ -401,28 +405,46 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 
 // Invite Member Modal
 function InviteMemberModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [email, setEmail] = React.useState('')
-  const [role, setRole] = React.useState<UserRole>('manager')
-  const [message, setMessage] = React.useState('')
   const [isPending, startTransition] = React.useTransition()
 
-  const handleSubmit = async () => {
-    if (!email) return
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors },
+    reset,
+    watch,
+  } = useForm<InviteMemberFormData>({
+    resolver: zodResolver(inviteMemberSchema),
+    defaultValues: {
+      email: '',
+      role: 'manager',
+      message: '',
+    },
+  })
 
+  const message = watch('message')
+
+  // Reset form when modal closes
+  React.useEffect(() => {
+    if (!open) {
+      reset()
+    }
+  }, [open, reset])
+
+  const onSubmit = async (data: InviteMemberFormData) => {
     startTransition(async () => {
       try {
-        const res = await inviteMember(email, role)
+        const res = await inviteMember(data.email, data.role)
         if (res.success) {
-            toast.success('Invitation sent successfully')
-            onOpenChange(false)
-            setEmail('')
-            setRole('manager')
-            setMessage('')
+          toast.success('Invitation sent successfully')
+          reset()
+          onOpenChange(false)
         } else {
-            toast.error(res.error || 'Failed to send invitation')
+          toast.error(res.error || 'Failed to send invitation')
         }
-      } catch(e) {
-          toast.error('An error occurred')
+      } catch (e) {
+        toast.error('An error occurred')
       }
     })
   }
@@ -434,92 +456,108 @@ function InviteMemberModal({ open, onOpenChange }: { open: boolean; onOpenChange
           <Modal.Title>Invite Team Member</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-label-sm text-text-strong-950 mb-2">
-                Email Address <span className="text-error-base">*</span>
-              </label>
-              <Input.Root>
-                <Input.Wrapper>
-                  <Input.El
-                    type="email"
-                    placeholder="colleague@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </Input.Wrapper>
-              </Input.Root>
-            </div>
+          <form id="invite-form" onSubmit={handleSubmit(onSubmit)}>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-label-sm text-text-strong-950 mb-2">
+                  Email Address <span className="text-error-base">*</span>
+                </label>
+                <Input.Root>
+                  <Input.Wrapper>
+                    <Input.El
+                      {...register('email')}
+                      type="email"
+                      placeholder="colleague@company.com"
+                    />
+                  </Input.Wrapper>
+                </Input.Root>
+                {errors.email && (
+                  <p className="mt-1 text-paragraph-xs text-error-base">{errors.email.message}</p>
+                )}
+              </div>
 
-            <div>
-              <label className="block text-label-sm text-text-strong-950 mb-2">
-                Role <span className="text-error-base">*</span>
-              </label>
-              <Radio.Group
-                value={role}
-                onValueChange={(value) => setRole(value as UserRole)}
-                className="space-y-3"
-              >
-                {ROLE_OPTIONS.filter((r) => r.value !== 'owner').map((option) => {
-                  const RoleIcon = getRoleIcon(option.value)
-                  return (
-                    <label
-                      key={option.value}
-                      className={cn(
-                        'flex items-start gap-3 p-3 rounded-10 cursor-pointer transition-colors',
-                        'ring-1 ring-inset',
-                        role === option.value
-                          ? 'ring-primary-base bg-primary-alpha-10'
-                          : 'ring-stroke-soft-200 hover:bg-bg-weak-50'
-                      )}
+              <div>
+                <label className="block text-label-sm text-text-strong-950 mb-2">
+                  Role <span className="text-error-base">*</span>
+                </label>
+                <Controller
+                  name="role"
+                  control={control}
+                  render={({ field }) => (
+                    <Radio.Group
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      className="space-y-3"
                     >
-                      <Radio.Item value={option.value} className="mt-0.5" />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <RoleIcon className="size-4 text-text-sub-600" />
-                          <span className="text-label-sm text-text-strong-950">{option.label}</span>
-                        </div>
-                        <p className="text-paragraph-xs text-text-sub-600 mt-0.5">
-                          {option.description}
-                        </p>
-                      </div>
-                    </label>
-                  )
-                })}
-              </Radio.Group>
+                      {ROLE_OPTIONS.filter((r) => r.value !== 'owner').map((option) => {
+                        const RoleIcon = getRoleIcon(option.value)
+                        return (
+                          <label
+                            key={option.value}
+                            className={cn(
+                              'flex items-start gap-3 p-3 rounded-10 cursor-pointer transition-colors',
+                              'ring-1 ring-inset',
+                              field.value === option.value
+                                ? 'ring-primary-base bg-primary-alpha-10'
+                                : 'ring-stroke-soft-200 hover:bg-bg-weak-50'
+                            )}
+                          >
+                            <Radio.Item value={option.value} className="mt-0.5" />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <RoleIcon className="size-4 text-text-sub-600" />
+                                <span className="text-label-sm text-text-strong-950">{option.label}</span>
+                              </div>
+                              <p className="text-paragraph-xs text-text-sub-600 mt-0.5">
+                                {option.description}
+                              </p>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </Radio.Group>
+                  )}
+                />
+                {errors.role && (
+                  <p className="mt-1 text-paragraph-xs text-error-base">{errors.role.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-label-sm text-text-strong-950 mb-2">
+                  Personal Message (Optional)
+                </label>
+                <Textarea.Root
+                  {...register('message')}
+                  placeholder="Hey! I'm inviting you to join our Hypedrive organization..."
+                  rows={3}
+                />
+                <p className="mt-1 text-paragraph-xs text-text-soft-400 text-right">
+                  {(message || '').length}/200 characters
+                </p>
+                {errors.message && (
+                  <p className="mt-1 text-paragraph-xs text-error-base">{errors.message.message}</p>
+                )}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-label-sm text-text-strong-950 mb-2">
-                Personal Message (Optional)
-              </label>
-              <Textarea.Root
-                placeholder="Hey! I'm inviting you to join our Hypedrive organization..."
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                rows={3}
-              />
-              <p className="mt-1 text-paragraph-xs text-text-soft-400 text-right">
-                {message.length}/200 characters
-              </p>
+            <div className="mt-4 flex items-center gap-2 p-3 rounded-10 bg-bg-weak-50">
+              <Info className="size-4 text-text-sub-600 shrink-0" />
+              <span className="text-paragraph-xs text-text-sub-600">
+                Invite expires in 7 days
+              </span>
             </div>
-          </div>
-
-          <div className="mt-4 flex items-center gap-2 p-3 rounded-10 bg-bg-weak-50">
-            <Info className="size-4 text-text-sub-600 shrink-0" />
-            <span className="text-paragraph-xs text-text-sub-600">
-              Invite expires in 7 days
-            </span>
-          </div>
+          </form>
         </Modal.Body>
         <Modal.Footer>
-          <Button.Root variant="basic" onClick={() => onOpenChange(false)} disabled={isPending}>
+          <Button.Root type="button" variant="basic" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancel
           </Button.Root>
           <Button.Root
+            type="submit"
+            form="invite-form"
             variant="primary"
-            onClick={handleSubmit}
-            disabled={isPending || !email}
+            disabled={isPending}
           >
             {isPending ? 'Sending...' : 'Send Invitation'}
           </Button.Root>

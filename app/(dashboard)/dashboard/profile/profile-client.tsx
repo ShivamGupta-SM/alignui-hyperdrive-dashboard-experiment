@@ -391,7 +391,7 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
         {twoFactorEnabled && (
           <div className="mt-4 pt-4 border-t border-stroke-soft-200">
             <StatusBadge.Root status="completed" variant="light">
-              <StatusBadge.Icon as={Check} />
+              <StatusBadge.Icon as={Check} weight="duotone" />
               2FA Enabled
             </StatusBadge.Root>
             <p className="text-paragraph-sm text-text-sub-600 mt-2">
@@ -663,7 +663,7 @@ function SessionsTab({ sessions }: SessionsTabProps) {
                   <div className="flex items-center gap-2">
                     <List.ItemTitle>{session.userAgent || 'Unknown Device'}</List.ItemTitle>
                     {isCurrent && (
-                      <StatusBadge.Root status="completed" variant="light">
+                      <StatusBadge.Root status="completed" variant="lighter">
                         This Device
                       </StatusBadge.Root>
                     )}

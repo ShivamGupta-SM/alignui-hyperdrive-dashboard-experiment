@@ -2,6 +2,8 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import Link from 'next/link'
 import * as Button from '@/components/ui/button'
 import * as Input from '@/components/ui/input'
@@ -26,6 +28,7 @@ import { cn } from '@/utils/cn'
 import { useCategories } from '@/hooks/use-categories'
 import { useCreateProduct } from '@/hooks/use-products'
 import { toast } from 'sonner'
+import { productFormSchema, type ProductFormInput } from '@/lib/validations'
 
 export default function NewProductPage() {
   // Fetch categories from API
@@ -33,17 +36,29 @@ export default function NewProductPage() {
   const categories = categoriesData?.data ?? []
   const createProduct = useCreateProduct()
   const router = useRouter()
-  const [isLoading, setIsLoading] = React.useState(false)
   const [uploadedImage, setUploadedImage] = React.useState<string | null>(null)
-  const [formData, setFormData] = React.useState({
-    name: '',
-    description: '',
-    category: '',
-    brand: '',
-    price: '',
-    sku: '',
-    url: '',
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors },
+    watch,
+  } = useForm<ProductFormInput & { brand?: string }>({
+    resolver: zodResolver(productFormSchema),
+    defaultValues: {
+      name: '',
+      description: '',
+      brand: '',
+      categoryId: '',
+      platformId: 'amazon', // Default platform
+      price: 0,
+      sku: '',
+      productLink: '',
+    },
   })
+
+  const description = watch('description')
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -56,30 +71,26 @@ export default function NewProductPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+  const onSubmit = async (data: ProductFormInput) => {
     try {
       await createProduct.mutateAsync({
-        name: formData.name,
-        description: formData.description || undefined,
-        sku: formData.sku || `SKU-${Date.now()}`, // Generate SKU if not provided
-        categoryId: formData.category || undefined,
-        platformId: 'amazon', // Default platform
-        price: Number.parseFloat(formData.price) || 0,
-        productLink: formData.url || '',
+        name: data.name,
+        description: data.description || undefined,
+        sku: data.sku || `SKU-${Date.now()}`,
+        categoryId: data.categoryId || undefined,
+        platformId: data.platformId || 'amazon',
+        price: data.price || 0,
+        productLink: data.productLink || '',
         productImages: uploadedImage ? [uploadedImage] : undefined,
       })
       toast.success('Product created successfully')
       router.push('/dashboard/products')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create product')
-    } finally {
-      setIsLoading(false)
     }
   }
 
-  const isFormValid = formData.name && formData.brand && formData.category && formData.price
+  const isLoading = createProduct.isPending
 
   return (
     <div className="min-h-full">
@@ -118,7 +129,7 @@ export default function NewProductPage() {
                 form="product-form"
                 variant="primary" 
                 size="small"
-                disabled={isLoading || !isFormValid}
+                disabled={isLoading}
               >
                 {isLoading ? (
                   'Saving...'
@@ -153,7 +164,7 @@ export default function NewProductPage() {
         </div>
 
         {/* Form Grid Layout */}
-        <form id="product-form" onSubmit={handleSubmit}>
+        <form id="product-form" onSubmit={handleSubmit(onSubmit)}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
             {/* Main Column - Product Details */}
             <div className="lg:col-span-2 space-y-6">
@@ -176,13 +187,14 @@ export default function NewProductPage() {
                     <Input.Root>
                       <Input.Wrapper>
                         <Input.El
+                          {...register('name')}
                           placeholder="e.g., Nike Air Max 270"
-                          value={formData.name}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          required
                         />
                       </Input.Wrapper>
                     </Input.Root>
+                    {errors.name && (
+                      <p className="text-paragraph-xs text-error-base">{errors.name.message}</p>
+                    )}
                   </div>
 
                   {/* Brand & Category */}
@@ -195,13 +207,14 @@ export default function NewProductPage() {
                       <Input.Root>
                         <Input.Wrapper>
                           <Input.El
+                            {...register('brand')}
                             placeholder="e.g., Nike"
-                            value={formData.brand}
-                            onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                            required
                           />
                         </Input.Wrapper>
                       </Input.Root>
+                      {errors.brand && (
+                        <p className="text-paragraph-xs text-error-base">{errors.brand.message}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -209,23 +222,32 @@ export default function NewProductPage() {
                         Category
                         <span className="text-error-base">*</span>
                       </label>
-                      <Select.Root
-                        value={formData.category}
-                        onValueChange={(value) => setFormData({ ...formData, category: value })}
-                        disabled={isLoadingCategories}
-                      >
-                        <Select.Trigger>
-                          <Select.Value placeholder={isLoadingCategories ? "Loading..." : "Select category"} />
-                        </Select.Trigger>
-                        <Select.Content>
-                          {categories.map((cat) => (
-                            <Select.Item key={cat.id} value={cat.id}>
-                              <span className="mr-2">{cat.icon || '📦'}</span>
-                              {cat.name}
-                            </Select.Item>
-                          ))}
-                        </Select.Content>
-                      </Select.Root>
+                      <Controller
+                        name="categoryId"
+                        control={control}
+                        render={({ field }) => (
+                          <Select.Root
+                            value={field.value || ''}
+                            onValueChange={field.onChange}
+                            disabled={isLoadingCategories}
+                          >
+                            <Select.Trigger>
+                              <Select.Value placeholder={isLoadingCategories ? "Loading..." : "Select category"} />
+                            </Select.Trigger>
+                            <Select.Content>
+                              {categories.map((cat) => (
+                                <Select.Item key={cat.id} value={cat.id}>
+                                  <span className="mr-2">{cat.icon || '📦'}</span>
+                                  {cat.name}
+                                </Select.Item>
+                              ))}
+                            </Select.Content>
+                          </Select.Root>
+                        )}
+                      />
+                      {errors.categoryId && (
+                        <p className="text-paragraph-xs text-error-base">{errors.categoryId.message}</p>
+                      )}
                     </div>
                   </div>
 
@@ -235,15 +257,17 @@ export default function NewProductPage() {
                       Description
                     </label>
                     <Textarea.Root
+                      {...register('description')}
                       placeholder="Brief description of the product (helps shoppers understand what they're buying)..."
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={4}
                     />
-                    <div className="flex justify-end">
+                    <div className="flex justify-between items-center">
                       <span className="text-paragraph-xs text-text-soft-400">
-                        {formData.description.length}/500 characters
+                        {(description || '').length}/500 characters
                       </span>
+                      {errors.description && (
+                        <span className="text-paragraph-xs text-error-base">{errors.description.message}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -270,14 +294,15 @@ export default function NewProductPage() {
                         <Input.Wrapper>
                           <span className="text-text-sub-600 font-medium">₹</span>
                           <Input.El
+                            {...register('price', { valueAsNumber: true })}
                             type="number"
                             placeholder="9,999"
-                            value={formData.price}
-                            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                            required
                           />
                         </Input.Wrapper>
                       </Input.Root>
+                      {errors.price && (
+                        <p className="text-paragraph-xs text-error-base">{errors.price.message}</p>
+                      )}
                     </div>
 
                     {/* Product URL */}
@@ -290,13 +315,15 @@ export default function NewProductPage() {
                         <Input.Wrapper>
                           <Globe weight="duotone" className="size-4 text-text-soft-400" />
                           <Input.El
+                            {...register('productLink')}
                             type="url"
                             placeholder="https://example.com/product"
-                            value={formData.url}
-                            onChange={(e) => setFormData({ ...formData, url: e.target.value })}
                           />
                         </Input.Wrapper>
                       </Input.Root>
+                      {errors.productLink && (
+                        <p className="text-paragraph-xs text-error-base">{errors.productLink.message}</p>
+                      )}
                     </div>
                   </div>
                 </div>

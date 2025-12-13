@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import * as Button from '@/components/ui/button'
+import * as Badge from '@/components/ui/badge'
 import * as StatusBadge from '@/components/ui/status-badge'
 import * as Avatar from '@/components/ui/avatar'
 import * as Checkbox from '@/components/ui/checkbox'
@@ -381,14 +382,14 @@ export function EnrollmentsClient({ initialStatus = 'all', initialData }: Enroll
         const enrollmentOverdue = enrollment.status === 'awaiting_review' && isOverdue(enrollment.createdAt)
         return (
           <div className="flex items-center gap-2">
-            <StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="light">
+            <StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="lighter">
               {getStatusLabel(enrollment.status)}
             </StatusBadge.Root>
             {enrollmentOverdue && (
-              <span className="flex items-center gap-0.5 text-[10px] font-medium text-error-base bg-error-base/10 px-1.5 py-0.5 rounded-full">
-                <Warning weight="fill" className="size-3" />
+              <Badge.Root color="red" variant="lighter" size="small">
+                <Badge.Icon as={Warning} weight="duotone" />
                 Overdue
-              </span>
+              </Badge.Root>
             )}
           </div>
         )
@@ -858,14 +859,14 @@ function EnrollmentListItem({ enrollment, formatCurrency, selected, onSelect, on
             <span className="text-label-sm text-text-strong-950 truncate">
               {displayName}
             </span>
-            <StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="light">
+            <StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="lighter">
               {getStatusLabel(enrollment.status)}
             </StatusBadge.Root>
             {enrollmentOverdue && (
-              <span className="flex items-center gap-0.5 text-[10px] font-medium text-error-base bg-error-base/10 px-1.5 py-0.5 rounded-full">
-                <Warning weight="fill" className="size-3" />
+              <Badge.Root color="red" variant="lighter" size="small">
+                <Badge.Icon as={Warning} weight="duotone" />
                 Overdue
-              </span>
+              </Badge.Root>
             )}
           </div>
           <div className="flex items-center gap-2 text-paragraph-xs text-text-sub-600">

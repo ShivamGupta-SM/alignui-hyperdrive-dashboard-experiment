@@ -14,6 +14,7 @@ import {
   encoreErrorResponse,
   encoreNotFoundResponse,
 } from './utils'
+import { delay, DELAY } from '@/mocks/utils/delay'
 
 // Enrollment already in Encore format from database - return as-is
 function toEnrollmentWithRelations(enrollment: any) {
@@ -79,7 +80,7 @@ export const enrollmentsHandlers = [
     const enrollmentId = Array.isArray(id) ? id[0] : id
 
     if (!enrollmentId) {
-       return encoreNotFoundResponse('Enrollment')
+      return encoreNotFoundResponse('Enrollment')
     }
 
     const enrollment = db.enrollments.findFirst((q) => q.where({ id: enrollmentId as string, organizationId: auth.organizationId }))

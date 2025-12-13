@@ -10,13 +10,14 @@ import {
   encoreResponse,
   encoreNotFoundResponse,
 } from './utils'
+import { delay, DELAY } from '@/mocks/utils/delay'
 
 export const organizationsHandlers = [
   // GET /organizations/me - Get my organizations
   http.get(encoreUrl('/organizations/me'), async () => {
     const orgs = db.organizationSettings.findMany({})
-    
-    return encoreResponse({ 
+
+    return encoreResponse({
       organizations: orgs.map(o => ({
         id: o.organizationId,
         name: o.name,
@@ -74,7 +75,7 @@ export const organizationsHandlers = [
     }
 
     const updated = { ...org, ...body }
-    
+
     return encoreResponse({
       id: updated.organizationId,
       name: updated.name,
@@ -86,7 +87,7 @@ export const organizationsHandlers = [
   // POST /organizations - Create organization
   http.post(encoreUrl('/organizations'), async ({ request }) => {
     const body = await request.json() as { name: string; logo?: string }
-    
+
     const newOrg = {
       organizationId: `org-${Date.now()}`,
       name: body.name,

@@ -94,7 +94,7 @@ export function PriorityEnrollmentItem({ enrollment }: { enrollment: PendingEnro
       <div className="flex items-start gap-3 sm:hidden">
         <div className="relative size-12 rounded-lg overflow-hidden shrink-0 ring-1 ring-inset ring-stroke-soft-200 bg-bg-weak-50">
           {enrollment.campaign?.product?.image && (
-            <Image src={enrollment.campaign.product.image} alt="" fill sizes="48px" className="object-contain p-0.5" />
+            <Image src={enrollment.campaign.product.image} alt="Product" fill sizes="48px" className="object-contain p-1.5" />
           )}
         </div>
         <div className="flex-1 min-w-0">
@@ -126,7 +126,7 @@ export function PriorityEnrollmentItem({ enrollment }: { enrollment: PendingEnro
       <div className="hidden sm:flex items-center gap-4">
         <div className="relative size-10 rounded-lg overflow-hidden shrink-0 ring-1 ring-inset ring-stroke-soft-200 bg-bg-weak-50">
           {enrollment.campaign?.product?.image && (
-            <Image src={enrollment.campaign.product.image} alt="" fill sizes="40px" className="object-contain p-0.5" />
+            <Image src={enrollment.campaign.product.image} alt="Product" fill sizes="40px" className="object-contain p-1" />
           )}
         </div>
 

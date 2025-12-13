@@ -114,6 +114,39 @@ export const productSchema = z.object({
     .or(z.literal('')),
 })
 
+// Product form schema for create/update (matches API)
+export const productFormSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'Product name is required')
+    .min(2, 'Product name must be at least 2 characters')
+    .max(200, 'Product name must be less than 200 characters'),
+  description: z
+    .string()
+    .max(500, 'Description must be less than 500 characters')
+    .optional(),
+  brand: z
+    .string()
+    .min(1, 'Brand is required')
+    .min(2, 'Brand must be at least 2 characters')
+    .max(100, 'Brand must be less than 100 characters')
+    .optional(),
+  categoryId: z.string().min(1, 'Category is required').optional(),
+  platformId: z.string().min(1, 'Platform is required').optional(),
+  productLink: z
+    .string()
+    .url('Please enter a valid URL')
+    .optional()
+    .or(z.literal('')),
+  price: z
+    .number()
+    .min(0, 'Price must be positive')
+    .optional(),
+  sku: z
+    .string()
+    .optional(),
+})
+
 // ==========================================
 // CAMPAIGN SCHEMAS
 // ==========================================
@@ -304,9 +337,11 @@ export type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>
 export type ChangePasswordFormData = z.infer<typeof changePasswordSchema>
 export type OrganizationFormData = z.infer<typeof organizationSchema>
 export type ProductFormData = z.infer<typeof productSchema>
+export type ProductFormInput = z.infer<typeof productFormSchema>
 export type CampaignFormData = z.infer<typeof campaignSchema>
 export type CreditRequestFormData = z.infer<typeof creditRequestSchema>
 export type ProfileFormData = z.infer<typeof profileSchema>
+export type InviteMemberFormData = z.infer<typeof inviteMemberSchema>
 
 // ==========================================
 // API QUERY PARAMETER SCHEMAS

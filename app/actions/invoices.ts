@@ -75,3 +75,46 @@ export async function downloadInvoicePDF(invoiceId: string) {
     }
   }
 }
+
+/**
+ * Get invoice line items with enrollment IDs for export
+ * Frontend will fetch enrollments and export to CSV
+ */
+export async function getInvoiceEnrollmentIds(invoiceId: string) {
+  const client = getEncoreClient()
+
+  try {
+    // Get invoice for metadata
+    const invoice = await client.invoices.getInvoice(invoiceId)
+    
+    // Get invoice line items which contain enrollment IDs
+    const lineItems = await client.invoices.getInvoiceLineItems(invoiceId)
+    
+    // Extract unique enrollment IDs from line items
+    const enrollmentIds = lineItems.lineItems
+      .map(item => item.enrollmentId)
+      .filter((id): id is string => Boolean(id))
+    
+    if (enrollmentIds.length === 0) {
+      return {
+        success: false,
+        error: 'No enrollments found for this invoice',
+      }
+    }
+
+    return {
+      success: true,
+      enrollmentIds,
+      invoiceNumber: invoice.invoiceNumber,
+      periodStart: invoice.periodStart,
+      periodEnd: invoice.periodEnd,
+      organizationId: invoice.organizationId,
+    }
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to get invoice enrollment IDs'
+    return {
+      success: false,
+      error: errorMessage,
+    }
+  }
+}

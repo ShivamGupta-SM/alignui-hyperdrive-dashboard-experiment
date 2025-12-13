@@ -239,7 +239,7 @@ function DashboardShellInner({
       {/* ============================================ */}
       <div className="lg:hidden flex flex-col h-full">
         {/* Mobile Header - Transparent on gray shell, only elements have bg */}
-        <div className="shrink-0 px-2 pt-2">
+        <div className="shrink-0 px-2 pt-2" style={{ paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))' }}>
           <Header
             unreadNotifications={unreadCount}
             onNotificationsClick={() => setNotificationsDrawerOpen(true)}

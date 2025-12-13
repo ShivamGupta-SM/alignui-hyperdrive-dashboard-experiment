@@ -13,13 +13,14 @@ import {
   encoreListResponse,
   encoreErrorResponse,
 } from './utils'
+import { delay, DELAY } from '@/mocks/utils/delay'
 
 export const walletHandlers = [
   // GET /organizations/:orgId/wallet - Get wallet balance
   http.get(encoreUrl('/organizations/:orgId/wallet'), async ({ params }) => {
     const rawOrgId = params.orgId as string
     const orgId = (rawOrgId === 'default' || !rawOrgId) ? '1' : rawOrgId
-    
+
     const wallet = db.walletBalances.findFirst((q) => q.where({ organizationId: orgId }))
       || db.walletBalances.findFirst((q) => q.where({ organizationId: '1' }))
 
@@ -46,7 +47,7 @@ export const walletHandlers = [
   http.get(encoreUrl('/wallets/me'), async () => {
     const auth = getAuthContext()
     const orgId = auth.organizationId || '1'
-    
+
     const wallet = db.walletBalances.findFirst((q) => q.where({ organizationId: orgId }))
       || db.walletBalances.findFirst((q) => q.where({ organizationId: '1' }))
 

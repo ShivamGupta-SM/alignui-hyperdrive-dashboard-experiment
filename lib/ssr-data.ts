@@ -142,7 +142,20 @@ export async function getEnrollmentDetailData(enrollmentId: string) {
   
   // Use getEnrollmentDetail which includes history, shopper info, campaign info, etc.
   const enrollmentDetail = await client.enrollments.getEnrollmentDetail(enrollmentId)
-  return enrollmentDetail
+  
+  // Fetch platforms and campaign deliverables for categorization
+  const [platforms, campaignDeliverables] = await Promise.all([
+    client.integrations.listActivePlatforms().catch(() => ({ platforms: [] })),
+    enrollmentDetail.campaign?.id 
+      ? client.campaigns.listCampaignDeliverables(enrollmentDetail.campaign.id).catch(() => ({ data: [] }))
+      : Promise.resolve({ data: [] }),
+  ])
+  
+  return {
+    ...enrollmentDetail,
+    platforms: platforms.platforms || [],
+    campaignDeliverables: campaignDeliverables?.data || [],
+  }
 }
 
 // ===========================================

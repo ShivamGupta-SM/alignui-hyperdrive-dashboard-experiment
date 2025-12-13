@@ -1,7 +1,10 @@
 'use client'
 
 import * as React from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import * as Button from '@/components/ui/button'
+import * as Badge from '@/components/ui/badge'
 import * as Input from '@/components/ui/input'
 import * as Select from '@/components/ui/select'
 import * as Modal from '@/components/ui/modal'
@@ -9,6 +12,7 @@ import * as Textarea from '@/components/ui/textarea'
 import * as EmptyState from '@/components/claude-generated-components/empty-state'
 import * as FileUpload from '@/components/ui/file-upload'
 import { FileDropzone } from '@/components/ui/file-dropzone'
+import Image from 'next/image'
 import {
   Plus,
   MagnifyingGlass,
@@ -16,7 +20,7 @@ import {
   PencilSimple,
   Trash,
   ArrowSquareOut,
-  Image,
+  Image as ImageIcon,
   CloudArrowUp,
   Megaphone,
   Tag,
@@ -314,18 +318,20 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
       <div className="aspect-[4/3] sm:aspect-square bg-bg-weak-50 relative overflow-hidden">
         {product.productImages?.[0] ? (
           <>
-            <img
+            <Image
               src={product.productImages[0]}
               alt={product.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+              className="object-contain p-2 group-hover:scale-105 transition-transform duration-500"
             />
             {/* Gradient overlay on hover */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
           </>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="flex flex-col items-center gap-2 text-text-soft-400">
-              <Image className="size-10" />
+              <ImageIcon className="size-10" />
               <span className="text-paragraph-xs">No image</span>
             </div>
           </div>
@@ -376,9 +382,9 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
       <div className="p-3 flex flex-col">
         {/* Category tag */}
         <div className="mb-2">
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium uppercase tracking-wide bg-primary-alpha-10 text-primary-base">
+          <Badge.Root color="blue" variant="soft" size="small">
             {product.categoryId || 'Uncategorized'}
-          </span>
+          </Badge.Root>
         </div>
 
         {/* Title */}
@@ -424,69 +430,88 @@ interface ProductModalProps {
 }
 
 function ProductModal({ open, onOpenChange, product, categories, platforms }: ProductModalProps) {
-  const [name, setName] = React.useState(product?.name || '')
-  const [description, setDescription] = React.useState(product?.description || '')
-  const [category, setCategory] = React.useState(product?.categoryId || '')
-  const [platform, setPlatform] = React.useState(product?.platformId || '')
-  const [productUrl, setProductUrl] = React.useState(product?.productLink || '')
-  const [price, setPrice] = React.useState(product?.price?.toString() || '')
-  const [sku, setSku] = React.useState(product?.sku || '')
-  
   const [isPending, startTransition] = React.useTransition()
 
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    watch,
+  } = useForm<ProductFormInput>({
+    resolver: zodResolver(productFormSchema),
+    defaultValues: {
+      name: product?.name || '',
+      description: product?.description || '',
+      categoryId: product?.categoryId || '',
+      platformId: product?.platformId || '',
+      productLink: product?.productLink || '',
+      price: product?.price || 0,
+      sku: product?.sku || '',
+    },
+  })
+
+  const description = watch('description')
+
+  // Reset form when product changes
   React.useEffect(() => {
     if (product) {
-      setName(product.name)
-      setDescription(product.description || '')
-      setCategory(product.categoryId || '')
-      setPlatform(product.platformId || '')
-      setProductUrl(product.productLink || '')
-      setPrice(product.price?.toString() || '')
-      setSku(product.sku || '')
+      reset({
+        name: product.name,
+        description: product.description || '',
+        categoryId: product.categoryId || '',
+        platformId: product.platformId || '',
+        productLink: product.productLink || '',
+        price: product.price || 0,
+        sku: product.sku || '',
+      })
     } else {
-      setName('')
-      setDescription('')
-      setCategory('')
-      setPlatform('')
-      setProductUrl('')
-      setPrice('')
-      setSku('')
+      reset({
+        name: '',
+        description: '',
+        categoryId: '',
+        platformId: '',
+        productLink: '',
+        price: 0,
+        sku: '',
+      })
     }
-  }, [product])
+  }, [product, reset])
 
-  const handleSubmit = async () => {
-    const data = {
-      name,
-      description: description || undefined,
-      categoryId: category || undefined,
-      platformId: platform || undefined,
-      productLink: productUrl || '',
-      price: Number.parseFloat(price) || 0,
-      sku: sku || `SKU-${Date.now()}`,
-    }
-
+  const onSubmit = async (data: ProductFormInput) => {
     startTransition(async () => {
-        try {
-            if (product) {
-                const res = await updateProduct(product.id, data)
-                if (res.success) {
-                    toast.success('Product updated successfully')
-                    onOpenChange(false)
-                } else {
-                    toast.error(res.error || 'Failed to update product')
-                }
-            } else {
-                const res = await createProduct(data)
-                if (res.success) {
-                    toast.success('Product created successfully')
-                    onOpenChange(false)
-                } else {
-                    toast.error(res.error || 'Failed to create product')
-                }
-            }
-        } catch(e) {
-            toast.error('An error occurred')
+      try {
+        const submitData = {
+          name: data.name,
+          description: data.description || undefined,
+          categoryId: data.categoryId || undefined,
+          platformId: data.platformId || undefined,
+          productLink: data.productLink || '',
+          price: data.price || 0,
+          sku: data.sku || `SKU-${Date.now()}`,
         }
+
+        if (product) {
+          const res = await updateProduct(product.id, submitData)
+          if (res.success) {
+            toast.success('Product updated successfully')
+            onOpenChange(false)
+          } else {
+            toast.error(res.error || 'Failed to update product')
+          }
+        } else {
+          const res = await createProduct(submitData)
+          if (res.success) {
+            toast.success('Product created successfully')
+            reset()
+            onOpenChange(false)
+          } else {
+            toast.error(res.error || 'Failed to create product')
+          }
+        }
+      } catch (e) {
+        toast.error('An error occurred')
+      }
     })
   }
 
@@ -497,21 +522,24 @@ function ProductModal({ open, onOpenChange, product, categories, platforms }: Pr
           <Modal.Title>{product ? 'Edit Product' : 'Add Product'}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-label-sm text-text-strong-950 mb-2">
-                Product Name <span className="text-error-base">*</span>
-              </label>
-              <Input.Root>
-                <Input.Wrapper>
-                  <Input.El
-                    placeholder="e.g., Nike Air Max 2024"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </Input.Wrapper>
-              </Input.Root>
-            </div>
+          <form onSubmit={handleSubmit(onSubmit)} id="product-form">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-label-sm text-text-strong-950 mb-2">
+                  Product Name <span className="text-error-base">*</span>
+                </label>
+                <Input.Root>
+                  <Input.Wrapper>
+                    <Input.El
+                      {...register('name')}
+                      placeholder="e.g., Nike Air Max 2024"
+                    />
+                  </Input.Wrapper>
+                </Input.Root>
+                {errors.name && (
+                  <p className="mt-1 text-paragraph-xs text-error-base">{errors.name.message}</p>
+                )}
+              </div>
 
             <div>
               <label className="block text-label-sm text-text-strong-950 mb-2">
@@ -532,114 +560,139 @@ function ProductModal({ open, onOpenChange, product, categories, platforms }: Pr
               </FileUpload.Root>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-label-sm text-text-strong-950 mb-2">
-                  Category <span className="text-error-base">*</span>
-                </label>
-                <Select.Root value={category} onValueChange={setCategory}>
-                  <Select.Trigger>
-                    <Select.Value placeholder="Select category" />
-                  </Select.Trigger>
-                  <Select.Content>
-                    {categories.length > 0 ? categories.map((cat) => (
-                      <Select.Item key={cat.id} value={cat.name}>{cat.name}</Select.Item>
-                    )) : (
-                        <Select.Item value="none">No categories</Select.Item>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-label-sm text-text-strong-950 mb-2">
+                    Category <span className="text-error-base">*</span>
+                  </label>
+                  <Controller
+                    name="categoryId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select.Root value={field.value || ''} onValueChange={field.onChange}>
+                        <Select.Trigger>
+                          <Select.Value placeholder="Select category" />
+                        </Select.Trigger>
+                        <Select.Content>
+                          {categories.length > 0 ? categories.map((cat) => (
+                            <Select.Item key={cat.id} value={cat.id}>{cat.name}</Select.Item>
+                          )) : (
+                            <Select.Item value="">No categories</Select.Item>
+                          )}
+                        </Select.Content>
+                      </Select.Root>
                     )}
-                  </Select.Content>
-                </Select.Root>
-              </div>
-              <div>
-                <label className="block text-label-sm text-text-strong-950 mb-2">
-                  Platform <span className="text-error-base">*</span>
-                </label>
-                <Select.Root value={platform} onValueChange={setPlatform}>
-                  <Select.Trigger>
-                    <Select.Value placeholder="Select platform" />
-                  </Select.Trigger>
-                  <Select.Content>
-                    {platforms.length > 0 ? platforms.map((p) => (
-                      <Select.Item key={p.id} value={p.name}>{p.name}</Select.Item>
-                    )) : (
-                        <Select.Item value="none">No platforms</Select.Item>
-                    )}
-                  </Select.Content>
-                </Select.Root>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-label-sm text-text-strong-950 mb-2">
-                  Price (₹) <span className="text-error-base">*</span>
-                </label>
-                <Input.Root>
-                  <Input.Wrapper>
-                    <Input.El
-                      type="number"
-                      placeholder="999"
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                    />
-                  </Input.Wrapper>
-                </Input.Root>
-              </div>
-              <div>
-                <label className="block text-label-sm text-text-strong-950 mb-2">
-                  SKU (Optional)
-                </label>
-                <Input.Root>
-                  <Input.Wrapper>
-                    <Input.El
-                      placeholder="Auto-generated if empty"
-                      value={sku}
-                      onChange={(e) => setSku(e.target.value)}
-                    />
-                  </Input.Wrapper>
-                </Input.Root>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-label-sm text-text-strong-950 mb-2">
-                Product URL (Optional)
-              </label>
-              <Input.Root>
-                <Input.Wrapper>
-                  <Input.El
-                    placeholder="https://amazon.in/dp/..."
-                    value={productUrl}
-                    onChange={(e) => setProductUrl(e.target.value)}
                   />
-                </Input.Wrapper>
-              </Input.Root>
-            </div>
+                  {errors.categoryId && (
+                    <p className="mt-1 text-paragraph-xs text-error-base">{errors.categoryId.message}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-label-sm text-text-strong-950 mb-2">
+                    Platform <span className="text-error-base">*</span>
+                  </label>
+                  <Controller
+                    name="platformId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select.Root value={field.value || ''} onValueChange={field.onChange}>
+                        <Select.Trigger>
+                          <Select.Value placeholder="Select platform" />
+                        </Select.Trigger>
+                        <Select.Content>
+                          {platforms.length > 0 ? platforms.map((p) => (
+                            <Select.Item key={p.id} value={p.id}>{p.name}</Select.Item>
+                          )) : (
+                            <Select.Item value="">No platforms</Select.Item>
+                          )}
+                        </Select.Content>
+                      </Select.Root>
+                    )}
+                  />
+                  {errors.platformId && (
+                    <p className="mt-1 text-paragraph-xs text-error-base">{errors.platformId.message}</p>
+                  )}
+                </div>
+              </div>
 
-            <div>
-              <label className="block text-label-sm text-text-strong-950 mb-2">
-                Description (Optional)
-              </label>
-              <Textarea.Root
-                placeholder="Brief description..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-              />
-              <p className="mt-1 text-paragraph-xs text-text-soft-400 text-right">
-                {description.length}/500 characters
-              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-label-sm text-text-strong-950 mb-2">
+                    Price (₹) <span className="text-error-base">*</span>
+                  </label>
+                  <Input.Root>
+                    <Input.Wrapper>
+                      <Input.El
+                        {...register('price', { valueAsNumber: true })}
+                        type="number"
+                        placeholder="999"
+                      />
+                    </Input.Wrapper>
+                  </Input.Root>
+                  {errors.price && (
+                    <p className="mt-1 text-paragraph-xs text-error-base">{errors.price.message}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-label-sm text-text-strong-950 mb-2">
+                    SKU (Optional)
+                  </label>
+                  <Input.Root>
+                    <Input.Wrapper>
+                      <Input.El
+                        {...register('sku')}
+                        placeholder="Auto-generated if empty"
+                      />
+                    </Input.Wrapper>
+                  </Input.Root>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-label-sm text-text-strong-950 mb-2">
+                  Product URL (Optional)
+                </label>
+                <Input.Root>
+                  <Input.Wrapper>
+                    <Input.El
+                      {...register('productLink')}
+                      placeholder="https://amazon.in/dp/..."
+                    />
+                  </Input.Wrapper>
+                </Input.Root>
+                {errors.productLink && (
+                  <p className="mt-1 text-paragraph-xs text-error-base">{errors.productLink.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-label-sm text-text-strong-950 mb-2">
+                  Description (Optional)
+                </label>
+                <Textarea.Root
+                  {...register('description')}
+                  placeholder="Brief description..."
+                  rows={3}
+                />
+                <p className="mt-1 text-paragraph-xs text-text-soft-400 text-right">
+                  {(description || '').length}/500 characters
+                </p>
+                {errors.description && (
+                  <p className="mt-1 text-paragraph-xs text-error-base">{errors.description.message}</p>
+                )}
+              </div>
             </div>
-          </div>
+          </form>
         </Modal.Body>
         <Modal.Footer>
-          <Button.Root variant="basic" onClick={() => onOpenChange(false)} disabled={isPending}>
+          <Button.Root type="button" variant="basic" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancel
           </Button.Root>
           <Button.Root
+            type="submit"
+            form="product-form"
             variant="primary"
-            onClick={handleSubmit}
-            disabled={isPending || !name || !category || !platform}
+            disabled={isPending}
           >
             {isPending ? 'Saving...' : product ? 'Save Changes' : 'Add Product'}
           </Button.Root>
