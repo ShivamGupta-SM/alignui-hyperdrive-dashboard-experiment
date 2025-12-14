@@ -26,6 +26,10 @@ import {
 	GstDetailsSchema,
 	DashboardStatsSchema,
 	RecentActivitySchema,
+	DeliverableSubmissionSchema,
+	DeliverableSchema,
+	WithdrawalSchema,
+	WithdrawalMethodSchema,
 } from "./schemas"
 
 // =============================================================================
@@ -238,16 +242,16 @@ export const db = {
 	campaigns,
 	campaignDeliverables,
 	deliverables, // Base deliverable definitions
-	
+
 	// Enrollment Management
 	enrollments,
 	deliverableSubmissions, // Deliverable submissions for enrollments
-	
+
 	// Product Management
 	products,
 	categories,
 	platforms,
-	
+
 	// Financial
 	invoices,
 	transactions,
@@ -255,18 +259,18 @@ export const db = {
 	activeHolds,
 	withdrawals, // Withdrawal requests
 	withdrawalMethods, // Withdrawal methods (bank, UPI, wallet)
-	
+
 	// Organization & Team
 	organizationSettings,
 	teamMembers,
 	invitations,
 	bankAccounts,
 	gstDetails,
-	
+
 	// Analytics & Activity
 	dashboardStats,
 	recentActivity,
-	
+
 	// Notifications
 	notifications,
 }

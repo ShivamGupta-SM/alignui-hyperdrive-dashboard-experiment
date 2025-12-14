@@ -17,6 +17,10 @@ import type {
 	TeamMember,
 	Notification,
 	RecentActivity,
+	DeliverableSubmission,
+	Deliverable,
+	Withdrawal,
+	WithdrawalMethod,
 } from "./schemas"
 
 // Seed faker for reproducible data
@@ -409,7 +413,7 @@ async function seedInvoices(orgId: string, count: number = 12) {
 }
 
 async function seedTeamMembers(orgId: string) {
-	const existingMembers = db.teamMembers.findMany((q) => q.where({ organizationId: orgId }))
+	const existingMembers = db.teamMembers.findMany((q) => q.where({ organizationId: { equals: orgId } }))
 	if (existingMembers.length > 0) return existingMembers
 
 	// Get organization to match email domain
