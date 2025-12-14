@@ -1,20 +1,19 @@
-"use cache"
+"use cache: private"
 
-import { getWalletData, requireOrganization } from "@/lib/ssr-data"
+import { getWalletData, getOrganizationIdOrNull } from "@/lib/ssr-data"
 import { WalletClient } from "./wallet-client"
-import { cookies } from "next/headers"
 
 export default async function WalletPage() {
-	// CRITICAL: Access request data (cookies) FIRST before any API calls
-	// This ensures Next.js can properly handle static generation
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
+	// Industry Standard: Session-based active organization (single source of truth)
+	// Check if user has organization (graceful - don't force redirect)
+	const orgId = await getOrganizationIdOrNull()
+	const hasOrganization = !!orgId
 
-	// Check if user has organization
-	await requireOrganization()
+	// Fetch wallet data if organization exists
+	let data = null
+	if (hasOrganization && orgId) {
+		data = await getWalletData()
+	}
 
-	// Direct server fetch - pure RSC
-	const data = await getWalletData()
-
-	return <WalletClient initialData={data} />
+	return <WalletClient initialData={data} hasOrganization={hasOrganization} />
 }

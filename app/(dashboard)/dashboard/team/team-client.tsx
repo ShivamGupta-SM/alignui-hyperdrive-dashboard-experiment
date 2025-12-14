@@ -35,6 +35,8 @@ import { useSession } from "@/hooks/use-session"
 import { inviteMemberSchema, type InviteMemberFormData } from "@/lib/validations"
 import { useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
+import type { auth } from "@/lib/encore-client"
+import { formatDateMedium } from "@/lib/format"
 
 // Types (simplified for internal use or imported if shared)
 // Assuming Member type is available or just using the shape
@@ -79,7 +81,7 @@ const getRoleIcon = (role: string) => {
 
 interface TeamClientProps {
 	initialData?: {
-		members?: organizations.MemberResponse[]
+		members?: Array<auth.MemberResponse & { user?: { id: string; name: string; email: string; image?: string | null } }>
 		invitations?: Array<{
 			id: string
 			email: string
@@ -104,13 +106,7 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 	const invitations = initialData?.invitations ?? []
 	const currentUserId = session?.user?.id ? String(session.user.id) : ""
 
-	const formatDate = (date: Date | string) => {
-		return new Date(date).toLocaleDateString("en-IN", {
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-		})
-	}
+	const formatDate = (date: Date | string): string => formatDateMedium(date)
 
 	// Stats
 	const stats = React.useMemo(
@@ -231,21 +227,21 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 								{/* Mobile Layout - Stacked */}
 								<div className="flex items-start gap-3 sm:hidden">
 									<AvatarWithFallback
-										src={undefined}
-										name={member.user.name}
+										src={member.user?.image || undefined}
+										name={member.user?.name || "User"}
 										size="40"
-										color={getAvatarColor(member.user.name)}
+										color={getAvatarColor(member.user?.name || "User")}
 									/>
 									<div className="flex-1 min-w-0">
 										<div className="flex items-center gap-2 mb-0.5">
-											<span className="text-label-sm text-text-strong-950">{member.user.name}</span>
+											<span className="text-label-sm text-text-strong-950">{member.user?.name || "Unknown User"}</span>
 											{isCurrentUser && (
 												<span className="text-[9px] text-text-soft-400 bg-bg-soft-200 px-1.5 py-0.5 rounded">
 													You
 												</span>
 											)}
 										</div>
-										<p className="text-paragraph-xs text-text-sub-600">{member.user.email}</p>
+										<p className="text-paragraph-xs text-text-sub-600">{member.user?.email || "No email"}</p>
 										<div className="flex items-center justify-between mt-2">
 											<div className="flex items-center gap-2">
 												<StatusBadge.Root status={getRoleStatus(member.role)} variant="light">
@@ -272,26 +268,26 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 								{/* Desktop Layout - Horizontal */}
 								<div className="hidden sm:flex sm:items-center sm:gap-4">
 									<AvatarWithFallback
-										src={undefined}
-										name={member.user.name}
+										src={member.user?.image || undefined}
+										name={member.user?.name || "User"}
 										size="48"
-										color={getAvatarColor(member.user.name)}
+										color={getAvatarColor(member.user?.name || "User")}
 									/>
 									<div className="flex-1 min-w-0">
 										<div className="flex items-center gap-2">
-											<span className="text-label-sm text-text-strong-950">{member.user.name}</span>
+											<span className="text-label-sm text-text-strong-950">{member.user?.name || "Unknown User"}</span>
 											{isCurrentUser && (
 												<span className="text-[10px] text-text-soft-400 bg-bg-soft-200 px-1.5 py-0.5 rounded">
 													You
 												</span>
 											)}
 										</div>
-										<p className="text-paragraph-xs text-text-sub-600">{member.user.email}</p>
+										<p className="text-paragraph-xs text-text-sub-600">{member.user?.email || "No email"}</p>
 									</div>
 
 									<StatusBadge.Root
 										status={getRoleStatus(member.role)}
-										variant="lighter"
+										variant="light"
 										className="shrink-0"
 									>
 										<StatusBadge.Icon as={RoleIcon} weight="duotone" />
@@ -333,7 +329,7 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 
 			{/* Pending Invitations */}
 			{invitations.length > 0 && (
-				<div className="rounded-xl bg-gradient-to-r from-warning-lighter to-warning-lighter/50 ring-1 ring-inset ring-warning-base/20 overflow-hidden">
+				<div className="rounded-xl bg-linear-to-r from-warning-lighter to-warning-lighter/50 ring-1 ring-inset ring-warning-base/20 overflow-hidden">
 					<div className="flex items-center justify-between p-4 border-b border-warning-light/50">
 						<div className="flex items-center gap-2">
 							<div className="flex size-8 items-center justify-center rounded-lg bg-warning-base text-white">
@@ -636,7 +632,7 @@ function RemoveMemberModal({
 					queryClient.invalidateQueries({ queryKey: ["members"] })
 					router.refresh()
 				} else {
-					toast.error(res.error || "Failed to remove member")
+					toast.error(("error" in res ? res.error : res.message) || "Failed to remove member")
 				}
 			} catch (e) {
 				toast.error("An error occurred")
@@ -656,17 +652,17 @@ function RemoveMemberModal({
 					<div className="flex items-center gap-2 p-3 rounded-10 bg-warning-lighter mb-4">
 						<Warning className="size-4 text-warning-base shrink-0" />
 						<span className="text-paragraph-sm text-warning-dark">
-							Remove {member.user.name} from team?
+							Remove {member.user?.name || "this member"} from team?
 						</span>
 					</div>
 
 					<div className="flex items-center gap-4 p-4 rounded-10 bg-bg-weak-50 mb-4">
-						<Avatar.Root size="48" color={getAvatarColor(member.user.name)}>
-							{member.user.name.charAt(0).toUpperCase()}
+						<Avatar.Root size="48" color={getAvatarColor(member.user?.name || "User")}>
+							{(member.user?.name || "U").charAt(0).toUpperCase()}
 						</Avatar.Root>
 						<div>
-							<div className="text-label-md text-text-strong-950">{member.user.name}</div>
-							<div className="text-paragraph-sm text-text-sub-600">{member.user.email}</div>
+							<div className="text-label-md text-text-strong-950">{member.user?.name || "Unknown User"}</div>
+							<div className="text-paragraph-sm text-text-sub-600">{member.user?.email || "No email"}</div>
 							<div className="text-paragraph-xs text-text-soft-400">
 								Role: {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
 							</div>

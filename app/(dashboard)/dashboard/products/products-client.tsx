@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as Button from "@/components/ui/button"
@@ -10,6 +11,7 @@ import * as Select from "@/components/ui/select"
 import * as Modal from "@/components/ui/modal"
 import * as Textarea from "@/components/ui/textarea"
 import { NoProductsEmptyState } from "@/components/dashboard/empty-states"
+import { ConfirmationModal } from "@/components/dashboard"
 import * as FileUpload from "@/components/ui/file-upload"
 import { FileDropzone } from "@/components/ui/file-dropzone"
 import Image from "next/image"
@@ -36,6 +38,7 @@ import {
 	bulkImportProducts,
 } from "@/app/actions/products"
 import { productFormSchema, type ProductFormInput } from "@/lib/validations"
+import { formatDateShort } from "@/lib/format"
 
 type Product = products.ProductWithStats
 
@@ -373,16 +376,12 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
 		"Any Platform": "bg-gray-100 text-gray-600",
 	}
 
-	const formatDate = (date: Date | string) => {
-		return new Intl.DateTimeFormat("en-IN", { month: "short", day: "numeric" }).format(
-			new Date(date)
-		)
-	}
+	const formatDate = (date: Date | string): string => formatDateShort(date)
 
 	return (
 		<div className="group rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden hover:ring-primary-base/50 hover:shadow-lg transition-all duration-200">
 			{/* Image Container - 4:3 on mobile, square on desktop */}
-			<div className="aspect-[4/3] sm:aspect-square bg-bg-weak-50 relative overflow-hidden">
+			<div className="aspect-4/3 sm:aspect-square bg-bg-weak-50 relative overflow-hidden">
 				{product.productImages?.[0] ? (
 					<>
 						<Image
@@ -393,7 +392,7 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
 							className="object-contain p-2 group-hover:scale-105 transition-transform duration-500"
 						/>
 						{/* Gradient overlay on hover */}
-						<div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+						<div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 					</>
 				) : (
 					<div className="absolute inset-0 flex items-center justify-center">
@@ -477,7 +476,7 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
 				</h3>
 
 				{/* Description - Always show area for consistent height */}
-				<p className="text-paragraph-xs text-text-sub-600 line-clamp-2 min-h-[2.5rem] mb-2">
+				<p className="text-paragraph-xs text-text-sub-600 line-clamp-2 min-h-10 mb-2">
 					{product.description || "\u00A0"}
 				</p>
 

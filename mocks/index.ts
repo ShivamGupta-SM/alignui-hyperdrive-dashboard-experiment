@@ -93,11 +93,19 @@ export async function initMocks() {
 			
 			// Seed database with complete dummy data
 			try {
+				console.log("[MSW Server] Starting database seeding...")
 				const { seedDatabase } = await import("./db/seed")
 				await seedDatabase("full", "1") // Seed with org ID "1"
-				console.log("[MSW] ✅ Database seeded with complete dummy organization and data")
+				console.log("[MSW Server] ✅ Database seeded with complete dummy organization and data")
+				
+				// Verify seeding
+				const { db } = await import("./db")
+				const campaignCount = db.campaigns.findMany().length
+				const enrollmentCount = db.enrollments.findMany().length
+				console.log(`[MSW Server] ✅ Verified: ${campaignCount} campaigns, ${enrollmentCount} enrollments seeded`)
 			} catch (seedError) {
-				console.error("[MSW] Failed to seed database:", seedError)
+				console.error("[MSW Server] ❌ Failed to seed database:", seedError)
+				console.error("[MSW Server] Error details:", seedError instanceof Error ? seedError.stack : String(seedError))
 				// Don't throw - continue even if seeding fails
 			}
 			
@@ -117,15 +125,24 @@ export async function initMocks() {
 		}
 
 		try {
+			console.log("[MSW Browser] Importing worker...")
 			const { worker, startOptions } = await import("./browser")
+			
+			console.log("[MSW Browser] Starting worker...")
+			console.log("[MSW Browser] Handler count:", handlers.length)
+			console.log("[MSW Browser] Base URL:", process.env.NEXT_PUBLIC_ENCORE_URL || "http://localhost:4000")
+			
 			await worker.start({
 				...startOptions,
 				onUnhandledRequest: (req) => {
-					// Only log unhandled requests to your API
+					// Log ALL requests to help debug
+					console.log(`[MSW Browser] Request received: ${req.method} ${req.url}`)
+					
+					// Only warn about unhandled requests to your API
 					if (req.url.includes("localhost:4000") || req.url.includes("encore.dev")) {
 						console.warn(
-							`[MSW] Unhandled browser request: ${req.method} ${req.url}`,
-							"\n  → This request is not mocked. Add a handler in mocks/handlers/"
+							`[MSW Browser] ⚠️ Unhandled request: ${req.method} ${req.url}`,
+							"\n  → This request is not mocked. Check if handler exists in mocks/handlers/"
 						)
 					}
 					return "bypass"
@@ -133,14 +150,38 @@ export async function initMocks() {
 			})
 			browserInitialized = true
 			console.log("[MSW] ✅ Browser mocking enabled")
+			console.log("[MSW Browser] Worker started successfully")
+			console.log("[MSW Browser] Service worker should be active - check DevTools → Application → Service Workers")
+			
+			// Verify service worker registration
+			if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+				navigator.serviceWorker.getRegistrations().then((regs) => {
+					const mswWorker = regs.find((r) => r.scope.includes("/") && r.active?.scriptURL?.includes("mockServiceWorker"))
+					if (mswWorker) {
+						console.log("[MSW Browser] ✅ Service Worker registered:", mswWorker.active?.scriptURL)
+						console.log("[MSW Browser] ✅ Service Worker state:", mswWorker.active?.state)
+					} else {
+						console.warn("[MSW Browser] ⚠️ MSW Service Worker not found in registrations")
+						console.log("[MSW Browser] All registered workers:", regs.map((r) => r.active?.scriptURL))
+					}
+				})
+			}
 			
 			// Seed database with complete dummy data (browser side - multiple organizations)
 			try {
+				console.log("[MSW Browser] Starting database seeding...")
 				const { seedDatabase } = await import("./db/seed")
 				await seedDatabase("full", "1") // Seed with org ID "1" (will seed all demo orgs)
-				console.log("[MSW] ✅ Database seeded with multiple organizations and complete data")
+				console.log("[MSW Browser] ✅ Database seeded with multiple organizations and complete data")
+				
+				// Verify seeding
+				const { db } = await import("./db")
+				const campaignCount = db.campaigns.findMany().length
+				const enrollmentCount = db.enrollments.findMany().length
+				console.log(`[MSW Browser] ✅ Verified: ${campaignCount} campaigns, ${enrollmentCount} enrollments seeded`)
 			} catch (seedError) {
-				console.error("[MSW] Failed to seed database:", seedError)
+				console.error("[MSW Browser] ❌ Failed to seed database:", seedError)
+				console.error("[MSW Browser] Error details:", seedError instanceof Error ? seedError.stack : String(seedError))
 				// Don't throw - continue even if seeding fails
 			}
 		} catch (error) {

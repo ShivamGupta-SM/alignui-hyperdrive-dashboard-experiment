@@ -10,7 +10,7 @@ import * as Input from "@/components/ui/input"
 import * as Textarea from "@/components/ui/textarea"
 import * as ProgressCircle from "@/components/ui/progress-circle"
 import * as Tooltip from "@/components/ui/tooltip"
-import { Callout } from "@/components/ui/callout"
+import { Callout, CalloutWithActions } from "@/components/ui/callout"
 import {
 	Plus,
 	DownloadSimple,
@@ -25,6 +25,8 @@ import {
 	Clock,
 	Bank,
 	CheckCircle,
+	ArrowRight,
+	Warning,
 } from "@phosphor-icons/react/dist/ssr"
 import {
 	VisaIcon,
@@ -37,7 +39,8 @@ import {
 import { cn } from "@/utils/cn"
 import { creditRequestSchema, type CreditRequestFormData } from "@/lib/validations"
 import { useWalletSearchParams, useCopyWithField } from "@/hooks"
-import { useMediaQuery } from "usehooks-ts"
+import { useMediaQuery, useLocalStorage } from "usehooks-ts"
+import { useRouter } from "next/navigation"
 import { THRESHOLDS } from "@/lib/types/constants"
 import { exportTransactions } from "@/lib/excel"
 import { TRANSACTION_TYPE_CONFIG } from "@/lib/constants"
@@ -45,6 +48,7 @@ import { toast } from "sonner"
 import { requestCreditAction, cancelWithdrawal } from "@/app/actions/wallet"
 import { useActionState } from "react"
 import { useFormStatus } from "react-dom"
+import { formatCurrency, formatCurrencyCompact, formatDateShort } from "@/lib/format"
 
 // Types
 import type { wallets } from "@/lib/encore-client"
@@ -62,7 +66,6 @@ const defaultWallet: WalletData = {
 	createdAt: new Date().toISOString(),
 	creditLimit: 0,
 	creditUtilized: 0,
-	creditTier: "bronze",
 }
 
 interface WalletClientProps {
@@ -72,10 +75,12 @@ interface WalletClientProps {
 		transactions: wallets.WalletTransaction[]
 		activeHolds: wallets.ActiveHold[]
 		stats?: wallets.WithdrawalStats
-	}
+	} | null
+	hasOrganization?: boolean
 }
 
-export function WalletClient({ initialData }: WalletClientProps) {
+export function WalletClient({ initialData, hasOrganization = true }: WalletClientProps) {
+	const router = useRouter()
 	const [isFundModalOpen, setIsFundModalOpen] = React.useState(false)
 	const [isCreditRequestModalOpen, setIsCreditRequestModalOpen] = React.useState(false)
 	const [activeSection, setActiveSection] = React.useState<"transactions" | "withdrawals">(
@@ -83,9 +88,18 @@ export function WalletClient({ initialData }: WalletClientProps) {
 	)
 	const [isPending, startTransition] = React.useTransition()
 
+	// Dismiss onboarding alert state (persisted in localStorage)
+	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
+		"wallet-onboarding-alert-dismissed",
+		false
+	)
+
 	// nuqs: URL state management for filters
 	const [searchParams, setSearchParams] = useWalletSearchParams()
 	const transactionFilter = searchParams.type
+
+	// Show onboarding alert if no organization
+	const showOnboardingAlert = !hasOrganization && !dismissedOnboardingAlert
 
 	// Use server data directly
 	const wallet: WalletData = initialData
@@ -99,37 +113,100 @@ export function WalletClient({ initialData }: WalletClientProps) {
 	const withdrawals = initialData?.withdrawals ?? []
 	const withdrawalStats = initialData?.stats
 
-	// nuqs: Update URL when filter changes
-	const handleFilterChange = (value: string) => {
-		setSearchParams({ type: value as typeof transactionFilter, page: 1 })
+	// If no organization, show alert
+	if (!hasOrganization) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				{/* ONBOARDING ALERT */}
+				{showOnboardingAlert && (
+					<CalloutWithActions
+						variant="warning"
+						title="Complete Your Organization Setup"
+						dismissible
+						onDismiss={() => setDismissedOnboardingAlert(true)}
+						actions={
+							<>
+								<Button.Root
+									variant="primary"
+									size="small"
+									onClick={() => router.push("/onboarding")}
+								>
+									<Button.Icon as={ArrowRight} />
+									Start Onboarding
+								</Button.Root>
+								<Button.Root
+									variant="ghost"
+									size="small"
+									onClick={() => setDismissedOnboardingAlert(true)}
+								>
+									Maybe Later
+								</Button.Root>
+							</>
+						}
+					>
+						To access wallet features, add funds, and manage transactions, you need to complete your organization setup. This will only take a few minutes.
+					</CalloutWithActions>
+				)}
+
+				{/* HEADER */}
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+					<div className="min-w-0">
+						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Wallet</h1>
+						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
+							Manage your wallet balance and transactions
+						</p>
+					</div>
+				</div>
+
+				{/* EMPTY STATE */}
+				{dismissedOnboardingAlert && (
+					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
+						<div className="max-w-md mx-auto space-y-4">
+							<div className="flex justify-center">
+								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
+									<Warning weight="duotone" className="size-8 text-warning-base" />
+								</div>
+							</div>
+							<div>
+								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
+								<p className="text-paragraph-sm text-text-sub-600 mt-2">
+									Complete your organization setup to access wallet features, add funds, and manage transactions.
+								</p>
+							</div>
+							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
+								<Button.Icon as={ArrowRight} />
+								Start Onboarding
+							</Button.Root>
+						</div>
+					</div>
+				)}
+			</div>
+		)
 	}
 
+	// nuqs: Update URL when filter changes
+	const handleFilterChange = React.useCallback((value: string) => {
+		setSearchParams({ type: value as typeof transactionFilter, page: 1 })
+	}, [setSearchParams, transactionFilter])
+
 	// Excel export handler
-	const handleExport = () => {
+	const handleExport = React.useCallback(() => {
 		try {
 			exportTransactions(transactions)
 			toast.success("Transactions exported to Excel")
 		} catch {
 			toast.error("Failed to export transactions")
 		}
-	}
+	}, [transactions])
 
-	const formatCurrency = (amount: number | undefined | null) =>
-		`₹${(amount ?? 0).toLocaleString("en-IN")}`
-
-	const formatCurrencyShort = (amount: number | undefined | null) => {
-		const value = amount ?? 0
-		if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`
-		if (value >= 1000) return `₹${(value / 1000).toFixed(0)}K`
-		return `₹${value.toLocaleString("en-IN")}`
-	}
-
-	const formatDate = (date: Date | string) => {
-		return new Date(date).toLocaleDateString("en-IN", {
-			month: "short",
-			day: "numeric",
-		})
-	}
+	// Use centralized formatting functions from lib/format.ts
+	const formatCurrencyLocal = (amount: number | undefined | null): string => formatCurrency(amount ?? 0)
+	const formatCurrencyShort = (amount: number | undefined | null): string => formatCurrencyCompact(amount ?? 0)
+	const formatDateLocal = (date: Date | string): string => formatDateShort(date)
+	
+	// Alias for backward compatibility
+	const formatCurrency = formatCurrencyLocal
+	const formatDate = formatDateLocal
 
 	const formatTime = (date: Date | string) => {
 		return new Date(date).toLocaleTimeString("en-IN", {
@@ -168,12 +245,13 @@ export function WalletClient({ initialData }: WalletClientProps) {
 
 	const totalHeld = activeHolds.reduce((acc, h) => acc + h.amount, 0)
 
-	const handleCancelWithdrawal = (id: string) => {
+	const handleCancelWithdrawal = React.useCallback((id: string) => {
 		startTransition(async () => {
 			try {
 				const result = await cancelWithdrawal(id)
 				if (result.success) {
 					toast.success("Withdrawal cancelled successfully")
+					router.refresh()
 				} else {
 					toast.error("Failed to cancel withdrawal")
 				}
@@ -181,7 +259,24 @@ export function WalletClient({ initialData }: WalletClientProps) {
 				toast.error("An error occurred")
 			}
 		})
-	}
+	}, [router])
+
+	// Stable callbacks for UI interactions
+	const handleOpenCreditRequest = React.useCallback(() => {
+		setIsCreditRequestModalOpen(true)
+	}, [])
+
+	const handleOpenFundModal = React.useCallback(() => {
+		setIsFundModalOpen(true)
+	}, [])
+
+	const handleSetTransactionsSection = React.useCallback(() => {
+		setActiveSection("transactions")
+	}, [])
+
+	const handleSetWithdrawalsSection = React.useCallback(() => {
+		setActiveSection("withdrawals")
+	}, [])
 
 	return (
 		<Tooltip.Provider>
@@ -198,7 +293,7 @@ export function WalletClient({ initialData }: WalletClientProps) {
 						<Button.Root
 							variant="neutral"
 							size="small"
-							onClick={() => setIsCreditRequestModalOpen(true)}
+							onClick={handleOpenCreditRequest}
 							className="flex-1 sm:flex-none"
 						>
 							<Button.Icon as={ArrowUp} />
@@ -207,7 +302,7 @@ export function WalletClient({ initialData }: WalletClientProps) {
 						<Button.Root
 							variant="primary"
 							size="small"
-							onClick={() => setIsFundModalOpen(true)}
+							onClick={handleOpenFundModal}
 							className="flex-1 sm:flex-none"
 						>
 							<Button.Icon as={Plus} />
@@ -226,7 +321,7 @@ export function WalletClient({ initialData }: WalletClientProps) {
 				)}
 
 				{/* Balance Overview - Hero Section */}
-				<div className="rounded-2xl bg-gradient-to-br from-primary-base to-primary-darker p-5 sm:p-8 text-white shadow-lg">
+				<div className="rounded-2xl bg-linear-to-br from-primary-base to-primary-darker p-5 sm:p-8 text-white shadow-lg">
 					<div className="flex items-start justify-between mb-6">
 						<div>
 							<p className="text-paragraph-sm text-white/80 mb-1.5">Total Balance</p>
@@ -321,7 +416,7 @@ export function WalletClient({ initialData }: WalletClientProps) {
 						<div className="flex items-center gap-2 p-1 rounded-lg bg-bg-weak-50 w-fit mb-4">
 							<button
 								type="button"
-								onClick={() => setActiveSection("transactions")}
+								onClick={handleSetTransactionsSection}
 								className={cn(
 									"px-3 py-1.5 rounded-md text-label-sm font-medium transition-all duration-200",
 									activeSection === "transactions"
@@ -333,7 +428,7 @@ export function WalletClient({ initialData }: WalletClientProps) {
 							</button>
 							<button
 								type="button"
-								onClick={() => setActiveSection("withdrawals")}
+								onClick={handleSetWithdrawalsSection}
 								className={cn(
 									"px-3 py-1.5 rounded-md text-label-sm font-medium transition-all duration-200",
 									activeSection === "withdrawals"

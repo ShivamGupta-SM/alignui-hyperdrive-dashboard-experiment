@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { useCopyToClipboard as useClipboard } from "usehooks-ts"
 import { DURATIONS } from "@/lib/types/constants"
 
@@ -36,10 +36,26 @@ export function useCopyToClipboard(options: UseClipboardOptions = {}) {
 	const [_, copyToClipboard] = useClipboard()
 	const [copied, setCopied] = useState(false)
 	const [error, setError] = useState<Error | null>(null)
+	const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+	// Cleanup timeout on unmount
+	useEffect(() => {
+		return () => {
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current)
+			}
+		}
+	}, [])
 
 	const copy = useCallback(
 		async (text: string) => {
 			try {
+				// Clear any existing timeout
+				if (timeoutRef.current) {
+					clearTimeout(timeoutRef.current)
+					timeoutRef.current = null
+				}
+
 				const success = await copyToClipboard(text)
 
 				if (success) {
@@ -48,8 +64,9 @@ export function useCopyToClipboard(options: UseClipboardOptions = {}) {
 					onSuccess?.(text)
 
 					// Reset after timeout
-					setTimeout(() => {
+					timeoutRef.current = setTimeout(() => {
 						setCopied(false)
+						timeoutRef.current = null
 					}, timeout)
 				} else {
 					throw new Error("Failed to copy to clipboard")
@@ -64,6 +81,10 @@ export function useCopyToClipboard(options: UseClipboardOptions = {}) {
 	)
 
 	const reset = useCallback(() => {
+		if (timeoutRef.current) {
+			clearTimeout(timeoutRef.current)
+			timeoutRef.current = null
+		}
 		setCopied(false)
 		setError(null)
 	}, [])
@@ -107,10 +128,26 @@ export function useCopyWithField<T extends string = string>(options: UseClipboar
 	const [_, copyToClipboard] = useClipboard()
 	const [copiedField, setCopiedField] = useState<T | null>(null)
 	const [error, setError] = useState<Error | null>(null)
+	const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+	// Cleanup timeout on unmount
+	useEffect(() => {
+		return () => {
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current)
+			}
+		}
+	}, [])
 
 	const copy = useCallback(
 		async (text: string, field: T) => {
 			try {
+				// Clear any existing timeout
+				if (timeoutRef.current) {
+					clearTimeout(timeoutRef.current)
+					timeoutRef.current = null
+				}
+
 				const success = await copyToClipboard(text)
 
 				if (success) {
@@ -118,8 +155,9 @@ export function useCopyWithField<T extends string = string>(options: UseClipboar
 					setError(null)
 					onSuccess?.(text)
 
-					setTimeout(() => {
+					timeoutRef.current = setTimeout(() => {
 						setCopiedField(null)
+						timeoutRef.current = null
 					}, timeout)
 				} else {
 					throw new Error("Failed to copy to clipboard")
@@ -134,6 +172,10 @@ export function useCopyWithField<T extends string = string>(options: UseClipboar
 	)
 
 	const reset = useCallback(() => {
+		if (timeoutRef.current) {
+			clearTimeout(timeoutRef.current)
+			timeoutRef.current = null
+		}
 		setCopiedField(null)
 		setError(null)
 	}, [])

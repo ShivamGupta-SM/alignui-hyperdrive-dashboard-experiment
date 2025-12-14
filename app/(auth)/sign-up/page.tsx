@@ -91,13 +91,15 @@ export default function SignUpPage() {
 			const result = await signUpEmail(data.email, data.password, data.email.split("@")[0])
 
 			if (!result.success) {
-				throw new Error(result.error || "Failed to create account")
+				const errorMessage = "error" in result ? result.error : "Failed to create account"
+				throw new Error(errorMessage)
 			}
 
 			// Smart redirect based on organization status
 			// New users (no org) → onboarding
 			// Existing users (has org) → dashboard
-			if (result.hasOrganization) {
+			const hasOrg = "hasOrganization" in result ? result.hasOrganization : false
+			if (hasOrg) {
 				// User already has organization (rare case - maybe from previous session)
 				router.push("/dashboard")
 			} else {
@@ -112,18 +114,19 @@ export default function SignUpPage() {
 		}
 	}
 
-	const handleGoogleSignUp = async () => {
+		const handleGoogleSignUp = async () => {
 		setIsLoading(true)
 		try {
 			const { signInSocial } = await import("@/app/actions")
 			const result = await signInSocial("google")
 
 			if (!result.success) {
-				throw new Error(result.error || "Google sign-up failed")
+				const errorMessage = "error" in result ? result.error : "Google sign-up failed"
+				throw new Error(errorMessage)
 			}
 
 			// If redirect is needed, it will be handled by the server action
-			if (!result.redirect) {
+			if (!("redirect" in result) || !result.redirect) {
 				router.push("/dashboard")
 				router.refresh()
 			}
@@ -141,7 +144,7 @@ export default function SignUpPage() {
 			<div className="w-full max-w-md mx-auto rounded-2xl bg-bg-white-0/95 backdrop-blur-xl p-6 sm:p-8 lg:p-10 ring-1 ring-inset ring-stroke-soft-200/50 shadow-xl shadow-primary-base/5">
 				{/* Header */}
 				<div className="mb-6 sm:mb-8 text-center">
-					<div className="flex size-16 sm:size-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-base via-primary-darker to-primary-darkest mx-auto mb-5 shadow-lg shadow-primary-base/20">
+					<div className="flex size-16 sm:size-20 items-center justify-center rounded-2xl bg-linear-to-br from-primary-base via-primary-darker to-primary-darkest mx-auto mb-5 shadow-lg shadow-primary-base/20">
 						<UserPlus weight="duotone" className="size-8 sm:size-10 text-white" />
 					</div>
 					<h1 className="text-title-h4 sm:text-title-h3 text-text-strong-950 mb-2 font-semibold">

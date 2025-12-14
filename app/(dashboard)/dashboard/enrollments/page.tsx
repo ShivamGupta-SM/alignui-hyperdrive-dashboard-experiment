@@ -1,4 +1,4 @@
-"use cache"
+"use cache: private"
 
 import { getEnrollmentsData, getCampaignsData, requireOrganization } from "@/lib/ssr-data"
 import { EnrollmentsClient } from "./enrollments-client"
@@ -8,6 +8,7 @@ export default async function EnrollmentsPage({
 }: {
 	searchParams: Promise<{ status?: string; campaign?: string }>
 }) {
+	// Industry Standard: Session-based active organization (single source of truth)
 	// Check if user has organization
 	await requireOrganization()
 
@@ -18,7 +19,7 @@ export default async function EnrollmentsPage({
 	// Direct server fetch - pure RSC
 	const [data, campaignsData] = await Promise.all([
 		getEnrollmentsData(statusFilter, campaignFilter),
-		getCampaignsData(), // Fetch campaigns for filter dropdown
+		getCampaignsData(undefined), // Fetch campaigns for filter dropdown
 	])
 
 	return (

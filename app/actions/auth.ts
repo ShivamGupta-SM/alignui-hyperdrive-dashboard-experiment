@@ -1,45 +1,29 @@
 "use server"
 
-// Initialize MSW early for server actions - MUST be before any imports that use fetch
-if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
-	// Synchronously initialize MSW before any other imports
-	// This ensures fetch is patched before Encore client is created
-	const initPromise = import("@/lib/init-mocks-server").then((mod) => mod.initServerMocks()).catch((err) => {
-		console.error("[Auth] Failed to initialize MSW:", err)
-	})
-	// Wait for initialization in the action itself
-}
+// Mocking disabled - removed MSW initialization
 
-import { getEncoreClient } from "@/lib/encore"
+import { getEncoreClient, getAuthenticatedEncoreClient, handleAPIError, getErrorDetails } from "@/lib/encore"
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import type { auth } from "@/lib/encore-client"
+import { logDebug } from "@/lib/debug"
 
 /**
  * Sign in with email and password
  */
 export async function signInEmail(email: string, password: string, rememberMe?: boolean) {
-	// Ensure MSW is initialized before making API calls
-	if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
-		console.log("[SignIn] Initializing MSW before API call...")
-		const { initServerMocks } = await import("@/lib/init-mocks-server")
-		await initServerMocks()
-		// Wait longer to ensure MSW is fully ready and fetch is patched
-		await new Promise((resolve) => setTimeout(resolve, 500))
-		
-		// Verify fetch is patched
-		if (typeof globalThis.fetch === "undefined") {
-			console.error("[SignIn] ❌ WARNING: globalThis.fetch is undefined!")
-		} else {
-			console.log("[SignIn] ✅ globalThis.fetch is available (should be patched)")
-		}
-	}
-
+	// Mocking disabled - removed MSW initialization
+	
 	const client = getEncoreClient()
-	console.log("[SignIn] Encore client created, making signInEmail API call...")
 
 	try {
+		console.log("[SignIn] 🔵 Calling client.auth.signInEmail...")
 		const result = await client.auth.signInEmail({ email, password, rememberMe })
+		console.log("[SignIn] ✅ Sign-in successful, result:", {
+			hasUser: !!result.user,
+			hasToken: !!result.token,
+			redirect: result.redirect
+		})
 
 		// Handle 2FA redirect if needed
 		if (result.twoFactorRedirect) {
@@ -62,10 +46,12 @@ export async function signInEmail(email: string, password: string, rememberMe?: 
 		// - rememberMe = false → 24 hours (session-only)
 		if (result.token) {
 			const cookieStore = await cookies()
+			logDebug("[SignIn] Setting auth-token cookie", { token: result.token?.substring(0, 10) + "..." })
 			cookieStore.set("auth-token", result.token, {
 				httpOnly: true,
 				secure: process.env.NODE_ENV === "production",
 				sameSite: "lax",
+				path: "/", // Ensure cookie is sent with all requests
 				maxAge: rememberMe !== false ? 60 * 60 * 24 * 7 : 60 * 60 * 24, // 7 days if remember me, else 24 hours (matches Better Auth)
 			})
 		}
@@ -76,10 +62,16 @@ export async function signInEmail(email: string, password: string, rememberMe?: 
 
 		// Check if user has an organization
 		// This helps with smart redirects after sign-in
+		// Note: We use the token we just received, but cookies are also set
+		// Backend will use Bearer token (priority) if both are present
 		let hasOrganization = false
 		try {
-			const orgsResult = await client.auth.listOrganizations()
-			hasOrganization = (orgsResult.organizations?.length || 0) > 0
+			if (result.token) {
+				// Use Bearer token for this check (explicit auth)
+				const authClient = getAuthenticatedEncoreClient(result.token)
+				const orgsResult = await authClient.auth.listOrganizations()
+				hasOrganization = (orgsResult.organizations?.length || 0) > 0
+			}
 		} catch (error) {
 			// If check fails, assume no org (safe default)
 			console.warn("[SignIn] Failed to check organizations:", error)
@@ -93,11 +85,13 @@ export async function signInEmail(email: string, password: string, rememberMe?: 
 			redirect: result.redirect,
 			hasOrganization, // Flag to help with redirect logic
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Invalid email or password",
-		}
+	} catch (error: unknown) {
+		// Use type-safe error handler
+		const errorDetails = getErrorDetails(error)
+		console.error("[SignIn] Error caught:", errorDetails)
+
+		// Return consistent error format
+		return handleAPIError(error)
 	}
 }
 
@@ -117,7 +111,7 @@ export async function signUpEmail(
 		await initServerMocks()
 		// Wait longer to ensure MSW is fully ready and fetch is patched
 		await new Promise((resolve) => setTimeout(resolve, 500))
-		
+
 		// Verify fetch is patched
 		if (typeof globalThis.fetch === "undefined") {
 			console.error("[SignUp] ❌ WARNING: globalThis.fetch is undefined!")
@@ -174,11 +168,8 @@ export async function signUpEmail(
 			token: result.token,
 			hasOrganization, // Flag to help with redirect logic
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to create account",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -186,24 +177,8 @@ export async function signUpEmail(
  * Sign in with social provider (OAuth)
  */
 export async function signInSocial(provider: "google" | "github" | "microsoft") {
-	// Ensure MSW is initialized before making API calls
-	if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
-		console.log("[SignInSocial] Initializing MSW before API call...")
-		const { initServerMocks } = await import("@/lib/init-mocks-server")
-		await initServerMocks()
-		// Wait longer to ensure MSW is fully ready and fetch is patched
-		await new Promise((resolve) => setTimeout(resolve, 500))
-		
-		// Verify fetch is patched
-		if (typeof globalThis.fetch === "undefined") {
-			console.error("[SignInSocial] ❌ WARNING: globalThis.fetch is undefined!")
-		} else {
-			console.log("[SignInSocial] ✅ globalThis.fetch is available (should be patched)")
-		}
-	}
-
+	// Mocking disabled - removed MSW initialization
 	const client = getEncoreClient()
-	console.log("[SignInSocial] Encore client created, making signInSocial API call...")
 
 	try {
 		const result = await client.auth.signInSocial({ provider })
@@ -235,43 +210,35 @@ export async function signInSocial(provider: "google" | "github" | "microsoft") 
 			redirect: result.redirect,
 			url: result.url,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to sign in with social provider",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
 /**
  * Sign out current user
+ * Always clears cookies and cache, even if backend call fails
  */
 export async function signOut() {
-	const client = getEncoreClient()
+	// Always clear cookie and revalidate, even if backend call fails
+	// This ensures user can logout even if backend is having issues
+	const cookieStore = await cookies()
+	cookieStore.delete("auth-token")
+	
+	const { revalidatePath } = await import("next/cache")
+	revalidatePath("/", "layout")
 
 	try {
+		const client = getEncoreClient()
 		await client.auth.signOut()
-
-		// Clear auth cookie
-		const cookieStore = await cookies()
-		cookieStore.delete("auth-token")
-
-		// Revalidate to trigger session refetch (will return null)
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-
 		return { success: true }
-	} catch (error: any) {
-		// Still clear cookie and revalidate even on error
-		const cookieStore = await cookies()
-		cookieStore.delete("auth-token")
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-
-		return {
-			success: false,
-			error: error.message || "Failed to sign out",
-		}
+	} catch (error: unknown) {
+		// Log error but don't fail - we already cleared cookies
+		console.error("[SignOut] Backend call failed, but cookies cleared:", error)
+		
+		// Still return success since we cleared the cookies
+		// Frontend will redirect to sign-in page
+		return { success: true }
 	}
 }
 
@@ -285,7 +252,13 @@ export async function getSession(): Promise<{
 	user?: auth.UserResponse
 	error?: string
 }> {
-	const client = getEncoreClient()
+	// Get auth token from cookie
+	const cookieStore = await cookies()
+	const token = cookieStore.get("auth-token")?.value
+
+	logDebug("[getSession] Token from cookie:", token ? token.substring(0, 10) + "..." : "null")
+
+	const client = token ? getAuthenticatedEncoreClient(token) : getEncoreClient()
 
 	try {
 		const sessionResult = await client.auth.getSession()
@@ -310,15 +283,20 @@ export async function getSession(): Promise<{
 			success: true,
 			session: {
 				...sessionResult.session,
+				token: token || sessionResult.session?.token || "", // Ensure token is present
 				user: userWithId,
 			},
 			user: userWithId,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "No active session",
+	} catch (error: unknown) {
+		// If session is invalid, clear the cookie to prevent redirect loops
+		// Middleware might see the cookie and redirect to dashboard, but if backend rejects it, we must clear it
+		if (token) {
+			const cookieStore = await cookies()
+			cookieStore.delete("auth-token")
 		}
+
+		return handleAPIError(error)
 	}
 }
 
@@ -330,7 +308,13 @@ export async function getCurrentUser(): Promise<{
 	user?: auth.MeResponse
 	error?: string
 }> {
-	const client = getEncoreClient()
+	// Get auth token from cookie
+	const cookieStore = await cookies()
+	const token = cookieStore.get("auth-token")?.value
+
+	logDebug("[getCurrentUser] Token from cookie:", token ? token.substring(0, 10) + "..." : "null")
+
+	const client = token ? getAuthenticatedEncoreClient(token) : getEncoreClient()
 
 	try {
 		const user = await client.auth.me()
@@ -338,11 +322,8 @@ export async function getCurrentUser(): Promise<{
 			success: true,
 			user,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to get user info",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -353,15 +334,18 @@ export async function forgotPassword(email: string, redirectTo?: string) {
 	const client = getEncoreClient()
 
 	try {
-		const result = await client.auth.forgotPassword({ email, redirectTo })
+		// Validate redirectTo to prevent open redirects
+		const { validateCallbackUrlServer } = await import("@/lib/url-validation")
+		const validatedRedirectTo = redirectTo 
+			? validateCallbackUrlServer(redirectTo) 
+			: undefined
+
+		const result = await client.auth.forgotPassword({ email, redirectTo: validatedRedirectTo || undefined })
 		return {
 			success: result.success,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to send password reset email",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -378,11 +362,10 @@ export async function resetPasswordCallback(token: string) {
 			valid: result.valid,
 			email: result.email,
 		}
-	} catch (error: any) {
+	} catch (error: unknown) {
 		return {
-			success: false,
+			...handleAPIError(error),
 			valid: false,
-			error: error.message || "Invalid or expired token",
 		}
 	}
 }
@@ -403,11 +386,8 @@ export async function resetPassword(token: string, newPassword: string) {
 		return {
 			success: result.success,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to reset password",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -435,11 +415,8 @@ export async function changePassword(
 		return {
 			success: result.success,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to change password",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -450,7 +427,13 @@ export async function changeEmail(newEmail: string, callbackURL?: string) {
 	const client = getEncoreClient()
 
 	try {
-		const result = await client.auth.changeEmail({ newEmail, callbackURL })
+		// Validate callbackURL to prevent open redirects
+		const { validateCallbackUrlServer } = await import("@/lib/url-validation")
+		const validatedCallbackURL = callbackURL 
+			? validateCallbackUrlServer(callbackURL) 
+			: undefined
+
+		const result = await client.auth.changeEmail({ newEmail, callbackURL: validatedCallbackURL || undefined })
 
 		// Revalidate to trigger session refetch
 		const { revalidatePath } = await import("next/cache")
@@ -461,11 +444,8 @@ export async function changeEmail(newEmail: string, callbackURL?: string) {
 			message: result.message,
 			user: result.user,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to change email",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -487,11 +467,8 @@ export async function updateProfile(data: { name?: string; image?: string }) {
 		return {
 			success: result.success,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to update profile",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -502,7 +479,13 @@ export async function deleteUser(password?: string, callbackURL?: string) {
 	const client = getEncoreClient()
 
 	try {
-		const result = await client.auth.deleteUser({ password, callbackURL })
+		// Validate callbackURL to prevent open redirects
+		const { validateCallbackUrlServer } = await import("@/lib/url-validation")
+		const validatedCallbackURL = callbackURL 
+			? validateCallbackUrlServer(callbackURL) 
+			: undefined
+
+		const result = await client.auth.deleteUser({ password, callbackURL: validatedCallbackURL || undefined })
 
 		// Clear auth cookie
 		const cookieStore = await cookies()
@@ -515,11 +498,8 @@ export async function deleteUser(password?: string, callbackURL?: string) {
 		return {
 			success: result.success,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to delete account",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -530,19 +510,22 @@ export async function sendVerificationEmail(email?: string, callbackURL?: string
 	const client = getEncoreClient()
 
 	try {
+		// Validate callbackURL to prevent open redirects
+		const { validateCallbackUrlServer } = await import("@/lib/url-validation")
+		const validatedCallbackURL = callbackURL 
+			? validateCallbackUrlServer(callbackURL) 
+			: undefined
+
 		const result = await client.auth.sendVerificationEmail({
 			email: email || "",
-			callbackURL,
+			callbackURL: validatedCallbackURL || undefined,
 		})
 
 		return {
 			success: result.status,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to send verification email",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -553,7 +536,13 @@ export async function verifyEmail(token: string, callbackURL?: string) {
 	const client = getEncoreClient()
 
 	try {
-		const result = await client.auth.verifyEmail({ token, callbackURL })
+		// Validate callbackURL to prevent open redirects
+		const { validateCallbackUrlServer } = await import("@/lib/url-validation")
+		const validatedCallbackURL = callbackURL 
+			? validateCallbackUrlServer(callbackURL) 
+			: undefined
+
+		const result = await client.auth.verifyEmail({ token, callbackURL: validatedCallbackURL || undefined })
 
 		// Revalidate to trigger session refetch
 		const { revalidatePath } = await import("next/cache")
@@ -562,11 +551,8 @@ export async function verifyEmail(token: string, callbackURL?: string) {
 		return {
 			success: result.success,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to verify email",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -582,11 +568,8 @@ export async function listSessions() {
 			success: true,
 			sessions: result.sessions || [],
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to list sessions",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -606,11 +589,8 @@ export async function revokeSession(token: string) {
 		return {
 			success: result.status,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to revoke session",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -630,11 +610,8 @@ export async function revokeOtherSessions() {
 		return {
 			success: result.status,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to revoke sessions",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -650,11 +627,8 @@ export async function listDeviceSessions() {
 			success: true,
 			sessions: result.sessions || [],
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to list device sessions",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -686,11 +660,8 @@ export async function setActiveSession(sessionToken: string) {
 			success: result.success,
 			token: result.token,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to set active session",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -707,11 +678,8 @@ export async function enable2FA(password: string, issuer?: string) {
 			backupCodes: result.backupCodes,
 			totpURI: result.totpURI,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to enable 2FA",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -731,11 +699,8 @@ export async function disable2FA(password: string) {
 		return {
 			success: result.success,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to disable 2FA",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -751,11 +716,8 @@ export async function get2FATotpURI(password: string) {
 			success: true,
 			totpURI: result.totpURI,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to get TOTP URI",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -771,11 +733,8 @@ export async function generate2FABackupCodes(password: string) {
 			success: true,
 			backupCodes: result.backupCodes,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to generate backup codes",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -791,11 +750,8 @@ export async function view2FABackupCodes(password: string) {
 			success: true,
 			backupCodes: result.backupCodes,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to view backup codes",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -831,11 +787,8 @@ export async function verify2FATotp(twoFactorToken: string, code: string, trustD
 			success: result.success,
 			token: result.token,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to verify TOTP code",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -871,11 +824,8 @@ export async function verify2FAOtp(twoFactorToken: string, otp: string, trustDev
 			success: result.success,
 			token: result.token,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to verify OTP",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -915,11 +865,8 @@ export async function verify2FABackupCode(
 			success: result.success,
 			token: result.token,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to verify backup code",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -934,10 +881,7 @@ export async function send2FAOtp(twoFactorToken: string, trustDevice?: boolean) 
 		return {
 			success: result.success,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to send OTP",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }

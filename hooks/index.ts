@@ -21,7 +21,6 @@ export * from "./use-products"
 export * from "./use-profile"
 export * from "./use-team"
 export * from "./use-settings"
-export * from "./use-organizations"
 export * from "./use-deliverables"
 
 // URL state management (nuqs)

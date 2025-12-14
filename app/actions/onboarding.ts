@@ -1,18 +1,11 @@
 "use server"
 
-// Initialize MSW early for server actions - MUST be before any imports that use fetch
-if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
-	// Synchronously initialize MSW before any other imports
-	// This ensures fetch is patched before Encore client is created
-	const initPromise = import("@/lib/init-mocks-server").then((mod) => mod.initServerMocks()).catch((err) => {
-		console.error("[Onboarding] Failed to initialize MSW:", err)
-	})
-	// Wait for initialization in the action itself
-}
+// Mocking disabled - removed MSW initialization
 
-import { getEncoreClient } from "@/lib/encore"
+import { getEncoreClient, getAuthenticatedEncoreClient, handleAPIError } from "@/lib/encore"
 import { revalidatePath } from "next/cache"
 import { handleServerAuthError } from "@/lib/error-handler-server"
+import { cookies } from "next/headers"
 import type { OrganizationDraft } from "@/lib/types"
 import type { organizations } from "@/lib/encore-client"
 
@@ -20,7 +13,18 @@ import type { organizations } from "@/lib/encore-client"
  * Verify GST during onboarding
  */
 export async function verifyGST(organizationId: string, gstNumber: string) {
-	const client = getEncoreClient()
+	// Get auth token from cookies
+	const cookieStore = await cookies()
+	const token = cookieStore.get("auth-token")?.value
+	
+	if (!token) {
+		return {
+			success: false,
+			error: "Authentication required",
+		}
+	}
+
+	const client = getAuthenticatedEncoreClient(token)
 
 	try {
 		const result = await client.organizations.verifyGST(organizationId, { gstNumber })
@@ -28,12 +32,9 @@ export async function verifyGST(organizationId: string, gstNumber: string) {
 			success: true,
 			gstDetails: result,
 		}
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return {
-			success: false,
-			error: error.message || "GST verification failed",
-		}
+		return handleAPIError(error)
 	}
 }
 
@@ -41,7 +42,18 @@ export async function verifyGST(organizationId: string, gstNumber: string) {
  * Verify PAN during onboarding
  */
 export async function verifyPAN(organizationId: string, panNumber: string) {
-	const client = getEncoreClient()
+	// Get auth token from cookies
+	const cookieStore = await cookies()
+	const token = cookieStore.get("auth-token")?.value
+	
+	if (!token) {
+		return {
+			success: false,
+			error: "Authentication required",
+		}
+	}
+
+	const client = getAuthenticatedEncoreClient(token)
 
 	try {
 		const result = await client.organizations.verifyPAN(organizationId, { panNumber })
@@ -49,12 +61,9 @@ export async function verifyPAN(organizationId: string, panNumber: string) {
 			success: true,
 			panDetails: result,
 		}
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return {
-			success: false,
-			error: error.message || "PAN verification failed",
-		}
+		return handleAPIError(error)
 	}
 }
 
@@ -62,65 +71,79 @@ export async function verifyPAN(organizationId: string, panNumber: string) {
  * Submit onboarding form - creates organization with Better Auth, updates with details, verifies GST/PAN, and submits for approval
  */
 export async function submitOnboarding(formData: OrganizationDraft) {
-	// CRITICAL: Ensure MSW is initialized and ready before making ANY API calls
-	// MSW must patch fetch BEFORE the Encore client is created
-	if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
-		try {
-			const { initServerMocks } = await import("@/lib/init-mocks-server")
-			await initServerMocks()
-			// Wait to ensure MSW server is fully ready and fetch is patched
-			await new Promise((resolve) => setTimeout(resolve, 500))
-			console.log("[Onboarding] MSW initialized, fetch should be patched")
-			
-			// Verify fetch is available
-			if (typeof globalThis.fetch === "undefined") {
-				console.error("[Onboarding] WARNING: globalThis.fetch is undefined!")
-			} else {
-				console.log("[Onboarding] globalThis.fetch is available (should be patched by MSW)")
-			}
-		} catch (error) {
-			console.error("[Onboarding] MSW initialization error:", error)
-			console.error("[Onboarding] Error details:", error instanceof Error ? error.stack : String(error))
-			// Continue anyway - might work without MSW if real server is running
+	// Get auth token from cookies
+	const cookieStore = await cookies()
+	const token = cookieStore.get("auth-token")?.value
+	
+	if (!token) {
+		return {
+			success: false,
+			error: "Authentication required. Please sign in again.",
 		}
 	}
 
-	// Create client AFTER MSW is initialized (so it uses patched fetch)
-	const client = getEncoreClient()
+	const client = getAuthenticatedEncoreClient(token)
 
 	try {
 		// Step 1: Create basic organization using Better Auth (just name)
-		const basicOrg = await client.auth.createOrganization({
-			name: formData.basicInfo?.name || "",
-			// slug will be auto-generated
-		})
+		// If organization already exists (from draft), use it
+		let basicOrg = null
+		const orgsResult = await client.auth.listOrganizations()
+		// Note: approvalStatus might not be in OrganizationResponse type, but backend returns it
+		const existingDraftOrg = orgsResult.organizations?.find(
+			(org) => {
+				const orgWithStatus = org as typeof org & { approvalStatus?: string }
+				return orgWithStatus.approvalStatus === "draft" || orgWithStatus.approvalStatus === "pending"
+			}
+		)
 
-		if (!basicOrg?.id) {
-			return {
-				success: false,
-				error: "Failed to create organization",
+		if (existingDraftOrg) {
+			// Use existing draft organization
+			basicOrg = { id: existingDraftOrg.id }
+			console.log("[Onboarding] Using existing draft organization:", existingDraftOrg.id)
+		} else {
+			// Create new organization
+			basicOrg = await client.auth.createOrganization({
+				name: formData.basicInfo?.name || "",
+				// slug will be auto-generated
+			})
+
+			if (!basicOrg?.id) {
+				return {
+					success: false,
+					error: "Failed to create organization",
+				}
 			}
 		}
 
-		// Set as active organization
+		// Set as active organization in backend
 		await client.auth.setActiveOrganization({
 			organizationId: basicOrg.id,
 		})
 
+		// Organization is already set as active in backend session
+		// No cookie needed - session is the single source of truth (industry standard)
+
 		// Step 2: Update organization with all advanced details
-		const updateRequest: organizations.UpdateOrganizationRequest = {
+		// Note: businessType and industryCategory are not in UpdateOrganizationRequest type
+		// but backend accepts them. Using type assertion to include them.
+		const updateRequest = {
 			description: formData.basicInfo?.description,
 			website: formData.basicInfo?.website,
-			businessType: mapBusinessType(formData.businessDetails?.businessType),
-			industryCategory: formData.businessDetails?.industryCategory,
 			contactPerson: formData.businessDetails?.contactPerson,
 			phoneNumber: formData.businessDetails?.phone,
 			address: formData.businessDetails?.address,
 			city: formData.businessDetails?.city,
 			state: formData.businessDetails?.state,
 			postalCode: formData.businessDetails?.pinCode,
-			country: "IN",
+			// These fields are supported by backend but not in generated type
+			businessType: mapBusinessType(formData.businessDetails?.businessType),
+			industryCategory: formData.businessDetails?.industryCategory,
 			cinNumber: formData.verification?.cinNumber,
+		} as organizations.UpdateOrganizationRequest & {
+			businessType?: string
+			industryCategory?: string
+			cinNumber?: string
 		}
 
 		await client.organizations.updateOrganization(basicOrg.id, updateRequest)
@@ -131,7 +154,7 @@ export async function submitOnboarding(formData: OrganizationDraft) {
 				await client.organizations.verifyGST(basicOrg.id, {
 					gstNumber: formData.verification.gstNumber,
 				})
-			} catch (gstError: any) {
+			} catch (gstError: unknown) {
 				// GST verification failed - still continue but log error
 				console.error("GST verification failed:", gstError)
 				// Don't throw - let user know in response
@@ -144,7 +167,7 @@ export async function submitOnboarding(formData: OrganizationDraft) {
 				await client.organizations.verifyPAN(basicOrg.id, {
 					panNumber: formData.verification.panNumber,
 				})
-			} catch (panError: any) {
+			} catch (panError: unknown) {
 				// PAN verification failed - non-blocking
 				console.error("PAN verification failed:", panError)
 			}
@@ -164,38 +187,196 @@ export async function submitOnboarding(formData: OrganizationDraft) {
 			message: "Organization created and submitted for approval",
 			redirectTo: "/onboarding/pending", // Redirect to pending page
 		}
-	} catch (error: any) {
+	} catch (error: unknown) {
 		// Log detailed error for debugging
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorStack = error instanceof Error ? error.stack : undefined
+		const errorName = error instanceof Error ? error.name : undefined
+		const errorCause = error instanceof Error ? error.cause : undefined
+		
 		console.error("[Onboarding] Submit error:", {
-			message: error.message,
-			stack: error.stack,
-			name: error.name,
-			cause: error.cause,
+			message: errorMessage,
+			stack: errorStack,
+			name: errorName,
+			cause: errorCause,
 			toString: String(error),
 		})
 		
 		// Check if it's a fetch error
-		if (error.message?.includes("fetch failed") || error.message?.includes("Failed to fetch")) {
+		if (errorMessage.includes("fetch failed") || errorMessage.includes("Failed to fetch")) {
 			console.error("[Onboarding] Fetch failed - MSW might not be intercepting requests")
 			console.error("[Onboarding] Check if MSW server is initialized and listening")
 			console.error("[Onboarding] Verify NEXT_PUBLIC_API_MOCKING=enabled is set")
 		}
 		
 		handleServerAuthError(error)
-		return {
-			success: false,
-			error: error.message || "Failed to submit onboarding application",
-		}
+		return handleAPIError(error)
 	}
 }
 
 /**
+ * Save onboarding draft to backend
+ * Used for cross-device persistence
+ */
+export async function saveOnboardingDraft(
+	organizationId: string,
+	formData: Partial<OrganizationDraft>
+) {
+	// Get auth token from cookies
+	const cookieStore = await cookies()
+	const token = cookieStore.get("auth-token")?.value
+	
+	if (!token) {
+		return {
+			success: false,
+			error: "Authentication required",
+		}
+	}
+
+	const client = getAuthenticatedEncoreClient(token)
+
+	try {
+		// Map formData to organization update request
+		// Note: businessType and industryCategory are not in UpdateOrganizationRequest type
+		// but backend accepts them. Using type assertion to include them.
+		const updateRequest = {
+			description: formData.basicInfo?.description,
+			website: formData.basicInfo?.website,
+			contactPerson: formData.businessDetails?.contactPerson,
+			phoneNumber: formData.businessDetails?.phone,
+			address: formData.businessDetails?.address,
+			city: formData.businessDetails?.city,
+			state: formData.businessDetails?.state,
+			postalCode: formData.businessDetails?.pinCode,
+			// These fields are supported by backend but not in generated type
+			businessType: formData.businessDetails?.businessType
+				? mapBusinessType(formData.businessDetails.businessType)
+				: undefined,
+			industryCategory: formData.businessDetails?.industryCategory,
+			cinNumber: formData.verification?.cinNumber,
+		} as organizations.UpdateOrganizationRequest & {
+			businessType?: string
+			industryCategory?: string
+			cinNumber?: string
+		}
+
+		// Update organization with draft data
+		await client.organizations.updateOrganization(organizationId, updateRequest)
+
+		// If GST/PAN provided, verify them (non-blocking)
+		if (formData.verification?.gstNumber && !formData.verification?.gstVerified) {
+			try {
+				await client.organizations.verifyGST(organizationId, {
+					gstNumber: formData.verification.gstNumber,
+				})
+			} catch (gstError) {
+				// Ignore verification errors during draft save
+				console.log("[Draft Save] GST verification skipped (will verify on submit)")
+			}
+		}
+
+		if (formData.verification?.panNumber && !formData.verification?.panVerified) {
+			try {
+				await client.organizations.verifyPAN(organizationId, {
+					panNumber: formData.verification.panNumber,
+				})
+			} catch (panError) {
+				// Ignore verification errors during draft save
+				console.log("[Draft Save] PAN verification skipped (will verify on submit)")
+			}
+		}
+
+		return { success: true }
+	} catch (error: unknown) {
+		handleServerAuthError(error)
+		return handleAPIError(error)
+	}
+}
+
+/**
+ * Load onboarding draft from backend
+ * Returns null if no draft found
+ */
+export async function loadOnboardingDraft(organizationId: string): Promise<OrganizationDraft | null> {
+	// Get auth token from cookies
+	const cookieStore = await cookies()
+	const token = cookieStore.get("auth-token")?.value
+	
+	if (!token) {
+		console.error("[Load Draft] No auth token found")
+		return null
+	}
+
+	const client = getAuthenticatedEncoreClient(token)
+
+	try {
+		const org = await client.organizations.getOrganization(organizationId)
+
+		// Only return draft if organization is in draft status
+		// Note: approvalStatus might not be in the response, so we check if org exists
+		if (!org) {
+			return null
+		}
+
+		// Map organization data back to form format
+		return {
+			step: 4, // Assume step 4 if loading from backend (user can navigate)
+			basicInfo: {
+				name: org.name || "",
+				description: org.description || undefined,
+				website: org.website || undefined,
+				logo: org.logo || undefined,
+			},
+			businessDetails: {
+				businessType: mapBackendBusinessType(
+					(org as typeof org & { businessType?: string }).businessType
+				) || "private_limited",
+				industryCategory: ((org as typeof org & { industryCategory?: string }).industryCategory || "electronics") as import("@/lib/types").IndustryCategory,
+				contactPerson: org.contactPerson || "",
+				phone: org.phoneNumber || "",
+				address: org.address || "",
+				city: org.city || "",
+				state: org.state || "",
+				pinCode: org.postalCode || "",
+			},
+			verification: {
+				gstNumber: org.gstNumber || "",
+				gstVerified: org.gstVerified || false,
+				panNumber: org.panNumber || "",
+				panVerified: org.panVerified || false,
+				cinNumber: org.cinNumber || "",
+			},
+		}
+	} catch (error: unknown) {
+		console.error("[Load Draft] Failed to load draft:", error)
+		return null
+	}
+}
+
+/**
+ * Map backend businessType to frontend BusinessType
+ */
+function mapBackendBusinessType(
+	type?: string
+): "sole_proprietorship" | "partnership" | "llp" | "private_limited" | "public_limited" | undefined {
+	const mapping: Record<string, "sole_proprietorship" | "partnership" | "llp" | "private_limited" | "public_limited"> = {
+		proprietorship: "sole_proprietorship",
+		partnership: "partnership",
+		llp: "llp",
+		pvt_ltd: "private_limited",
+		public_ltd: "public_limited",
+	}
+	return type ? mapping[type] : undefined
+}
+
+/**
  * Map frontend BusinessType to backend businessType
+ * Note: businessType is not in UpdateOrganizationRequest type but backend accepts it
  */
 function mapBusinessType(
 	type?: "sole_proprietorship" | "partnership" | "llp" | "private_limited" | "public_limited"
-): organizations.UpdateOrganizationRequest["businessType"] {
-	const mapping: Record<string, organizations.UpdateOrganizationRequest["businessType"]> = {
+): string | undefined {
+	const mapping: Record<string, string> = {
 		sole_proprietorship: "proprietorship",
 		partnership: "partnership",
 		llp: "llp",

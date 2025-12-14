@@ -35,6 +35,7 @@ import { exportEnrollments } from "@/lib/excel"
 import { bulkUpdateEnrollments } from "@/app/actions"
 import type { EnrollmentStatus } from "@/hooks/use-enrollments"
 import type { enrollments } from "@/lib/encore-client"
+import { formatCurrency, formatDateMedium } from "@/lib/format"
 import {
 	type ColumnDef,
 	type SortingState,
@@ -178,17 +179,17 @@ export function EnrollmentsClient({
 	}, [debouncedSearch, searchParams.search, setSearchParams])
 
 	// Excel export handler
-	const handleExport = () => {
+	const handleExport = React.useCallback(() => {
 		try {
 			exportEnrollments(allEnrollments)
 			toast.success("Enrollments exported to Excel")
 		} catch {
 			toast.error("Failed to export enrollments")
 		}
-	}
+	}, [allEnrollments])
 
 	// Bulk action handlers
-	const handleBulkApprove = async () => {
+	const handleBulkApprove = React.useCallback(async () => {
 		if (selectedIds.length === 0) return
 		setIsBulkLoading(true)
 		try {
@@ -207,9 +208,9 @@ export function EnrollmentsClient({
 		} finally {
 			setIsBulkLoading(false)
 		}
-	}
+	}, [selectedIds, router])
 
-	const handleBulkReject = async () => {
+	const handleBulkReject = React.useCallback(async () => {
 		if (selectedIds.length === 0) return
 		setIsBulkLoading(true)
 		try {
@@ -228,7 +229,7 @@ export function EnrollmentsClient({
 		} finally {
 			setIsBulkLoading(false)
 		}
-	}
+	}, [selectedIds, router])
 
 	// Filter enrollments by status
 	const statusFilteredEnrollments = React.useMemo(() => {
@@ -275,28 +276,26 @@ export function EnrollmentsClient({
 	}, [allEnrollments])
 
 	// nuqs: Update URL when tab changes
-	const handleTabChange = (value: string) => {
+	const handleTabChange = React.useCallback((value: string) => {
 		setSearchParams({ status: value as typeof statusFilter, page: 1 })
-	}
+	}, [setSearchParams, statusFilter])
 
 	// Handle campaign filter change
-	const handleCampaignChange = (value: string) => {
+	const handleCampaignChange = React.useCallback((value: string) => {
 		setSearchParams({ campaign: value || "", page: 1 })
-	}
+	}, [setSearchParams])
 
 	const getStatusCount = (status: string) => {
 		if (status === "all") return allEnrollments.length
 		return allEnrollments.filter((e) => e.status === status).length
 	}
 
-	const formatCurrency = (amount: number) => `₹${amount.toLocaleString("en-IN")}`
-	const formatDate = (date: Date | string) => {
-		return new Date(date).toLocaleDateString("en-IN", {
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-		})
-	}
+	const formatCurrencyLocal = (amount: number): string => formatCurrency(amount)
+	const formatDateLocal = (date: Date | string): string => formatDateMedium(date)
+	
+	// Alias for backward compatibility
+	const formatCurrency = formatCurrencyLocal
+	const formatDate = formatDateLocal
 
 	// Table columns definition
 	const columns: ColumnDef<enrollments.EnrollmentWithRelations>[] = React.useMemo(
@@ -918,7 +917,7 @@ interface EnrollmentListItemProps {
 	onClick: () => void
 }
 
-function EnrollmentListItem({
+const EnrollmentListItem = React.memo(function EnrollmentListItem({
 	enrollment,
 	formatCurrency,
 	selected,
@@ -1000,7 +999,7 @@ function EnrollmentListItem({
 			</button>
 		</div>
 	)
-}
+})
 
 // Card view item
 interface EnrollmentCardItemProps {
@@ -1009,7 +1008,7 @@ interface EnrollmentCardItemProps {
 	onClick: () => void
 }
 
-function EnrollmentCardItem({ enrollment, formatCurrency, onClick }: EnrollmentCardItemProps) {
+const EnrollmentCardItem = React.memo(function EnrollmentCardItem({ enrollment, formatCurrency, onClick }: EnrollmentCardItemProps) {
 	const displayName = enrollment.orderId || enrollment.shopperId.slice(0, 8)
 
 	return (
@@ -1050,4 +1049,4 @@ function EnrollmentCardItem({ enrollment, formatCurrency, onClick }: EnrollmentC
 			</div>
 		</button>
 	)
-}
+})

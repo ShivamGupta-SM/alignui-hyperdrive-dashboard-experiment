@@ -70,14 +70,16 @@ export function useSwitchOrganization() {
 			await queryClient.cancelQueries({ queryKey: ["session"] })
 
 			// Snapshot previous value
-			const previousSession = queryClient.getQueryData(["session"])
-
-			// Optimistically update session
-			type SessionData = {
+			const previousSession = queryClient.getQueryData<{
 				session: { user: { activeOrganizationId?: string } }
 				user: { activeOrganizationId?: string }
-			} | null
-			queryClient.setQueryData<SessionData>(["session"], (old) => {
+			} | null>(["session"])
+
+			// Optimistically update session
+			queryClient.setQueryData<{
+				session: { user: { activeOrganizationId?: string } }
+				user: { activeOrganizationId?: string }
+			} | null>(["session"], (old) => {
 				if (!old) return old
 				return {
 					...old,

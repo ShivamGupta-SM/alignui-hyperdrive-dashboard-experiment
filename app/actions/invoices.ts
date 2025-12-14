@@ -1,6 +1,6 @@
 "use server"
 
-import { getEncoreClient } from "@/lib/encore"
+import { getEncoreClient, handleAPIError } from "@/lib/encore"
 import { revalidatePath } from "next/cache"
 
 /**
@@ -23,11 +23,8 @@ export async function generateInvoicePDF(invoiceId: string) {
 			success: true,
 			pdfUrl: result.pdfUrl,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to generate invoice PDF",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -68,11 +65,8 @@ export async function downloadInvoicePDF(invoiceId: string) {
 			filename: `invoice-${invoiceId}.pdf`,
 			contentType: "application/pdf",
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to download invoice PDF",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 

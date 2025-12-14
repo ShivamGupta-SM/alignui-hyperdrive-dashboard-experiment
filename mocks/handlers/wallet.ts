@@ -228,11 +228,138 @@ export const walletHandlers = [
 	http.post(encoreUrl("/withdrawals/:id/cancel"), async ({ params }) => {
 		const { id } = params as { id: string }
 
-		return encoreResponse({
-			id,
-			status: "cancelled",
-			cancelledAt: new Date().toISOString(),
+		const withdrawal = db.withdrawals.findFirst((q) => q.where({ id: id as string }))
+		if (!withdrawal) {
+			return encoreNotFoundResponse("Withdrawal")
+		}
+
+		// Only pending withdrawals can be cancelled
+		if (withdrawal.status !== "pending") {
+			return encoreErrorResponse("Only pending withdrawals can be cancelled", 400)
+		}
+
+		// Update withdrawal status
+		const updated = db.withdrawals.update({
+			where: { id: id as string },
+			data: {
+				status: "cancelled",
+				updatedAt: new Date().toISOString(),
+			},
 		})
+
+		return encoreResponse(updated)
+	}),
+
+	// POST /withdrawals - Create withdrawal
+	http.post(encoreUrl("/withdrawals"), async ({ request }) => {
+		const auth = getAuthContext()
+		const body = (await request.json()) as {
+			amount: number
+			withdrawalMethodId?: string
+			bankAccountId?: string
+			notes?: string
+		}
+
+		if (!body.amount || body.amount <= 0) {
+			return encoreErrorResponse("amount must be greater than 0", 400)
+		}
+
+		const orgId = auth.organizationId || "1"
+
+		// Check wallet balance
+		const wallet = db.walletBalances.findFirst((q) => q.where({ organizationId: orgId }))
+		if (!wallet) {
+			return encoreErrorResponse("Wallet not found", 404)
+		}
+
+		if (body.amount > wallet.availableBalance) {
+			return encoreErrorResponse("Insufficient balance", 400)
+		}
+
+		const now = new Date().toISOString()
+		const newWithdrawal = {
+			id: `wd-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+			holderType: "organization" as const,
+			holderId: orgId,
+			organizationId: orgId,
+			shopperId: undefined,
+			amount: body.amount,
+			status: "pending" as const,
+			requestedAt: now,
+			processedAt: undefined,
+			requiresApproval: body.amount > 10000, // Require approval for large amounts
+			approvedBy: undefined,
+			approvedAt: undefined,
+			rejectionReason: undefined,
+			rejectedBy: undefined,
+			withdrawalMethodId: body.withdrawalMethodId,
+			bankAccountId: body.bankAccountId,
+			notes: body.notes,
+			createdAt: now,
+			updatedAt: now,
+		}
+
+		// Save to database
+		db.withdrawals.create(newWithdrawal)
+
+		// Update wallet balance (hold the amount)
+		db.walletBalances.update({
+			where: { organizationId: orgId },
+			data: {
+				availableBalance: wallet.availableBalance - body.amount,
+				heldAmount: wallet.heldAmount + body.amount,
+				updatedAt: now,
+			},
+		})
+
+		return encoreResponse(newWithdrawal)
+	}),
+
+	// PUT /withdrawals/:id - Update withdrawal
+	http.put(encoreUrl("/withdrawals/:id"), async ({ params, request }) => {
+		const { id } = params as { id: string }
+		const body = (await request.json()) as {
+			status?: "pending" | "processing" | "completed" | "failed" | "cancelled" | "rejected"
+			notes?: string
+		}
+
+		const withdrawal = db.withdrawals.findFirst((q) => q.where({ id: id as string }))
+		if (!withdrawal) {
+			return encoreNotFoundResponse("Withdrawal")
+		}
+
+		// Update withdrawal in database
+		const updated = db.withdrawals.update({
+			where: { id: id as string },
+			data: {
+				...body,
+				updatedAt: new Date().toISOString(),
+			},
+		})
+
+		return encoreResponse(updated)
+	}),
+
+	// PATCH /withdrawals/:id - Partial update withdrawal
+	http.patch(encoreUrl("/withdrawals/:id"), async ({ params, request }) => {
+		const { id } = params as { id: string }
+		const body = (await request.json()) as Record<string, unknown>
+
+		const withdrawal = db.withdrawals.findFirst((q) => q.where({ id: id as string }))
+		if (!withdrawal) {
+			return encoreNotFoundResponse("Withdrawal")
+		}
+
+		// Update withdrawal in database
+		const updated = db.withdrawals.update({
+			where: { id: id as string },
+			data: {
+				...body,
+				updatedAt: new Date().toISOString(),
+			},
+		})
+
+		return encoreResponse(updated)
 	}),
 
 	// GET /wallet/balance (legacy)
@@ -281,3 +408,4 @@ export const walletHandlers = [
 		)
 	}),
 ]
+

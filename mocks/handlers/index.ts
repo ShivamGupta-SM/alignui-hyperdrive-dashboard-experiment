@@ -48,7 +48,11 @@ import { notificationsHandlers } from "./notifications"
 // Deliverables & Storage
 import { deliverablesHandlers } from "./deliverables"
 import { deliverableSubmissionsHandlers } from "./deliverable-submissions"
+import { campaignDeliverablesHandlers } from "./campaign-deliverables"
 import { storageHandlers } from "./storage"
+
+// Withdrawals
+import { withdrawalMethodsHandlers } from "./withdrawal-methods"
 
 /**
  * Combined array of all MSW handlers
@@ -69,6 +73,7 @@ export const handlers = [
 	// Financial
 	...walletHandlers,
 	...invoicesHandlers,
+	...withdrawalMethodsHandlers,
 	
 	// Organization & Team
 	...organizationsHandlers,
@@ -80,7 +85,9 @@ export const handlers = [
 	...notificationsHandlers,
 	...deliverablesHandlers,
 	...deliverableSubmissionsHandlers,
+	...campaignDeliverablesHandlers,
 	...categoriesHandlers,
 	...platformsHandlers,
 	...storageHandlers,
 ]
+

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import crypto from "node:crypto"
 import { handleServerAuthError } from "@/lib/error-handler-server"
+import { handleAPIError } from "@/lib/encore"
 import type { SettingsActionResult } from "@/lib/types"
 import {
 	updateProfileBodySchema,
@@ -52,7 +53,7 @@ export async function updateProfile(data: unknown): Promise<SettingsActionResult
 		const client = getEncoreClient()
 		const result = await client.auth.updateUser({
 			name: validation.data.name,
-			image: validation.data.image,
+			...(validation.data.image && { image: validation.data.image }),
 		})
 
 		revalidatePath("/dashboard/settings")
@@ -60,12 +61,9 @@ export async function updateProfile(data: unknown): Promise<SettingsActionResult
 		revalidatePath("/", "layout")
 
 		return { success: result.success }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return {
-			success: false,
-			error: error.message || "Failed to update profile",
-		}
+		return handleAPIError(error)
 	}
 }
 
@@ -80,12 +78,12 @@ export async function updateOrganization(data: unknown): Promise<SettingsActionR
 	}
 
 	const { getEncoreClient } = await import("@/lib/encore")
-	const { cookies } = await import("next/headers")
+	const { getOrganizationIdOrNull } = await import("@/lib/ssr-data")
 
 	try {
 		const client = getEncoreClient()
-		const cookieStore = await cookies()
-		const orgId = cookieStore.get("active-organization-id")?.value
+		// Get org ID from session (single source of truth)
+		const orgId = await getOrganizationIdOrNull()
 
 		if (!orgId) {
 			return { success: false, error: "Organization ID not found" }
@@ -95,12 +93,9 @@ export async function updateOrganization(data: unknown): Promise<SettingsActionR
 		revalidatePath("/dashboard/settings")
 
 		return { success: true, message: "Organization updated successfully" }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return {
-			success: false,
-			error: error.message || "Failed to update organization",
-		}
+		return handleAPIError(error)
 	}
 }
 
@@ -121,18 +116,14 @@ export async function updatePassword(data: unknown): Promise<SettingsActionResul
 		const result = await client.auth.changePassword({
 			currentPassword: validation.data.currentPassword,
 			newPassword: validation.data.newPassword,
-			revokeOtherSessions: validation.data.revokeOtherSessions,
 		})
 
 		revalidatePath("/dashboard/settings")
 		revalidatePath("/", "layout")
 
 		return { success: result.success, message: "Password updated successfully" }
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to update password",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -157,11 +148,8 @@ export async function updateNotifications(data: unknown): Promise<SettingsAction
 		revalidatePath("/dashboard/settings")
 
 		return { success: true }
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to update notification settings",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -179,15 +167,18 @@ export async function addBankAccount(data: unknown): Promise<SettingsActionResul
 
 	try {
 		const client = getEncoreClient()
-		const { cookies } = await import("next/headers")
-		const cookieStore = await cookies()
-		const orgId = cookieStore.get("active-organization-id")?.value
+		const { getOrganizationIdOrNull } = await import("@/lib/ssr-data")
+		// Get org ID from session (single source of truth)
+		const orgId = await getOrganizationIdOrNull()
 
 		if (!orgId) {
 			return { success: false, error: "Organization ID not found" }
 		}
 
-		const result = await client.organizations.addBankAccount(orgId, validation.data)
+		const result = await client.organizations.addBankAccount(orgId, {
+			...validation.data,
+			accountHolderName: validation.data.accountHolder,
+		})
 		const accountId = result.id
 
 		revalidatePath("/dashboard/settings")
@@ -197,11 +188,8 @@ export async function addBankAccount(data: unknown): Promise<SettingsActionResul
 			accountId,
 			message: "Bank account added. Verification pending.",
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to add bank account",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -212,19 +200,25 @@ export async function removeBankAccount(accountId: string): Promise<SettingsActi
 	}
 
 	const { getEncoreClient } = await import("@/lib/encore")
+	const { getOrganizationIdOrNull } = await import("@/lib/ssr-data")
 
 	try {
 		const client = getEncoreClient()
-		await client.organizations.removeBankAccount(accountId)
+		// Get org ID from session (single source of truth)
+		const orgId = await getOrganizationIdOrNull()
+
+		if (!orgId) {
+			return { success: false, error: "Organization ID not found" }
+		}
+
+		// Use deleteBankAccount endpoint (exists in backend)
+		await client.organizations.deleteBankAccount(orgId, accountId)
 
 		revalidatePath("/dashboard/settings")
 
-		return { success: true }
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to remove bank account",
-		}
+		return { success: true, message: "Bank account removed successfully" }
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -238,16 +232,21 @@ export async function setDefaultBankAccount(accountId: string): Promise<Settings
 
 	try {
 		const client = getEncoreClient()
-		await client.organizations.setDefaultBankAccount(accountId)
+		const { getOrganizationIdOrNull } = await import("@/lib/ssr-data")
+		// Get org ID from session (single source of truth)
+		const orgId = await getOrganizationIdOrNull()
+
+		if (!orgId) {
+			return { success: false, error: "Organization ID not found" }
+		}
+
+		await client.organizations.setDefaultBankAccount(orgId, accountId)
 
 		revalidatePath("/dashboard/settings")
 
 		return { success: true }
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to set default bank account",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -258,12 +257,12 @@ export async function verifyBankAccount(accountId: string): Promise<SettingsActi
 	}
 
 	const { getEncoreClient } = await import("@/lib/encore")
-	const { cookies } = await import("next/headers")
+	const { getOrganizationIdOrNull } = await import("@/lib/ssr-data")
 
 	try {
 		const client = getEncoreClient()
-		const cookieStore = await cookies()
-		const orgId = cookieStore.get("active-organization-id")?.value
+		// Get org ID from session (single source of truth)
+		const orgId = await getOrganizationIdOrNull()
 
 		if (!orgId) {
 			return { success: false, error: "Organization ID not found" }
@@ -281,11 +280,12 @@ export async function verifyBankAccount(accountId: string): Promise<SettingsActi
 			message:
 				"Bank account verification initiated. A small amount (₹1) will be deposited to verify your account.",
 		}
-	} catch (error: any) {
+	} catch (error: unknown) {
 		// Handle unimplemented error gracefully
+		const errorMessage = error instanceof Error ? error.message : String(error)
 		if (
-			error.message?.includes("unimplemented") ||
-			error.message?.includes("not yet implemented")
+			errorMessage.includes("unimplemented") ||
+			errorMessage.includes("not yet implemented")
 		) {
 			return {
 				success: false,
@@ -293,10 +293,7 @@ export async function verifyBankAccount(accountId: string): Promise<SettingsActi
 					"Bank account verification is not yet available. This feature requires RazorpayX integration.",
 			}
 		}
-		return {
-			success: false,
-			error: error.message || "Failed to verify bank account",
-		}
+		return handleAPIError(error)
 	}
 }
 
@@ -324,10 +321,10 @@ export async function enable2FA(password: string, issuer?: string): Promise<Sett
 			qrCodeUrl,
 			backupCodes: result.backupCodes,
 		}
-	} catch (error: any) {
+	} catch (error: unknown) {
 		return {
 			success: false,
-			error: error.message || "Failed to enable 2FA",
+			error: error instanceof Error ? error.message : "Failed to enable 2FA",
 		}
 	}
 }
@@ -366,11 +363,8 @@ export async function disable2FA(password: string): Promise<SettingsActionResult
 		revalidatePath("/", "layout")
 
 		return { success: result.success }
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to disable 2FA",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -401,11 +395,8 @@ export async function changeEmail(
 			success: result.status,
 			message: result.message || "Email change request sent. Please check your email to confirm.",
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to change email",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -426,11 +417,8 @@ export async function deleteUserAccount(password?: string): Promise<SettingsActi
 			success: result.success,
 			message: "Account deletion request sent. Please check your email to confirm.",
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to delete account",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -448,11 +436,8 @@ export async function sendVerificationEmail(email?: string): Promise<SettingsAct
 			success: result.status,
 			message: "Verification email sent. Please check your inbox.",
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to send verification email",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -472,12 +457,9 @@ export async function revokeSession(sessionId: string): Promise<SettingsActionRe
 		revalidatePath("/", "layout")
 
 		return { success: result.status }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return {
-			success: false,
-			error: error.message || "Failed to revoke session",
-		}
+		return handleAPIError(error)
 	}
 }
 
@@ -492,12 +474,9 @@ export async function revokeAllSessions(): Promise<SettingsActionResult> {
 		revalidatePath("/", "layout")
 
 		return { success: result.status, message: "All other sessions have been signed out" }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return {
-			success: false,
-			error: error.message || "Failed to revoke sessions",
-		}
+		return handleAPIError(error)
 	}
 }
 
@@ -534,17 +513,27 @@ export async function getUserSessions(): Promise<{
 			const browserMatch = userAgent.match(/(Chrome|Safari|Firefox|Edge)\/[\d.]+/)
 			const browser = browserMatch ? browserMatch[1] : "Unknown Browser"
 
+			// Type assertion for missing fields - backend should add these
+			const sessionWithExtras = session as auth.SessionResponse & {
+				device?: string
+				browser?: string
+				location?: string
+				lastActive?: string
+				current?: boolean
+				iconType?: "computer" | "smartphone" | "mac"
+			}
+
 			return {
 				id: session.id || session.token || "",
-				device: session.device || (isMobile ? "Mobile Device" : "Desktop") || "Unknown Device", // ❌ Backend should provide
-				browser: session.browser || browser, // ❌ Backend should provide
+				device: sessionWithExtras.device || (isMobile ? "Mobile Device" : "Desktop") || "Unknown Device", // ❌ Backend should provide
+				browser: sessionWithExtras.browser || browser, // ❌ Backend should provide
 				location:
-					session.location || (session.ipAddress ? `IP: ${session.ipAddress}` : "Unknown Location"), // ❌ Backend should provide
+					sessionWithExtras.location || (session.ipAddress ? `IP: ${session.ipAddress}` : "Unknown Location"), // ❌ Backend should provide
 				lastActive:
-					session.lastActive || session.updatedAt || session.createdAt || new Date().toISOString(), // ❌ Backend should provide
-				current: session.current !== undefined ? session.current : false, // ❌ Backend should provide
+					sessionWithExtras.lastActive || session.updatedAt || session.createdAt || new Date().toISOString(), // ❌ Backend should provide
+				current: sessionWithExtras.current !== undefined ? sessionWithExtras.current : false, // ❌ Backend should provide
 				iconType:
-					session.iconType ||
+					sessionWithExtras.iconType ||
 					((isMobile ? "smartphone" : isMac ? "mac" : "computer") as
 						| "computer"
 						| "smartphone"
@@ -559,10 +548,7 @@ export async function getUserSessions(): Promise<{
 				iconType: s.iconType || ("computer" as "computer" | "smartphone" | "mac"),
 			})),
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to fetch sessions",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }

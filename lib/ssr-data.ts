@@ -5,72 +5,67 @@
  * Used by RSC pages to fetch data before passing to client components.
  */
 
-// Initialize MSW on server side early (for RSC + Server Actions mocking)
-if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
-	// Dynamic import to avoid bundling in production
-	import("@/lib/init-mocks-server").catch(() => {
-		// Silently fail if MSW not available
-	})
-}
+// Mocking disabled - removed MSW initialization
 
-import { getEncoreClient } from "@/lib/encore"
+import { getEncoreClient, getAuthenticatedEncoreClient } from "@/lib/encore"
 import { cookies } from "next/headers"
 import type { shared } from "@/lib/encore-client"
-
-// Cookie name for active organization
-const ACTIVE_ORG_COOKIE = "active-organization-id"
+import { logSSRError, logAPIError } from "@/lib/error-logger-simple"
 
 /**
- * Get current organization ID from cookies or session
+ * Get authenticated Encore client using auth-token from cookies
+ * 
+ * Industry Standard: Single source of truth - session only
+ * No cookies needed for active organization - session.activeOrganizationId is the source
+ * 
+ * This function reads auth-token from cookies to authenticate API calls.
+ * Active organization comes from session (via me() or getSession()).
+ */
+async function getAuthClient() {
+	const cookieStore = await cookies()
+	const token = cookieStore.get("auth-token")?.value
+	
+	if (token) {
+		return getAuthenticatedEncoreClient(token)
+	}
+	
+	// No token - return unauthenticated client
+	return getEncoreClient()
+}
+
+/**
+ * Get current organization ID from session (single source of truth)
+ *
+ * Industry Standard: Session-based active organization (like Stripe, Notion, Clerk)
+ * No cookies needed - session.activeOrganizationId is the source
  *
  * @throws {Error} If organization ID is not found
  */
 async function getOrganizationId(): Promise<string> {
-	const cookieStore = await cookies()
-	let orgId = cookieStore.get(ACTIVE_ORG_COOKIE)?.value
+	const client = await getAuthClient()
 
-	// If not in cookie, try to get from session
-	if (!orgId) {
-		try {
-			const client = getEncoreClient()
-			const me = await client.auth.me()
-			orgId = me.activeOrganizationId
-		} catch (error) {
-			// If session fetch fails, continue to check if user has organizations
-			console.warn("Failed to get organization ID from session:", error)
+	try {
+		// Get from session (single source of truth)
+		const me = await client.auth.me()
+		if (me.activeOrganizationId) {
+			return me.activeOrganizationId
 		}
+	} catch (error) {
+		console.warn("Failed to get organization ID from session:", error)
 	}
 
-	// If still no orgId, try to get first organization from list
-	if (!orgId) {
-		try {
-			const client = getEncoreClient()
-			const orgsResult = await client.auth.listOrganizations()
-			const organizations = orgsResult.organizations || []
-			
-			if (organizations.length > 0) {
-				orgId = organizations[0].id
-			}
-		} catch (error) {
-			console.warn("Failed to get organizations list:", error)
-		}
-	}
-
-	if (!orgId) {
-		// In production, this should redirect to organization selection
-		// For now, throw error to prevent silent failures
-		throw new Error("Organization ID not found. Please select an organization.")
-	}
-
-	return orgId
+	// Industry Standard: Session is source of truth
+	// If session has no active org, don't guess - let pages handle it
+	// Pages should redirect to onboarding or show "select organization" UI
+	throw new Error("Organization ID not found. Please select an organization.")
 }
 
 /**
  * Check if user has an organization
- * Returns organization info or null if no organization
+ * Returns organization ID or null if no organization
  * 
- * IMPORTANT: This function assumes cookies/headers have already been accessed
- * in the calling Server Component to satisfy Next.js 16 requirements.
+ * Industry Standard: Session-based active organization (single source of truth)
+ * No cookies needed - session.activeOrganizationId is the source
  * 
  * SECURITY: Middleware should handle authentication checks.
  * This function only checks for organization existence.
@@ -78,42 +73,88 @@ async function getOrganizationId(): Promise<string> {
  * @returns Organization ID if exists, null otherwise
  */
 export async function getOrganizationIdOrNull(): Promise<string | null> {
-	// Access cookies first to ensure proper Next.js 16 static generation
-	// This must happen before any API calls that might use Math.random()
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
-	
-	const client = getEncoreClient()
+	const client = await getAuthClient()
 
 	try {
-		// First check if user is authenticated (session exists)
+		// First check if user is authenticated using me() endpoint (more reliable)
 		// This is a secondary check - middleware should have already verified
-		const sessionResult = await client.auth.getSession()
-		if (!sessionResult.session || !sessionResult.user) {
-			// No session - return null (middleware should handle redirect)
-			return null
+		let activeOrgId: string | undefined = undefined
+		try {
+			const meResult = await client.auth.me()
+			// MeResponse IS the user object (not wrapped in user property)
+			activeOrgId = meResult.activeOrganizationId
+			
+			// If activeOrganizationId is already set in session, use it
+			if (activeOrgId) {
+				console.log(`[getOrganizationIdOrNull] Using activeOrganizationId from me(): ${activeOrgId}`)
+				return activeOrgId
+			}
+		} catch (meError) {
+			// Check if it's a network/connectivity error
+			const errorMessage = meError instanceof Error ? meError.message : String(meError)
+			if (errorMessage.includes("fetch failed") || errorMessage.includes("ECONNREFUSED") || errorMessage.includes("Failed to fetch")) {
+				console.error("[getOrganizationIdOrNull] Backend connection failed - is backend running?", {
+					error: errorMessage,
+					baseURL: process.env.NEXT_PUBLIC_ENCORE_URL || process.env.ENCORE_API_URL || "http://localhost:4000"
+				})
+				// Re-throw to let caller handle (they can redirect to sign-in or show error)
+				throw new Error(`Backend connection failed: ${errorMessage}. Please ensure the backend is running.`)
+			}
+			
+			// If me() fails, try getSession() as fallback
+			console.warn("[getOrganizationIdOrNull] me() failed, trying getSession():", meError)
+			try {
+				const sessionResult = await client.auth.getSession()
+				if (!sessionResult.session || !sessionResult.user) {
+					// No session - return null (middleware should handle redirect)
+					console.warn("[getOrganizationIdOrNull] No active session found")
+					return null
+				}
+				// Use session data to continue
+				// Type assertion: getSession() returns user with activeOrganizationId
+				activeOrgId = (sessionResult.user as { activeOrganizationId?: string }).activeOrganizationId
+				if (activeOrgId) {
+					console.log(`[getOrganizationIdOrNull] Using activeOrganizationId from getSession(): ${activeOrgId}`)
+					return activeOrgId
+				}
+			} catch (sessionError) {
+				// Both me() and getSession() failed
+				const sessionErrorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError)
+				if (sessionErrorMessage.includes("fetch failed") || sessionErrorMessage.includes("ECONNREFUSED")) {
+					throw new Error(`Backend connection failed: ${sessionErrorMessage}. Please ensure the backend is running.`)
+				}
+				// Authentication error - token might be invalid
+				console.warn("[getOrganizationIdOrNull] Both me() and getSession() failed:", sessionErrorMessage)
+				return null
+			}
 		}
 
-		// Then check for organization
-		const orgsResult = await client.auth.listOrganizations()
-		const organizations = orgsResult.organizations || []
-
-		// Return first organization ID or null
-		return organizations.length > 0 ? organizations[0].id : null
+		// Industry Standard: Session is source of truth
+		// If session has no activeOrganizationId, return null
+		// Don't fallback to first org - let pages handle "no org" state
+		// Pages should redirect to onboarding or show organization selector
+		console.log("[getOrganizationIdOrNull] No activeOrganizationId in session, returning null")
+		return null
 	} catch (error) {
+		// Log error for debugging
+		console.error("[getOrganizationIdOrNull] Error fetching organizations:", error)
+		
 		// Check if it's an authentication error
 		if (error instanceof Error) {
 			const errorMessage = error.message.toLowerCase()
 			if (
 				errorMessage.includes("unauthenticated") ||
 				errorMessage.includes("unauthorized") ||
-				errorMessage.includes("session expired")
+				errorMessage.includes("session expired") ||
+				errorMessage.includes("fetch failed")
 			) {
+				console.warn("[getOrganizationIdOrNull] Authentication error:", errorMessage)
 				return null
 			}
 		}
-		
+
 		// If error fetching organizations, return null
+		console.error("[getOrganizationIdOrNull] Unexpected error, returning null")
 		return null
 	}
 }
@@ -122,23 +163,25 @@ export async function getOrganizationIdOrNull(): Promise<string | null> {
  * Check if user has an organization, redirect to onboarding if not
  * Use this in pages that REQUIRE an organization (not dashboard)
  * 
- * Note: redirect() throws a special error that should not be caught
+ * Industry Standard: Session-based active organization (single source of truth)
  * 
- * IMPORTANT: This function assumes cookies/headers have already been accessed
- * in the calling Server Component to satisfy Next.js 16 requirements.
+ * Note: redirect() throws a special error that should not be caught
  * 
  * SECURITY: Middleware should handle authentication checks.
  * This function only checks for organization existence.
  */
 export async function requireOrganization() {
 	const { redirect } = await import("next/navigation")
-	
+
 	const orgId = await getOrganizationIdOrNull()
-	
+
 	if (!orgId) {
+		console.log("[requireOrganization] No organization found, redirecting to onboarding")
 		// No organization - redirect to onboarding
 		redirect("/onboarding")
 	}
+	
+	console.log("[requireOrganization] Organization found:", orgId)
 }
 
 // ===========================================
@@ -146,27 +189,30 @@ export async function requireOrganization() {
 // ===========================================
 
 export async function getDashboardData() {
-	// Access cookies first to ensure proper Next.js 16 static generation
-	// This must happen before any API calls that might use Math.random()
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
+	const client = await getAuthClient()
 	
-	try {
-		const client = getEncoreClient()
-		const orgId = await getOrganizationId()
+	// Use getOrganizationIdOrNull to avoid throwing errors
+	const orgId = await getOrganizationIdOrNull()
+	
+	if (!orgId) {
+		console.warn("[getDashboardData] No organization ID found for dashboard data")
+		return null
+	}
 
+	// Fetch dashboard data with error handling - always return null on error
+	// This ensures page can still render even if dashboard data fails
+	try {
 		const response = await client.organizations.getDashboardOverview(orgId, { days: 7 })
 		return response
 	} catch (error) {
-		console.error("Failed to fetch dashboard data:", error)
-		// Log more details for debugging
-		if (error instanceof Error) {
-			console.error("Error message:", error.message)
-			console.error("Error stack:", error.stack)
-		}
-		// Re-throw the error so the page can handle it properly
-		// The page will redirect or show error boundary
-		throw error
+		// CRITICAL: Log with full context BEFORE returning fallback
+		// This ensures root cause is always visible for debugging
+		logSSRError(error, "getDashboardData", "dashboard-overview", {
+			data: { organizationId: orgId },
+		})
+		
+		// Return null - DashboardClient handles null data gracefully
+		return null
 	}
 }
 
@@ -175,27 +221,35 @@ export async function getDashboardData() {
 // ===========================================
 
 export async function getWalletData() {
-	// Access cookies first to ensure proper Next.js 16 static generation
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
+	const client = await getAuthClient()
+	const orgId = await getOrganizationIdOrNull()
 	
-	const client = getEncoreClient()
-	const orgId = await getOrganizationId()
+	if (!orgId) {
+		console.warn("[getWalletData] No organization ID found for wallet data")
+		return null
+	}
 
-	const [wallet, withdrawals, transactions, holds, stats] = await Promise.all([
-		client.wallets.getOrganizationWallet(orgId),
-		client.wallets.listOrganizationWithdrawals(orgId, { skip: 0, take: 50 }),
-		client.wallets.getOrganizationWalletTransactions(orgId, { skip: 0, take: 50 }),
-		client.wallets.getWalletHolds(orgId),
-		client.wallets.getWithdrawalStats({ holderType: "organization", holderId: orgId }),
-	])
+	try {
+		const [wallet, withdrawals, transactions, holds, stats] = await Promise.all([
+			client.wallets.getOrganizationWallet(orgId),
+			client.wallets.listOrganizationWithdrawals(orgId, { skip: 0, take: 50 }),
+			client.wallets.getOrganizationWalletTransactions(orgId, { skip: 0, take: 50 }),
+			client.wallets.getWalletHolds(orgId),
+			client.wallets.getWithdrawalStats({ holderType: "organization", holderId: orgId }),
+		])
 
-	return {
-		balance: wallet,
-		withdrawals: withdrawals.data || [],
-		transactions: transactions.data,
-		activeHolds: holds.holds,
-		stats,
+		return {
+			balance: wallet,
+			withdrawals: withdrawals.data || [],
+			transactions: transactions.data,
+			activeHolds: holds.holds,
+			stats,
+		}
+	} catch (error) {
+		logSSRError(error, "getWalletData", "wallet-data", {
+			data: { organizationId: orgId },
+		})
+		return null
 	}
 }
 
@@ -204,12 +258,17 @@ export async function getWalletData() {
 // ===========================================
 
 export async function getCampaignsData(status?: string) {
-	// Access cookies first to ensure proper Next.js 16 static generation
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
+	const client = await getAuthClient()
+	const orgId = await getOrganizationIdOrNull()
 	
-	const client = getEncoreClient()
-	const orgId = await getOrganizationId()
+	if (!orgId) {
+		console.warn("[getCampaignsData] No organization ID found for campaigns data")
+		return {
+			campaigns: [],
+			data: [],
+			total: 0,
+		}
+	}
 
 	const params: {
 		organizationId: string
@@ -226,13 +285,36 @@ export async function getCampaignsData(status?: string) {
 		params.status = status as shared.CampaignStatus
 	}
 
-	const response = await client.campaigns.listCampaigns(params)
-	// Return with 'campaigns' key for CampaignsClient compatibility
-	return { campaigns: response.data, ...response }
+	// Fetch campaigns with error handling - always return valid structure
+	try {
+		const response = await client.campaigns.listCampaigns(params)
+		// Return with 'campaigns' key for CampaignsClient compatibility
+		return { campaigns: response.data, ...response }
+	} catch (error) {
+		// CRITICAL: Log with full context BEFORE returning fallback
+		const orgId = await getOrganizationId().catch(() => "unknown")
+		logSSRError(error, "getCampaignsData", "campaigns", {
+			data: {
+				organizationId: orgId,
+				statusFilter: status,
+				fallbackUsed: true, // Important flag
+			},
+		})
+		
+		// Return empty structure - CampaignsClient handles empty data gracefully
+		return {
+			campaigns: [],
+			data: [],
+			total: 0,
+			skip: 0,
+			take: 50,
+			hasMore: false,
+		}
+	}
 }
 
 export async function getCampaignDetailData(campaignId: string) {
-	const client = getEncoreClient()
+	const client = await getAuthClient()
 
 	const [campaign, stats, pricing, deliverables, performance, enrollments, platforms] =
 		await Promise.all([
@@ -263,11 +345,7 @@ export async function getCampaignDetailData(campaignId: string) {
 // ===========================================
 
 export async function getEnrollmentsData(status?: string, campaignId?: string) {
-	// Access cookies first to ensure proper Next.js 16 static generation
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
-	
-	const client = getEncoreClient()
+	const client = await getAuthClient()
 	const orgId = await getOrganizationId()
 
 	const params: {
@@ -296,11 +374,7 @@ export async function getEnrollmentsData(status?: string, campaignId?: string) {
 }
 
 export async function getEnrollmentDetailData(enrollmentId: string) {
-	// Access cookies first to ensure proper Next.js 16 static generation
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
-	
-	const client = getEncoreClient()
+	const client = await getAuthClient()
 
 	// Use getEnrollmentDetail which includes history, shopper info, campaign info, etc.
 	const enrollmentDetail = await client.enrollments.getEnrollmentDetail(enrollmentId)
@@ -310,8 +384,8 @@ export async function getEnrollmentDetailData(enrollmentId: string) {
 		client.integrations.listActivePlatforms().catch(() => ({ platforms: [] })),
 		enrollmentDetail.campaign?.id
 			? client.campaigns
-					.listCampaignDeliverables(enrollmentDetail.campaign.id)
-					.catch(() => ({ data: [] }))
+				.listCampaignDeliverables(enrollmentDetail.campaign.id)
+				.catch(() => ({ data: [] }))
 			: Promise.resolve({ data: [] }),
 	])
 
@@ -327,11 +401,7 @@ export async function getEnrollmentDetailData(enrollmentId: string) {
 // ===========================================
 
 export async function getProductsData() {
-	// Access cookies first to ensure proper Next.js 16 static generation
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
-	
-	const client = getEncoreClient()
+	const client = await getAuthClient()
 
 	const [products, categories, platforms] = await Promise.all([
 		client.products.listProducts({ skip: 0, take: 100 }),
@@ -349,11 +419,7 @@ export async function getProductsData() {
 
 // Get categories for product form (server-side)
 export async function getCategoriesData() {
-	// Access cookies first to ensure proper Next.js 16 static generation
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
-	
-	const client = getEncoreClient()
+	const client = await getAuthClient()
 	const result = await client.products.listAllCategories()
 	return result.categories || []
 }
@@ -363,16 +429,19 @@ export async function getCategoriesData() {
 // ===========================================
 
 export async function getInvoicesData() {
-	// Access cookies first to ensure proper Next.js 16 static generation
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
-	
-	const client = getEncoreClient()
-	const orgId = await getOrganizationId()
+	try {
+		const client = await getAuthClient()
+		const orgId = await getOrganizationId()
 
-	const response = await client.invoices.listInvoices({ organizationId: orgId, skip: 0, take: 50 })
-	// Return with 'invoices' key for InvoicesClient compatibility
-	return { invoices: response.data, ...response }
+		// Use default page size from constants
+		const DEFAULT_INVOICE_PAGE_SIZE = 50
+		const response = await client.invoices.listInvoices({ organizationId: orgId, skip: 0, take: DEFAULT_INVOICE_PAGE_SIZE })
+		// Return with 'invoices' key for InvoicesClient compatibility
+		return { invoices: response.data || [], ...response }
+	} catch (error) {
+		console.error("Failed to fetch invoices data:", error)
+		return { invoices: [], data: [], total: 0 }
+	}
 }
 
 // ===========================================
@@ -380,21 +449,18 @@ export async function getInvoicesData() {
 // ===========================================
 
 export async function getTeamData() {
-	// Access cookies first to ensure proper Next.js 16 static generation
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
-	
-	const client = getEncoreClient()
+	const client = await getAuthClient()
 	const orgId = await getOrganizationId()
 
 	const [members, invitations] = await Promise.all([
-		client.organizations.listMembers(orgId),
-		client.auth.listInvitations({ organizationId: orgId }).catch(() => ({ data: [] })),
+		// listMembers was moved to Better Auth service
+		client.auth.listMembersAuth({ organizationId: orgId }).catch(() => ({ members: [] })),
+		client.auth.listInvitations({ organizationId: orgId }).catch(() => ({ invitations: [] })),
 	])
 
 	return {
-		members: members.data,
-		invitations: invitations.data || [],
+		members: members.members || [],
+		invitations: invitations.invitations || [],
 	}
 }
 
@@ -403,58 +469,131 @@ export async function getTeamData() {
 // ===========================================
 
 export async function getSettingsData() {
-	// Access cookies first to ensure proper Next.js 16 static generation
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
+	const client = await getAuthClient()
+	const orgId = await getOrganizationIdOrNull()
 	
-	const client = getEncoreClient()
-	const orgId = await getOrganizationId()
+	if (!orgId) {
+		console.warn("[getSettingsData] No organization ID found for settings data")
+		return {
+			user: {
+				id: "",
+				name: "",
+				email: "",
+				phone: "",
+				role: "owner",
+				emailVerified: false,
+				twoFactorEnabled: false,
+			},
+			organization: {
+				id: "",
+				name: "Organization",
+				slug: "",
+				phone: "",
+				industry: "",
+				email: "",
+			},
+			bankAccounts: [],
+			gstDetails: null,
+		}
+	}
 
-	const [organization, bankAccounts, userData] = await Promise.all([
-		client.organizations.getOrganization(orgId),
-		client.organizations.listBankAccounts(orgId),
-		client.auth
-			.me()
-			.catch(() => null), // Get user data, fallback to null if fails
+	// Fetch all data with individual error handling - never fail completely
+	// Each call has fallback so page always loads, even with partial data
+	const [organization, bankAccounts, userData] = await Promise.allSettled([
+		client.organizations.getOrganization(orgId).catch((error) => {
+			// CRITICAL: Log with full context BEFORE returning fallback
+			logAPIError(error, "getSettingsData", `/organizations/${orgId}`, { organizationId: orgId })
+			// Return minimal organization object so page can still render
+			return {
+				id: orgId,
+				name: "Organization",
+				slug: "",
+				logo: undefined,
+				description: undefined,
+				website: undefined,
+				gstNumber: undefined,
+				gstVerified: false,
+				gstLegalName: undefined,
+				gstTradeName: undefined,
+				panNumber: undefined,
+				panVerified: false,
+				panHolderName: undefined,
+				cinNumber: undefined,
+				businessType: undefined,
+				industryCategory: undefined,
+				contactPerson: undefined,
+				phoneNumber: undefined,
+				email: undefined,
+				phone: undefined,
+				industry: undefined,
+				approvalStatus: "draft" as const,
+				accountTier: "standard" as const,
+				creditLimit: undefined,
+				address: undefined,
+				city: undefined,
+				state: undefined,
+				country: "IN",
+				postalCode: undefined,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+			}
+		}),
+		client.organizations.listBankAccounts(orgId).catch((error) => {
+			// CRITICAL: Log with full context BEFORE returning fallback
+			logAPIError(error, "getSettingsData", `/organizations/${orgId}/bank-accounts`, { organizationId: orgId })
+			// Return empty array so page can still render
+			return { data: [] }
+		}),
+		client.auth.me().catch(() => null), // Get user data, fallback to null if fails
 	])
+
+	// Extract values from Promise.allSettled results
+	const orgResult = organization.status === "fulfilled" ? organization.value : organization.reason
+	const bankAccountsResult = bankAccounts.status === "fulfilled" ? bankAccounts.value : { data: [] }
+	const userDataResult = userData.status === "fulfilled" ? userData.value : null
 
 	let gstDetails = null
 	try {
 		const gstResponse = await client.organizations.getGSTDetails(orgId)
 		gstDetails = gstResponse.gstDetails
-	} catch {
-		// GST not verified yet
+	} catch (error) {
+		// GST not verified yet or error - continue without it
+		logSSRError(error, "getSettingsData", "gst-details", {
+			data: { organizationId: orgId, fallbackUsed: true },
+		})
 	}
 
 	// Map backend fields to frontend expected format
+	// Always return valid structure, even with partial data
 	return {
-		user: userData
+		user: userDataResult
 			? {
-					id: userData.userID,
-					name: userData.name || "",
-					email: userData.email || "",
-					phone: userData.phone || "",
-					avatar: userData.avatar || undefined,
-					role: "owner", // Default role, should come from session
-					emailVerified: userData.emailVerified || false,
-				}
+				id: userDataResult.userID,
+				name: userDataResult.name || "",
+				email: userDataResult.email || "",
+				phone: userDataResult.phone || "", // ✅ Backend now provides phone field
+				avatar: (userDataResult as { avatar?: string }).avatar || userDataResult.image || undefined, // Use image as fallback for avatar
+				role: "owner", // Default role, should come from session
+				emailVerified: userDataResult.emailVerified || false,
+				twoFactorEnabled: userDataResult.twoFactorEnabled ?? false, // ✅ Backend now provides twoFactorEnabled field
+			}
 			: {
-					id: "",
-					name: "",
-					email: "",
-					phone: "",
-					role: "owner",
-					emailVerified: false,
-				},
+				id: "",
+				name: "",
+				email: "",
+				phone: "",
+				role: "owner",
+				emailVerified: false,
+			},
 		organization: {
-			id: organization.id,
-			...organization,
-			// Map field names for frontend compatibility
-			phone: organization.phoneNumber || "",
-			industry: organization.industryCategory || "",
-			email: organization.email || "",
+			id: orgResult.id || orgId,
+			...orgResult,
+			// Use standardized field names (backend now provides phone, industry, email)
+			phone: orgResult.phone || orgResult.phoneNumber || "",
+			industry: orgResult.industry || orgResult.industryCategory || "",
+			email: orgResult.email || "",
 		},
-		bankAccounts: bankAccounts.data,
+		bankAccounts: bankAccountsResult.data || [],
 		gstDetails,
 	}
 }
@@ -464,11 +603,7 @@ export async function getSettingsData() {
 // ===========================================
 
 export async function getProfileData() {
-	// Access cookies first to ensure proper Next.js 16 static generation
-	const cookieStore = await cookies()
-	cookieStore.toString() // Touch cookies to mark as dynamic
-	
-	const client = getEncoreClient()
+	const client = await getAuthClient()
 
 	try {
 		// Try to get the current user from Encore's auth service
@@ -480,11 +615,11 @@ export async function getProfileData() {
 				id: me.userID,
 				name: me.name,
 				email: me.email,
-				phone: me.phone || "", // ❌ Backend missing: phone field in MeResponse
+				phone: me.phone || "", // ✅ Backend now provides phone field
 				role: me.organizationRole || me.role,
 				image: me.image,
 				emailVerified: me.emailVerified,
-				twoFactorEnabled: me.twoFactorEnabled, // ❌ Backend missing: twoFactorEnabled field in MeResponse
+				twoFactorEnabled: me.twoFactorEnabled ?? false, // ✅ Backend now provides twoFactorEnabled field
 			},
 			sessions: [],
 			activeOrganizationId: me.activeOrganizationId,

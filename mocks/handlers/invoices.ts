@@ -10,6 +10,7 @@ import {
 	encoreResponse,
 	encoreListResponse,
 	encoreNotFoundResponse,
+	encoreErrorResponse,
 } from "./utils"
 import { delay, DELAY } from "@/mocks/utils/delay"
 
@@ -66,7 +67,7 @@ export const invoicesHandlers = [
 		const { id } = params
 
 		const invoice = db.invoices.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId || "1" })
+			q.where({ id: id, organizationId: auth.organizationId || "1" })
 		)
 		if (!invoice) return encoreNotFoundResponse("Invoice")
 
@@ -132,4 +133,180 @@ export const invoicesHandlers = [
 			take
 		)
 	}),
+
+	// POST /invoices - Create invoice
+	http.post(encoreUrl("/invoices"), async ({ request }) => {
+		const auth = getAuthContext()
+		const body = (await request.json()) as {
+			organizationId?: string
+			totalAmount: number
+			dueDate?: string
+			notes?: string
+		}
+
+		if (!body.totalAmount || body.totalAmount <= 0) {
+			return encoreErrorResponse("totalAmount must be greater than 0", 400)
+		}
+
+		const now = new Date().toISOString()
+		const dueDate = body.dueDate
+			? new Date(body.dueDate).toISOString()
+			: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+
+		const invoiceNumber = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`
+
+		const newInvoice = {
+			id: `inv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+			organizationId: body.organizationId || auth.organizationId || "1",
+			invoiceNumber,
+			totalAmount: body.totalAmount,
+			paidAmount: 0,
+			dueDate,
+			status: "pending" as const,
+			createdAt: now,
+			updatedAt: now,
+		}
+
+		// Save to database
+		db.invoices.create(newInvoice)
+
+		return encoreResponse({
+			id: newInvoice.id,
+			organizationId: newInvoice.organizationId,
+			invoiceNumber: newInvoice.invoiceNumber,
+			issuedAt: newInvoice.createdAt,
+			dueDate: newInvoice.dueDate,
+			periodStart: undefined,
+			periodEnd: undefined,
+			subtotal: newInvoice.totalAmount * 0.9,
+			gstAmount: newInvoice.totalAmount * 0.1,
+			gstPercent: 10,
+			tdsPercentage: 0,
+			tdsAmount: 0,
+			totalAmount: newInvoice.totalAmount,
+			amountPaid: 0,
+			status: "pending" as const,
+			pdfUrl: undefined,
+			notes: body.notes,
+			createdAt: newInvoice.createdAt,
+		})
+	}),
+
+	// PUT /invoices/:id - Update invoice
+	http.put(encoreUrl("/invoices/:id"), async ({ params, request }) => {
+		const auth = getAuthContext()
+		const { id } = params
+		const body = (await request.json()) as {
+			totalAmount?: number
+			paidAmount?: number
+			dueDate?: string
+			status?: "pending" | "paid" | "overdue" | "cancelled"
+			notes?: string
+		}
+
+		const invoice = db.invoices.findFirst((q) =>
+			q.where({ id: id, organizationId: auth.organizationId || "1" })
+		)
+		if (!invoice) {
+			return encoreNotFoundResponse("Invoice")
+		}
+
+		// Update invoice in database
+		const updated = db.invoices.update({
+			where: { id },
+			data: {
+				...body,
+				updatedAt: new Date().toISOString(),
+			},
+		})
+
+		return encoreResponse({
+			id: updated.id,
+			organizationId: updated.organizationId,
+			invoiceNumber: updated.invoiceNumber,
+			issuedAt: updated.createdAt instanceof Date ? updated.createdAt.toISOString() : updated.createdAt,
+			dueDate: updated.dueDate instanceof Date ? updated.dueDate.toISOString() : updated.dueDate,
+			periodStart: undefined,
+			periodEnd: undefined,
+			subtotal: updated.totalAmount * 0.9,
+			gstAmount: updated.totalAmount * 0.1,
+			gstPercent: 10,
+			tdsPercentage: 0,
+			tdsAmount: 0,
+			totalAmount: updated.totalAmount,
+			amountPaid: updated.paidAmount || 0,
+			status: (updated.status || "pending") as "pending" | "paid" | "overdue" | "cancelled",
+			pdfUrl: undefined,
+			notes: body.notes,
+			createdAt: updated.createdAt instanceof Date ? updated.createdAt.toISOString() : updated.createdAt,
+		})
+	}),
+
+	// PATCH /invoices/:id - Partial update invoice
+	http.patch(encoreUrl("/invoices/:id"), async ({ params, request }) => {
+		const auth = getAuthContext()
+		const { id } = params
+		const body = (await request.json()) as Record<string, unknown>
+
+		const invoice = db.invoices.findFirst((q) =>
+			q.where({ id: id, organizationId: auth.organizationId || "1" })
+		)
+		if (!invoice) {
+			return encoreNotFoundResponse("Invoice")
+		}
+
+		// Update invoice in database
+		const updated = db.invoices.update({
+			where: { id },
+			data: {
+				...body,
+				updatedAt: new Date().toISOString(),
+			},
+		})
+
+		return encoreResponse({
+			id: updated.id,
+			organizationId: updated.organizationId,
+			invoiceNumber: updated.invoiceNumber,
+			issuedAt: updated.createdAt instanceof Date ? updated.createdAt.toISOString() : updated.createdAt,
+			dueDate: updated.dueDate instanceof Date ? updated.dueDate.toISOString() : updated.dueDate,
+			periodStart: undefined,
+			periodEnd: undefined,
+			subtotal: updated.totalAmount * 0.9,
+			gstAmount: updated.totalAmount * 0.1,
+			gstPercent: 10,
+			tdsPercentage: 0,
+			tdsAmount: 0,
+			totalAmount: updated.totalAmount,
+			amountPaid: updated.paidAmount || 0,
+			status: (updated.status || "pending") as "pending" | "paid" | "overdue" | "cancelled",
+			pdfUrl: undefined,
+			notes: undefined,
+			createdAt: updated.createdAt instanceof Date ? updated.createdAt.toISOString() : updated.createdAt,
+		})
+	}),
+
+	// DELETE /invoices/:id - Delete invoice
+	http.delete(encoreUrl("/invoices/:id"), async ({ params }) => {
+		const auth = getAuthContext()
+		const { id } = params
+
+		const invoice = db.invoices.findFirst((q) =>
+			q.where({ id: id, organizationId: auth.organizationId || "1" })
+		)
+		if (!invoice) {
+			return encoreNotFoundResponse("Invoice")
+		}
+
+		// Cannot delete paid invoices
+		if (invoice.status === "paid") {
+			return encoreErrorResponse("Cannot delete paid invoice", 400)
+		}
+
+		// Delete invoice from database
+		db.invoices.delete({ where: { id } })
+
+		return encoreResponse({ deleted: true })
+	}),
 ]
+

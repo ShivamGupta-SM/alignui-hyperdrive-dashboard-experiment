@@ -64,6 +64,7 @@ export function useSearchCampaigns(params: CampaignSearchParams) {
 			})
 		},
 		enabled: params.q.length >= 2, // Only search if query is at least 2 characters
-		staleTime: 30 * 1000, // 30 seconds
+		staleTime: 60 * 1000, // 1 minute (increased for better performance)
+		refetchOnWindowFocus: false, // Disable auto-refetch for search results
 	})
 }

@@ -55,6 +55,7 @@ export interface SettingsActionResult extends ActionResult {
 	accountId?: string
 	secret?: string
 	qrCodeUrl?: string
+	backupCodes?: string[]
 	message?: string
 }
 

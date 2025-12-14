@@ -9,6 +9,7 @@ import * as Input from "@/components/ui/input"
 import { Callout } from "@/components/ui/callout"
 import { ArrowLeft, Envelope, WarningCircle } from "@phosphor-icons/react"
 import { forgotPasswordSchema, type ForgotPasswordFormData } from "@/lib/validations"
+import { validateCallbackUrlServer } from "@/lib/url-validation"
 
 export default function ForgotPasswordPage() {
 	const [isLoading, setIsLoading] = React.useState(false)
@@ -32,12 +33,20 @@ export default function ForgotPasswordPage() {
 
 		try {
 			const { forgotPassword } = await import("@/app/actions/auth")
-			const result = await forgotPassword(data.email)
+			// Point to frontend reset-password page (full URL)
+			// Validate the URL to prevent open redirects
+			const resetUrl = `${window.location.origin}/reset-password`
+			const validatedUrl = validateCallbackUrlServer(resetUrl, window.location.origin)
+			if (!validatedUrl) {
+				setError("Invalid redirect URL configuration")
+				return
+			}
+			const result = await forgotPassword(data.email, resetUrl)
 
 			if (result.success) {
 				setSuccess(true)
 			} else {
-				setError(result.error || "Failed to send reset email")
+				setError("error" in result ? result.error || "Failed to send reset email" : "Failed to send reset email")
 			}
 		} catch (err) {
 			setError("Failed to send reset email. Please try again.")

@@ -9,6 +9,7 @@ import { faker } from "@faker-js/faker"
 import { db } from "./collections"
 import type {
 	Campaign,
+	CampaignDeliverable,
 	Enrollment,
 	Product,
 	Invoice,
@@ -111,8 +112,8 @@ async function seedProducts(orgId: string, count: number = 10) {
 	const categories = ["Electronics", "Fashion", "Beauty", "Home & Living"]
 
 	for (let i = 0; i < count; i++) {
-		const category = db.categories.findFirst((q) => q.where({ name: { equals: randomElement(categories) } }))
-		const platform = db.platforms.findFirst((q) => q.where({ slug: { equals: randomElement(platformSlugs) } }))
+		const category = db.categories.findFirst((q) => q.where({ name: randomElement(categories) }))
+		const platform = db.platforms.findFirst((q) => q.where({ slug: randomElement(platformSlugs) }))
 		const now = new Date().toISOString()
 
 		const product: Product = {
@@ -209,6 +210,62 @@ async function seedCampaigns(orgId: string, products: Product[], count: number =
 	}
 
 	return campaignsData
+}
+
+async function seedCampaignDeliverables(orgId: string, campaigns: Campaign[]) {
+	// Check if any campaign deliverables exist for these campaigns
+	// Check first campaign only to avoid checking all
+	if (campaigns.length > 0) {
+		const existing = db.campaignDeliverables.findMany((q) =>
+			q.where({ campaignId: { equals: campaigns[0].id } })
+		)
+		if (existing.length > 0) return existing
+	}
+
+	// Ensure base deliverables exist
+	const deliverables = db.deliverables.findMany()
+	if (deliverables.length === 0) {
+		await seedDeliverables()
+	}
+	const baseDeliverables = db.deliverables.findMany()
+
+	// Map deliverable names to types
+	const nameToType: Record<string, "order_screenshot" | "delivery_photo" | "product_review" | "social_media_post" | "unboxing_video"> = {
+		"Order Screenshot": "order_screenshot",
+		"Delivery Photo": "delivery_photo",
+		"Product Review": "product_review",
+		"Social Media Post": "social_media_post",
+		"Unboxing Video": "unboxing_video",
+	}
+
+	const campaignDeliverablesData = []
+
+	// Create deliverables for each campaign
+	for (const campaign of campaigns) {
+		// Each campaign gets 2-4 deliverables
+		const deliverableCount = Math.floor(Math.random() * 3) + 2
+		const selectedDeliverables = baseDeliverables.slice(0, deliverableCount)
+
+		for (let i = 0; i < selectedDeliverables.length; i++) {
+			const baseDeliverable = selectedDeliverables[i]
+			const deliverableType = nameToType[baseDeliverable.name] || "order_screenshot"
+
+			const campaignDeliverable = {
+				id: generateId("cd"),
+				campaignId: campaign.id,
+				type: deliverableType,
+				title: baseDeliverable.name,
+				description: baseDeliverable.description,
+				instructions: `Please submit ${baseDeliverable.name.toLowerCase()}`,
+				isRequired: i === 0, // First one is required
+				sortOrder: i + 1,
+			}
+			await db.campaignDeliverables.create(campaignDeliverable)
+			campaignDeliverablesData.push(campaignDeliverable)
+		}
+	}
+
+	return campaignDeliverablesData
 }
 
 async function seedEnrollments(orgId: string, campaigns: Campaign[], count: number = 50) {
@@ -337,7 +394,7 @@ async function seedTransactions(orgId: string, count: number = 30) {
 }
 
 async function seedActiveHolds(orgId: string, enrollments: Enrollment[]) {
-	const existingHolds = db.activeHolds.findMany((q) => q.where({ walletId: { equals: `wallet-${orgId}` } }))
+	const existingHolds = db.activeHolds.findMany((q) => q.where({ organizationId: orgId }))
 	if (existingHolds.length > 0) return existingHolds
 
 	const holdsData: ActiveHold[] = []
@@ -863,7 +920,7 @@ async function seedDeliverableSubmissions(orgId: string, enrollments: Enrollment
 		if (Math.random() < 0.6 && relevantDeliverables.length > 0) {
 			for (const cd of relevantDeliverables.slice(0, Math.floor(Math.random() * 3) + 1)) {
 				const deliverableId = typeToDeliverableId[cd.type] || "del-order-screenshot"
-				const deliverable = db.deliverables.findFirst((q) => q.where({ id: { equals: deliverableId } }))
+				const deliverable = db.deliverables.findFirst((q) => q.where({ id: deliverableId }))
 				const hasProof = Math.random() < 0.7 // 70% have proof submitted
 
 				const submission: DeliverableSubmission = {
@@ -973,10 +1030,13 @@ export async function seedDatabase(
 	if (scenario === "minimal") {
 		// Just basic data for testing
 		const products = await seedProducts(orgId, 3)
-		await seedCampaigns(orgId, products, 2)
+		const campaigns = await seedCampaigns(orgId, products, 2)
+		await seedCampaignDeliverables(orgId, campaigns) // Seed campaign deliverables
+		const enrollments = await seedEnrollments(orgId, campaigns, 5)
 		await seedWalletBalance(orgId)
 		await seedOrganizationSettings(orgId, parseInt(orgId) - 1)
 		await seedTeamMembers(orgId)
+		await seedInvoices(orgId, enrollments, 2) // Seed invoices with enrollment relationships
 		console.log("[MSW DB] Minimal scenario complete")
 		return
 	}
@@ -994,12 +1054,13 @@ export async function seedDatabase(
 			await seedWalletBalance(currentOrgId)
 			const products = await seedProducts(currentOrgId, 20) // More products per org
 			const campaigns = await seedCampaigns(currentOrgId, products, 15) // More campaigns per org
+			await seedCampaignDeliverables(currentOrgId, campaigns) // Seed campaign deliverables
 			const enrollments = await seedEnrollments(currentOrgId, campaigns, 100) // More enrollments per org
 			await seedTransactions(currentOrgId, 60)
 			await seedActiveHolds(currentOrgId, enrollments)
 			await seedDeliverableSubmissions(currentOrgId, enrollments) // Seed deliverable submissions
 			await seedWithdrawals(currentOrgId) // Seed withdrawals
-			await seedInvoices(currentOrgId, 18)
+			await seedInvoices(currentOrgId, enrollments, 18) // Seed invoices with enrollment relationships
 			await seedBankAccounts(currentOrgId)
 			await seedGstDetails(currentOrgId)
 			await seedNotifications(currentOrgId, DEFAULT_USER_ID, 25)
@@ -1017,6 +1078,26 @@ export async function seedDatabase(
 		console.log(`[MSW DB] Total Organizations: ${allOrgs.length}`)
 		console.log(`[MSW DB] Total Products: ${allProducts.length}`)
 		console.log(`[MSW DB] Total Campaigns: ${allCampaigns.length}`)
+		console.log(`[MSW DB] Total Enrollments: ${allEnrollments.length}`)
+		
+		// Comprehensive summary for multiple orgs
+		const multiOrgStats = {
+			organizations: allOrgs.length,
+			products: allProducts.length,
+			campaigns: allCampaigns.length,
+			enrollments: allEnrollments.length,
+			transactions: db.transactions.findMany().length,
+			invoices: db.invoices.findMany().length,
+			teamMembers: db.teamMembers.findMany().length,
+			notifications: db.notifications.findMany().length,
+			deliverables: db.deliverables.findMany().length,
+			deliverableSubmissions: db.deliverableSubmissions.findMany().length,
+			withdrawals: db.withdrawals.findMany().length,
+			bankAccounts: db.bankAccounts.findMany().length,
+			gstDetails: db.gstDetails.findMany().length,
+		}
+		console.log("[MSW DB] 📊 Multiple Organizations Seeding Summary:")
+		console.table(multiOrgStats)
 		return
 	}
 
@@ -1027,12 +1108,13 @@ export async function seedDatabase(
 	await seedWalletBalance(orgId) // Wallet balance
 	const products = await seedProducts(orgId, 15) // More products
 	const campaigns = await seedCampaigns(orgId, products, 12) // More campaigns
+	await seedCampaignDeliverables(orgId, campaigns) // Seed campaign deliverables (MUST be before enrollments)
 	const enrollments = await seedEnrollments(orgId, campaigns, 75) // More enrollments
 	await seedTransactions(orgId, 50) // More transactions
 	await seedActiveHolds(orgId, enrollments)
 	await seedDeliverableSubmissions(orgId, enrollments) // Seed deliverable submissions
 	await seedWithdrawals(orgId) // Seed withdrawals
-	await seedInvoices(orgId, 15) // More invoices
+	await seedInvoices(orgId, enrollments, 15) // Seed invoices with enrollment relationships
 	await seedBankAccounts(orgId) // Bank accounts
 	await seedGstDetails(orgId) // GST details
 	await seedNotifications(orgId, DEFAULT_USER_ID, 20) // More notifications
@@ -1046,6 +1128,41 @@ export async function seedDatabase(
 
 	console.log("[MSW DB] ✅ Full scenario complete")
 	console.log(`[MSW DB] Organization: ${org?.name || "N/A"} (ID: ${orgId})`)
+	console.log(`[MSW DB] Products: ${products.length}`)
+	console.log(`[MSW DB] Campaigns: ${campaigns.length}`)
+	console.log(`[MSW DB] Enrollments: ${enrollments.length}`)
+	console.log(`[MSW DB] Team Members: ${teamMembers.length}`)
+	console.log(`[MSW DB] Bank Accounts: ${bankAccounts.length}`)
+	console.log(`[MSW DB] Wallet Balance: ₹${wallet?.availableBalance || 0}`)
+	console.log(`[MSW DB] GST Verified: ${org?.gstVerified ? "✅" : "❌"}`)
+	console.log(`[MSW DB] PAN Verified: ${org?.panVerified ? "✅" : "❌"}`)
+	console.log(`[MSW DB] Approval Status: ${org?.approvalStatus || "N/A"}`)
+	
+	// Comprehensive seeding summary
+	const allStats = {
+		organizations: db.organizationSettings.findMany().length,
+		products: db.products.findMany().length,
+		campaigns: db.campaigns.findMany().length,
+		enrollments: db.enrollments.findMany().length,
+		transactions: db.transactions.findMany().length,
+		invoices: db.invoices.findMany().length,
+		teamMembers: db.teamMembers.findMany().length,
+		notifications: db.notifications.findMany().length,
+		deliverables: db.deliverables.findMany().length,
+		deliverableSubmissions: db.deliverableSubmissions.findMany().length,
+		withdrawals: db.withdrawals.findMany().length,
+		withdrawalMethods: db.withdrawalMethods.findMany().length,
+		bankAccounts: db.bankAccounts.findMany().length,
+		gstDetails: db.gstDetails.findMany().length,
+		walletBalances: db.walletBalances.findMany().length,
+		activeHolds: db.activeHolds.findMany().length,
+		categories: db.categories.findMany().length,
+		platforms: db.platforms.findMany().length,
+		dashboardStats: db.dashboardStats.findMany().length,
+		recentActivity: db.recentActivity.findMany().length,
+	}
+	console.log("[MSW DB] 📊 Complete Seeding Summary:")
+	console.table(allStats)
 	console.log(`[MSW DB] Products: ${products.length}`)
 	console.log(`[MSW DB] Campaigns: ${campaigns.length}`)
 	console.log(`[MSW DB] Enrollments: ${enrollments.length}`)

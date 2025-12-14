@@ -9,20 +9,42 @@ export default async function DashboardPage() {
 	const cookieStore = await cookies()
 	// Touch cookies to mark this as a dynamic route
 	cookieStore.toString()
+	
+	// Industry Standard: Session-based active organization (single source of truth)
+	// Middleware should have already verified authentication
 
 	// Check if user has organization (don't force redirect)
-	const orgId = await getOrganizationIdOrNull()
-	const hasOrganization = !!orgId
+	// Industry Standard: Session-based active organization (single source of truth)
+	let orgId: string | null = null
+	let hasOrganization = false
+	try {
+		orgId = await getOrganizationIdOrNull()
+		hasOrganization = !!orgId
+	} catch (error) {
+		// If authentication fails, redirect to sign-in
+		console.error("[DashboardPage] Error checking organization:", error)
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		if (
+			errorMessage.includes("fetch failed") ||
+			errorMessage.includes("unauthenticated") ||
+			errorMessage.includes("unauthorized")
+		) {
+			const { redirect } = await import("next/navigation")
+			console.warn("[DashboardPage] Authentication failed, redirecting to sign-in")
+			redirect("/sign-in?redirect=/dashboard")
+		}
+		// For other errors, continue but show error state
+	}
 
-	// Try to fetch dashboard data if organization exists
+	// Fetch dashboard data if organization exists
+	// Let errors throw naturally - error boundary will catch them
 	let data = null
-	if (hasOrganization) {
+	if (hasOrganization && orgId) {
 		try {
 			data = await getDashboardData()
-	} catch (error) {
-			// Log error but don't block page render
-			console.error("Failed to fetch dashboard data:", error)
-			// Continue with null data - client will show alert
+		} catch (error) {
+			console.error("[DashboardPage] Error fetching dashboard data:", error)
+			// Continue without data - client will show error state
 		}
 	}
 

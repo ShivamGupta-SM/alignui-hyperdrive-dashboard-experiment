@@ -155,7 +155,7 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 				{/* Page Header */}
 				<div className="mb-6 sm:mb-8">
 					<div className="flex items-center gap-3 sm:gap-4">
-						<div className="flex size-12 sm:size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-base/10 to-primary-darker/10 ring-1 ring-inset ring-primary-base/20 shrink-0">
+						<div className="flex size-12 sm:size-14 items-center justify-center rounded-2xl bg-linear-to-br from-primary-base/10 to-primary-darker/10 ring-1 ring-inset ring-primary-base/20 shrink-0">
 							<Package weight="duotone" className="size-6 sm:size-7 text-primary-base" />
 						</div>
 						<div>

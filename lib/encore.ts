@@ -13,8 +13,9 @@ function getEncoreBaseUrl() {
 		return Environment(envName)
 	}
 
-	// In development, use local Encore server
-	return process.env.ENCORE_API_URL || Local
+	// In development, use NEXT_PUBLIC_ENCORE_URL or ENCORE_API_URL or Local
+	const baseUrl = process.env.NEXT_PUBLIC_ENCORE_URL || process.env.ENCORE_API_URL || Local
+	return baseUrl
 }
 
 // Create a singleton client instance for server-side use
@@ -23,48 +24,9 @@ let clientInstance: Client | null = null
 /**
  * Get the Encore client for server-side use.
  * This should only be used in server components and API routes.
- * 
- * IMPORTANT: For MSW mocking, ensure MSW is initialized BEFORE calling this function.
- * The client uses fetch which must be patched by MSW first.
  */
 export function getEncoreClient(options?: ClientOptions): Client {
-	// If mocking is enabled, use current global fetch (which MSW should have patched)
-	// This ensures we use the patched fetch instead of the bound fetch from module load time
-	if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
-		// CRITICAL: Always use the current global fetch, not a cached/bound version
-		// MSW patches globalThis.fetch, so we must use it directly
-		const currentFetch = typeof globalThis.fetch !== "undefined" ? globalThis.fetch : undefined
-		
-		if (!currentFetch) {
-			console.error("[Encore Client] WARNING: globalThis.fetch is undefined! MSW may not be initialized.")
-		}
-		
-		const patchedOptions: ClientOptions = {
-			...options,
-			fetcher: currentFetch,
-		}
-		
-		if (!clientInstance) {
-			clientInstance = new Client(getEncoreBaseUrl(), patchedOptions)
-			console.log("[Encore Client] Created client with MSW-patched fetch")
-		} else {
-			// If client already exists but we need to ensure it uses patched fetch, recreate it
-			// This is important because the client might have been created before MSW patched fetch
-			if (currentFetch && clientInstance) {
-				// Check if we need to recreate with patched fetch
-				// For now, just log - the with() method should handle it
-			}
-		}
-
-		// If options are provided, return a new client with those options
-		if (options) {
-			return clientInstance.with(patchedOptions)
-		}
-
-		return clientInstance
-	}
-
-	// Normal flow without mocking
+	// Use singleton pattern
 	if (!clientInstance) {
 		clientInstance = new Client(getEncoreBaseUrl(), options)
 	}
@@ -93,6 +55,30 @@ export function getAuthenticatedEncoreClient(authToken: string): Client {
 
 // Re-export types from the generated client for convenience
 export type { ClientOptions } from "./encore-client"
+
+// Re-export error types and utilities
+// Note: APIError (class) and ErrCode (enum) export both value and type automatically
+export { APIError, isAPIError, ErrCode } from "./encore-client"
+
+// Re-export error handler utilities
+export {
+	extractErrorMessage,
+	extractErrorCode,
+	extractErrorStatus,
+	isAuthenticationError,
+	isNotFoundError,
+	isValidationError,
+	getErrorDetails,
+	handleAPIError,
+} from "./encore-error-handler"
+
+// Re-export simple error logging utilities (no dependencies)
+export {
+	logError,
+	logAPIError,
+	logSSRError,
+} from "./error-logger-simple"
+export type { ErrorContext } from "./error-logger-simple"
 
 // Re-export namespaces for type access
 export {

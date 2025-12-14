@@ -11,7 +11,7 @@ export default function AuthLayout({
 	children: React.ReactNode
 }) {
 	return (
-		<div className="flex min-h-screen flex-col bg-gradient-to-br from-bg-white-0 via-primary-lighter/5 to-feature-lighter/10">
+		<div className="flex min-h-screen flex-col bg-linear-to-br from-bg-white-0 via-primary-lighter/5 to-feature-lighter/10">
 			{/* Decorative background elements */}
 			<div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
 				<div className="absolute top-0 -left-1/4 w-96 h-96 bg-primary-base/5 rounded-full blur-3xl" />

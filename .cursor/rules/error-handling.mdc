@@ -1,0 +1,348 @@
+# Error Handling - Production Grade Rules
+
+## Core Principle
+**NO DEFENSIVE PROGRAMMING. NO PATCH WORK. PRODUCTION-GRADE CLEAN FIXES ONLY.**
+
+When fixing errors:
+1. **Properly identify** the root cause (frontend vs backend)
+2. **Fix at the source** - don't hide errors with try-catch
+3. **Let errors propagate** naturally to error boundaries
+4. **No graceful degradation** - fix the actual problem
+
+---
+
+## Error Identification Process
+
+### Step 1: Identify Error Location
+- **Backend Error**: Check error stack trace - if it originates from `lib/encore-client.ts` or backend API calls
+- **Frontend Error**: Check if it's a React/Next.js error, component error, or client-side logic error
+- **Integration Error**: Check if it's authentication, data flow, or API contract mismatch
+
+### Step 2: Root Cause Analysis
+- **Read the actual error message** - don't assume
+- **Check the error stack trace** - identify exact line and function
+- **Verify API contracts** - ensure frontend/backend types match
+- **Check authentication flow** - verify tokens are sent/received correctly
+- **Verify data flow** - ensure data structure matches expectations
+
+### Step 3: Fix Strategy
+- **Backend Error**: Fix in backend code, ensure proper error responses
+- **Frontend Error**: Fix in frontend code, ensure proper error handling
+- **Integration Error**: Fix the integration point (API client, auth handler, etc.)
+
+---
+
+## Rules for Error Fixes
+
+### ❌ FORBIDDEN: Defensive Programming
+```typescript
+// ❌ DON'T DO THIS - Hiding errors
+try {
+  const data = await getData()
+  return data
+} catch (error) {
+  console.error(error)
+  return null // ❌ Hiding the error
+}
+```
+
+### ❌ FORBIDDEN: Patch Work
+```typescript
+// ❌ DON'T DO THIS - Temporary workaround
+if (!data) {
+  return mockData // ❌ Patch work
+}
+```
+
+### ❌ FORBIDDEN: Graceful Degradation
+```typescript
+// ❌ DON'T DO THIS - Graceful degradation
+try {
+  const result = await apiCall()
+} catch (error) {
+  // Show empty state instead of fixing the error
+  return <EmptyState />
+}
+```
+
+### ✅ CORRECT: Production-Grade Fix
+```typescript
+// ✅ DO THIS - Let errors propagate naturally
+export default async function Page() {
+  // No try-catch - let error boundary handle it
+  const data = await getData()
+  return <Component data={data} />
+}
+```
+
+---
+
+## Error Handling Patterns
+
+### Server Components (Next.js)
+```typescript
+// ✅ CORRECT: Let errors throw naturally
+export default async function Page() {
+  const data = await getData() // Will throw if error
+  return <Component data={data} />
+}
+
+// ❌ WRONG: Catching and hiding
+export default async function Page() {
+  try {
+    const data = await getData()
+    return <Component data={data} />
+  } catch (error) {
+    return <ErrorState /> // ❌ Hiding error
+  }
+}
+```
+
+### Client Components
+```typescript
+// ✅ CORRECT: Let React Query handle errors
+const { data, error } = useQuery({
+  queryKey: ['key'],
+  queryFn: fetchData,
+  // Error will be in error state, component can handle it
+})
+
+// ❌ WRONG: Catching in component
+const fetchData = async () => {
+  try {
+    return await api.getData()
+  } catch (error) {
+    return null // ❌ Hiding error
+  }
+}
+```
+
+### API Client Errors
+```typescript
+// ✅ CORRECT: Let APIError propagate
+export async function getData() {
+  const client = getAuthClient()
+  const data = await client.api.getData() // Will throw APIError if fails
+  return data
+}
+
+// ❌ WRONG: Catching and returning null
+export async function getData() {
+  try {
+    const client = getAuthClient()
+    return await client.api.getData()
+  } catch (error) {
+    return null // ❌ Hiding error
+  }
+}
+```
+
+---
+
+## Authentication Error Handling
+
+### ✅ CORRECT: Fix at Source
+```typescript
+// Backend: Ensure auth handler reads cookies correctly
+export function getSessionToken(): string {
+  const req = currentRequest()
+  const cookieHeader = req.headers?.cookie
+  if (cookieHeader) {
+    // Check all possible cookie names
+    const match = cookieHeader.match(/auth-token=([^;]+)/)
+    if (match) return match[1]
+  }
+  throw APIError.unauthenticated("No session token found")
+}
+
+// Frontend: Ensure cookies are sent
+const client = getEncoreBrowserClient({
+  requestInit: {
+    credentials: "include", // ✅ Sends cookies
+  },
+})
+```
+
+### ❌ WRONG: Defensive Handling
+```typescript
+// ❌ DON'T: Catch auth errors and return null
+try {
+  const session = await getSession()
+  return session
+} catch (error) {
+  return null // ❌ Should redirect to login instead
+}
+```
+
+---
+
+## Data Fetching Errors
+
+### ✅ CORRECT: Let Error Boundary Handle
+```typescript
+// Server Component
+export default async function Page() {
+  const data = await getData() // Throws if error
+  return <Component data={data} />
+}
+
+// Error boundary will catch and display error
+```
+
+### ❌ WRONG: Return Null on Error
+```typescript
+// ❌ DON'T: Return null to hide errors
+export default async function Page() {
+  let data = null
+  try {
+    data = await getData()
+  } catch (error) {
+    console.error(error)
+    // data remains null - error hidden
+  }
+  return <Component data={data} />
+}
+```
+
+---
+
+## Error Logging
+
+### ✅ CORRECT: Log for Debugging, But Don't Hide
+```typescript
+// Log for debugging, but still throw
+export async function getData() {
+  try {
+    return await api.getData()
+  } catch (error) {
+    // Log for debugging
+    console.error("[getData] Failed:", {
+      message: error.message,
+      code: error.code,
+      status: error.status,
+    })
+    // Still throw - don't hide
+    throw error
+  }
+}
+```
+
+### ❌ WRONG: Log and Hide
+```typescript
+// ❌ DON'T: Log and return null
+try {
+  return await api.getData()
+} catch (error) {
+  console.error(error)
+  return null // ❌ Error hidden
+}
+```
+
+---
+
+## Error Identification Checklist
+
+When you see an error:
+
+1. **Read the full error message** - What does it actually say?
+2. **Check the stack trace** - Where does it originate?
+3. **Identify the layer**:
+   - Backend API error? → Fix backend
+   - Frontend component error? → Fix frontend
+   - Integration error? → Fix integration point
+4. **Check the root cause**:
+   - Missing authentication? → Fix auth flow
+   - Wrong data structure? → Fix API contract
+   - Missing data? → Fix data fetching
+5. **Fix at source** - Don't add workarounds
+
+---
+
+## Examples
+
+### Example 1: API Error
+```
+Error: an internal error occurred
+at BaseClient.callAPI (lib\encore-client.ts:8130:19)
+```
+
+**Analysis:**
+- Error originates from `encore-client.ts` → Backend API call
+- "internal error" → Backend is returning 500 error
+- **Fix**: Check backend logs, fix the actual backend error
+
+**❌ WRONG Fix:**
+```typescript
+try {
+  const data = await getData()
+} catch (error) {
+  return null // Hiding error
+}
+```
+
+**✅ CORRECT Fix:**
+```typescript
+// Let error propagate to error boundary
+const data = await getData()
+// Error boundary will show proper error page
+```
+
+### Example 2: Authentication Error
+```
+Error: No session token found in request
+```
+
+**Analysis:**
+- Authentication error → Token not being sent/received
+- **Fix**: Ensure cookies are sent from frontend, ensure backend reads them
+
+**❌ WRONG Fix:**
+```typescript
+try {
+  const session = await getSession()
+} catch (error) {
+  return { session: null } // Hiding auth error
+}
+```
+
+**✅ CORRECT Fix:**
+```typescript
+// Backend: Fix getSessionToken() to read auth-token cookie
+// Frontend: Ensure credentials: "include" is set
+// Let auth errors propagate - middleware will handle redirect
+```
+
+### Example 3: Type Error
+```
+Error: Property 'xyz' does not exist on type 'ABC'
+```
+
+**Analysis:**
+- TypeScript error → Type mismatch
+- **Fix**: Fix the type definition or API contract
+
+**❌ WRONG Fix:**
+```typescript
+const value = (data as any).xyz // Type assertion to hide error
+```
+
+**✅ CORRECT Fix:**
+```typescript
+// Fix the type definition
+interface CorrectType {
+  xyz: string
+}
+// Or fix the API to return correct structure
+```
+
+---
+
+## Summary
+
+1. **Identify** - Properly identify if error is frontend, backend, or integration
+2. **Analyze** - Read error message and stack trace to find root cause
+3. **Fix** - Fix at the source, don't add workarounds
+4. **Propagate** - Let errors propagate naturally to error boundaries
+5. **No Hiding** - Never hide errors with try-catch that returns null/empty
+6. **Production Grade** - Write code that works correctly, not code that fails gracefully
+

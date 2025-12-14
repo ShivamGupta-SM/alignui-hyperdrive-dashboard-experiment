@@ -7,8 +7,8 @@
 ## 🔐 Authentication Overview
 
 ### Tech Stack
-- **Encore Client** - Frontend API client (connects to Encore backend)
-- **Encore.ts Backend** - API gateway with auth handler (uses Better Auth internally)
+- **Better Auth** - Session management backend
+- **Encore.ts** - API gateway with auth handler
 - **Next.js 16** - Server Components + Server Actions
 - **Cookies** - Session tokens stored in httpOnly cookies
 
@@ -61,9 +61,9 @@ export const auth = authHandler<AuthParams, AuthData>(
 
 ### 3. **Session Storage**
 
-- **Backend**: Sessions stored in `session` table (Better Auth - backend only)
+- **Backend**: Sessions stored in `session` table (Better Auth)
 - **Frontend**: Session token in httpOnly cookie (`auth-token`)
-- **Validation**: Every API request validates session token via Encore backend
+- **Validation**: Every API request validates session token
 
 ---
 
@@ -113,7 +113,7 @@ export function handleAuthError(error: unknown): void {
   if (isAuthError(error)) {
     // Clear auth cookies
     document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    // Clear auth token cookie
+    document.cookie = 'better-auth.session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
     
     // Redirect to login with return URL
     const returnUrl = encodeURIComponent(window.location.pathname + window.location.search)
@@ -351,7 +351,7 @@ try {
 
 ### ✅ **Authentication is Properly Implemented**
 
-1. **Session Management**: Encore Client (frontend) → Encore Backend (uses Better Auth internally)
+1. **Session Management**: Better Auth + Encore.ts
 2. **Error Detection**: `isAuthError()` detects 401/403 and error patterns
 3. **Error Handling**: Multiple layers (Error Boundaries, Server Actions)
 4. **Remote Revocation**: Fully handled - admin can revoke sessions, users get redirected

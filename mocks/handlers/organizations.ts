@@ -22,7 +22,7 @@ export const organizationsHandlers = [
 		})
 	}),
 
-	// GET /organizations/:id - Get organization
+	// GET /organizations/:id - Get organization (with all fields for draft loading)
 	http.get(encoreUrl("/organizations/:id"), async ({ params }) => {
 		const { id } = params as { id: string }
 		const org = db.organizationSettings.findFirst((q) => q.where({ organizationId: id }))
@@ -31,11 +31,31 @@ export const organizationsHandlers = [
 			return encoreNotFoundResponse("Organization")
 		}
 
+		// Return full organization data (needed for draft loading)
 		return encoreResponse({
 			id: org.organizationId,
 			name: org.name,
 			slug: org.name.toLowerCase().replace(/\s+/g, "-"),
 			logo: org.logo,
+			description: org.description || null,
+			website: org.website || null,
+			businessType: org.businessType || null,
+			industryCategory: org.industryCategory || null,
+			contactPerson: org.contactPerson || null,
+			phoneNumber: org.phoneNumber || null,
+			address: org.address || null,
+			city: org.city || null,
+			state: org.state || null,
+			postalCode: org.postalCode || null,
+			country: org.country || "IN",
+			cinNumber: org.cinNumber || null,
+			gstNumber: org.gstNumber || null,
+			gstVerified: org.gstVerified || false,
+			panNumber: org.panNumber || null,
+			panVerified: org.panVerified || false,
+			approvalStatus: org.approvalStatus || "draft",
+			createdAt: org.createdAt instanceof Date ? org.createdAt.toISOString() : org.createdAt,
+			updatedAt: org.updatedAt instanceof Date ? org.updatedAt.toISOString() : org.updatedAt,
 		})
 	}),
 
@@ -46,7 +66,7 @@ export const organizationsHandlers = [
 		const auth = getAuthContext()
 		const org =
 			db.organizationSettings.findFirst((q) => q.where({ organizationId: auth.organizationId })) ||
-			db.organizationSettings.findFirst((q) => q.where({}))
+			db.organizationSettings.findFirst()
 
 		if (!org) {
 			return encoreNotFoundResponse("Organization")
@@ -151,17 +171,28 @@ export const organizationsHandlers = [
 	http.post(encoreUrl("/organizations"), async ({ request }) => {
 		const body = (await request.json()) as { name: string; logo?: string }
 
-		const newOrg = {
-			organizationId: `org-${Date.now()}`,
+		const now = new Date().toISOString()
+		const newOrgId = `org-${Date.now()}`
+
+		// Create organization in database with draft status
+		db.organizationSettings.create({
+			organizationId: newOrgId,
 			name: body.name,
 			logo: body.logo || null,
-		}
+			email: "", // Will be updated later
+			approvalStatus: "draft", // Start as draft for resumable forms
+			createdAt: now,
+			updatedAt: now,
+		})
+
+		const newOrg = db.organizationSettings.findFirst((q) => q.where({ organizationId: newOrgId }))
 
 		return encoreResponse({
-			id: newOrg.organizationId,
-			name: newOrg.name,
-			slug: newOrg.name.toLowerCase().replace(/\s+/g, "-"),
-			logo: newOrg.logo,
+			id: newOrgId,
+			name: body.name,
+			slug: body.name.toLowerCase().replace(/\s+/g, "-"),
+			logo: body.logo || null,
+			approvalStatus: "draft",
 		})
 	}),
 
@@ -281,3 +312,4 @@ export const organizationsHandlers = [
 		})
 	}),
 ]
+

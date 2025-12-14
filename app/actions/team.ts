@@ -1,18 +1,13 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { getEncoreClient } from "@/lib/encore"
-import { cookies } from "next/headers"
-
-async function getOrganizationId(): Promise<string> {
-	const cookieStore = await cookies()
-	return cookieStore.get("active-organization-id")?.value || ""
-}
+import { getEncoreClient, handleAPIError } from "@/lib/encore"
+import { getOrganizationIdOrNull } from "@/lib/ssr-data"
 
 // Original function (kept for backward compatibility)
 export async function inviteMember(email: string, role: string) {
 	const client = getEncoreClient()
-	const orgId = await getOrganizationId()
+	const orgId = await getOrganizationIdOrNull()
 
 	if (!orgId) {
 		return { success: false, error: "Organization ID not found" }
@@ -38,8 +33,8 @@ export async function inviteMember(email: string, role: string) {
 			message: "Invitation sent successfully",
 			invitationId: result.invitation.id,
 		}
-	} catch (error: any) {
-		return { success: false, error: error.message || "Failed to invite member" }
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -67,14 +62,18 @@ export async function inviteMemberAction(
 
 export async function removeMember(memberId: string) {
 	const client = getEncoreClient()
-	const orgId = await getOrganizationId()
+	const orgId = await getOrganizationIdOrNull()
+
+	if (!orgId) {
+		return { success: false, error: "Organization ID not found" }
+	}
 
 	try {
 		// client.organizations.removeMember(orgId, memberId)
 		await client.organizations.removeMember(orgId, memberId)
 		revalidatePath("/dashboard/team")
 		return { success: true, message: "Member removed" }
-	} catch (error: any) {
-		return { success: false, error: error.message || "Failed to remove member" }
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }

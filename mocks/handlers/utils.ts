@@ -27,7 +27,18 @@ import type {
 export const ENCORE_BASE_URL = process.env.NEXT_PUBLIC_ENCORE_URL || "http://localhost:4000"
 
 export function encoreUrl(path: string): string {
-	return `${ENCORE_BASE_URL}${path}`
+	const fullUrl = `${ENCORE_BASE_URL}${path}`
+	// Debug logging in development (only log once per unique path to avoid spam)
+	if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
+		// Store logged paths to avoid duplicate logs
+		const loggedPaths = (globalThis as any).__MSW_LOGGED_PATHS__ || new Set()
+		if (!loggedPaths.has(path)) {
+			loggedPaths.add(path)
+			;(globalThis as any).__MSW_LOGGED_PATHS__ = loggedPaths
+			console.log(`[MSW Handler] ✅ Registered handler for: ${fullUrl}`)
+		}
+	}
+	return fullUrl
 }
 
 // =============================================================================
@@ -218,3 +229,4 @@ export function typedNotificationListResponse(
 // =============================================================================
 
 export type { wallets, organizations, campaigns, enrollments, products, invoices, notifications }
+

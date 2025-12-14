@@ -70,6 +70,7 @@ import type {
 import type { campaigns, enrollments } from "@/lib/encore-client"
 import type { integrations } from "@/lib/encore-client"
 import { toast } from "sonner"
+import { formatCurrency, formatDateMedium } from "@/lib/format"
 import {
 	type ColumnDef,
 	type SortingState,
@@ -128,17 +129,12 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 
 	const statusConfig = campaign ? CAMPAIGN_STATUS_CONFIG[campaign.status] : null
 
-	const formatCurrency = (amount: number) => {
-		return `₹${amount.toLocaleString("en-IN")}`
-	}
-
-	const formatDate = (date: Date | string) => {
-		return new Date(date).toLocaleDateString("en-IN", {
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-		})
-	}
+	const formatCurrencyLocal = (amount: number): string => formatCurrency(amount)
+	const formatDateLocal = (date: Date | string): string => formatDateMedium(date)
+	
+	// Alias for backward compatibility
+	const formatCurrency = formatCurrencyLocal
+	const formatDate = formatDateLocal
 
 	const getDaysRemaining = () => {
 		if (!campaign) return 0
@@ -182,7 +178,7 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 							queryClient.invalidateQueries({ queryKey: ["campaign", campaignId] })
 							router.refresh()
 						} else {
-							toast.error(res.error || "Failed to pause campaign")
+							toast.error(("error" in res ? res.error : res.message) || "Failed to pause campaign")
 						}
 					} catch (e) {
 						toast.error("An error occurred")
@@ -203,7 +199,7 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 					queryClient.invalidateQueries({ queryKey: ["campaign", campaignId] })
 					router.refresh()
 				} else {
-					toast.error(res.error || "Failed to resume campaign")
+					toast.error(("error" in res ? res.error : res.message) || "Failed to resume campaign")
 				}
 			} catch (e) {
 				toast.error("An error occurred")
@@ -229,7 +225,7 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 							queryClient.invalidateQueries({ queryKey: ["campaign", campaignId] })
 							router.refresh()
 						} else {
-							toast.error(res.error || "Failed to end campaign")
+							toast.error(("error" in res ? res.error : res.message) || "Failed to end campaign")
 						}
 					} catch (e) {
 						toast.error("An error occurred")
@@ -919,14 +915,12 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
 	const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
 	const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
 
-	const formatCurrency = (amount: number) => `₹${amount.toLocaleString("en-IN")}`
-	const formatDate = (date: Date | string) => {
-		return new Date(date).toLocaleDateString("en-IN", {
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-		})
-	}
+	const formatCurrencyLocal = (amount: number): string => formatCurrency(amount)
+	const formatDateLocal = (date: Date | string): string => formatDateMedium(date)
+	
+	// Alias for backward compatibility
+	const formatCurrency = formatCurrencyLocal
+	const formatDate = formatDateLocal
 
 	const handleExport = () => {
 		startTransition(async () => {
@@ -956,7 +950,7 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
 					)
 					toast.success(`Exported ${res.totalCount} enrollments to CSV`)
 				} else {
-					toast.error(res.error || "Failed to export enrollments")
+					toast.error(("error" in res ? res.error : res.message) || "Failed to export enrollments")
 				}
 			} catch (e) {
 				toast.error("An error occurred while exporting")

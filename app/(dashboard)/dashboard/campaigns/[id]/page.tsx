@@ -6,6 +6,7 @@ export default async function CampaignDetailPage({
 }: {
 	params: Promise<{ id: string }>
 }) {
+	// Industry Standard: Session-based active organization (single source of truth)
 	// Check if user has organization
 	await requireOrganization()
 

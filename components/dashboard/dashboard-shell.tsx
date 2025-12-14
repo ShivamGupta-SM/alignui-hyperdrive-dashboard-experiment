@@ -12,12 +12,8 @@ import { useBreadcrumbs } from "@/hooks/use-breadcrumbs"
 import { useSignOut } from "@/hooks/use-sign-out"
 import { useSession } from "@/hooks/use-session"
 import { useUIStore } from "@/lib/stores/ui-store"
-import {
-	useNotifications,
-	useUnreadNotificationCount,
-	useMarkAllNotificationsRead,
-	useMarkNotificationRead,
-} from "@/hooks/use-notifications"
+import { useNotifications as useBackendNotifications, useUnreadNotificationCount as useBackendUnreadCount, useMarkAllNotificationsRead as useBackendMarkAllRead, useMarkNotificationRead as useBackendMarkRead } from "@/hooks/use-notifications"
+
 import { useDashboard } from "@/hooks/use-dashboard"
 import { useTheme } from "next-themes"
 import { cn } from "@/utils/cn"
@@ -53,10 +49,27 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 	const setMobileSidebarOpen = setMobileMenuOpen
 
 	// Notifications API integration
-	const { data: notificationsData } = useNotifications()
-	const { data: unreadCount = 0 } = useUnreadNotificationCount()
-	const markAllRead = useMarkAllNotificationsRead()
-	const markRead = useMarkNotificationRead()
+	// Use backend hooks - they handle both Novu enabled and disabled cases
+	// The backend API syncs with Novu when enabled, so we get consistent data
+	const backendNotifications = useBackendNotifications()
+	const backendUnreadCount = useBackendUnreadCount()
+	const backendMarkAllRead = useBackendMarkAllRead()
+	const backendMarkRead = useBackendMarkRead()
+	
+	// Use backend data (which syncs with Novu when enabled)
+	const notificationsData = backendNotifications.data?.notifications
+		? { data: backendNotifications.data.notifications }
+		: { data: [] }
+	
+	const unreadCount = backendUnreadCount.data ?? 0
+	
+	const markAllRead = () => {
+		backendMarkAllRead.mutate()
+	}
+	
+	const markRead = (id: string) => {
+		backendMarkRead.mutate(id)
+	}
 
 	// Prevent hydration mismatch by using consistent initial state
 	// MUST be declared before useDashboard to avoid "Cannot access before initialization" error
@@ -118,7 +131,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 	if (!mounted) {
 		return (
 			<div
-				className="h-dvh lg:p-3 bg-gradient-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200"
+				className="h-dvh lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200"
 				style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
 			>
 				{/* Desktop skeleton */}
@@ -164,7 +177,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 
 	return (
 			<div
-			className="h-dvh lg:p-3 bg-gradient-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 transition-colors duration-200"
+			className="h-dvh lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 transition-colors duration-200"
 				style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
 			>
 			{/* ============================================ */}
@@ -327,7 +340,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 			<NotificationsDrawer
 				open={notificationsDrawerOpen}
 				onOpenChange={setNotificationsDrawerOpen}
-				notifications={notificationsData?.data?.map((n) => ({
+				notifications={notificationsData?.data?.map((n: any) => ({
 					id: n.id,
 					userId: n.userId || "1",
 					type: n.type,
@@ -337,9 +350,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 					isRead: n.isRead,
 					createdAt: n.createdAt,
 				}))}
-				onMarkAllRead={() => markAllRead.mutate()}
+				onMarkAllRead={markAllRead}
 				onNotificationClick={(notification) => {
-					markRead.mutate(notification.id)
+					markRead(notification.id)
 					if (notification.actionUrl) {
 						router.push(notification.actionUrl)
 					}

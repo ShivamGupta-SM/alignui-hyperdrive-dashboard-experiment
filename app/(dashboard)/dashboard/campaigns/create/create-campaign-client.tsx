@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useForm, Controller, useFieldArray } from "react-hook-form"
+import { useForm, Controller, useFieldArray, type ControllerRenderProps } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
 import * as Button from "@/components/ui/button"
@@ -46,6 +46,7 @@ import { campaignFormSchema, type CampaignFormInput } from "@/lib/validations"
 import type { DeliverableType } from "@/lib/types"
 import type { CampaignType } from "@/hooks/use-campaigns"
 import type { ProductWithStats } from "@/hooks/use-products"
+import { formatDateMedium, formatDateWithWeekday } from "@/lib/format"
 
 type Product = ProductWithStats
 
@@ -170,7 +171,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 				toast.success("Campaign saved as draft")
 				router.push("/dashboard/campaigns")
 			} else {
-				toast.error(result.error || "Failed to save campaign")
+				toast.error(("error" in result ? result.error : "Failed to save campaign") || "Failed to save campaign")
 			}
 		} catch {
 			toast.error("Something went wrong. Please try again.")
@@ -199,7 +200,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 			const createResult = await createCampaign(campaignData)
 
 			if (!createResult.success) {
-				toast.error(createResult.error || "Failed to create campaign")
+				toast.error(("error" in createResult ? createResult.error : "Failed to create campaign") || "Failed to create campaign")
 				return
 			}
 
@@ -285,7 +286,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 					{/* Desktop Header */}
 					<div className="hidden sm:block mb-8">
 						<div className="flex items-center gap-4">
-							<div className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-base/10 to-primary-darker/10 ring-1 ring-inset ring-primary-base/20">
+							<div className="flex size-14 items-center justify-center rounded-2xl bg-linear-to-br from-primary-base/10 to-primary-darker/10 ring-1 ring-inset ring-primary-base/20">
 								<Megaphone weight="duotone" className="size-7 text-primary-base" />
 							</div>
 							<div className="flex-1">
@@ -557,7 +558,7 @@ function Step1BasicInfo({ register, control, errors, watch, setValue, products }
 				<Controller
 					name="type"
 					control={control}
-					render={({ field }) => (
+					render={({ field }: { field: ControllerRenderProps<CampaignFormInput, "type"> }) => (
 						<Radio.Group
 							value={field.value}
 							onValueChange={field.onChange}
@@ -595,7 +596,7 @@ function Step1BasicInfo({ register, control, errors, watch, setValue, products }
 				<Controller
 					name="isPublic"
 					control={control}
-					render={({ field }) => (
+					render={({ field }: { field: ControllerRenderProps<CampaignFormInput, "isPublic"> }) => (
 						<label className="flex items-start gap-3 cursor-pointer">
 							<Checkbox.Root
 								checked={field.value}
@@ -642,14 +643,9 @@ function Step2Schedule({ register, control, errors, watch, setValue }: Step2Prop
 	const startDate = watch("startDate")
 	const endDate = watch("endDate")
 
-	const formatDate = (date?: Date) => {
+	const formatDate = (date?: Date): string => {
 		if (!date) return "Select date"
-		return date.toLocaleDateString("en-IN", {
-			weekday: "short",
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-		})
+		return formatDateWithWeekday(date)
 	}
 
 	return (
@@ -692,13 +688,13 @@ function Step2Schedule({ register, control, errors, watch, setValue }: Step2Prop
 							<Calendar
 								mode="single"
 								selected={startDate}
-								onSelect={(date) => {
+								onSelect={(date: Date | undefined) => {
 									if (date) {
 										setValue("startDate", date, { shouldValidate: true })
 										setStartDateOpen(false)
 									}
 								}}
-								disabled={(date) => date < new Date()}
+								disabled={(date: Date) => date < new Date()}
 							/>
 						</Popover.Content>
 					</Popover.Root>
@@ -724,13 +720,13 @@ function Step2Schedule({ register, control, errors, watch, setValue }: Step2Prop
 							<Calendar
 								mode="single"
 								selected={endDate}
-								onSelect={(date) => {
+								onSelect={(date: Date | undefined) => {
 									if (date) {
 										setValue("endDate", date, { shouldValidate: true })
 										setEndDateOpen(false)
 									}
 								}}
-								disabled={(date) => (startDate ? date < startDate : date < new Date())}
+								disabled={(date: Date) => (startDate ? date < startDate : date < new Date())}
 							/>
 						</Popover.Content>
 					</Popover.Root>
@@ -857,7 +853,7 @@ function Step3Deliverables({
 										<Controller
 											name={`deliverables.${index}.isRequired`}
 											control={control}
-											render={({ field }) => (
+											render={({ field }: { field: ControllerRenderProps<CampaignFormInput, `deliverables.${number}.isRequired`> }) => (
 												<label className="flex items-center gap-2 cursor-pointer">
 													<Checkbox.Root
 														checked={field.value}
@@ -892,7 +888,7 @@ function Step3Deliverables({
 									<Controller
 										name={`deliverables.${index}.type`}
 										control={control}
-										render={({ field }) => (
+										render={({ field }: { field: ControllerRenderProps<CampaignFormInput, `deliverables.${number}.type`> }) => (
 											<Select.Root
 												value={field.value}
 												onValueChange={field.onChange}
@@ -967,13 +963,9 @@ function Step4Review({ watch, onEdit, products }: Step4Props) {
 	const formData = watch()
 	const product = products.find((p) => p.id === formData.productId)
 
-	const formatDate = (date?: Date) => {
+	const formatDate = (date?: Date): string => {
 		if (!date) return "Not set"
-		return date.toLocaleDateString("en-IN", {
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-		})
+		return formatDateMedium(date)
 	}
 
 	const ReviewSection = ({
@@ -1037,7 +1029,7 @@ function Step4Review({ watch, onEdit, products }: Step4Props) {
 				</ReviewSection>
 
 				<ReviewSection title="Deliverables" step={3}>
-					{formData.deliverables?.map((d, i) => (
+					{formData.deliverables?.map((d: CampaignFormInput["deliverables"][number], i: number) => (
 						<ReviewRow
 							key={i}
 							label={DELIVERABLE_TYPE_OPTIONS.find((o) => o.value === d.type)?.label || d.type}

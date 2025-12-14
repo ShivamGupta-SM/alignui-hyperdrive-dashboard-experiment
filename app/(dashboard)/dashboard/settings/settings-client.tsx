@@ -15,24 +15,10 @@ import { FormField } from "@/components/ui/form-field"
 import { cn } from "@/utils/cn"
 import { useSettingsSearchParams } from "@/hooks"
 import { useQueryClient } from "@tanstack/react-query"
-import {
-	updateProfile,
-	updateOrganization,
-	updatePassword,
-	revokeAllSessions,
-	changeEmail,
-	deleteUserAccount,
-	sendVerificationEmail,
-} from "@/app/actions"
-import { verifyBankAccount } from "@/app/actions/settings"
+import { useRouter } from "next/navigation"
+import { updateOrganization } from "@/app/actions"
+import { verifyBankAccount, addBankAccount, removeBankAccount, setDefaultBankAccount } from "@/app/actions/settings"
 import type { organizations } from "@/lib/encore-client"
-import {
-	enable2FA,
-	disable2FA,
-	get2FATotpURI,
-	generate2FABackupCodes,
-	view2FABackupCodes,
-} from "@/app/actions/auth"
 import {
 	Buildings,
 	Bank,
@@ -46,48 +32,30 @@ import {
 	CloudArrowUp,
 	Check,
 	DotsThree,
-	User,
-	Lock,
-	CreditCard,
 	Globe,
 	Phone,
 	Envelope,
 	MapPin,
-	DeviceMobile,
-	Desktop,
-	SignOut,
 	Warning,
-	Eye,
-	EyeSlash,
 	Info,
 	Clock,
 } from "@phosphor-icons/react"
-import { NovuPreferencesPanel } from "@/components/dashboard/novu-preferences"
 import {
-	updateProfileBodySchema,
 	updateOrganizationBodySchema,
-	changePasswordSchema,
 	bankAccountBodySchema,
-	type UpdateProfileBody,
 	type UpdateOrganizationBody,
-	type ChangePasswordFormData,
 	type BankAccountBody,
 } from "@/lib/validations"
-import { z } from "zod"
-import { addBankAccount } from "@/app/actions/settings"
 import * as Modal from "@/components/ui/modal"
 import * as BottomSheet from "@/components/ui/bottom-sheet"
 import * as Radio from "@/components/ui/radio"
 import { useMediaQuery } from "usehooks-ts"
 
-// Settings sections - matches Settings Panel structure for consistency
+// Settings sections - Organization only (Industry Standard: Settings = Organization, Profile = User)
 const settingsSections = [
-	{ id: "profile", label: "Profile", icon: User },
 	{ id: "organization", label: "Organization", icon: Buildings },
-	{ id: "billing", label: "Billing", icon: CreditCard },
 	{ id: "gst", label: "GST & Tax", icon: FileText },
-	{ id: "notifications", label: "Notifications", icon: Bell },
-	{ id: "security", label: "Security", icon: ShieldCheck },
+	{ id: "bank-accounts", label: "Bank Accounts", icon: Bank },
 ]
 
 interface SettingsData {
@@ -129,8 +97,8 @@ interface SettingsClientProps {
 }
 
 export function SettingsClient({ initialData }: SettingsClientProps = {}) {
-	// nuqs: URL state management for settings section
-	const [activeSection, setActiveSection] = useSettingsSearchParams()
+	// nuqs: URL state management for settings section (organization-only)
+	const [activeSection, setActiveSection] = useSettingsSearchParams("organization")
 
 	// Use server data - must be provided from server
 	if (!initialData) {
@@ -140,7 +108,7 @@ export function SettingsClient({ initialData }: SettingsClientProps = {}) {
 					<div className="min-w-0">
 						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Settings</h1>
 						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
-							Manage your account and preferences
+							Manage your organization settings
 						</p>
 					</div>
 				</div>
@@ -165,7 +133,7 @@ export function SettingsClient({ initialData }: SettingsClientProps = {}) {
 				<div className="min-w-0">
 					<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Settings</h1>
 					<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
-						Manage your account and preferences
+						Manage your organization settings
 					</p>
 				</div>
 			</div>
@@ -228,146 +196,23 @@ export function SettingsClient({ initialData }: SettingsClientProps = {}) {
 
 				{/* Main Content */}
 				<div className="flex-1 min-w-0">
-					{activeSection === "profile" && <ProfileSection user={data.user} />}
 					{activeSection === "organization" && (
 						<OrganizationSection organization={data.organization} />
 					)}
-					{activeSection === "billing" && (
-						<BillingSection bankAccounts={data.bankAccounts} organization={data.organization} />
-					)}
 					{activeSection === "gst" && <GstSection gstDetails={data.gstDetails} />}
-					{activeSection === "notifications" && <NotificationsSection />}
-					{activeSection === "security" && <SecuritySection />}
+					{activeSection === "bank-accounts" && (
+						<BankAccountsSection
+							bankAccounts={data.bankAccounts}
+							organizationId={data.organization.id}
+						/>
+					)}
 				</div>
 			</div>
 		</div>
 	)
 }
 
-// ===========================================
-// PROFILE SECTION
-// ===========================================
-function ProfileSection({ user }: { user: SettingsData["user"] }) {
-	const router = useRouter()
-	const [saved, setSaved] = React.useState(false)
-	const [isLoading, setIsLoading] = React.useState(false)
-	const queryClient = useQueryClient()
-
-	const {
-		register,
-		handleSubmit,
-		formState: { errors },
-	} = useForm<UpdateProfileBody>({
-		resolver: zodResolver(updateProfileBodySchema),
-		defaultValues: {
-			name: user.name,
-			phone: user.phone || "",
-		},
-	})
-
-	const onSubmit = async (data: UpdateProfileBody) => {
-		setIsLoading(true)
-		try {
-			const result = await updateProfile(data)
-			if (result.success) {
-				setSaved(true)
-				toast.success("Profile updated successfully")
-				setTimeout(() => setSaved(false), 3000)
-				// Invalidate session and settings queries to refetch updated data
-				queryClient.invalidateQueries({ queryKey: ["session"] })
-				queryClient.invalidateQueries({ queryKey: ["settings"] })
-				router.refresh()
-			} else {
-				toast.error(result.error || "Failed to update profile")
-			}
-		} catch {
-			toast.error("Something went wrong. Please try again.")
-		} finally {
-			setIsLoading(false)
-		}
-	}
-
-	return (
-		<div className="space-y-6">
-			{/* Profile Photo Card */}
-			<SettingsCard>
-				<div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
-					<div className="relative group">
-						<Avatar.Root size="80" color="blue" className="ring-4 ring-bg-weak-50 shadow-lg">
-							{user.avatar ? (
-								<Avatar.Image src={user.avatar} alt={user.name} />
-							) : (
-								<span className="text-title-h4 font-semibold">
-									{user.name.charAt(0).toUpperCase()}
-								</span>
-							)}
-						</Avatar.Root>
-						<button
-							type="button"
-							className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer"
-						>
-							<CloudArrowUp className="size-6 text-white" />
-						</button>
-					</div>
-					<div className="text-center sm:text-left flex-1">
-						<h3 className="text-label-lg text-text-strong-950">{user.name}</h3>
-						<p className="text-paragraph-sm text-text-sub-600">{user.email}</p>
-						<div className="flex flex-wrap gap-2 mt-3 justify-center sm:justify-start">
-							<Button.Root variant="neutral" size="small">
-								<Button.Icon as={CloudArrowUp} />
-								Change
-							</Button.Root>
-							<Button.Root variant="ghost" size="small">
-								<Button.Icon as={Trash} />
-								Remove
-							</Button.Root>
-						</div>
-					</div>
-				</div>
-			</SettingsCard>
-
-			{/* Personal Information */}
-			<SettingsCard title="Personal Information">
-				<div className="space-y-4">
-					<div className="grid gap-4 sm:grid-cols-2">
-						<FormField label="Full Name" required error={errors.name?.message}>
-							<Input.Root>
-								<Input.Wrapper>
-									<Input.Icon as={User} />
-									<Input.El {...register("name")} placeholder="Enter your name" />
-								</Input.Wrapper>
-							</Input.Root>
-						</FormField>
-
-						<FormField label="Email Address">
-							<ChangeEmailField email={user.email} />
-						</FormField>
-
-						<FormField label="Phone Number" error={errors.phone?.message}>
-							<Input.Root>
-								<Input.Wrapper>
-									<Input.Icon as={Phone} />
-									<Input.El {...register("phone")} placeholder="+91 98765 43210" type="tel" />
-								</Input.Wrapper>
-							</Input.Root>
-						</FormField>
-
-						<FormField label="Role">
-							<Input.Root>
-								<Input.Wrapper>
-									<Input.Icon as={ShieldCheck} />
-									<Input.El value={user.role} disabled className="text-text-soft-400" />
-								</Input.Wrapper>
-							</Input.Root>
-						</FormField>
-					</div>
-
-					<CardFooter saved={saved} isLoading={isLoading} onSave={handleSubmit(onSubmit)} />
-				</div>
-			</SettingsCard>
-		</div>
-	)
-}
+// Profile section removed - moved to /dashboard/profile page (Industry Standard: Settings = Organization, Profile = User)
 
 // ===========================================
 // ORGANIZATION SECTION
@@ -407,7 +252,7 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 				queryClient.invalidateQueries({ queryKey: ["organization"] })
 				router.refresh()
 			} else {
-				toast.error(result.error || "Failed to update organization")
+				toast.error("error" in result ? result.error || "Failed to update organization" : "Failed to update organization")
 			}
 		} catch {
 			toast.error("Something went wrong. Please try again.")
@@ -471,16 +316,16 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 			<SettingsCard title="Details">
 				<div className="space-y-4">
 					<div className="grid gap-4 sm:grid-cols-2">
-								<FormField label="Organization Name" required>
-									<Input.Root>
-										<Input.Wrapper>
-											<Input.Icon as={Buildings} />
-											<Input.El
-												{...register("name")}
-												placeholder="Enter organization name"
-											/>
-										</Input.Wrapper>
-									</Input.Root>
+						<FormField label="Organization Name" required>
+							<Input.Root>
+								<Input.Wrapper>
+									<Input.Icon as={Buildings} />
+									<Input.El
+										{...register("name")}
+										placeholder="Enter organization name"
+									/>
+								</Input.Wrapper>
+							</Input.Root>
 						</FormField>
 
 						<FormField label="Handle">
@@ -573,110 +418,6 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 	)
 }
 
-// ===========================================
-// BILLING SECTION
-// ===========================================
-function BillingSection({
-	bankAccounts,
-	organization,
-}: { bankAccounts: SettingsData["bankAccounts"]; organization: SettingsData["organization"] }) {
-	const [isAddBankAccountOpen, setIsAddBankAccountOpen] = React.useState(false)
-
-	return (
-		<div className="space-y-6">
-			{/* Current Plan */}
-			<div className="rounded-2xl bg-linear-to-br from-primary-base to-primary-darker p-5 sm:p-6 text-white shadow-lg">
-				<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-					<div>
-						<p className="text-label-xs opacity-80 mb-1">Current Plan</p>
-						<h3 className="text-title-h5 sm:text-title-h4 font-semibold">Pro Plan</h3>
-						<p className="text-paragraph-sm opacity-80 mt-1">₹4,999/mo</p>
-					</div>
-					<Button.Root
-						variant="neutral"
-						size="small"
-						className="bg-white/20 hover:bg-white/30 text-white border-white/30 w-full sm:w-auto"
-					>
-						Upgrade
-					</Button.Root>
-				</div>
-			</div>
-
-			{/* Bank Accounts */}
-			<SettingsCard
-				title="Bank Accounts"
-				action={
-					<Button.Root variant="primary" size="small" onClick={() => setIsAddBankAccountOpen(true)}>
-						<Button.Icon as={Plus} />
-						Add
-					</Button.Root>
-				}
-			>
-				<div className="space-y-3">
-					{bankAccounts.map((account) => (
-						<BankAccountCard key={account.id} account={account} organizationId={organization.id} />
-					))}
-				</div>
-			</SettingsCard>
-
-			{/* Billing Address */}
-			<SettingsCard
-				title="Billing Address"
-				action={
-					<Button.Root variant="ghost" size="small">
-						<Button.Icon as={PencilSimple} />
-						Edit
-					</Button.Root>
-				}
-			>
-				<div className="p-4 rounded-xl bg-bg-weak-50 flex items-start gap-3">
-					<MapPin className="size-5 text-text-soft-400 shrink-0 mt-0.5" />
-					<div>
-						<p className="text-label-sm text-text-strong-950">{organization.name}</p>
-						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
-							{organization.address}
-						</p>
-					</div>
-				</div>
-			</SettingsCard>
-
-			{/* Payment History */}
-			<SettingsCard title="Transactions">
-				<div className="space-y-1">
-					{["Nov 2024", "Oct 2024", "Sep 2024"].map((month) => (
-						<div
-							key={month}
-							className="flex items-center justify-between p-3 rounded-lg hover:bg-bg-weak-50 transition-colors duration-150"
-						>
-							<div className="flex items-center gap-3">
-								<div className="flex size-9 items-center justify-center rounded-lg bg-bg-weak-50">
-									<FileText className="size-4 text-text-soft-400" />
-								</div>
-								<div>
-									<p className="text-label-sm text-text-strong-950">Subscription</p>
-									<p className="text-paragraph-xs text-text-sub-600">{month}</p>
-								</div>
-							</div>
-							<div className="flex items-center gap-3">
-								<span className="text-label-sm text-text-strong-950">₹4,999</span>
-								<Button.Root variant="ghost" size="xsmall">
-									Download
-								</Button.Root>
-							</div>
-						</div>
-					))}
-				</div>
-			</SettingsCard>
-
-			{/* Add Bank Account Modal */}
-			<AddBankAccountModal
-				open={isAddBankAccountOpen}
-				onOpenChange={setIsAddBankAccountOpen}
-				organizationId={organization.id || ""}
-			/>
-		</div>
-	)
-}
 
 // ===========================================
 // GST SECTION
@@ -686,12 +427,12 @@ function GstSection({ gstDetails }: { gstDetails: SettingsData["gstDetails"] }) 
 		<div className="space-y-6">
 			{/* GST Details */}
 			<SettingsCard
-			title="GST Details"
-			badge={
-				gstDetails?.isVerified && (
-					<Badge.Root color="green" variant="lighter" size="small">
-						<Badge.Icon as={SealCheck} weight="duotone" />
-						Verified
+				title="GST Details"
+				badge={
+					gstDetails?.isVerified && (
+						<Badge.Root color="green" variant="lighter" size="small">
+							<Badge.Icon as={SealCheck} weight="duotone" />
+							Verified
 						</Badge.Root>
 					)
 				}
@@ -700,7 +441,7 @@ function GstSection({ gstDetails }: { gstDetails: SettingsData["gstDetails"] }) 
 					{gstDetails ? (
 						<>
 							{/* GST Number Display */}
-							<div className="p-4 rounded-xl bg-gradient-to-br from-primary-base/5 to-primary-darker/5 border border-stroke-soft-200">
+							<div className="p-4 rounded-xl bg-linear-to-br from-primary-base/5 to-primary-darker/5 border border-stroke-soft-200">
 								<div className="flex items-center justify-between mb-2">
 									<span className="text-label-xs text-text-sub-600 uppercase tracking-wider">
 										GST Number
@@ -764,454 +505,129 @@ function GstSection({ gstDetails }: { gstDetails: SettingsData["gstDetails"] }) 
 }
 
 // ===========================================
-// NOTIFICATIONS SECTION
+// BANK ACCOUNTS SECTION
 // ===========================================
-function NotificationsSection() {
-	// Check if Novu is configured
-	const isNovuConfigured = !!process.env.NEXT_PUBLIC_NOVU_APP_ID
-
-	return (
-		<div className="space-y-6">
-			{/* Novu Preferences - Only show when Novu is configured */}
-			{isNovuConfigured && <NovuPreferencesSection />}
-
-			{/* Email Notifications */}
-			<SettingsCard title="Email Notifications">
-				<div className="space-y-1">
-					<ToggleRow
-						title="New Enrollments"
-						description="When enrollment is submitted"
-						defaultChecked={true}
-					/>
-					<ToggleRow
-						title="Campaign Updates"
-						description="Performance updates"
-						defaultChecked={true}
-					/>
-					<ToggleRow
-						title="Wallet Alerts"
-						description="Low balance & transactions"
-						defaultChecked={true}
-					/>
-					<ToggleRow
-						title="Invoice Reminders"
-						description="Pending invoice alerts"
-						defaultChecked={false}
-					/>
-					<ToggleRow title="Weekly Summary" description="Activity digest" defaultChecked={true} />
-				</div>
-			</SettingsCard>
-
-			{/* In-App & Push Notifications */}
-			<SettingsCard title="In-App Notifications">
-				<div className="space-y-1">
-					<ToggleRow
-						title="Real-time Alerts"
-						description="Show notifications in the bell icon"
-						defaultChecked={true}
-					/>
-					<ToggleRow
-						title="Sound Alerts"
-						description="Play notification sound"
-						defaultChecked={true}
-					/>
-					<ToggleRow
-						title="Desktop Notifications"
-						description="Browser push notifications"
-						defaultChecked={false}
-					/>
-				</div>
-			</SettingsCard>
-
-			{/* Quiet Hours */}
-			<SettingsCard title="Quiet Hours">
-				<ToggleRow
-					title="Enable Quiet Hours"
-					description="Pause notifications during set hours"
-					defaultChecked={false}
-				/>
-			</SettingsCard>
-		</div>
-	)
-}
-
-/**
- * Novu Preferences Section - Uses usePreferences hook from @novu/react
- * This component manages real notification channel preferences through Novu
- *
- * Note: This is a placeholder that will render the NovuPreferencesPanel
- * when Novu is properly configured. The actual component uses usePreferences
- * hook which requires NovuProvider context.
- */
-function NovuPreferencesSection() {
-	// Uses the NovuPreferencesPanel which leverages usePreferences hook from @novu/react
-	// The component is rendered inside NovuProvider context from the dashboard shell
-	return <NovuPreferencesPanel />
-}
-
-// ===========================================
-// SECURITY SECTION
-// ===========================================
-
-interface Session {
-	id: string
-	device: string
-	iconType: "computer" | "smartphone" | "mac"
-	ip: string
-	location: string
-	lastActive: string
-	signedIn: string
-	isCurrent: boolean
-}
-
-function SecuritySection() {
+function BankAccountsSection({
+	bankAccounts,
+	organizationId,
+}: {
+	bankAccounts: SettingsData["bankAccounts"]
+	organizationId: string
+}) {
+	const [showAddModal, setShowAddModal] = React.useState(false)
 	const router = useRouter()
 	const queryClient = useQueryClient()
-	const [showCurrentPassword, setShowCurrentPassword] = React.useState(false)
-	const [showNewPassword, setShowNewPassword] = React.useState(false)
-	const [showConfirmPassword, setShowConfirmPassword] = React.useState(false)
-	const [isPasswordLoading, setIsPasswordLoading] = React.useState(false)
-	const [isSessionLoading, setIsSessionLoading] = React.useState(false)
-	const [sessions, setSessions] = React.useState<Session[]>([])
-	const [isLoadingSessions, setIsLoadingSessions] = React.useState(true)
 
-	const {
-		register: registerPassword,
-		handleSubmit: handlePasswordSubmit,
-		formState: { errors: passwordErrors },
-		reset: resetPasswordForm,
-	} = useForm<ChangePasswordFormData>({
-		resolver: zodResolver(changePasswordSchema),
-		defaultValues: {
-			currentPassword: "",
-			newPassword: "",
-			confirmPassword: "",
-		},
-	})
-
-	React.useEffect(() => {
-		async function fetchSessions() {
-			try {
-				const { getUserSessions } = await import("@/app/actions")
-				const result = await getUserSessions()
-				if (result.success && result.data) {
-					setSessions(result.data as Session[])
-				}
-			} finally {
-				setIsLoadingSessions(false)
-			}
+	const handleRemove = async (accountId: string) => {
+		if (!confirm("Are you sure you want to remove this bank account?")) {
+			return
 		}
-		fetchSessions()
-	}, [])
 
-	const onPasswordSubmit = async (data: ChangePasswordFormData) => {
-		setIsPasswordLoading(true)
 		try {
-			const result = await updatePassword({
-				currentPassword: data.currentPassword,
-				newPassword: data.newPassword,
-			})
+			const { removeBankAccount } = await import("@/app/actions/settings")
+			const result = await removeBankAccount(accountId)
 			if (result.success) {
-				toast.success(result.message || "Password updated successfully")
-				resetPasswordForm()
-				// Invalidate session query to refetch updated user data
-				queryClient.invalidateQueries({ queryKey: ["session"] })
+				toast.success("Bank account removed successfully")
+				queryClient.invalidateQueries({ queryKey: ["settings", "bankAccounts"] })
+				queryClient.invalidateQueries({ queryKey: ["bankAccounts"] })
+				router.refresh()
 			} else {
-				toast.error(result.error || "Failed to update password")
+				toast.error("error" in result ? result.error || "Failed to remove bank account" : "Failed to remove bank account")
 			}
 		} catch {
 			toast.error("Something went wrong. Please try again.")
-		} finally {
-			setIsPasswordLoading(false)
 		}
 	}
 
-	const handleRevokeAllSessions = async () => {
-		setIsSessionLoading(true)
+	const handleSetDefault = async (accountId: string) => {
 		try {
-			const result = await revokeAllSessions()
+			const { setDefaultBankAccount } = await import("@/app/actions/settings")
+			const result = await setDefaultBankAccount(accountId)
 			if (result.success) {
-				toast.success(result.message || "All other sessions signed out")
-				// Refetch sessions to update the list
-				const { getUserSessions } = await import("@/app/actions")
-				const sessionsResult = await getUserSessions()
-				if (sessionsResult.success && sessionsResult.data) {
-					setSessions(sessionsResult.data as Session[])
-				}
-				// Invalidate session queries
-				queryClient.invalidateQueries({ queryKey: ["sessions"] })
-				queryClient.invalidateQueries({ queryKey: ["session"] })
+				toast.success("Default bank account updated")
+				queryClient.invalidateQueries({ queryKey: ["settings", "bankAccounts"] })
+				queryClient.invalidateQueries({ queryKey: ["bankAccounts"] })
 				router.refresh()
 			} else {
-				toast.error(result.error || "Failed to revoke sessions")
+				toast.error("error" in result ? result.error || "Failed to set default account" : "Failed to set default account")
 			}
 		} catch {
 			toast.error("Something went wrong. Please try again.")
-		} finally {
-			setIsSessionLoading(false)
 		}
 	}
 
 	return (
 		<div className="space-y-6">
-			{/* Password */}
-			<SettingsCard title="Password">
-				<div className="space-y-4">
-					<div className="p-4 rounded-xl bg-success-lighter/30 border border-success-base/20 flex items-center gap-3">
-						<div className="flex size-10 items-center justify-center rounded-full bg-success-lighter shrink-0">
-							<ShieldCheck className="size-5 text-success-base" />
-						</div>
-						<div>
-							<p className="text-label-sm text-text-strong-950">Password is secure</p>
-							<p className="text-paragraph-xs text-text-sub-600">Last changed 30 days ago</p>
-						</div>
-					</div>
-
-					<form onSubmit={handlePasswordSubmit(onPasswordSubmit)}>
-						<div className="grid gap-4">
-							<FormField label="Current Password" error={passwordErrors.currentPassword?.message}>
-								<Input.Root>
-									<Input.Wrapper>
-										<Input.Icon as={Lock} />
-										<Input.El
-											{...registerPassword("currentPassword")}
-											type={showCurrentPassword ? "text" : "password"}
-											placeholder="Enter current password"
-										/>
-										<button
-											type="button"
-											onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-											className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
-										>
-											{showCurrentPassword ? (
-												<EyeSlash className="size-4" />
-											) : (
-												<Eye className="size-4" />
-											)}
-										</button>
-									</Input.Wrapper>
-								</Input.Root>
-							</FormField>
-
-							<FormField label="New Password" error={passwordErrors.newPassword?.message}>
-								<Input.Root>
-									<Input.Wrapper>
-										<Input.Icon as={Lock} />
-										<Input.El
-											{...registerPassword("newPassword")}
-											type={showNewPassword ? "text" : "password"}
-											placeholder="Enter new password"
-										/>
-										<button
-											type="button"
-											onClick={() => setShowNewPassword(!showNewPassword)}
-											className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
-										>
-											{showNewPassword ? (
-												<EyeSlash className="size-4" />
-											) : (
-												<Eye className="size-4" />
-											)}
-										</button>
-									</Input.Wrapper>
-								</Input.Root>
-							</FormField>
-
-							<FormField label="Confirm Password" error={passwordErrors.confirmPassword?.message}>
-								<Input.Root>
-									<Input.Wrapper>
-										<Input.Icon as={Lock} />
-										<Input.El
-											{...registerPassword("confirmPassword")}
-											type={showConfirmPassword ? "text" : "password"}
-											placeholder="Confirm new password"
-										/>
-										<button
-											type="button"
-											onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-											className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
-										>
-											{showConfirmPassword ? (
-												<EyeSlash className="size-4" />
-											) : (
-												<Eye className="size-4" />
-											)}
-										</button>
-									</Input.Wrapper>
-								</Input.Root>
-							</FormField>
-						</div>
-
-						<div className="pt-4 border-t border-stroke-soft-200 flex justify-end">
-							<Button.Root type="submit" variant="primary" disabled={isPasswordLoading}>
-								{isPasswordLoading ? "Updating..." : "Update Password"}
-							</Button.Root>
-						</div>
-					</form>
-				</div>
-			</SettingsCard>
-
-			{/* Two-Factor Authentication */}
-			<TwoFactorAuthSection />
-
-			{/* Email Verification */}
-			<SettingsCard title="Email Verification">
-				<div className="space-y-4">
-					<div className="p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200 flex items-center gap-3">
-						<div className="flex size-10 items-center justify-center rounded-full bg-primary-lighter shrink-0">
-							<Envelope className="size-5 text-primary-base" />
-						</div>
-						<div className="flex-1">
-							<p className="text-label-sm text-text-strong-950">Email Status</p>
-							<p className="text-paragraph-xs text-text-sub-600">
-								{user.emailVerified ? "Your email is verified" : "Please verify your email address"}
-							</p>
-						</div>
-						{!user.emailVerified && (
-							<Button.Root
-								variant="primary"
-								size="small"
-								onClick={async () => {
-									try {
-										const result = await sendVerificationEmail(user.email)
-										if (result.success) {
-											toast.success(result.message || "Verification email sent")
-										} else {
-											toast.error(result.error || "Failed to send verification email")
-										}
-									} catch {
-										toast.error("Something went wrong. Please try again.")
-									}
-								}}
-							>
-								Resend Verification
-							</Button.Root>
-						)}
-					</div>
-				</div>
-			</SettingsCard>
-
-			{/* Change Email */}
-			<SettingsCard title="Change Email">
-				<ChangeEmailForm currentEmail={user.email} />
-			</SettingsCard>
-
-			{/* Delete Account */}
-			<SettingsCard title="Delete Account" variant="danger">
-				<div className="p-4 rounded-xl bg-error-lighter/30 border border-error-base/20">
-					<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-						<div className="flex items-start gap-3">
-							<Warning className="size-5 text-error-base shrink-0 mt-0.5" weight="fill" />
-							<div>
-								<h4 className="text-label-sm text-text-strong-950">Delete Account</h4>
-								<p className="text-paragraph-xs text-text-sub-600 mt-0.5">
-									Permanently delete your account and all associated data. This action cannot be
-									undone.
-								</p>
-							</div>
-						</div>
-						<Button.Root
-							variant="error"
-							size="small"
-							className="shrink-0 w-full sm:w-auto"
-							onClick={async () => {
-								if (
-									!confirm(
-										"Are you sure you want to delete your account? This action cannot be undone."
-									)
-								) {
-									return
-								}
-
-								const password = prompt("Please enter your password to confirm account deletion:")
-								if (!password) {
-									return
-								}
-
-								try {
-									const result = await deleteUserAccount(password)
-									if (result.success) {
-										toast.success(
-											result.message || "Account deletion request sent. Please check your email."
-										)
-										router.push("/sign-in")
-									} else {
-										toast.error(result.error || "Failed to delete account")
-									}
-								} catch {
-									toast.error("Something went wrong. Please try again.")
-								}
-							}}
-						>
-							Delete Account
-						</Button.Root>
-					</div>
-				</div>
-			</SettingsCard>
-
-			{/* Active Sessions */}
+			{/* Bank Accounts List */}
 			<SettingsCard
-				title="Sessions"
+				title="Bank Accounts"
 				action={
-					<Button.Root
-						variant="ghost"
-						size="small"
-						className="text-error-base hover:text-error-dark"
-						onClick={handleRevokeAllSessions}
-						disabled={isSessionLoading}
-					>
-						<Button.Icon as={SignOut} />
-						{isSessionLoading ? "Signing Out..." : "Sign Out All"}
+					<Button.Root variant="primary" size="small" onClick={() => setShowAddModal(true)}>
+						<Button.Icon as={Plus} />
+						Add Account
 					</Button.Root>
 				}
 			>
-				<div className="space-y-2">
-					{isLoadingSessions ? (
-						<>
-							<div className="flex items-center gap-3 p-3 rounded-lg">
-								<div className="size-10 rounded-lg bg-bg-weak-50 animate-pulse" />
-								<div className="flex-1 space-y-2">
-									<div className="h-4 w-32 bg-bg-weak-50 rounded animate-pulse" />
-									<div className="h-3 w-24 bg-bg-weak-50 rounded animate-pulse" />
-								</div>
-							</div>
-							<div className="flex items-center gap-3 p-3 rounded-lg">
-								<div className="size-10 rounded-lg bg-bg-weak-50 animate-pulse" />
-								<div className="flex-1 space-y-2">
-									<div className="h-4 w-28 bg-bg-weak-50 rounded animate-pulse" />
-									<div className="h-3 w-20 bg-bg-weak-50 rounded animate-pulse" />
-								</div>
-							</div>
-						</>
-					) : sessions.length > 0 ? (
-						sessions.map((session) => (
-							<SessionRow
-								key={session.id}
-								device={session.device}
-								location={session.location}
-								lastActive={session.lastActive}
-								isCurrent={session.isCurrent}
-								icon={session.iconType === "smartphone" ? DeviceMobile : Desktop}
-							/>
-						))
-					) : (
+				<div className="space-y-3">
+					{bankAccounts.length === 0 ? (
 						<div className="py-8 text-center">
 							<div className="flex flex-col items-center">
 								<div className="size-12 rounded-full bg-bg-weak-50 flex items-center justify-center mb-4">
-									<Desktop weight="duotone" className="size-6 text-text-soft-400" />
+									<Bank weight="duotone" className="size-6 text-text-soft-400" />
 								</div>
-								<h3 className="text-label-md text-text-strong-950 mb-1">No active sessions</h3>
-								<p className="text-paragraph-sm text-text-sub-600">
-									You don't have any active sessions at the moment
+								<h3 className="text-label-md text-text-strong-950 mb-1">No bank accounts</h3>
+								<p className="text-paragraph-sm text-text-sub-600 mb-4">
+									Add a bank account to enable withdrawals
 								</p>
+								<Button.Root variant="primary" size="small" onClick={() => setShowAddModal(true)}>
+									<Button.Icon as={Plus} />
+									Add Bank Account
+								</Button.Root>
 							</div>
 						</div>
+					) : (
+						bankAccounts.map((account) => (
+							<div key={account.id} className="relative">
+								<BankAccountCard account={account} organizationId={organizationId} />
+								{/* Actions Menu */}
+								<div className="absolute top-4 right-4 flex items-center gap-2">
+									{!account.isDefault && (
+										<Button.Root
+											variant="ghost"
+											size="xsmall"
+											onClick={() => handleSetDefault(account.id)}
+										>
+											Set as Primary
+										</Button.Root>
+									)}
+									<Button.Root
+										variant="ghost"
+										size="xsmall"
+										className="text-error-base hover:text-error-dark"
+										onClick={() => handleRemove(account.id)}
+									>
+										<Button.Icon as={Trash} />
+									</Button.Root>
+								</div>
+							</div>
+						))
 					)}
 				</div>
 			</SettingsCard>
+
+			{/* Add Bank Account Modal */}
+			<AddBankAccountModal
+				open={showAddModal}
+				onOpenChange={setShowAddModal}
+				organizationId={organizationId}
+			/>
 		</div>
 	)
 }
+
+// Notifications section removed - moved to /dashboard/profile page (Industry Standard: Settings = Organization, Profile = User)
+
+// Security section removed - moved to /dashboard/profile page (Industry Standard: Settings = Organization, Profile = User)
 
 // ===========================================
 // HELPER COMPONENTS
@@ -1287,48 +703,7 @@ function ToggleRow({ title, description, defaultChecked }: ToggleRowProps) {
 	)
 }
 
-interface SessionRowProps {
-	device: string
-	location: string
-	lastActive: string
-	isCurrent: boolean
-	icon: React.ElementType
-}
-
-function SessionRow({ device, location, lastActive, isCurrent, icon: Icon }: SessionRowProps) {
-	return (
-		<div className="flex items-center justify-between gap-3 p-3 rounded-lg hover:bg-bg-weak-50/50 transition-colors duration-150">
-			<div className="flex items-center gap-3 min-w-0">
-				<div
-					className={cn(
-						"flex size-10 items-center justify-center rounded-lg shrink-0",
-						isCurrent ? "bg-success-lighter" : "bg-bg-weak-50"
-					)}
-				>
-					<Icon className={cn("size-5", isCurrent ? "text-success-base" : "text-text-soft-400")} />
-				</div>
-				<div className="min-w-0">
-					<div className="flex items-center gap-2 flex-wrap">
-						<span className="text-label-sm text-text-strong-950">{device}</span>
-						{isCurrent && (
-							<Badge.Root color="green" variant="lighter" size="small">
-								Current
-							</Badge.Root>
-						)}
-					</div>
-					<p className="text-paragraph-xs text-text-sub-600 truncate">
-						{location} · {lastActive}
-					</p>
-				</div>
-			</div>
-			{!isCurrent && (
-				<Button.Root variant="ghost" size="xsmall" className="shrink-0">
-					Revoke
-				</Button.Root>
-			)}
-		</div>
-	)
-}
+// SessionRow removed - moved to /dashboard/profile page (Industry Standard: Settings = Organization, Profile = User)
 
 function CardFooter({
 	saved,
@@ -1356,385 +731,9 @@ function CardFooter({
 	)
 }
 
-// ===========================================
-// CHANGE EMAIL COMPONENTS
-// ===========================================
-function ChangeEmailField({ email }: { email: string }) {
-	const [isChanging, setIsChanging] = React.useState(false)
-	const [newEmail, setNewEmail] = React.useState("")
-	const [password, setPassword] = React.useState("")
-	const [showPassword, setShowPassword] = React.useState(false)
-	const [isLoading, setIsLoading] = React.useState(false)
+// ChangeEmailField and ChangeEmailForm removed - moved to /dashboard/profile page (Industry Standard: Settings = Organization, Profile = User)
 
-	if (!isChanging) {
-		return (
-			<>
-				<Input.Root>
-					<Input.Wrapper>
-						<Input.Icon as={Envelope} />
-						<Input.El value={email} disabled className="text-text-soft-400" />
-					</Input.Wrapper>
-				</Input.Root>
-				<div className="flex items-center justify-between mt-1.5">
-					<p className="text-paragraph-xs text-text-soft-400">Contact support to change email</p>
-					<Button.Root variant="ghost" size="xsmall" onClick={() => setIsChanging(true)}>
-						Change
-					</Button.Root>
-				</div>
-			</>
-		)
-	}
-
-	return (
-		<div className="space-y-3">
-			<Input.Root>
-				<Input.Wrapper>
-					<Input.Icon as={Envelope} />
-					<Input.El
-						type="email"
-						placeholder="Enter new email"
-						value={newEmail}
-						onChange={(e) => setNewEmail(e.target.value)}
-					/>
-				</Input.Wrapper>
-			</Input.Root>
-			<Input.Root>
-				<Input.Wrapper>
-					<Input.Icon as={Lock} />
-					<Input.El
-						type={showPassword ? "text" : "password"}
-						placeholder="Enter your password"
-						value={password}
-						onChange={(e) => setPassword(e.target.value)}
-					/>
-					<button
-						type="button"
-						onClick={() => setShowPassword(!showPassword)}
-						className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
-					>
-						{showPassword ? <EyeSlash className="size-4" /> : <Eye className="size-4" />}
-					</button>
-				</Input.Wrapper>
-			</Input.Root>
-			<div className="flex items-center gap-2">
-				<Button.Root
-					variant="primary"
-					size="small"
-					disabled={isLoading || !newEmail || !password}
-					onClick={async () => {
-						setIsLoading(true)
-						try {
-							const result = await changeEmail(newEmail, password)
-							if (result.success) {
-								toast.success(
-									result.message || "Email change request sent. Please check your email."
-								)
-								setIsChanging(false)
-								setNewEmail("")
-								setPassword("")
-							} else {
-								toast.error(result.error || "Failed to change email")
-							}
-						} catch {
-							toast.error("Something went wrong. Please try again.")
-						} finally {
-							setIsLoading(false)
-						}
-					}}
-				>
-					{isLoading ? "Sending..." : "Send Request"}
-				</Button.Root>
-				<Button.Root
-					variant="ghost"
-					size="small"
-					onClick={() => {
-						setIsChanging(false)
-						setNewEmail("")
-						setPassword("")
-					}}
-				>
-					Cancel
-				</Button.Root>
-			</div>
-		</div>
-	)
-}
-
-function ChangeEmailForm({ currentEmail }: { currentEmail: string }) {
-	const [newEmail, setNewEmail] = React.useState("")
-	const [password, setPassword] = React.useState("")
-	const [showPassword, setShowPassword] = React.useState(false)
-	const [isLoading, setIsLoading] = React.useState(false)
-
-	return (
-		<div className="space-y-4">
-			<div className="p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200">
-				<p className="text-paragraph-sm text-text-sub-600">
-					To change your email address, enter your new email and current password. You'll receive a
-					confirmation email at your new address.
-				</p>
-			</div>
-
-			<div className="space-y-4">
-				<FormField label="New Email Address">
-					<Input.Root>
-						<Input.Wrapper>
-							<Input.Icon as={Envelope} />
-							<Input.El
-								type="email"
-								placeholder="Enter new email"
-								value={newEmail}
-								onChange={(e) => setNewEmail(e.target.value)}
-							/>
-						</Input.Wrapper>
-					</Input.Root>
-				</FormField>
-
-				<FormField label="Current Password">
-					<Input.Root>
-						<Input.Wrapper>
-							<Input.Icon as={Lock} />
-							<Input.El
-								type={showPassword ? "text" : "password"}
-								placeholder="Enter your password"
-								value={password}
-								onChange={(e) => setPassword(e.target.value)}
-							/>
-							<button
-								type="button"
-								onClick={() => setShowPassword(!showPassword)}
-								className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
-							>
-								{showPassword ? <EyeSlash className="size-4" /> : <Eye className="size-4" />}
-							</button>
-						</Input.Wrapper>
-					</Input.Root>
-				</FormField>
-			</div>
-
-			<div className="pt-4 border-t border-stroke-soft-200 flex justify-end">
-				<Button.Root
-					variant="primary"
-					onClick={async () => {
-						setIsLoading(true)
-						try {
-							const result = await changeEmail(newEmail, password)
-							if (result.success) {
-								toast.success(
-									result.message || "Email change request sent. Please check your email."
-								)
-								setNewEmail("")
-								setPassword("")
-							} else {
-								toast.error(result.error || "Failed to change email")
-							}
-						} catch {
-							toast.error("Something went wrong. Please try again.")
-						} finally {
-							setIsLoading(false)
-						}
-					}}
-					disabled={isLoading || !newEmail || !password}
-				>
-					{isLoading ? "Sending..." : "Send Change Request"}
-				</Button.Root>
-			</div>
-		</div>
-	)
-}
-
-// ===========================================
-// TWO-FACTOR AUTHENTICATION SECTION
-// ===========================================
-function TwoFactorAuthSection() {
-	const [is2FAEnabled, setIs2FAEnabled] = React.useState(false)
-	const [isSettingUp, setIsSettingUp] = React.useState(false)
-	const [qrCodeUrl, setQrCodeUrl] = React.useState<string | null>(null)
-	const [backupCodes, setBackupCodes] = React.useState<string[]>([])
-	const [showBackupCodes, setShowBackupCodes] = React.useState(false)
-	const [password, setPassword] = React.useState("")
-	const [showPassword, setShowPassword] = React.useState(false)
-	const [isLoading, setIsLoading] = React.useState(false)
-	const [verificationCode, setVerificationCode] = React.useState("")
-
-	const handleEnable2FA = async () => {
-		if (!password) {
-			toast.error("Password is required")
-			return
-		}
-
-		setIsLoading(true)
-		try {
-			const result = await enable2FA(password)
-			if (result.success) {
-				setQrCodeUrl(result.qrCodeUrl || null)
-				setBackupCodes(result.backupCodes || [])
-				setIsSettingUp(true)
-				toast.success("2FA setup initiated. Scan the QR code with your authenticator app.")
-			} else {
-				toast.error(result.error || "Failed to enable 2FA")
-			}
-		} catch {
-			toast.error("Something went wrong. Please try again.")
-		} finally {
-			setIsLoading(false)
-		}
-	}
-
-	const handleDisable2FA = async () => {
-		const pwd = prompt("Enter your password to disable 2FA:")
-		if (!pwd) return
-
-		setIsLoading(true)
-		try {
-			const result = await disable2FA(pwd)
-			if (result.success) {
-				setIs2FAEnabled(false)
-				setIsSettingUp(false)
-				setQrCodeUrl(null)
-				setBackupCodes([])
-				toast.success("2FA disabled successfully")
-			} else {
-				toast.error(result.error || "Failed to disable 2FA")
-			}
-		} catch {
-			toast.error("Something went wrong. Please try again.")
-		} finally {
-			setIsLoading(false)
-		}
-	}
-
-	return (
-		<SettingsCard title="Two-Factor Authentication">
-			<div className="space-y-4">
-				{!is2FAEnabled && !isSettingUp && (
-					<div className="space-y-4">
-						<div className="p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200">
-							<p className="text-paragraph-sm text-text-sub-600">
-								Add an extra layer of security to your account by enabling two-factor
-								authentication.
-							</p>
-						</div>
-
-						<FormField label="Password">
-							<Input.Root>
-								<Input.Wrapper>
-									<Input.Icon as={Lock} />
-									<Input.El
-										type={showPassword ? "text" : "password"}
-										placeholder="Enter your password"
-										value={password}
-										onChange={(e) => setPassword(e.target.value)}
-									/>
-									<button
-										type="button"
-										onClick={() => setShowPassword(!showPassword)}
-										className="text-text-soft-400 hover:text-text-sub-600 transition-colors pr-1"
-									>
-										{showPassword ? <EyeSlash className="size-4" /> : <Eye className="size-4" />}
-									</button>
-								</Input.Wrapper>
-							</Input.Root>
-						</FormField>
-
-						<div className="pt-4 border-t border-stroke-soft-200 flex justify-end">
-							<Button.Root
-								variant="primary"
-								onClick={handleEnable2FA}
-								disabled={isLoading || !password}
-							>
-								{isLoading ? "Setting up..." : "Enable 2FA"}
-							</Button.Root>
-						</div>
-					</div>
-				)}
-
-				{isSettingUp && qrCodeUrl && (
-					<div className="space-y-4">
-						<div className="p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200 text-center">
-							<p className="text-paragraph-sm text-text-sub-600 mb-4">
-								Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
-							</p>
-							<div className="flex justify-center">
-								<img
-									src={qrCodeUrl}
-									alt="2FA QR Code"
-									className="rounded-lg border border-stroke-soft-200"
-								/>
-							</div>
-						</div>
-
-						{backupCodes.length > 0 && (
-							<div className="p-4 rounded-xl bg-warning-lighter/30 border border-warning-base/20">
-								<p className="text-label-sm text-text-strong-950 mb-2">Backup Codes</p>
-								<p className="text-paragraph-xs text-text-sub-600 mb-3">
-									Save these codes in a safe place. You can use them to access your account if you
-									lose your device.
-								</p>
-								<div className="grid grid-cols-2 gap-2 font-mono text-paragraph-xs">
-									{backupCodes.map((code, idx) => (
-										<div
-											key={idx}
-											className="p-2 bg-bg-white-0 rounded border border-stroke-soft-200"
-										>
-											{code}
-										</div>
-									))}
-								</div>
-							</div>
-						)}
-
-						<div className="pt-4 border-t border-stroke-soft-200 flex justify-end gap-2">
-							<Button.Root
-								variant="ghost"
-								onClick={() => {
-									setIsSettingUp(false)
-									setQrCodeUrl(null)
-									setBackupCodes([])
-									setPassword("")
-								}}
-							>
-								Cancel
-							</Button.Root>
-							<Button.Root
-								variant="primary"
-								onClick={() => {
-									setIs2FAEnabled(true)
-									setIsSettingUp(false)
-									toast.success("2FA enabled successfully")
-								}}
-							>
-								Complete Setup
-							</Button.Root>
-						</div>
-					</div>
-				)}
-
-				{is2FAEnabled && !isSettingUp && (
-					<div className="space-y-4">
-						<div className="p-4 rounded-xl bg-success-lighter/30 border border-success-base/20 flex items-center gap-3">
-							<div className="flex size-10 items-center justify-center rounded-full bg-success-lighter shrink-0">
-								<ShieldCheck className="size-5 text-success-base" />
-							</div>
-							<div className="flex-1">
-								<p className="text-label-sm text-text-strong-950">2FA is enabled</p>
-								<p className="text-paragraph-xs text-text-sub-600">
-									Your account is protected with two-factor authentication
-								</p>
-							</div>
-						</div>
-
-						<div className="pt-4 border-t border-stroke-soft-200 flex justify-end">
-							<Button.Root variant="error" onClick={handleDisable2FA} disabled={isLoading}>
-								{isLoading ? "Disabling..." : "Disable 2FA"}
-							</Button.Root>
-						</div>
-					</div>
-				)}
-			</div>
-		</SettingsCard>
-	)
-}
+// TwoFactorAuthSection removed - moved to /dashboard/profile page (Industry Standard: Settings = Organization, Profile = User)
 
 // ===========================================
 // BANK ACCOUNT CARD COMPONENT
@@ -1754,13 +753,13 @@ function BankAccountCard({ account, organizationId }: BankAccountCardProps) {
 		try {
 			const result = await verifyBankAccount(account.id)
 			if (result.success) {
-				toast.success(result.message || "Verification initiated successfully")
+				toast.success("Verification initiated successfully")
 				// Invalidate bank accounts query to refetch updated status
 				queryClient.invalidateQueries({ queryKey: ["settings", "bankAccounts"] })
 				queryClient.invalidateQueries({ queryKey: ["bankAccounts"] })
 				router.refresh()
 			} else {
-				toast.error(result.error || "Failed to initiate verification")
+				toast.error("error" in result ? result.error || "Failed to initiate verification" : "Failed to initiate verification")
 			}
 		} catch (error) {
 			toast.error("An error occurred. Please try again.")
@@ -1914,7 +913,7 @@ function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAcco
 				queryClient.invalidateQueries({ queryKey: ["bankAccounts"] })
 				router.refresh()
 			} else {
-				toast.error(result.error || "Failed to add bank account")
+				toast.error("error" in result ? result.error || "Failed to add bank account" : "Failed to add bank account")
 			}
 		} catch (error) {
 			toast.error("An error occurred. Please try again.")

@@ -46,15 +46,43 @@ This document provides a comprehensive overview of all dependencies used in the 
 
 ## Authentication
 
-**Note**: Authentication is handled via Encore client (`lib/encore-client.ts`) which connects to the backend Encore API. The backend uses Better Auth for session management, but the frontend does not directly use Better Auth libraries.
+### `better-auth` (^1.4.5)
+**Purpose**: Full-stack authentication solution
+**Used In**: 35 files across `lib/auth/` components
+**Key Files**:
+- `lib/auth-client.ts` - Auth client configuration
+- `lib/auth/components/` - Auth UI components
+- `lib/auth/hooks/` - Auth hooks
 
-**Frontend Auth Implementation:**
-- `lib/encore-client.ts` - Auto-generated Encore client (includes auth endpoints)
-- `lib/encore.ts` - Encore client helper (`getEncoreClient()`)
-- `app/actions/auth.ts` - Server actions for auth operations
-- `hooks/use-session.ts` - React Query hook for session management
+**Features Used**:
+- Email/Password authentication
+- OAuth providers (Google, GitHub, etc.)
+- Two-factor authentication
+- Magic links
+- Email OTP
+- Passkey (WebAuthn)
+- Organization management
+- Session management
 
-**No Better Auth dependencies in frontend package.json** - All auth operations go through Encore client.
+### `@better-auth/passkey` (^1.4.5)
+**Purpose**: WebAuthn/Passkey support for Better Auth
+**Used In**: `lib/auth/components/settings/passkey/`
+
+### `@daveyplate/better-auth-ui` (^3.2.13)
+**Purpose**: Pre-built UI components for Better Auth
+**Used In**: `lib/auth/` - Vendored and customized
+**Note**: This is a vendored library with 140+ files in `lib/auth/`
+
+### `@better-fetch/fetch` (^1.1.18)
+**Purpose**: Enhanced fetch wrapper used by Better Auth
+**Used In**:
+- `lib/auth/components/auth/forms/two-factor-form.tsx`
+- `lib/auth/components/auth/forms/sign-in-form.tsx`
+- `lib/auth/types/auth-hooks.ts`
+
+### `@noble/hashes` (^2.0.1)
+**Purpose**: Cryptographic hashing for Gravatar URLs
+**Used In**: `lib/auth/lib/gravatar-utils.ts`
 
 ---
 

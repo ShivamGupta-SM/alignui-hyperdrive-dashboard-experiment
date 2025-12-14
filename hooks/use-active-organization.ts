@@ -3,12 +3,13 @@
 import { useMemo } from "react"
 import { useSession } from "./use-session"
 import type { Organization } from "./use-organizations"
+import type { auth } from "@/lib/encore-client"
 
 /**
  * Modern hook to get active organization
  * Uses React Query session as single source of truth
  *
- * @param organizations - List of user organizations
+ * @param organizations - List of user organizations (OrganizationResponse from auth.listOrganizations)
  * @returns Current active organization or null
  *
  * Features:
@@ -16,7 +17,9 @@ import type { Organization } from "./use-organizations"
  * - Automatically updates when session changes
  * - No redundant state management
  */
-export function useActiveOrganization(organizations: Organization[]): Organization | null {
+export function useActiveOrganization(
+	organizations: (Organization | auth.OrganizationResponse)[]
+): (Organization | auth.OrganizationResponse) | null {
 	const { data: sessionData } = useSession()
 	const activeOrgId = sessionData?.user?.activeOrganizationId
 
@@ -24,6 +27,9 @@ export function useActiveOrganization(organizations: Organization[]): Organizati
 		if (activeOrgId) {
 			return organizations.find((org) => org.id === activeOrgId) ?? null
 		}
+		// Display fallback: Show first org in UI if no active org in session
+		// NOTE: This is for UI display only - actual data fetching uses session (getOrganizationIdOrNull)
+		// If session has no active org, data fetching will return null and pages will redirect
 		return organizations[0] ?? null
 	}, [organizations, activeOrgId])
 }

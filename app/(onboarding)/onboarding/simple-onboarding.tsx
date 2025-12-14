@@ -61,7 +61,7 @@ export function SimpleOnboarding() {
 			<div className="rounded-2xl bg-bg-white-0 p-6 sm:p-8 ring-1 ring-inset ring-stroke-soft-200 shadow-lg">
 				{/* Header */}
 				<div className="mb-6 sm:mb-8 text-center">
-					<div className="flex size-14 sm:size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-base to-primary-darker mx-auto mb-4 shadow-md">
+					<div className="flex size-14 sm:size-16 items-center justify-center rounded-2xl bg-linear-to-br from-primary-base to-primary-darker mx-auto mb-4 shadow-md">
 						<Building weight="duotone" className="size-7 sm:size-8 text-white" />
 					</div>
 					<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950 mb-1">

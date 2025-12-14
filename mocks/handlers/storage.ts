@@ -39,3 +39,4 @@ export const storageHandlers = [
 		return encoreResponse({ deleted: true })
 	}),
 ]
+

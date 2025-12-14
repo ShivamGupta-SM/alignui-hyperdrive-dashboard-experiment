@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams, useParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as Button from "@/components/ui/button"
@@ -10,11 +10,16 @@ import * as Input from "@/components/ui/input"
 import { Callout } from "@/components/ui/callout"
 import { ArrowLeft, Lock, Eye, EyeSlash, WarningCircle } from "@phosphor-icons/react"
 import { resetPasswordSchema, type ResetPasswordFormData } from "@/lib/validations"
+import { getSafeRedirectUrl } from "@/lib/url-validation"
 
 export default function ResetPasswordPage() {
 	const router = useRouter()
+	const params = useParams()
 	const searchParams = useSearchParams()
-	const token = searchParams.get("token")
+	// Support both path param (/reset-password/[token]) and query param (?token=xxx)
+	const token = (params?.token as string) || searchParams.get("token")
+	// Get callbackURL from query params (validated)
+	const callbackURL = searchParams.get("callbackURL")
 
 	const [showPassword, setShowPassword] = React.useState(false)
 	const [showConfirmPassword, setShowConfirmPassword] = React.useState(false)
@@ -37,36 +42,20 @@ export default function ResetPasswordPage() {
 		},
 	})
 
-	// Validate token on mount
+	// Skip pre-validation API call - validate when password is submitted
+	// This avoids issues with the token validation endpoint
 	React.useEffect(() => {
-		async function validateToken() {
-			if (!token) {
-				setIsValidating(false)
-				setIsValid(false)
-				setError("Invalid or missing reset token")
-				return
-			}
-
-			try {
-				const { resetPasswordCallback } = await import("@/app/actions/auth")
-				const result = await resetPasswordCallback(token)
-
-				if (result.success && result.valid) {
-					setIsValid(true)
-					setEmail(result.email || "")
-				} else {
-					setIsValid(false)
-					setError(result.error || "Invalid or expired reset token")
-				}
-			} catch (err) {
-				setIsValid(false)
-				setError("Failed to validate reset token")
-			} finally {
-				setIsValidating(false)
-			}
+		if (!token) {
+			setIsValidating(false)
+			setIsValid(false)
+			setError("Invalid or missing reset token")
+			return
 		}
 
-		validateToken()
+		// Token exists, show the form
+		// Actual validation will happen when user submits the password
+		setIsValid(true)
+		setIsValidating(false)
 	}, [token])
 
 	const onSubmit = async (data: ResetPasswordFormData) => {
@@ -85,12 +74,13 @@ export default function ResetPasswordPage() {
 
 			if (result.success) {
 				setSuccess(true)
-				// Redirect to sign in after 2 seconds
+				// Redirect to callbackURL if provided and valid, otherwise to sign-in
+				const redirectUrl = getSafeRedirectUrl(callbackURL || null, "/sign-in")
 				setTimeout(() => {
-					router.push("/sign-in")
+					router.push(redirectUrl)
 				}, 2000)
 			} else {
-				setError(result.error || "Failed to reset password")
+				setError("error" in result ? result.error || "Failed to reset password" : "Failed to reset password")
 			}
 		} catch (err) {
 			setError("Failed to reset password. Please try again.")

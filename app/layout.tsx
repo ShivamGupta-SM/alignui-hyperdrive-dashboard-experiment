@@ -37,37 +37,7 @@ export default async function RootLayout({
 }: Readonly<{
 	children: React.ReactNode
 }>) {
-	// Re-initialize MSW in root layout as workaround for Next.js fetch patching
-	// This ensures MSW patches fetch AFTER Next.js has done its internal patching
-	if (
-		process.env.NODE_ENV === "development" &&
-		process.env.NEXT_PUBLIC_API_MOCKING === "enabled" &&
-		process.env.NEXT_RUNTIME === "nodejs"
-	) {
-		try {
-			const { server, isListening, markListening } = await import("@/mocks/server")
-			// Check if server is already listening
-			// If not, start it (this patches fetch)
-			if (!isListening()) {
-				server.listen({
-					onUnhandledRequest: (req) => {
-						if (req.url.includes("localhost:4000") || req.url.includes("encore.dev")) {
-							console.warn(
-								`[MSW RootLayout] Unhandled request: ${req.method} ${req.url}`
-							)
-						}
-						return "bypass"
-					},
-				})
-				markListening()
-				console.log("[MSW RootLayout] ✅ Server re-initialized (workaround for Next.js fetch patching)")
-			} else {
-				console.log("[MSW RootLayout] Server already listening, skipping re-initialization")
-			}
-		} catch (error) {
-			console.error("[MSW RootLayout] Failed to re-initialize:", error)
-		}
-	}
+	// Mocking disabled - removed MSW initialization
 
 	return (
 		<html

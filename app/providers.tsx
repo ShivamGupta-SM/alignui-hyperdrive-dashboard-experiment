@@ -1,8 +1,10 @@
 "use client"
 
 // Initialize navigation debugging in development
-if (process.env.NODE_ENV === "development") {
-	import("@/lib/debug-navigation").catch(() => {
+// Using side-effect import to avoid TypeScript module check errors
+if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
+	// Dynamic import for debug utilities (side-effect only)
+	void import("@/lib/debug-navigation").catch(() => {
 		// Silently fail if debug file doesn't exist
 	})
 }
@@ -16,7 +18,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { PostHogProvider } from "@/lib/posthog"
 import { NuqsAdapter } from "nuqs/adapters/next/app"
-import { MSWInit } from "@/components/msw-init"
+// import { MSWInit } from "@/components/msw-init" // Mocking disabled
 import { NovuProvider } from "@/components/dashboard/novu-provider"
 
 function makeQueryClient() {
@@ -57,7 +59,7 @@ export function Providers({ children }: { children: ReactNode }) {
 							disableTransitionOnChange
 						>
 							<TooltipProvider>
-								<MSWInit>{children}</MSWInit>
+								{children}
 							</TooltipProvider>
 
 							<NotificationProvider />

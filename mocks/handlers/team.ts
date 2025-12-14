@@ -172,3 +172,4 @@ export const teamHandlers = [
 		return encoreResponse({ deleted: true })
 	}),
 ]
+

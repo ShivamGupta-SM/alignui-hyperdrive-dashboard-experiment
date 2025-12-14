@@ -50,7 +50,7 @@ export default function VerifyPage() {
 					router.push("/dashboard")
 					router.refresh()
 				} else {
-					setError(result.error || "Invalid code. Please try again.")
+					setError("error" in result ? result.error || "Invalid code. Please try again." : "Invalid code. Please try again.")
 				}
 			} catch (err) {
 				setError("Invalid code. Please try again.")

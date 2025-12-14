@@ -3,14 +3,8 @@
 import { revalidatePath } from "next/cache"
 import type { WalletActionResult } from "@/lib/types"
 import { withdrawalBodySchema, creditRequestBodySchema } from "@/lib/validations"
-import { getEncoreClient } from "@/lib/encore"
-import { cookies } from "next/headers"
-
-// Helper to get org ID from cookies
-async function getOrganizationId(): Promise<string> {
-	const cookieStore = await cookies()
-	return cookieStore.get("active-organization-id")?.value || "1"
-}
+import { getEncoreClient, handleAPIError } from "@/lib/encore"
+import { getOrganizationIdOrNull } from "@/lib/ssr-data"
 
 export async function requestWithdrawal(data: unknown): Promise<WalletActionResult> {
 	const validation = withdrawalBodySchema.safeParse(data)
@@ -22,7 +16,14 @@ export async function requestWithdrawal(data: unknown): Promise<WalletActionResu
 	}
 
 	const client = getEncoreClient()
-	const orgId = await getOrganizationId()
+	const orgId = await getOrganizationIdOrNull()
+
+	if (!orgId) {
+		return {
+			success: false,
+			error: "Organization ID not found",
+		}
+	}
 
 	try {
 		const result = await client.wallets.createOrganizationWithdrawal(orgId, {
@@ -36,11 +37,8 @@ export async function requestWithdrawal(data: unknown): Promise<WalletActionResu
 			message: "Withdrawal requested successfully",
 			withdrawalId: result.id,
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to request withdrawal",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -54,7 +52,14 @@ export async function requestCredit(data: unknown): Promise<WalletActionResult> 
 	}
 
 	const client = getEncoreClient()
-	const orgId = await getOrganizationId()
+	const orgId = await getOrganizationIdOrNull()
+
+	if (!orgId) {
+		return {
+			success: false,
+			error: "Organization ID not found",
+		}
+	}
 
 	try {
 		// Note: requestCreditIncrease takes orgId inside the body based on Client definition,
@@ -74,11 +79,8 @@ export async function requestCredit(data: unknown): Promise<WalletActionResult> 
 			message: "Credit request submitted for review.",
 			requestId: "submitted",
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to request credit",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -113,11 +115,8 @@ export async function cancelWithdrawal(withdrawalId: string): Promise<WalletActi
 			success: true,
 			message: "Withdrawal cancelled",
 		}
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to cancel withdrawal",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 

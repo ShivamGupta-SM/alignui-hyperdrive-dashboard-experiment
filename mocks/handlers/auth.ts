@@ -18,9 +18,13 @@ const mockUser = {
 export const authHandlers = [
 	// POST /auth/sign-in/email - Encore client endpoint
 	http.post(encoreUrl("/auth/sign-in/email"), async ({ request }) => {
+		console.log("[MSW Auth] ✅ Intercepted POST /auth/sign-in/email")
 		const body = (await request.json()) as { email: string; password: string; rememberMe?: boolean }
 
+		console.log("[MSW Auth] Request body:", { email: body.email, hasPassword: !!body.password })
+
 		if (!body.email || !body.password) {
+			console.log("[MSW Auth] ❌ Missing email or password")
 			return encoreErrorResponse("Email and password are required", 400)
 		}
 
@@ -31,6 +35,7 @@ export const authHandlers = [
 		})
 
 		const orgs = db.organizationSettings.findMany()
+		console.log("[MSW Auth] ✅ Returning mock user response")
 
 		return encoreResponse({
 			redirect: false,
@@ -237,6 +242,7 @@ export const authHandlers = [
 				name: o.name,
 				slug: o.name.toLowerCase().replace(/\s+/g, "-"),
 				logo: o.logo,
+				approvalStatus: o.approvalStatus || "draft", // Include approvalStatus for draft detection
 				createdAt: new Date().toISOString(),
 			})),
 		})
@@ -358,3 +364,4 @@ export const authHandlers = [
 		return encoreResponse({ types })
 	}),
 ]
+

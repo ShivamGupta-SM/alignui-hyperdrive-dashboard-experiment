@@ -21,7 +21,6 @@ import {
 	Sun,
 	Buildings,
 	UsersThree,
-	CreditCard,
 	Question,
 	BookOpen,
 	Headset,
@@ -45,7 +44,6 @@ type SubPanelType =
 	| "notifications"
 	| "org-settings"
 	| "team"
-	| "billing"
 	| "help"
 	| "docs"
 	| "contact"
@@ -57,29 +55,31 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 	const user = session?.user
 	const { data: organizations = [] } = useOrganizations()
 	const currentOrganization = useActiveOrganization(organizations)
-	const signOut = useSignOut()
+	const { signOut: handleSignOut } = useSignOut()
 
 	const isDarkMode = resolvedTheme === "dark"
-	const onToggleDarkMode = () => setTheme(resolvedTheme === "dark" ? "light" : "dark")
-	const onSignOut = () => signOut.mutate()
+	const onToggleDarkMode = React.useCallback(() => {
+		setTheme(resolvedTheme === "dark" ? "light" : "dark")
+	}, [resolvedTheme, setTheme])
+	const onSignOut = handleSignOut
 	const organization = currentOrganization ? { name: currentOrganization.name } : undefined
 	const [activeSubPanel, setActiveSubPanel] = React.useState<SubPanelType>(null)
 
 	// Close panel handler
-	const handleClose = () => {
+	const handleClose = React.useCallback(() => {
 		setActiveSubPanel(null)
 		onOpenChange(false)
-	}
+	}, [onOpenChange])
 
 	// Back to main panel
-	const handleBack = () => {
+	const handleBack = React.useCallback(() => {
 		setActiveSubPanel(null)
-	}
+	}, [])
 
 	// Menu item click
-	const handleMenuClick = (panel: SubPanelType) => {
+	const handleMenuClick = React.useCallback((panel: SubPanelType) => {
 		setActiveSubPanel(panel)
-	}
+	}, [])
 
 	// Reset sub-panel when main panel closes
 	React.useEffect(() => {
@@ -144,11 +144,11 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 	const user = session?.user
 	const { data: organizations = [] } = useOrganizations()
 	const currentOrganization = useActiveOrganization(organizations)
-	const signOut = useSignOut()
+	const { signOut: handleSignOut } = useSignOut()
 
 	const isDarkMode = resolvedTheme === "dark"
 	const onToggleDarkMode = () => setTheme(resolvedTheme === "dark" ? "light" : "dark")
-	const onSignOut = () => signOut.mutate()
+	const onSignOut = handleSignOut
 	const organization = currentOrganization ? { name: currentOrganization.name } : undefined
 	return (
 		<div className="flex h-full flex-col">
@@ -187,7 +187,7 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 			<div className="flex-1 overflow-y-auto overflow-x-hidden">
 				{/* Quick Actions Card */}
 				<div className="p-4">
-					<div className="flex items-center gap-3 rounded-xl bg-gradient-to-br from-primary-base/5 to-primary-darker/5 p-4 ring-1 ring-inset ring-stroke-soft-200">
+					<div className="flex items-center gap-3 rounded-xl bg-linear-to-br from-primary-base/5 to-primary-darker/5 p-4 ring-1 ring-inset ring-stroke-soft-200">
 						<div className="flex-1 min-w-0">
 							<p className="text-paragraph-sm text-text-sub-600">
 								{user?.role || "Admin"} at{" "}
@@ -255,12 +255,6 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 							onClick={onClose}
 						/>
 						<MenuItem icon={UsersThree} label="Team Members" onClick={() => onMenuClick("team")} />
-						<MenuItem
-							icon={CreditCard}
-							label="Billing"
-							href="/dashboard/settings?section=billing"
-							onClick={onClose}
-						/>
 					</div>
 				</div>
 
@@ -321,7 +315,6 @@ function SubPanel({ type, onBack, onClose }: SubPanelProps) {
 		notifications: "Notifications",
 		"org-settings": "Organization Settings",
 		team: "Team Members",
-		billing: "Billing",
 		help: "Help Center",
 		docs: "Documentation",
 		contact: "Contact Support",
@@ -357,7 +350,6 @@ function SubPanel({ type, onBack, onClose }: SubPanelProps) {
 				{type === "password" && <PasswordSubPanel />}
 				{type === "org-settings" && <OrgSettingsSubPanel />}
 				{type === "team" && <TeamSubPanel />}
-				{type === "billing" && <BillingSubPanel />}
 				{type === "help" && <HelpSubPanel />}
 				{type === "contact" && <ContactSubPanel />}
 			</div>
@@ -774,7 +766,7 @@ function HelpSubPanel() {
 		{ title: "Getting Started", description: "Learn the basics of the platform" },
 		{ title: "Campaign Management", description: "Create and manage campaigns" },
 		{ title: "Enrollment Review", description: "Review and approve enrollments" },
-		{ title: "Wallet & Payments", description: "Manage your wallet and billing" },
+		{ title: "Wallet & Payments", description: "Manage your wallet balance and transactions" },
 		{ title: "FAQs", description: "Frequently asked questions" },
 	]
 
@@ -817,7 +809,6 @@ function ContactSubPanel() {
 						</Select.Trigger>
 						<Select.Content>
 							<Select.Item value="general">General Inquiry</Select.Item>
-							<Select.Item value="billing">Billing Issue</Select.Item>
 							<Select.Item value="technical">Technical Support</Select.Item>
 							<Select.Item value="feature">Feature Request</Select.Item>
 						</Select.Content>
@@ -1101,79 +1092,6 @@ function TeamSubPanel() {
 	)
 }
 
-// ===========================================
-// BILLING SUB-PANEL
-// ===========================================
-function BillingSubPanel() {
-	return (
-		<div className="space-y-5">
-			{/* Current Plan */}
-			<div className="rounded-12 bg-gradient-to-br from-primary-base to-primary-darker p-4 text-white">
-				<p className="text-label-xs opacity-80 mb-1">Current Plan</p>
-				<h4 className="text-title-h5 font-semibold">Pro Plan</h4>
-				<p className="text-paragraph-sm opacity-80 mt-1">₹4,999/month</p>
-			</div>
-
-			{/* Wallet Balance */}
-			<div className="rounded-12 bg-bg-weak-50 p-4">
-				<div className="flex items-center justify-between mb-3">
-					<p className="text-label-sm text-text-strong-950">Wallet Balance</p>
-					<span className="text-title-h5 font-semibold text-text-strong-950">₹25,000</span>
-				</div>
-				<Button.Root variant="primary" size="small" className="w-full">
-					<Plus className="size-4" weight="bold" />
-					Add Funds
-				</Button.Root>
-			</div>
-
-			{/* Payment Method */}
-			<div>
-				<h4 className="text-label-sm text-text-strong-950 mb-3">Payment Method</h4>
-				<div className="flex items-center justify-between rounded-12 bg-bg-weak-50 p-3">
-					<div className="flex items-center gap-3">
-						<div className="flex size-10 items-center justify-center rounded-lg bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200">
-							<CreditCard className="size-5 text-text-sub-600" weight="duotone" />
-						</div>
-						<div>
-							<p className="text-label-sm text-text-strong-950">•••• 4242</p>
-							<p className="text-paragraph-xs text-text-sub-600">Expires 12/25</p>
-						</div>
-					</div>
-					<button
-						type="button"
-						className="text-label-xs text-primary-base hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2 rounded"
-					>
-						Change
-					</button>
-				</div>
-			</div>
-
-			{/* Invoice History */}
-			<div>
-				<h4 className="text-label-sm text-text-strong-950 mb-3">Recent Invoices</h4>
-				<div className="space-y-2">
-					{["Nov 2024", "Oct 2024", "Sep 2024"].map((month) => (
-						<div
-							key={month}
-							className="flex items-center justify-between py-2 border-b border-stroke-soft-200 last:border-0"
-						>
-							<span className="text-paragraph-sm text-text-strong-950">{month}</span>
-							<div className="flex items-center gap-3">
-								<span className="text-paragraph-sm text-text-sub-600">₹4,999</span>
-								<button
-									type="button"
-									className="text-label-xs text-primary-base hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2 rounded"
-								>
-									Download
-								</button>
-							</div>
-						</div>
-					))}
-				</div>
-			</div>
-		</div>
-	)
-}
 
 // ===========================================
 // HELPER COMPONENTS

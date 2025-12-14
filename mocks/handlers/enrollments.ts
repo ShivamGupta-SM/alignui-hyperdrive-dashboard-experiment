@@ -7,379 +7,544 @@
 import { http } from "msw"
 import { db } from "@/mocks/db"
 import {
-	getAuthContext,
-	encoreUrl,
-	encoreResponse,
-	encoreListResponse,
-	encoreErrorResponse,
-	encoreNotFoundResponse,
+  getAuthContext,
+  encoreUrl,
+  encoreResponse,
+  encoreListResponse,
+  encoreErrorResponse,
+  encoreNotFoundResponse,
 } from "./utils"
 import { delay, DELAY } from "@/mocks/utils/delay"
 
 // Enrollment already in Encore format from database - return as-is
 function toEnrollmentWithRelations(enrollment: any) {
-	return enrollment
+  return enrollment
 }
 
 export const enrollmentsHandlers = [
-	// GET /enrollments - List enrollments
-	http.get(encoreUrl("/enrollments"), async ({ request }) => {
-		const auth = getAuthContext()
-		const orgId = auth.organizationId
-		const url = new URL(request.url)
+  // GET /enrollments - List enrollments
+  http.get(encoreUrl("/enrollments"), async ({ request }) => {
+    const auth = getAuthContext()
+    const orgId = auth.organizationId
+    const url = new URL(request.url)
 
-		const skip = Number.parseInt(url.searchParams.get("skip") || "0", 10)
-		const take = Number.parseInt(url.searchParams.get("take") || "20", 10)
-		const status = url.searchParams.get("status")
-		const campaignId = url.searchParams.get("campaignId")
+    const skip = Number.parseInt(url.searchParams.get("skip") || "0", 10)
+    const take = Number.parseInt(url.searchParams.get("take") || "20", 10)
+    const status = url.searchParams.get("status")
+    const campaignId = url.searchParams.get("campaignId")
 
-		let enrollments = db.enrollments.findMany((q) => q.where({ organizationId: orgId }))
+    let enrollments = db.enrollments.findMany((q) => q.where({ organizationId: orgId }))
 
-		if (status && status !== "all") {
-			enrollments = enrollments.filter((e) => e.status === status)
-		}
-		if (campaignId) {
-			enrollments = enrollments.filter((e) => e.campaignId === campaignId)
-		}
+    if (status && status !== "all") {
+      enrollments = enrollments.filter((e) => e.status === status)
+    }
+    if (campaignId) {
+      enrollments = enrollments.filter((e) => e.campaignId === campaignId)
+    }
 
-		enrollments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    enrollments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-		const total = enrollments.length
-		const paginatedEnrollments = enrollments.slice(skip, skip + take)
+    const total = enrollments.length
+    const paginatedEnrollments = enrollments.slice(skip, skip + take)
 
-		return encoreListResponse(
-			paginatedEnrollments.map(toEnrollmentWithRelations),
-			total,
-			skip,
-			take
-		)
-	}),
+    return encoreListResponse(
+      paginatedEnrollments.map(toEnrollmentWithRelations),
+      total,
+      skip,
+      take
+    )
+  }),
 
-	// GET /enrollments/me - My enrollments (alias)
-	http.get(encoreUrl("/enrollments/me"), async ({ request }) => {
-		const auth = getAuthContext()
-		const url = new URL(request.url)
+  // GET /enrollments/me - My enrollments (alias)
+  http.get(encoreUrl("/enrollments/me"), async ({ request }) => {
+    const auth = getAuthContext()
+    const url = new URL(request.url)
 
-		const skip = Number.parseInt(url.searchParams.get("skip") || "0", 10)
-		const take = Number.parseInt(url.searchParams.get("take") || "20", 10)
-		const status = url.searchParams.get("status")
+    const skip = Number.parseInt(url.searchParams.get("skip") || "0", 10)
+    const take = Number.parseInt(url.searchParams.get("take") || "20", 10)
+    const status = url.searchParams.get("status")
 
-		let enrollments = db.enrollments.findMany((q) =>
-			q.where({ organizationId: auth.organizationId })
-		)
+    let enrollments = db.enrollments.findMany((q) =>
+      q.where({ organizationId: auth.organizationId })
+    )
 
-		if (status && status !== "all") {
-			enrollments = enrollments.filter((e) => e.status === status)
-		}
+    if (status && status !== "all") {
+      enrollments = enrollments.filter((e) => e.status === status)
+    }
 
-		const total = enrollments.length
-		const paginatedEnrollments = enrollments.slice(skip, skip + take)
+    const total = enrollments.length
+    const paginatedEnrollments = enrollments.slice(skip, skip + take)
 
-		return encoreListResponse(
-			paginatedEnrollments.map(toEnrollmentWithRelations),
-			total,
-			skip,
-			take
-		)
-	}),
+    return encoreListResponse(
+      paginatedEnrollments.map(toEnrollmentWithRelations),
+      total,
+      skip,
+      take
+    )
+  }),
 
-	// GET /enrollments/:id - Get enrollment (with detail including submissions)
-	http.get(encoreUrl("/enrollments/:id"), async ({ params }) => {
-		await delay(DELAY.FAST)
+  // GET /enrollments/:id - Get enrollment (with detail including submissions)
+  http.get(encoreUrl("/enrollments/:id"), async ({ params }) => {
+    await delay(DELAY.FAST)
 
-		const auth = getAuthContext()
-		const { id } = params
-		const enrollmentId = Array.isArray(id) ? id[0] : id
+    const auth = getAuthContext()
+    const { id } = params
+    const enrollmentId = Array.isArray(id) ? id[0] : id
 
-		if (!enrollmentId) {
-			return encoreNotFoundResponse("Enrollment")
-		}
+    if (!enrollmentId) {
+      return encoreNotFoundResponse("Enrollment")
+    }
 
-		const enrollment = db.enrollments.findFirst((q) =>
-			q.where({ id: enrollmentId as string, organizationId: auth.organizationId })
-		)
-		if (!enrollment) {
-			return encoreNotFoundResponse("Enrollment")
-		}
+    const enrollment = db.enrollments.findFirst((q) =>
+      q.where({ id: enrollmentId as string, organizationId: auth.organizationId })
+    )
+    if (!enrollment) {
+      return encoreNotFoundResponse("Enrollment")
+    }
 
-		// Get campaign for additional info
-		const campaign = db.campaigns.findFirst((q) => q.where({ id: enrollment.campaignId }))
+    // Get campaign for additional info
+    const campaign = db.campaigns.findFirst((q) => q.where({ id: enrollment.campaignId }))
 
-		// Get campaign deliverables
-		const campaignDeliverables = db.campaignDeliverables.findMany((q) =>
-			q.where({ campaignId: enrollment.campaignId })
-		)
+    // Get campaign deliverables
+    const campaignDeliverables = db.campaignDeliverables.findMany((q) =>
+      q.where({ campaignId: enrollment.campaignId })
+    )
 
-		// Get deliverable submissions for this enrollment
-		const submissions = db.deliverableSubmissions.findMany((q) =>
-			q.where({ enrollmentId: enrollmentId as string })
-		)
+    // Get deliverable submissions for this enrollment
+    const submissions = db.deliverableSubmissions.findMany((q) =>
+      q.where({ enrollmentId: enrollmentId as string })
+    )
 
-		// Build submissions array (include both submitted and not-yet-submitted deliverables)
-		const submissionsArray = campaignDeliverables.map((cd) => {
-			const submitted = submissions.find((s) => s.campaignDeliverableId === cd.id)
-			return {
-				id: submitted?.id ?? "",
-				campaignDeliverableId: cd.id,
-				deliverableName: submitted?.lockedDeliverableName ?? cd.title,
-				deliverableDescription: submitted?.lockedDeliverableDescription ?? cd.description,
-				isRequired: submitted?.lockedIsRequired ?? cd.isRequired,
-				requireLink: submitted?.lockedRequireLink ?? true,
-				requireScreenshot: submitted?.lockedRequireScreenshot ?? true,
-				instructions: submitted?.lockedInstructions ?? cd.instructions,
-				proofLink: submitted?.proofLink,
-				proofScreenshot: submitted?.proofScreenshot,
-				submittedAt: submitted?.createdAt,
-			}
-		})
+    // Build submissions array (include both submitted and not-yet-submitted deliverables)
+    const submissionsArray = campaignDeliverables.map((cd) => {
+      const submitted = submissions.find((s) => s.campaignDeliverableId === cd.id)
+      return {
+        id: submitted?.id ?? "",
+        campaignDeliverableId: cd.id,
+        deliverableName: submitted?.lockedDeliverableName ?? cd.title,
+        deliverableDescription: submitted?.lockedDeliverableDescription ?? cd.description,
+        isRequired: submitted?.lockedIsRequired ?? cd.isRequired,
+        requireLink: submitted?.lockedRequireLink ?? true,
+        requireScreenshot: submitted?.lockedRequireScreenshot ?? true,
+        instructions: submitted?.lockedInstructions ?? cd.instructions,
+        proofLink: submitted?.proofLink,
+        proofScreenshot: submitted?.proofScreenshot,
+        submittedAt: submitted?.createdAt,
+      }
+    })
 
-		// Build enrollment detail response
-		const enrollmentDetail = {
-			...toEnrollmentWithRelations(enrollment),
-			submissions: submissionsArray,
-			campaign: campaign
-				? {
-						id: campaign.id,
-						title: campaign.title,
-						status: campaign.status,
-						type: campaign.campaignType,
-					}
-				: undefined,
-		}
+    // Build enrollment detail response
+    const enrollmentDetail = {
+      ...toEnrollmentWithRelations(enrollment),
+      submissions: submissionsArray,
+      campaign: campaign
+        ? {
+          id: campaign.id,
+          title: campaign.title,
+          status: campaign.status,
+          type: campaign.campaignType,
+        }
+        : undefined,
+    }
 
-		return encoreResponse(enrollmentDetail)
-	}),
+    return encoreResponse(enrollmentDetail)
+  }),
 
-	// POST /enrollments/:id/approve
-	http.post(encoreUrl("/enrollments/:id/approve"), async ({ params }) => {
-		const auth = getAuthContext()
-		const { id } = params
+  // POST /enrollments/:id/approve
+  http.post(encoreUrl("/enrollments/:id/approve"), async ({ params }) => {
+    const auth = getAuthContext()
+    const { id } = params
 
-		const enrollment = db.enrollments.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
-		)
-		if (!enrollment) {
-			return encoreNotFoundResponse("Enrollment")
-		}
+    const enrollment = db.enrollments.findFirst((q) =>
+      q.where({ id: id, organizationId: auth.organizationId })
+    )
+    if (!enrollment) {
+      return encoreNotFoundResponse("Enrollment")
+    }
 
-		if (enrollment.status !== "awaiting_review") {
-			return encoreErrorResponse("Only enrollments awaiting review can be approved", 400)
-		}
+    if (enrollment.status !== "awaiting_review") {
+      return encoreErrorResponse("Only enrollments awaiting review can be approved", 400)
+    }
 
-		// Update enrollment in database
-		const updated = db.enrollments.update({
-			where: { id },
-			data: {
-			status: "approved",
-			approvedAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-				payoutAmount: enrollment.lockedBillRate || 0, // Set payout amount
-			},
-		})
+    // Update enrollment in database
+    const updated = db.enrollments.update({
+      where: { id },
+      data: {
+        status: "approved",
+        approvedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        payoutAmount: enrollment.lockedBillRate || 0, // Set payout amount
+      },
+    })
 
-		// Update campaign stats
-		const campaign = db.campaigns.findFirst((q) => q.where({ id: enrollment.campaignId }))
-		if (campaign) {
-			const approvedCount = db.enrollments
-				.findMany((q) => q.where({ campaignId: campaign.id }))
-				.filter((e) => e.status === "approved").length
-			
-			db.campaigns.update({
-				where: { id: campaign.id },
-				data: {
-					approvedCount,
-					currentEnrollments: campaign.currentEnrollments || 0,
-					updatedAt: new Date().toISOString(),
-				},
-			})
-		}
+    // Update campaign stats
+    const campaign = db.campaigns.findFirst((q) => q.where({ id: enrollment.campaignId }))
+    if (campaign) {
+      const approvedCount = db.enrollments
+        .findMany((q) => q.where({ campaignId: campaign.id }))
+        .filter((e) => e.status === "approved").length
 
-		return encoreResponse(toEnrollmentWithRelations(updated))
-	}),
+      db.campaigns.update({
+        where: { id: campaign.id },
+        data: {
+          approvedCount,
+          currentEnrollments: campaign.currentEnrollments || 0,
+          updatedAt: new Date().toISOString(),
+        },
+      })
+    }
 
-	// POST /enrollments/:id/reject
-	http.post(encoreUrl("/enrollments/:id/reject"), async ({ params, request }) => {
-		const auth = getAuthContext()
-		const { id } = params
-		await request.json().catch(() => ({}))
+    return encoreResponse(toEnrollmentWithRelations(updated))
+  }),
 
-		const enrollment = db.enrollments.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
-		)
-		if (!enrollment) {
-			return encoreNotFoundResponse("Enrollment")
-		}
+  // POST /enrollments/:id/reject
+  http.post(encoreUrl("/enrollments/:id/reject"), async ({ params, request }) => {
+    const auth = getAuthContext()
+    const { id } = params
+    await request.json().catch(() => ({}))
 
-		if (enrollment.status !== "awaiting_review") {
-			return encoreErrorResponse("Only enrollments awaiting review can be rejected", 400)
-		}
+    const enrollment = db.enrollments.findFirst((q) =>
+      q.where({ id: id, organizationId: auth.organizationId })
+    )
+    if (!enrollment) {
+      return encoreNotFoundResponse("Enrollment")
+    }
 
-		return encoreResponse({
-			...toEnrollmentWithRelations(enrollment),
-			status: "rejected",
-		})
-	}),
+    if (enrollment.status !== "awaiting_review") {
+      return encoreErrorResponse("Only enrollments awaiting review can be rejected", 400)
+    }
 
-	// POST /enrollments/:id/request-changes
-	http.post(encoreUrl("/enrollments/:id/request-changes"), async ({ params }) => {
-		const auth = getAuthContext()
-		const { id } = params
+    return encoreResponse({
+      ...toEnrollmentWithRelations(enrollment),
+      status: "rejected",
+    })
+  }),
 
-		const enrollment = db.enrollments.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
-		)
-		if (!enrollment) {
-			return encoreNotFoundResponse("Enrollment")
-		}
+  // POST /enrollments/:id/request-changes
+  http.post(encoreUrl("/enrollments/:id/request-changes"), async ({ params }) => {
+    const auth = getAuthContext()
+    const { id } = params
 
-		// Update enrollment in database
-		const updated = db.enrollments.update({
-			where: { id },
-			data: {
-			status: "changes_requested",
-			canResubmit: true,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+    const enrollment = db.enrollments.findFirst((q) =>
+      q.where({ id: id, organizationId: auth.organizationId })
+    )
+    if (!enrollment) {
+      return encoreNotFoundResponse("Enrollment")
+    }
 
-		return encoreResponse(toEnrollmentWithRelations(updated))
-	}),
+    // Update enrollment in database
+    const updated = db.enrollments.update({
+      where: { id },
+      data: {
+        status: "changes_requested",
+        canResubmit: true,
+        updatedAt: new Date().toISOString(),
+      },
+    })
 
-	// POST /enrollments/batch/approve - Bulk approve
-	http.post(encoreUrl("/enrollments/batch/approve"), async ({ request }) => {
-		const auth = getAuthContext()
-		const body = (await request.json()) as { enrollmentIds: string[] }
+    return encoreResponse(toEnrollmentWithRelations(updated))
+  }),
 
-		if (!body.enrollmentIds?.length) {
-			return encoreErrorResponse("At least one enrollment ID is required", 400)
-		}
+  // POST /enrollments/batch/approve - Bulk approve
+  http.post(encoreUrl("/enrollments/batch/approve"), async ({ request }) => {
+    const auth = getAuthContext()
+    const body = (await request.json()) as { enrollmentIds: string[] }
 
-		let approved = 0
-		const errors: Record<string, string> = {}
+    if (!body.enrollmentIds?.length) {
+      return encoreErrorResponse("At least one enrollment ID is required", 400)
+    }
 
-		for (const enrollmentId of body.enrollmentIds) {
-			const enrollment = db.enrollments.findFirst((q) =>
-				q.where({ id: enrollmentId, organizationId: auth.organizationId })
-			)
-			if (!enrollment) {
-				errors[enrollmentId] = "Not found"
-			} else if (enrollment.status !== "awaiting_review") {
-				errors[enrollmentId] = "Not awaiting review"
-			} else {
-				// Update enrollment in database
-				db.enrollments.update({
-					where: { id: enrollmentId },
-					data: {
-						status: "approved",
-						approvedAt: new Date().toISOString(),
-						updatedAt: new Date().toISOString(),
-						payoutAmount: enrollment.lockedBillRate || 0,
-					},
-				})
-				approved++
-			}
-		}
+    let approved = 0
+    const errors: Record<string, string> = {}
 
-		return encoreResponse({ approved, failed: Object.keys(errors).length, errors })
-	}),
+    for (const enrollmentId of body.enrollmentIds) {
+      const enrollment = db.enrollments.findFirst((q) =>
+        q.where({ id: enrollmentId, organizationId: auth.organizationId })
+      )
+      if (!enrollment) {
+        errors[enrollmentId] = "Not found"
+      } else if (enrollment.status !== "awaiting_review") {
+        errors[enrollmentId] = "Not awaiting review"
+      } else {
+        // Update enrollment in database
+        db.enrollments.update({
+          where: { id: enrollmentId },
+          data: {
+            status: "approved",
+            approvedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            payoutAmount: enrollment.lockedBillRate || 0,
+          },
+        })
+        approved++
+      }
+    }
 
-	// POST /enrollments/batch/reject - Bulk reject
-	http.post(encoreUrl("/enrollments/batch/reject"), async ({ request }) => {
-		const auth = getAuthContext()
-		const body = (await request.json()) as { enrollmentIds: string[]; reason: string }
+    return encoreResponse({ approved, failed: Object.keys(errors).length, errors })
+  }),
 
-		if (!body.enrollmentIds?.length) {
-			return encoreErrorResponse("At least one enrollment ID is required", 400)
-		}
+  // POST /enrollments/batch/reject - Bulk reject
+  http.post(encoreUrl("/enrollments/batch/reject"), async ({ request }) => {
+    const auth = getAuthContext()
+    const body = (await request.json()) as { enrollmentIds: string[]; reason: string }
 
-		let rejected = 0
-		const errors: Record<string, string> = {}
+    if (!body.enrollmentIds?.length) {
+      return encoreErrorResponse("At least one enrollment ID is required", 400)
+    }
 
-		for (const enrollmentId of body.enrollmentIds) {
-			const enrollment = db.enrollments.findFirst((q) =>
-				q.where({ id: enrollmentId, organizationId: auth.organizationId })
-			)
-			if (!enrollment) {
-				errors[enrollmentId] = "Not found"
-			} else if (enrollment.status !== "awaiting_review") {
-				errors[enrollmentId] = "Not awaiting review"
-			} else {
-				// Update enrollment in database
-				db.enrollments.update({
-					where: { id: enrollmentId },
-					data: {
-						status: "rejected",
-						updatedAt: new Date().toISOString(),
-					},
-				})
-				rejected++
-			}
-		}
+    let rejected = 0
+    const errors: Record<string, string> = {}
 
-		return encoreResponse({ rejected, failed: Object.keys(errors).length, errors })
-	}),
+    for (const enrollmentId of body.enrollmentIds) {
+      const enrollment = db.enrollments.findFirst((q) =>
+        q.where({ id: enrollmentId, organizationId: auth.organizationId })
+      )
+      if (!enrollment) {
+        errors[enrollmentId] = "Not found"
+      } else if (enrollment.status !== "awaiting_review") {
+        errors[enrollmentId] = "Not awaiting review"
+      } else {
+        // Update enrollment in database
+        db.enrollments.update({
+          where: { id: enrollmentId },
+          data: {
+            status: "rejected",
+            updatedAt: new Date().toISOString(),
+          },
+        })
+        rejected++
+      }
+    }
 
-	// GET /campaigns/:campaignId/enrollments
-	http.get(encoreUrl("/campaigns/:campaignId/enrollments"), async ({ params, request }) => {
-		const auth = getAuthContext()
-		const { campaignId } = params
-		const url = new URL(request.url)
+    return encoreResponse({ rejected, failed: Object.keys(errors).length, errors })
+  }),
 
-		const skip = Number.parseInt(url.searchParams.get("skip") || "0", 10)
-		const take = Number.parseInt(url.searchParams.get("take") || "20", 10)
-		const status = url.searchParams.get("status")
+  // GET /campaigns/:campaignId/enrollments
+  http.get(encoreUrl("/campaigns/:campaignId/enrollments"), async ({ params, request }) => {
+    const auth = getAuthContext()
+    const { campaignId } = params
+    const url = new URL(request.url)
 
-		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: campaignId, organizationId: auth.organizationId })
-		)
-		if (!campaign) {
-			return encoreNotFoundResponse("Campaign")
-		}
+    const skip = Number.parseInt(url.searchParams.get("skip") || "0", 10)
+    const take = Number.parseInt(url.searchParams.get("take") || "20", 10)
+    const status = url.searchParams.get("status")
 
-		let enrollments = db.enrollments.findMany((q) => q.where({ campaignId }))
+    const campaign = db.campaigns.findFirst((q) =>
+      q.where({ id: campaignId, organizationId: auth.organizationId })
+    )
+    if (!campaign) {
+      return encoreNotFoundResponse("Campaign")
+    }
 
-		if (status && status !== "all") {
-			enrollments = enrollments.filter((e) => e.status === status)
-		}
+    let enrollments = db.enrollments.findMany((q) => q.where({ campaignId: campaignId }))
 
-		const total = enrollments.length
-		const paginatedEnrollments = enrollments.slice(skip, skip + take)
+    if (status && status !== "all") {
+      enrollments = enrollments.filter((e) => e.status === status)
+    }
 
-		return encoreListResponse(
-			paginatedEnrollments.map(toEnrollmentWithRelations),
-			total,
-			skip,
-			take
-		)
-	}),
+    const total = enrollments.length
+    const paginatedEnrollments = enrollments.slice(skip, skip + take)
 
-	// GET /campaigns/:campaignId/enrollment-stats
-	http.get(encoreUrl("/campaigns/:campaignId/enrollment-stats"), async ({ params }) => {
-		await delay(DELAY.FAST)
+    return encoreListResponse(
+      paginatedEnrollments.map(toEnrollmentWithRelations),
+      total,
+      skip,
+      take
+    )
+  }),
 
-		const auth = getAuthContext()
-		const { campaignId } = params
+  // GET /campaigns/:campaignId/enrollment-stats
+  http.get(encoreUrl("/campaigns/:campaignId/enrollment-stats"), async ({ params }) => {
+    await delay(DELAY.FAST)
 
-		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: campaignId, organizationId: auth.organizationId })
-		)
-		if (!campaign) {
-			return encoreNotFoundResponse("Campaign")
-		}
+    const auth = getAuthContext()
+    const { campaignId } = params
 
-		const enrollments = db.enrollments.findMany((q) => q.where({ campaignId }))
+    const campaign = db.campaigns.findFirst((q) =>
+      q.where({ id: campaignId, organizationId: auth.organizationId })
+    )
+    if (!campaign) {
+      return encoreNotFoundResponse("Campaign")
+    }
 
-		return encoreResponse({
-			total: enrollments.length,
-			awaitingSubmission: enrollments.filter((e) => e.status === "awaiting_submission").length,
-			awaitingReview: enrollments.filter((e) => e.status === "awaiting_review").length,
-			changesRequested: enrollments.filter((e) => e.status === "changes_requested").length,
-			approved: enrollments.filter((e) => e.status === "approved").length,
-			rejected: enrollments.filter((e) => e.status === "rejected").length,
-			totalOrderValue: enrollments.reduce((sum, e) => sum + (e.orderValue || 0), 0),
-			totalPayouts: enrollments
-				.filter((e) => e.status === "approved")
-				.reduce((sum, e) => sum + (e.lockedBillRate || 0), 0),
-		})
-	}),
+    const enrollments = db.enrollments.findMany((q) => q.where({ campaignId: campaignId }))
+
+    return encoreResponse({
+      total: enrollments.length,
+      awaitingSubmission: enrollments.filter((e) => e.status === "awaiting_submission").length,
+      awaitingReview: enrollments.filter((e) => e.status === "awaiting_review").length,
+      changesRequested: enrollments.filter((e) => e.status === "changes_requested").length,
+      approved: enrollments.filter((e) => e.status === "approved").length,
+      rejected: enrollments.filter((e) => e.status === "rejected").length,
+      totalOrderValue: enrollments.reduce((sum, e) => sum + (e.orderValue || 0), 0),
+      totalPayouts: enrollments
+        .filter((e) => e.status === "approved")
+        .reduce((sum, e) => sum + (e.lockedBillRate || 0), 0),
+    })
+  }),
+
+  // POST /enrollments - Create enrollment
+  http.post(encoreUrl("/enrollments"), async ({ request }) => {
+    const auth = getAuthContext()
+    const body = (await request.json()) as {
+      campaignId: string
+      shopperId?: string
+      orderValue?: number
+      orderId?: string
+    }
+
+    if (!body.campaignId) {
+      return encoreErrorResponse("campaignId is required", 400)
+    }
+
+    // Verify campaign exists
+    const campaign = db.campaigns.findFirst((q) =>
+      q.where({ id: body.campaignId, organizationId: auth.organizationId })
+    )
+    if (!campaign) {
+      return encoreNotFoundResponse("Campaign")
+    }
+
+    // Check if campaign is active
+    if (campaign.status !== "active") {
+      return encoreErrorResponse("Campaign is not active", 400)
+    }
+
+    // Check enrollment limit
+    const existingEnrollments = db.enrollments.findMany((q) =>
+      q.where({ campaignId: body.campaignId })
+    )
+    if (campaign.maxEnrollments && existingEnrollments.length >= campaign.maxEnrollments) {
+      return encoreErrorResponse("Campaign enrollment limit reached", 400)
+    }
+
+    const now = new Date().toISOString()
+    const newEnrollment = {
+      id: `enr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      organizationId: auth.organizationId,
+      campaignId: body.campaignId,
+      shopperId: body.shopperId || `shopper-${Date.now()}`,
+      status: "awaiting_submission" as const,
+      orderValue: body.orderValue || 0,
+      orderId: body.orderId || "",
+      lockedBillRate: campaign.billRate || 0,
+      lockedPlatformFee: campaign.platformFee || 0,
+      lockedRebatePercentage: campaign.rebatePercentage || 0,
+      lockedBonusAmount: campaign.bonusAmount || 0,
+      billAmount: campaign.billRate || 0,
+      payoutAmount: 0,
+      canResubmit: false,
+      rejectionCount: 0,
+      submittedAt: "",
+      approvedAt: "",
+      rejectedAt: "",
+      rejectionReason: "",
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    // Save to database
+    db.enrollments.create(newEnrollment)
+
+    // Update campaign enrollment count
+    db.campaigns.update({
+      where: { id: campaign.id },
+      data: {
+        currentEnrollments: (campaign.currentEnrollments || 0) + 1,
+        updatedAt: now,
+      },
+    })
+
+    return encoreResponse(toEnrollmentWithRelations(newEnrollment))
+  }),
+
+  // PUT /enrollments/:id - Update enrollment
+  http.put(encoreUrl("/enrollments/:id"), async ({ params, request }) => {
+    const auth = getAuthContext()
+    const { id } = params
+    const body = (await request.json()) as {
+      orderValue?: number
+      orderId?: string
+      status?: string
+    }
+
+    const enrollment = db.enrollments.findFirst((q) =>
+      q.where({ id: id, organizationId: auth.organizationId })
+    )
+    if (!enrollment) {
+      return encoreNotFoundResponse("Enrollment")
+    }
+
+    // Update enrollment in database
+    const updated = db.enrollments.update({
+      where: { id },
+      data: {
+        ...body,
+        updatedAt: new Date().toISOString(),
+      },
+    })
+
+    return encoreResponse(toEnrollmentWithRelations(updated))
+  }),
+
+  // PATCH /enrollments/:id - Partial update enrollment
+  http.patch(encoreUrl("/enrollments/:id"), async ({ params, request }) => {
+    const auth = getAuthContext()
+    const { id } = params
+    const body = (await request.json()) as Record<string, unknown>
+
+    const enrollment = db.enrollments.findFirst((q) =>
+      q.where({ id: id, organizationId: auth.organizationId })
+    )
+    if (!enrollment) {
+      return encoreNotFoundResponse("Enrollment")
+    }
+
+    // Update enrollment in database
+    const updated = db.enrollments.update({
+      where: { id },
+      data: {
+        ...body,
+        updatedAt: new Date().toISOString(),
+      },
+    })
+
+    return encoreResponse(toEnrollmentWithRelations(updated))
+  }),
+
+  // DELETE /enrollments/:id - Delete enrollment
+  http.delete(encoreUrl("/enrollments/:id"), async ({ params }) => {
+    const auth = getAuthContext()
+    const { id } = params
+
+    const enrollment = db.enrollments.findFirst((q) =>
+      q.where({ id: id, organizationId: auth.organizationId })
+    )
+    if (!enrollment) {
+      return encoreNotFoundResponse("Enrollment")
+    }
+
+    // Cannot delete approved enrollments
+    if (enrollment.status === "approved") {
+      return encoreErrorResponse("Cannot delete approved enrollment", 400)
+    }
+
+    // Delete enrollment from database
+    db.enrollments.delete({ where: { id } })
+
+    // Update campaign enrollment count
+    const campaign = db.campaigns.findFirst((q) => q.where({ id: enrollment.campaignId }))
+    if (campaign) {
+      db.campaigns.update({
+        where: { id: campaign.id },
+        data: {
+          currentEnrollments: Math.max(0, (campaign.currentEnrollments || 0) - 1),
+          updatedAt: new Date().toISOString(),
+        },
+      })
+    }
+
+    return encoreResponse({ deleted: true })
+  }),
 ]
+

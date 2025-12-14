@@ -70,4 +70,116 @@ export const deliverablesHandlers = [
 
 		return encoreResponse({ deliverables })
 	}),
+
+	// POST /deliverables - Create deliverable
+	http.post(encoreUrl("/deliverables"), async ({ request }) => {
+		const body = (await request.json()) as {
+			name: string
+			description?: string
+			platformId?: string
+			category: string
+			requireLink: boolean
+			requireScreenshot: boolean
+		}
+
+		if (!body.name || !body.category) {
+			return encoreErrorResponse("name and category are required", 400)
+		}
+
+		const now = new Date().toISOString()
+		const newDeliverable = {
+			id: `del-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+			name: body.name,
+			description: body.description || "",
+			platformId: body.platformId,
+			category: body.category,
+			requireLink: body.requireLink ?? true,
+			requireScreenshot: body.requireScreenshot ?? true,
+			status: "active" as const,
+			metadata: {},
+			createdAt: now,
+			updatedAt: now,
+		}
+
+		// Save to database
+		db.deliverables.create(newDeliverable)
+
+		return encoreResponse(newDeliverable)
+	}),
+
+	// PUT /deliverables/:id - Update deliverable
+	http.put(encoreUrl("/deliverables/:id"), async ({ params, request }) => {
+		const { id } = params
+		const body = (await request.json()) as {
+			name?: string
+			description?: string
+			platformId?: string
+			category?: string
+			requireLink?: boolean
+			requireScreenshot?: boolean
+			status?: "active" | "inactive" | "archived"
+		}
+
+		const deliverable = db.deliverables.findFirst((q) => q.where({ id: id }))
+		if (!deliverable) {
+			return encoreNotFoundResponse("Deliverable")
+		}
+
+		// Update deliverable in database
+		const updated = db.deliverables.update({
+			where: { id },
+			data: {
+				...body,
+				updatedAt: new Date().toISOString(),
+			},
+		})
+
+		return encoreResponse(updated)
+	}),
+
+	// PATCH /deliverables/:id - Partial update deliverable
+	http.patch(encoreUrl("/deliverables/:id"), async ({ params, request }) => {
+		const { id } = params
+		const body = (await request.json()) as Record<string, unknown>
+
+		const deliverable = db.deliverables.findFirst((q) => q.where({ id: id }))
+		if (!deliverable) {
+			return encoreNotFoundResponse("Deliverable")
+		}
+
+		// Update deliverable in database
+		const updated = db.deliverables.update({
+			where: { id },
+			data: {
+				...body,
+				updatedAt: new Date().toISOString(),
+			},
+		})
+
+		return encoreResponse(updated)
+	}),
+
+	// DELETE /deliverables/:id - Delete deliverable
+	http.delete(encoreUrl("/deliverables/:id"), async ({ params }) => {
+		const { id } = params
+
+		const deliverable = db.deliverables.findFirst((q) => q.where({ id: id }))
+		if (!deliverable) {
+			return encoreNotFoundResponse("Deliverable")
+		}
+
+		// Check if deliverable is used in any campaign deliverables
+		const campaignDeliverables = db.campaignDeliverables.findMany((q) =>
+			q.where({ type: id })
+		)
+		if (campaignDeliverables.length > 0) {
+			return encoreErrorResponse("Cannot delete deliverable used in campaigns", 400)
+		}
+
+		// Delete deliverable from database
+		db.deliverables.delete({ where: { id } })
+
+		return encoreResponse({ deleted: true })
+	}),
 ]
+

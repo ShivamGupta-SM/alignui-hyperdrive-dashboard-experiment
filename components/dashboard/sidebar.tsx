@@ -197,11 +197,11 @@ export function Sidebar({
 	const { data: organizations = [], isLoading: isLoadingOrgs } = useOrganizations()
 	const currentOrganization = useActiveOrganization(organizations)
 	const switchOrganization = useSwitchOrganization()
-	const signOut = useSignOut()
+	const { signOut: handleSignOut } = useSignOut()
 
 	const isDarkMode = resolvedTheme === "dark"
 	const onToggleDarkMode = () => setTheme(resolvedTheme === "dark" ? "light" : "dark")
-	const onSignOut = () => signOut.mutate()
+	const onSignOut = handleSignOut
 
 	const handleOrganizationChange = (org: Organization) => {
 		switchOrganization.mutate(org.id)

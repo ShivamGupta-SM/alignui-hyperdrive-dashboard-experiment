@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/utils/cn"
@@ -17,7 +17,7 @@ import {
 	Warning,
 	TrendUp,
 	TrendDown,
-	CheckCircle,
+	Check,
 	Lightning,
 	CaretRight,
 } from "@phosphor-icons/react"
@@ -27,6 +27,7 @@ import type { organizations } from "@/lib/encore-client"
 import { SimpleStatCard } from "@/components/dashboard/stat-card"
 import { CalloutWithActions } from "@/components/ui/callout"
 import { useRouter } from "next/navigation"
+import { useLocalStorage } from "@/hooks/use-local-storage"
 
 // Helper to format currency in compact form (₹1.5L, ₹2.3Cr)
 const formatWalletAmount = (amount: number): string => {
@@ -113,21 +114,35 @@ function DashboardSkeleton() {
 }
 
 interface DashboardClientProps {
-	initialData: organizations.DashboardOverviewResponse
+	initialData: organizations.DashboardOverviewResponse | null
+	hasOrganization?: boolean
 }
 
-export function DashboardClient({ initialData }: DashboardClientProps) {
+export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: DashboardClientProps) {
+	const router = useRouter()
 	const currentTime = useHydratedTime()
 	const formattedDate = useFormattedDate()
 
 	// Use server data directly - type-safe with Encore types
 	const data = initialData
 
+	// Check if organization exists (use prop if provided, otherwise check data)
+	const hasOrganization = hasOrgProp !== undefined 
+		? hasOrgProp 
+		: useMemo(() => {
+			return !!(data?.stats && data?.enrollmentDistribution)
+		}, [data])
+
+	// Dismiss onboarding alert state (persisted in localStorage)
+	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
+		"dashboard-onboarding-alert-dismissed",
+		false
+	)
+
 	// Map pending enrollments with hours ago calculation (only after hydration)
 	// NOTE: This useMemo must be called before any early returns to maintain hooks order
 	const priorityEnrollments = useMemo(() => {
-		if (!data) return []
-		if (!data.pendingEnrollments || !Array.isArray(data.pendingEnrollments)) return []
+		if (!data?.pendingEnrollments || !Array.isArray(data.pendingEnrollments)) return []
 		if (!currentTime) return data.pendingEnrollments.slice(0, 3).map((e) => ({ ...e, hoursAgo: 0 }))
 		return data.pendingEnrollments.slice(0, 3).map((e) => ({
 			...e,
@@ -149,62 +164,98 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 		return <DashboardSkeleton />
 	}
 
+	// Ensure data exists before using it (TypeScript guard)
+	if (!data || !data.stats || !data.enrollmentDistribution) {
+		return <DashboardSkeleton />
+	}
+
+	// At this point, data is guaranteed to be non-null
+	const safeData = data
+
 	// Transform API data to UI format - STRICT (no fallbacks, will fail if data is wrong)
 	const wallet = {
-		available: data.stats?.walletBalance ?? 0,
-		held: data.stats?.heldAmount ?? 0,
-		avgDailySpend: data.stats?.avgDailySpend ?? 0,
-		lowBalanceThreshold: data.stats?.lowBalanceThreshold ?? 0,
+		available: safeData.stats.walletBalance ?? 0,
+		held: safeData.stats.heldAmount ?? 0,
+		avgDailySpend: safeData.stats.avgDailySpend ?? 0,
+		lowBalanceThreshold: safeData.stats.lowBalanceThreshold ?? 0,
 	}
 
 	const metrics = {
-		activeCampaigns: data.stats?.activeCampaigns ?? 0,
-		pausedCampaigns: data.stats?.pausedCampaigns ?? 0,
-		endingSoon: data.stats?.endingSoon ?? 0,
-		pendingTotal: data.stats?.pendingEnrollments ?? 0,
-		pendingOverdue: data.stats?.overdueEnrollments ?? 0,
-		pendingHigh: data.stats?.highValuePending ?? 0,
-		totalEnrollments: data.enrollmentDistribution?.total ?? 0,
-		approvedCount: data.enrollmentDistribution?.approved ?? 0,
-		rejectedCount: data.enrollmentDistribution?.rejected ?? 0,
-		pendingCount: data.enrollmentDistribution?.pending ?? 0,
-		enrollmentsTrend: data.stats?.enrollmentTrend ?? 0,
-		approvalRateTrend: data.stats?.approvalRateTrend ?? 0,
+		activeCampaigns: safeData.stats.activeCampaigns ?? 0,
+		pausedCampaigns: safeData.stats.pausedCampaigns ?? 0,
+		endingSoon: safeData.stats.endingSoon ?? 0,
+		pendingTotal: safeData.stats.pendingEnrollments ?? 0,
+		pendingOverdue: safeData.stats.overdueEnrollments ?? 0,
+		pendingHigh: safeData.stats.highValuePending ?? 0,
+		totalEnrollments: safeData.enrollmentDistribution.total ?? 0,
+		approvedCount: safeData.enrollmentDistribution.approved ?? 0,
+		rejectedCount: safeData.enrollmentDistribution.rejected ?? 0,
+		pendingCount: safeData.enrollmentDistribution.pending ?? 0,
+		enrollmentsTrend: safeData.stats.enrollmentTrend ?? 0,
+		approvalRateTrend: safeData.stats.approvalRateTrend ?? 0,
 	}
 
-	const enrollmentChartData = (data.enrollmentChart && Array.isArray(data.enrollmentChart))
-		? data.enrollmentChart.map((d) => ({ value: d.enrollments ?? 0 }))
+	const enrollmentChartData = (safeData.enrollmentChart && Array.isArray(safeData.enrollmentChart))
+		? safeData.enrollmentChart.map((d) => ({ value: d.enrollments ?? 0 }))
 		: []
 
-	// Map top campaigns - use product image from API
-	const topCampaigns = (data.topCampaigns && Array.isArray(data.topCampaigns))
-		? data.topCampaigns.slice(0, 3).map((c) => ({
-		id: c.id,
-		name: c.name,
-		enrollments: c.enrollments,
-		approvalRate: c.approvalRate,
-		status: c.status,
-		daysLeft: c.daysLeft,
-		image: c.productImage,
-	}))
-		: []
+	// Map top campaigns - use product image from API (memoized)
+	const topCampaigns = useMemo(() => {
+		return (safeData.topCampaigns && Array.isArray(safeData.topCampaigns))
+			? safeData.topCampaigns.slice(0, 3).map((c) => ({
+				id: c.id,
+				name: c.name,
+				enrollments: c.enrollments,
+				approvalRate: c.approvalRate,
+				status: c.status,
+				daysLeft: c.daysLeft,
+				image: c.productImage,
+			}))
+			: []
+	}, [safeData.topCampaigns])
 
-	const approvalRate =
-		metrics.totalEnrollments > 0
+	// Memoize calculations
+	const approvalRate = useMemo(
+		() => (metrics.totalEnrollments > 0
 			? Math.round((metrics.approvedCount / metrics.totalEnrollments) * 100)
-			: 0
-	const runwayDays =
-		wallet.avgDailySpend > 0 ? Math.floor(wallet.available / wallet.avgDailySpend) : 0
-	const isLowBalance = wallet.available < wallet.lowBalanceThreshold
-	const hasOverdue = metrics.pendingOverdue > 0
+			: 0),
+		[metrics.totalEnrollments, metrics.approvedCount]
+	)
+	const runwayDays = useMemo(
+		() => (wallet.avgDailySpend > 0 ? Math.floor(wallet.available / wallet.avgDailySpend) : 0),
+		[wallet.avgDailySpend, wallet.available]
+	)
+	const isLowBalance = useMemo(
+		() => wallet.available < wallet.lowBalanceThreshold,
+		[wallet.available, wallet.lowBalanceThreshold]
+	)
+	const hasOverdue = useMemo(
+		() => metrics.pendingOverdue > 0,
+		[metrics.pendingOverdue]
+	)
 
-	const trackerData = [
-		{ status: "success" as const, count: metrics.approvedCount },
-		{ status: "warning" as const, count: metrics.pendingCount },
-		{ status: "error" as const, count: metrics.rejectedCount },
-	]
+	const trackerData = useMemo(
+		() => [
+			{ status: "success" as const, count: metrics.approvedCount },
+			{ status: "warning" as const, count: metrics.pendingCount },
+			{ status: "error" as const, count: metrics.rejectedCount },
+		],
+		[metrics.approvedCount, metrics.pendingCount, metrics.rejectedCount]
+	)
 
-	const isEnrollmentOverdue = (hoursAgo: number) => hoursAgo > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS
+	const isEnrollmentOverdue = useCallback(
+		(hoursAgo: number) => hoursAgo > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS,
+		[]
+	)
+
+	// Memoized event handlers
+	const handleDismissAlert = useCallback(() => {
+		setDismissedOnboardingAlert(true)
+	}, [])
+
+	const handleStartOnboarding = useCallback(() => {
+		router.push("/onboarding")
+	}, [router])
 
 	// If no organization, show minimal dashboard with alert
 	if (!hasOrganization) {
@@ -216,13 +267,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 						variant="warning"
 						title="Complete Your Organization Setup"
 						dismissible
-						onDismiss={() => setDismissedOnboardingAlert(true)}
+						onDismiss={handleDismissAlert}
 						actions={
 							<>
 								<Button.Root
 									variant="primary"
 									size="small"
-									onClick={() => router.push("/onboarding")}
+									onClick={handleStartOnboarding}
 								>
 									<Button.Icon as={ArrowRight} />
 									Start Onboarding
@@ -230,7 +281,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 								<Button.Root
 									variant="ghost"
 									size="small"
-									onClick={() => setDismissedOnboardingAlert(true)}
+									onClick={handleDismissAlert}
 								>
 									Maybe Later
 								</Button.Root>
@@ -245,7 +296,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
 					<div className="min-w-0">
 						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Dashboard</h1>
-						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5 min-h-[1.25rem]">
+						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5 min-h-5">
 							{formattedDate || <span className="invisible">Loading...</span>}
 						</p>
 					</div>
@@ -266,7 +317,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 									Complete your organization setup to access dashboard features, create campaigns, and manage enrollments.
 								</p>
 							</div>
-							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
+							<Button.Root variant="primary" size="medium" onClick={handleStartOnboarding}>
 								<Button.Icon as={ArrowRight} />
 								Start Onboarding
 							</Button.Root>
@@ -285,13 +336,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 					variant="warning"
 					title="Complete Your Organization Setup"
 					dismissible
-					onDismiss={() => setDismissedOnboardingAlert(true)}
+					onDismiss={handleDismissAlert}
 					actions={
 						<>
 							<Button.Root
 								variant="primary"
 								size="small"
-								onClick={() => router.push("/onboarding")}
+								onClick={handleStartOnboarding}
 							>
 								<Button.Icon as={ArrowRight} />
 								Start Onboarding
@@ -299,7 +350,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 							<Button.Root
 								variant="ghost"
 								size="small"
-								onClick={() => setDismissedOnboardingAlert(true)}
+								onClick={handleDismissAlert}
 							>
 								Maybe Later
 							</Button.Root>
@@ -314,7 +365,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
 				<div className="min-w-0">
 					<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Dashboard</h1>
-					<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5 min-h-[1.25rem]">
+					<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5 min-h-5">
 						{formattedDate || <span className="invisible">Loading...</span>}
 					</p>
 				</div>
@@ -329,13 +380,13 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 			</div>
 
 			{/* ALERT BAR - Only show if has organization and data */}
-			{hasOrganization && data && (hasOverdue || isLowBalance) && (
+			{hasOrganization && safeData && (hasOverdue || isLowBalance) && (
 				<div
 					className={cn(
 						"rounded-xl p-3 flex items-start sm:items-center gap-3",
 						hasOverdue
-							? "bg-gradient-to-r from-error-lighter to-error-lighter/50 ring-1 ring-inset ring-error-base/20"
-							: "bg-gradient-to-r from-warning-lighter to-warning-lighter/50 ring-1 ring-inset ring-warning-base/20"
+							? "bg-linear-to-r from-error-lighter to-error-lighter/50 ring-1 ring-inset ring-error-base/20"
+							: "bg-linear-to-r from-warning-lighter to-warning-lighter/50 ring-1 ring-inset ring-warning-base/20"
 					)}
 				>
 					<div
@@ -402,7 +453,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
 				{/* APPROVAL RATE */}
 				<SimpleStatCard
-					icon={<CheckCircle weight="duotone" className="size-5" />}
+					icon={<Check weight="duotone" className="size-5" />}
 					value={`${approvalRate}%`}
 					label="Approval Rate"
 					iconColor="primary"
@@ -556,7 +607,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 			</div>
 
 			{/* PRIORITY QUEUE - Only show if has organization and data */}
-			{hasOrganization && data && (
+			{hasOrganization && safeData && (
 			<div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
 				<div className="flex items-center justify-between p-4 border-b border-stroke-soft-200">
 					<div className="flex items-center gap-2">
@@ -719,7 +770,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 								Complete your organization setup to access dashboard features, create campaigns, and manage enrollments.
 							</p>
 						</div>
-						<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
+						<Button.Root variant="primary" size="medium" onClick={handleStartOnboarding}>
 							<Button.Icon as={ArrowRight} />
 							Start Onboarding
 						</Button.Root>

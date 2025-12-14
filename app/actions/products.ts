@@ -2,17 +2,16 @@
 
 import { revalidatePath } from "next/cache"
 import { getEncoreClient } from "@/lib/encore"
-import { cookies } from "next/headers"
+import { getOrganizationIdOrNull } from "@/lib/ssr-data"
 import type { products } from "@/lib/encore-client"
-
-async function getOrganizationId(): Promise<string> {
-	const cookieStore = await cookies()
-	return cookieStore.get("active-organization-id")?.value || ""
-}
 
 export async function createProduct(data: Partial<products.Product>) {
 	const client = getEncoreClient()
-	const orgId = await getOrganizationId()
+	const orgId = await getOrganizationIdOrNull()
+
+	if (!orgId) {
+		return { success: false, error: "Organization ID not found" }
+	}
 
 	try {
 		// Create product with proper typing
@@ -70,7 +69,11 @@ export async function deleteProduct(id: string) {
 
 export async function bulkImportProducts(productsData: Partial<products.CreateProductRequest>[]) {
 	const client = getEncoreClient()
-	const orgId = await getOrganizationId()
+	const orgId = await getOrganizationIdOrNull()
+
+	if (!orgId) {
+		return { success: false, error: "Organization ID not found" }
+	}
 
 	try {
 		// Use bulk import endpoint if available, otherwise loop through individual creates

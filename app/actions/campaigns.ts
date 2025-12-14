@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { getEncoreClient } from "@/lib/encore"
+import { getEncoreClient, handleAPIError } from "@/lib/encore"
 import { handleServerAuthError } from "@/lib/error-handler-server"
 import type { campaigns, shared } from "@/lib/encore-client"
 
@@ -16,11 +16,11 @@ export async function createCampaign(data: Partial<campaigns.CreateCampaignReque
 		const response = await client.campaigns.createCampaign(data as campaigns.CreateCampaignRequest)
 		revalidatePath("/dashboard/campaigns")
 		return { success: true, campaign: response }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		// Handle auth errors (session revoked) - redirects to login if 401/403
 		handleServerAuthError(error)
 		// If not auth error, return error response
-		return { success: false, error: error.message || "Failed to create campaign" }
+		return handleAPIError(error)
 	}
 }
 
@@ -32,9 +32,9 @@ export async function updateCampaign(id: string, data: Partial<campaigns.UpdateC
 		revalidatePath("/dashboard/campaigns")
 		revalidatePath(`/dashboard/campaigns/${id}`)
 		return { success: true }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return { success: false, error: error.message || "Failed to update campaign" }
+		return handleAPIError(error)
 	}
 }
 
@@ -45,9 +45,9 @@ export async function deleteCampaign(id: string) {
 		await client.campaigns.deleteCampaign(id)
 		revalidatePath("/dashboard/campaigns")
 		return { success: true, message: "Campaign deleted" }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return { success: false, error: error.message || "Failed to delete campaign" }
+		return handleAPIError(error)
 	}
 }
 
@@ -75,9 +75,9 @@ export async function duplicateCampaign(id: string) {
 
 		revalidatePath("/dashboard/campaigns")
 		return { success: true, campaign: newCampaign, message: "Campaign duplicated as draft" }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return { success: false, error: error.message || "Failed to duplicate campaign" }
+		return handleAPIError(error)
 	}
 }
 
@@ -102,13 +102,19 @@ export async function updateCampaignStatus(
 				result = await client.campaigns.activateCampaign(id)
 				break
 			case "cancel":
-				result = await client.campaigns.cancelCampaign(id)
+				// Use updateCampaignStatus instead of cancelCampaign (which doesn't exist)
+				await client.campaigns.updateCampaignStatus(id, { targetStatus: "cancelled" })
+				// Fetch updated campaign
+				result = await client.campaigns.getCampaign(id)
 				break
 			case "end":
 				result = await client.campaigns.endCampaign(id)
 				break
 			case "complete":
-				result = await client.campaigns.completeCampaign(id)
+				// Use updateCampaignStatus instead of completeCampaign (which doesn't exist)
+				await client.campaigns.updateCampaignStatus(id, { targetStatus: "completed" })
+				// Fetch updated campaign
+				result = await client.campaigns.getCampaign(id)
 				break
 			case "archive":
 				result = await client.campaigns.archiveCampaign(id)
@@ -139,9 +145,9 @@ export async function pauseCampaign(id: string, reason: string = "Paused by user
 		revalidatePath("/dashboard/campaigns")
 		revalidatePath(`/dashboard/campaigns/${id}`)
 		return { success: true, message: "Campaign paused" }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return { success: false, error: error.message || "Failed to pause campaign" }
+		return handleAPIError(error)
 	}
 }
 
@@ -154,9 +160,9 @@ export async function resumeCampaign(id: string) {
 		revalidatePath("/dashboard/campaigns")
 		revalidatePath(`/dashboard/campaigns/${id}`)
 		return { success: true, message: "Campaign resumed" }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return { success: false, error: error.message || "Failed to resume campaign" }
+		return handleAPIError(error)
 	}
 }
 
@@ -169,9 +175,9 @@ export async function endCampaign(id: string) {
 		revalidatePath("/dashboard/campaigns")
 		revalidatePath(`/dashboard/campaigns/${id}`)
 		return { success: true, message: "Campaign ended" }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return { success: false, error: error.message || "Failed to end campaign" }
+		return handleAPIError(error)
 	}
 }
 
@@ -193,8 +199,8 @@ export async function exportCampaignEnrollments(campaignId: string) {
 			campaignTitle: result.campaignTitle,
 			exportedAt: result.exportedAt,
 		}
-	} catch (error: any) {
+	} catch (error: unknown) {
 		handleServerAuthError(error)
-		return { success: false, error: error.message || "Failed to export enrollments" }
+		return handleAPIError(error)
 	}
 }

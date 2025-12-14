@@ -12,8 +12,20 @@ export default function Error({
 	reset: () => void
 }) {
 	useEffect(() => {
-		// Log the error to an error reporting service
-		console.error("Dashboard Error:", error)
+		// Enhanced error logging with context
+		console.error(
+			"\n🚨 [Dashboard Error]\n",
+			{
+				error: {
+					name: error.name,
+					message: error.message,
+					stack: error.stack,
+					digest: error.digest,
+				},
+				timestamp: new Date().toISOString(),
+			},
+			"\n"
+		)
 
 		// Handle session revoke/auth errors
 		if (isAuthError(error)) {

@@ -10,6 +10,7 @@ import {
 	encoreResponse,
 	encoreListResponse,
 	encoreNotFoundResponse,
+	encoreErrorResponse,
 } from "./utils"
 import { delay, DELAY } from "@/mocks/utils/delay"
 
@@ -52,7 +53,7 @@ export const notificationsHandlers = [
 		const { id } = params
 		const auth = getAuthContext()
 		const notification = db.notifications.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId || "1" })
+			q.where({ id: id, organizationId: auth.organizationId || "1" })
 		)
 		if (!notification) return encoreNotFoundResponse("Notification")
 		return encoreResponse({ ...notification, isRead: true })
@@ -60,6 +61,75 @@ export const notificationsHandlers = [
 
 	// POST /notifications/read-all
 	http.post(encoreUrl("/notifications/read-all"), async () => {
+		const auth = getAuthContext()
+		const notifications = db.notifications.findMany((q) =>
+			q.where({ organizationId: auth.organizationId || "1" })
+		)
+
+		// Mark all as read
+		for (const notification of notifications) {
+			db.notifications.update({
+				where: { id: notification.id },
+				data: { isRead: true },
+			})
+		}
+
 		return encoreResponse({ success: true })
 	}),
+
+	// POST /notifications - Create notification
+	http.post(encoreUrl("/notifications"), async ({ request }) => {
+		const auth = getAuthContext()
+		const body = (await request.json()) as {
+			title: string
+			message: string
+			type?: "info" | "success" | "warning" | "error"
+			organizationId?: string
+			userId?: string
+		}
+
+		if (!body.title || !body.message) {
+			return encoreErrorResponse("title and message are required", 400)
+		}
+
+		const now = new Date().toISOString()
+		const newNotification = {
+			id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+			organizationId: body.organizationId || auth.organizationId || "1",
+			userId: body.userId || auth.userId || "1",
+			title: body.title,
+			message: body.message,
+			type: body.type || "info",
+			isRead: false,
+			createdAt: now,
+			updatedAt: now,
+		}
+
+		// Save to database
+		db.notifications.create(newNotification)
+
+		return encoreResponse({
+			...newNotification,
+			createdAt: newNotification.createdAt,
+		})
+	}),
+
+	// DELETE /notifications/:id - Delete notification
+	http.delete(encoreUrl("/notifications/:id"), async ({ params }) => {
+		const auth = getAuthContext()
+		const { id } = params
+
+		const notification = db.notifications.findFirst((q) =>
+			q.where({ id: id, organizationId: auth.organizationId || "1" })
+		)
+		if (!notification) {
+			return encoreNotFoundResponse("Notification")
+		}
+
+		// Delete notification from database
+		db.notifications.delete({ where: { id } })
+
+		return encoreResponse({ deleted: true })
+	}),
 ]
+

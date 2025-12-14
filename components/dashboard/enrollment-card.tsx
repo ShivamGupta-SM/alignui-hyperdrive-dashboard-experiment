@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/utils/cn"
 import * as Avatar from "@/components/ui/avatar"
@@ -32,7 +33,7 @@ interface EnrollmentCardProps {
 	showCampaign?: boolean
 }
 
-export function EnrollmentCard({
+export const EnrollmentCard = React.memo(function EnrollmentCard({
 	enrollment,
 	onReview,
 	onView,
@@ -123,13 +124,13 @@ export function EnrollmentCard({
 
 				{/* Actions */}
 				<div className="flex flex-col gap-2">
-					{isReviewable && (
-						<Button.Root variant="primary" size="small" onClick={handleReview}>
+					{isReviewable && onReview && (
+						<Button.Root variant="primary" size="small" onClick={onReview}>
 							Review
 						</Button.Root>
 					)}
-					{!isReviewable && (
-						<Button.Root variant="neutral" size="small" onClick={handleView}>
+					{!isReviewable && onView && (
+						<Button.Root variant="neutral" size="small" onClick={onView}>
 							View
 						</Button.Root>
 					)}
@@ -151,7 +152,7 @@ export function EnrollmentCard({
 			)}
 		</div>
 	)
-}
+})
 
 // Table row version
 interface EnrollmentTableRowProps {

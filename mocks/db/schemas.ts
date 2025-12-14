@@ -203,6 +203,8 @@ export const ProductSchema = z.object({
 
 export const InvoiceLineItemSchema = z.object({
 	id: z.string(),
+	invoiceId: z.string(), // Reference to invoice
+	enrollmentId: z.string().optional(), // Reference to enrollment (if line item is for specific enrollment)
 	description: z.string(),
 	quantity: z.number(),
 	unitPrice: z.number(),

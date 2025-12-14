@@ -40,9 +40,18 @@ export function MSWInit({ children }: { children: React.ReactNode }) {
 
 		async function enableMocking() {
 			try {
+				console.log("[MSW Init] Starting MSW initialization...")
+				console.log("[MSW Init] Environment check:", {
+					NODE_ENV: process.env.NODE_ENV,
+					NEXT_PUBLIC_API_MOCKING: process.env.NEXT_PUBLIC_API_MOCKING,
+					NEXT_PUBLIC_ENCORE_URL: process.env.NEXT_PUBLIC_ENCORE_URL,
+				})
+				
 				// Initialize MSW handlers
 				const { initMocks } = await import("@/mocks")
 				await initMocks()
+				
+				console.log("[MSW Init] MSW initialization complete")
 
 				// Initialize database with seeding
 				const { db, seedDatabase, clearDatabase, resetDatabase } = await import("@/mocks/db")
@@ -50,8 +59,15 @@ export function MSWInit({ children }: { children: React.ReactNode }) {
 				// Seed database if empty (findMany is synchronous in @msw/data)
 				const campaigns = db.campaigns.findMany()
 				if (campaigns.length === 0) {
-					console.log("[MSW] Seeding database...")
-					await seedDatabase("full")
+					console.log("[MSW Init] Database empty, seeding...")
+					await seedDatabase("full", "1")
+					
+					// Verify seeding
+					const afterCampaigns = db.campaigns.findMany().length
+					const afterEnrollments = db.enrollments.findMany().length
+					console.log(`[MSW Init] ✅ Seeding complete: ${afterCampaigns} campaigns, ${afterEnrollments} enrollments`)
+				} else {
+					console.log(`[MSW Init] ✅ Database already seeded: ${campaigns.length} campaigns found`)
 				}
 
 				// Expose database utilities globally for DevTools

@@ -24,7 +24,7 @@ const iconColorStyles = {
 	neutral: "bg-bg-weak-50 text-text-sub-600",
 }
 
-export function SimpleStatCard({
+export const SimpleStatCard = React.memo(function SimpleStatCard({
 	icon,
 	value,
 	label,
@@ -69,7 +69,7 @@ export function SimpleStatCard({
 	}
 
 	return <div className={cardClass}>{content}</div>
-}
+})
 
 // Wallet stat card - special styling for wallet balance
 interface WalletCardProps {
@@ -80,7 +80,7 @@ interface WalletCardProps {
 	className?: string
 }
 
-export function WalletCard({
+export const WalletCard = React.memo(function WalletCard({
 	balance,
 	lowBalanceThreshold = 50000,
 	label = "Wallet Balance",
@@ -104,7 +104,7 @@ export function WalletCard({
 				"flex flex-col rounded-20 p-4 h-full",
 				isLowBalance
 					? "bg-warning-lighter ring-1 ring-inset ring-warning-base/20"
-					: "bg-gradient-to-br from-primary-base to-primary-darker",
+					: "bg-linear-to-br from-primary-base to-primary-darker",
 				className
 			)}
 		>
@@ -152,7 +152,7 @@ export function WalletCard({
 			)}
 		</div>
 	)
-}
+})
 
 // ===== LEGACY EXPORTS FOR BACKWARD COMPATIBILITY =====
 // These are kept for any existing uses

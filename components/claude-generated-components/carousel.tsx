@@ -157,6 +157,8 @@ const CarouselRoot = React.forwardRef<HTMLDivElement, CarouselRootProps>(
 			api.on("select", onSelect)
 
 			return () => {
+				api?.off("reInit", onInit)
+				api?.off("reInit", onSelect)
 				api?.off("select", onSelect)
 			}
 		}, [api, onInit, onSelect])

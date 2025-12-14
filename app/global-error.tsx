@@ -12,6 +12,21 @@ export default function GlobalError({
 	reset: () => void
 }) {
 	useEffect(() => {
+		// Enhanced error logging with context (Next.js built-in)
+		console.error(
+			"\n🚨 [Global Error - App Crashed]\n",
+			{
+				error: {
+					name: error.name,
+					message: error.message,
+					stack: error.stack,
+					digest: error.digest,
+				},
+				timestamp: new Date().toISOString(),
+			},
+			"\n"
+		)
+
 		// Handle session revoke/auth errors globally
 		if (isAuthError(error)) {
 			handleAuthError(error)

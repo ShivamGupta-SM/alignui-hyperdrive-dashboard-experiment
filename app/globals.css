@@ -889,3 +889,10 @@ body {
 .scrollbar-visible::-webkit-scrollbar-thumb:hover {
 	background: var(--color-gray-400);
 }
+/* Fix Next.js portal positioning */
+nextjs-portal {
+	position: absolute;
+	top: -1px;
+	left: 0px;
+}
+

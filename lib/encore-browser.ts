@@ -27,11 +27,16 @@ let clientInstance: Client | null = null
  * Uses a singleton pattern to reuse the client instance.
  */
 export function getEncoreBrowserClient(options?: ClientOptions): Client {
+	const baseUrl = getBaseUrl()
+	
 	if (!clientInstance) {
-		clientInstance = new Client(getBaseUrl(), {
+		clientInstance = new Client(baseUrl, {
 			// Include credentials for cookie-based auth
+			// This ensures cookies (including auth-token) are sent with requests
 			requestInit: {
 				credentials: "include",
+				// Ensure cookies are sent cross-origin if needed
+				mode: "cors",
 			},
 			...options,
 		})

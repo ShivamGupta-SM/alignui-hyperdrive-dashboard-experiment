@@ -8,7 +8,8 @@ import * as Button from "@/components/ui/button"
 import * as Tooltip from "@/components/ui/tooltip"
 import { CampaignCard } from "@/components/dashboard/campaign-card"
 import { NoCampaignsEmptyState } from "@/components/dashboard/empty-states"
-import { Callout } from "@/components/ui/callout"
+import { Callout, CalloutWithActions } from "@/components/ui/callout"
+import { ConfirmationModal } from "@/components/dashboard"
 import {
 	Plus,
 	Megaphone,
@@ -18,10 +19,13 @@ import {
 	DownloadSimple,
 	MagnifyingGlass,
 	X,
+	ArrowRight,
+	Warning,
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 import { updateCampaignStatus, deleteCampaign, duplicateCampaign } from "@/app/actions"
 import { useQueryClient } from "@tanstack/react-query"
+import { useLocalStorage } from "@/hooks/use-local-storage"
 import { useCampaignSearchParams } from "@/hooks"
 import { useSearchCampaigns } from "@/hooks/use-campaigns"
 import { exportCampaigns } from "@/lib/excel"
@@ -29,6 +33,87 @@ import type { CampaignStatus } from "@/hooks/use-campaigns"
 import type { campaigns } from "@/lib/encore-client"
 
 type CampaignWithStats = campaigns.CampaignWithStats
+
+// Memoized wrapper component to prevent unnecessary re-renders
+const CampaignCardWrapper = React.memo(function CampaignCardWrapper({
+	campaign,
+	onStatusChange,
+	onDelete,
+	onDuplicate,
+	router,
+}: {
+	campaign: CampaignWithStats
+	onStatusChange: (campaignId: string, status: CampaignStatus) => void
+	onDelete: (campaignId: string) => void
+	onDuplicate: (campaignId: string) => void
+	router: ReturnType<typeof useRouter>
+}) {
+	const handleView = React.useCallback(() => {
+		router.push(`/dashboard/campaigns/${campaign.id}`)
+	}, [campaign.id, router])
+	
+	const handleManage = React.useCallback(() => {
+		router.push(`/dashboard/campaigns/${campaign.id}`)
+	}, [campaign.id, router])
+	
+	const handlePause = React.useCallback(() => {
+		onStatusChange(campaign.id, "paused")
+	}, [campaign.id, onStatusChange])
+	
+	const handleResume = React.useCallback(() => {
+		onStatusChange(campaign.id, "active")
+	}, [campaign.id, onStatusChange])
+	
+	const handleEnd = React.useCallback(() => {
+		onStatusChange(campaign.id, "ended")
+	}, [campaign.id, onStatusChange])
+	
+	const handleComplete = React.useCallback(() => {
+		onStatusChange(campaign.id, "completed")
+	}, [campaign.id, onStatusChange])
+	
+	const handleArchive = React.useCallback(() => {
+		onStatusChange(campaign.id, "archived")
+	}, [campaign.id, onStatusChange])
+	
+	const handleCancel = React.useCallback(() => {
+		onStatusChange(campaign.id, "cancelled")
+	}, [campaign.id, onStatusChange])
+	
+	const handleDuplicate = React.useCallback(() => {
+		onDuplicate(campaign.id)
+	}, [campaign.id, onDuplicate])
+	
+	const handleEdit = React.useCallback(() => {
+		router.push(`/dashboard/campaigns/${campaign.id}/edit`)
+	}, [campaign.id, router])
+	
+	const handleDelete = React.useCallback(() => {
+		onDelete(campaign.id)
+	}, [campaign.id, onDelete])
+	
+	const handleSubmitForApproval = React.useCallback(() => {
+		onStatusChange(campaign.id, "pending_approval")
+	}, [campaign.id, onStatusChange])
+
+	return (
+		<CampaignCard
+			campaign={campaign}
+			onView={handleView}
+			onManage={handleManage}
+			onPause={handlePause}
+			onResume={handleResume}
+			onEnd={handleEnd}
+			onComplete={handleComplete}
+			onArchive={handleArchive}
+			onCancel={handleCancel}
+			onDuplicate={handleDuplicate}
+			onEdit={handleEdit}
+			onDelete={handleDelete}
+			onSubmitForApproval={handleSubmitForApproval}
+		/>
+	)
+})
 
 const statusTabs = [
 	{ value: "all", label: "All" },
@@ -45,20 +130,105 @@ interface CampaignsClientProps {
 		data?: CampaignWithStats[]
 		total?: number
 	}
+	hasOrganization?: boolean
 }
 
-export function CampaignsClient({ initialStatus = "all", initialData }: CampaignsClientProps) {
+export function CampaignsClient({
+	initialStatus = "all",
+	initialData,
+	hasOrganization = true,
+}: CampaignsClientProps) {
 	const router = useRouter()
 	const queryClient = useQueryClient()
-	const [, startTransition] = React.useTransition()
+	const [isPending, startTransition] = React.useTransition()
 	const [searchQuery, setSearchQuery] = React.useState("")
 	const [debouncedQuery, setDebouncedQuery] = React.useState("")
 	const [deletingCampaignId, setDeletingCampaignId] = React.useState<string | null>(null)
 	const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
 
+	// Dismiss onboarding alert state (persisted in localStorage)
+	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
+		"campaigns-onboarding-alert-dismissed",
+		false
+	)
+
 	// nuqs: URL state management for filters
 	const [searchParams, setSearchParams] = useCampaignSearchParams()
 	const statusFilter = searchParams.status || initialStatus
+
+	// Show onboarding alert if no organization
+	const showOnboardingAlert = !hasOrganization && !dismissedOnboardingAlert
+
+	// If no organization, show alert
+	if (!hasOrganization) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				{/* ONBOARDING ALERT */}
+				{showOnboardingAlert && (
+					<CalloutWithActions
+						variant="warning"
+						title="Complete Your Organization Setup"
+						dismissible
+						onDismiss={() => setDismissedOnboardingAlert(true)}
+						actions={
+							<>
+								<Button.Root
+									variant="primary"
+									size="small"
+									onClick={() => router.push("/onboarding")}
+								>
+									<Button.Icon as={ArrowRight} />
+									Start Onboarding
+								</Button.Root>
+								<Button.Root
+									variant="ghost"
+									size="small"
+									onClick={() => setDismissedOnboardingAlert(true)}
+								>
+									Maybe Later
+								</Button.Root>
+							</>
+						}
+					>
+						To create and manage campaigns, you need to complete your organization setup. This will only take a few minutes.
+					</CalloutWithActions>
+				)}
+
+				{/* HEADER */}
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+					<div className="min-w-0">
+						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Campaigns</h1>
+						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
+							Manage your marketing campaigns
+						</p>
+					</div>
+				</div>
+
+				{/* EMPTY STATE */}
+				{dismissedOnboardingAlert && (
+					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
+						<div className="max-w-md mx-auto space-y-4">
+							<div className="flex justify-center">
+								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
+									<Warning weight="duotone" className="size-8 text-warning-base" />
+								</div>
+							</div>
+							<div>
+								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
+								<p className="text-paragraph-sm text-text-sub-600 mt-2">
+									Complete your organization setup to create and manage campaigns.
+								</p>
+							</div>
+							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
+								<Button.Icon as={ArrowRight} />
+								Start Onboarding
+							</Button.Root>
+						</div>
+					</div>
+				)}
+			</div>
+		)
+	}
 
 	// Debounce search query
 	React.useEffect(() => {
@@ -69,7 +239,7 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 	}, [searchQuery])
 
 	// Use initialData which is passed from server component - type-safe
-	const campaignsData = (initialData?.campaigns ?? initialData?.data ?? []) as CampaignWithStats[]
+	const campaignsData: CampaignWithStats[] = (initialData?.campaigns ?? initialData?.data ?? []) as CampaignWithStats[]
 
 	// Search hook - only active when there's a search query
 	const { data: searchResults, isLoading: isSearching } = useSearchCampaigns({
@@ -80,7 +250,7 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 	// Use server data first, fallback to search results
 	const isSearchActive = debouncedQuery.length >= 2
 	const campaigns: CampaignWithStats[] = isSearchActive
-		? (searchResults?.data ?? []) as unknown as CampaignWithStats[]
+		? (searchResults?.data ?? []) as CampaignWithStats[]
 		: campaignsData
 
 	// Calculate stats from campaigns
@@ -101,7 +271,7 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 		totalPayout: campaigns.reduce((sum, c) => sum + (c.totalPayout || 0), 0),
 	}
 
-	const handleStatusChange = (campaignId: string, status: CampaignStatus) => {
+	const handleStatusChange = React.useCallback((campaignId: string, status: CampaignStatus) => {
 		startTransition(async () => {
 			// Map CampaignStatus to action type
 			let action: "submit" | "activate" | "cancel" | "end" | "complete" | "archive" | "unarchive"
@@ -122,14 +292,14 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 			queryClient.invalidateQueries({ queryKey: ["campaign", campaignId] })
 			router.refresh()
 		})
-	}
+	}, [queryClient, router])
 
-	const handleDelete = (campaignId: string) => {
+	const handleDelete = React.useCallback((campaignId: string) => {
 		setDeletingCampaignId(campaignId)
 		setIsDeleteModalOpen(true)
-	}
+	}, [])
 
-	const confirmDeleteCampaign = async () => {
+	const confirmDeleteCampaign = React.useCallback(async () => {
 		if (!deletingCampaignId) return
 		
 		startTransition(async () => {
@@ -143,7 +313,7 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 					queryClient.invalidateQueries({ queryKey: ["campaign", deletingCampaignId] })
 			router.refresh()
 				} else {
-					toast.error(result.error || "Failed to delete campaign")
+					toast.error("error" in result ? result.error : "Failed to delete campaign")
 				}
 			} catch (error) {
 				toast.error("An error occurred while deleting campaign")
@@ -151,9 +321,9 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 				setDeletingCampaignId(null)
 			}
 		})
-	}
+	}, [deletingCampaignId, queryClient, router])
 
-	const handleDuplicate = (campaignId: string) => {
+	const handleDuplicate = React.useCallback((campaignId: string) => {
 		startTransition(async () => {
 			const result = await duplicateCampaign(campaignId)
 			if (result.success && result.campaign?.id) {
@@ -163,7 +333,7 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 			}
 			router.refresh()
 		})
-	}
+	}, [queryClient, router])
 
 	const getStatusCount = (status: string) => {
 		if (status === "all") return stats.total
@@ -175,19 +345,19 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 	}
 
 	// nuqs: Update URL when tab changes
-	const handleTabChange = (value: string) => {
+	const handleTabChange = React.useCallback((value: string) => {
 		setSearchParams({ status: value as typeof statusFilter, page: 1 })
-	}
+	}, [setSearchParams, statusFilter])
 
 	// Excel export handler
-	const handleExport = () => {
+	const handleExport = React.useCallback(() => {
 		try {
 			exportCampaigns(campaigns as CampaignWithStats[])
 			toast.success("Campaigns exported to Excel")
 		} catch {
 			toast.error("Failed to export campaigns")
 		}
-	}
+	}, [campaigns])
 
 	return (
 		<Tooltip.Provider>
@@ -388,21 +558,13 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 				) : (
 					<div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3 items-stretch">
 						{campaigns.map((campaign: CampaignWithStats) => (
-							<CampaignCard
+							<CampaignCardWrapper
 								key={campaign.id}
 								campaign={campaign}
-								onView={() => router.push(`/dashboard/campaigns/${campaign.id}`)}
-								onManage={() => router.push(`/dashboard/campaigns/${campaign.id}`)}
-								onPause={() => handleStatusChange(campaign.id, "paused")}
-								onResume={() => handleStatusChange(campaign.id, "active")}
-								onEnd={() => handleStatusChange(campaign.id, "ended")}
-								onComplete={() => handleStatusChange(campaign.id, "completed")}
-								onArchive={() => handleStatusChange(campaign.id, "archived")}
-								onCancel={() => handleStatusChange(campaign.id, "cancelled")}
-								onDuplicate={() => handleDuplicate(campaign.id)}
-								onEdit={() => router.push(`/dashboard/campaigns/${campaign.id}/edit`)}
-								onDelete={() => handleDelete(campaign.id)}
-								onSubmitForApproval={() => handleStatusChange(campaign.id, "pending_approval")}
+								onStatusChange={handleStatusChange}
+								onDelete={handleDelete}
+								onDuplicate={handleDuplicate}
+								router={router}
 							/>
 						))}
 					</div>

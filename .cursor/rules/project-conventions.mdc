@@ -161,6 +161,16 @@ import { cn } from '@/lib/utils'
 
 ## Error Handling
 
+**⚠️ IMPORTANT: See `error-handling.mdc` for production-grade error handling rules.**
+
+**Core Principle: NO DEFENSIVE PROGRAMMING. NO PATCH WORK. FIX AT SOURCE.**
+
+### Key Rules
+1. **Properly identify** error location (frontend vs backend)
+2. **Fix at source** - don't hide errors with try-catch
+3. **Let errors propagate** naturally to error boundaries
+4. **No graceful degradation** - fix the actual problem
+
 ### Server Actions
 ```tsx
 'use server'
@@ -183,6 +193,25 @@ export async function createItem(formData: FormData): Promise<ActionResult<Item>
   } catch (error) {
     console.error('createItem error:', error)
     return { success: false, error: 'Failed to create item' }
+  }
+}
+```
+
+### Server Components (RSC)
+```tsx
+// ✅ CORRECT: Let errors propagate to error boundary
+export default async function Page() {
+  const data = await getData() // Will throw if error
+  return <Component data={data} />
+}
+
+// ❌ WRONG: Don't catch and hide errors
+export default async function Page() {
+  try {
+    const data = await getData()
+    return <Component data={data} />
+  } catch (error) {
+    return <ErrorState /> // ❌ Hiding error
   }
 }
 ```

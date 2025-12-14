@@ -223,3 +223,4 @@ export function successResponse<T extends Record<string, unknown>>(data: T): Res
 export function deleteResponse(): Response {
 	return typedEncoreResponse({ deleted: true })
 }
+

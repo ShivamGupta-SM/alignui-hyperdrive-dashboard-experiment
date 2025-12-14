@@ -6,11 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation"
 import * as Button from "@/components/ui/button"
 import { Callout } from "@/components/ui/callout"
 import { Envelope, CheckCircle, WarningCircle, ArrowLeft } from "@phosphor-icons/react"
+import { getSafeRedirectUrl } from "@/lib/url-validation"
 
 export default function VerifyEmailPage() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 	const token = searchParams.get("token")
+	const callbackURL = searchParams.get("callbackURL")
 	const [isVerifying, setIsVerifying] = React.useState(!!token)
 	const [isVerified, setIsVerified] = React.useState(false)
 	const [error, setError] = React.useState("")
@@ -27,14 +29,24 @@ export default function VerifyEmailPage() {
 			setIsLoading(true)
 			try {
 				const { verifyEmail } = await import("@/app/actions/auth")
-				const result = await verifyEmail(token)
+				// Validate callbackURL if provided
+				const validatedCallbackURL = callbackURL 
+					? getSafeRedirectUrl(callbackURL, null) 
+					: undefined
+				const result = await verifyEmail(token, validatedCallbackURL || undefined)
 
 				if (result.success) {
 					setIsVerified(true)
 					// Refresh session to update emailVerified status
 					router.refresh()
+					// Redirect to callbackURL if provided and valid
+					if (validatedCallbackURL) {
+						setTimeout(() => {
+							router.push(validatedCallbackURL)
+						}, 2000)
+					}
 				} else {
-					setError(result.error || "Failed to verify email")
+					setError("error" in result ? result.error || "Failed to verify email" : "Failed to verify email")
 				}
 			} catch (err) {
 				setError("Failed to verify email. Please try again.")

@@ -51,3 +51,6 @@ if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
 		}
 	}
 }
+
+// Export empty object to make this a module
+export {}

@@ -71,7 +71,7 @@ export const productsHandlers = [
 		const { id } = params
 
 		const product = db.products.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!product) {
 			return encoreNotFoundResponse("Product")
@@ -120,7 +120,7 @@ export const productsHandlers = [
 		const body = (await request.json()) as { name?: string; description?: string }
 
 		const product = db.products.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!product) {
 			return encoreNotFoundResponse("Product")
@@ -143,7 +143,7 @@ export const productsHandlers = [
 		const { id } = params
 
 		const product = db.products.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!product) {
 			return encoreNotFoundResponse("Product")
@@ -185,3 +185,4 @@ export const productsHandlers = [
 		})
 	}),
 ]
+

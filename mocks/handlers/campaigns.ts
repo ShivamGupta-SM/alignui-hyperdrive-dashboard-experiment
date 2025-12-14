@@ -70,7 +70,7 @@ export const campaignsHandlers = [
 		const { id } = params
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -132,7 +132,7 @@ export const campaignsHandlers = [
 		const body = await request.json()
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -156,7 +156,7 @@ export const campaignsHandlers = [
 		const { id } = params
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -175,7 +175,7 @@ export const campaignsHandlers = [
 		const { id } = params
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -190,7 +190,7 @@ export const campaignsHandlers = [
 		const { id } = params
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -209,7 +209,7 @@ export const campaignsHandlers = [
 		const take = Number.parseInt(url.searchParams.get("take") || "20", 10)
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -228,7 +228,7 @@ export const campaignsHandlers = [
 		const { id } = params
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -253,7 +253,7 @@ export const campaignsHandlers = [
 		const { id } = params
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -268,7 +268,7 @@ export const campaignsHandlers = [
 		const { id } = params
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -290,7 +290,7 @@ export const campaignsHandlers = [
 		const { id } = params
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -312,7 +312,7 @@ export const campaignsHandlers = [
 		const { id } = params
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -327,7 +327,7 @@ export const campaignsHandlers = [
 		const { id } = params
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id, organizationId: auth.organizationId })
+			q.where({ id: id, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -349,3 +349,4 @@ export const campaignsHandlers = [
 		return encoreResponse(toCampaignWithStats(newCampaign))
 	}),
 ]
+

@@ -21,7 +21,7 @@ export const emailSchema = z
 export const passwordSchema = z
 	.string()
 	.min(1, "Password is required")
-	.min(8, "Password must be at least 8 characters")
+	.min(12, "Password must be at least 12 characters")
 	.regex(/[A-Z]/, "Password must contain at least one uppercase letter")
 	.regex(/[a-z]/, "Password must contain at least one lowercase letter")
 	.regex(/[0-9]/, "Password must contain at least one number")
@@ -177,29 +177,25 @@ export const campaignFormSchema = z
 			.optional()
 			.or(z.literal("")),
 		type: z.enum(["cashback", "barter", "hybrid"], {
-			errorMap: () => ({ message: "Please select a campaign type" }),
+			message: "Please select a campaign type",
 		}),
 		isPublic: z.boolean(),
 		startDate: z.date({
-			required_error: "Start date is required",
-			invalid_type_error: "Please select a valid start date",
+			message: "Please select a valid start date",
 		}),
 		endDate: z.date({
-			required_error: "End date is required",
-			invalid_type_error: "Please select a valid end date",
+			message: "Please select a valid end date",
 		}),
 		maxEnrollments: z
 			.number({
-				required_error: "Maximum enrollments is required",
-				invalid_type_error: "Please enter a valid number",
+				message: "Please enter a valid number",
 			})
 			.int("Maximum enrollments must be a whole number")
 			.min(1, "Maximum enrollments must be at least 1")
 			.max(100000, "Maximum enrollments must be less than 100,000"),
 		submissionDeadlineDays: z
 			.number({
-				required_error: "Submission deadline is required",
-				invalid_type_error: "Please enter a valid number",
+				message: "Please enter a valid number",
 			})
 			.int("Submission deadline must be a whole number")
 			.min(1, "Submission deadline must be at least 1 day")
@@ -340,6 +336,7 @@ export const updateProfileBodySchema = z.object({
 		.string()
 		.regex(/^[6-9]\d{9}$/, "Invalid phone number")
 		.optional(),
+	image: z.string().url().optional().or(z.literal("")),
 })
 
 export const updateOrganizationBodySchema = z.object({
@@ -382,9 +379,9 @@ export const bankAccountBodySchema = z.object({
 		.regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Invalid IFSC code format (e.g., HDFC0001234)")
 		.transform((val) => val.toUpperCase()),
 	accountType: z.enum(["current", "savings"], {
-		errorMap: () => ({ message: "Please select account type" }),
+		message: "Please select account type",
 	}),
-	isDefault: z.boolean().optional().default(false),
+	isDefault: z.boolean(),
 })
 
 export const verify2FABodySchema = z.object({
@@ -426,7 +423,7 @@ export const onboardingFormSchema = z.object({
 		businessType: z.enum(
 			["private_limited", "public_limited", "llp", "partnership", "sole_proprietorship"],
 			{
-				errorMap: () => ({ message: "Please select a business type" }),
+				message: "Please select a business type",
 			}
 		),
 		industryCategory: z.string().min(1, "Industry category is required"),
@@ -504,7 +501,7 @@ export const creditRequestSchema = z.object({
 export const inviteMemberSchema = z.object({
 	email: emailSchema,
 	role: z.enum(["owner", "admin", "manager", "viewer", "member"], {
-		errorMap: () => ({ message: "Please select a role" }),
+		message: "Please select a role",
 	}),
 	message: z
 		.string()

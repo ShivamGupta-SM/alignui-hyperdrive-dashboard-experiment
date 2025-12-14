@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { getEncoreClient } from "@/lib/encore"
+import { getEncoreClient, handleAPIError } from "@/lib/encore"
 import type { EnrollmentActionResult } from "@/lib/types"
 import type { shared } from "@/lib/encore-client"
 import { updateEnrollmentBodySchema, bulkUpdateEnrollmentBodySchema } from "@/lib/validations"
@@ -98,11 +98,8 @@ export async function bulkUpdateEnrollments(
 		revalidatePath("/dashboard")
 
 		return { success: true, updatedCount: ids.length }
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to bulk update enrollments",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
@@ -129,11 +126,8 @@ export async function requestEnrollmentChanges(
 		revalidatePath(`/dashboard/enrollments/${id}`)
 
 		return { success: true }
-	} catch (error: any) {
-		return {
-			success: false,
-			error: error.message || "Failed to request changes",
-		}
+	} catch (error: unknown) {
+		return handleAPIError(error)
 	}
 }
 
