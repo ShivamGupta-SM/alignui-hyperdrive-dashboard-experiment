@@ -1,11 +1,14 @@
 /**
  * Next.js Instrumentation Hook
  *
- * This file is automatically loaded by Next.js at startup.
+ * This file is automatically loaded by Next.js at startup (Next.js 16+).
  * Used to initialize MSW for server-side mocking during development.
  *
  * IMPORTANT: This runs early, but Next.js may override fetch patching.
  * We also initialize MSW in other places to ensure it works.
+ *
+ * Note: In Next.js 16, instrumentation.ts is recognized by default.
+ * No need for experimental.instrumentationHook in next.config.ts (deprecated).
  *
  * @see https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */

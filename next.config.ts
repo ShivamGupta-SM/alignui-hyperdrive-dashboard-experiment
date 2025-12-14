@@ -3,9 +3,9 @@ import type { NextConfig } from "next"
 const nextConfig: NextConfig = {
 	// Enable Next.js 16 Cache Components feature
 	cacheComponents: true,
-	// Enable instrumentation hook (for MSW initialization)
+	// Note: instrumentation.ts is now recognized by default in Next.js 16
+	// No need for experimental.instrumentationHook (deprecated)
 	experimental: {
-		instrumentationHook: true,
 		turbopackFileSystemCacheForDev: true,
 		// turbopackFileSystemCacheForBuild: true, // Only available in canary version
 	},

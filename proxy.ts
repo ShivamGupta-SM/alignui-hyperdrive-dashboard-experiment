@@ -14,7 +14,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
 	const pathname = request.nextUrl.pathname
 
 	// ============================================================================
@@ -27,12 +27,12 @@ export async function middleware(request: NextRequest) {
 	// ============================================================================
 	// 2. DEFINE ROUTE CATEGORIES
 	// ============================================================================
-	
+
 	// Protected routes - require authentication
 	// Note: /onboarding is protected but has special handling below
 	const protectedRoutes = ["/dashboard"]
 	const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route))
-	
+
 	// Onboarding route - requires auth but should redirect if user has org
 	const isOnboardingRoute = pathname.startsWith("/onboarding")
 
@@ -51,7 +51,7 @@ export async function middleware(request: NextRequest) {
 		// Save the intended destination for redirect after login
 		const signInUrl = new URL("/sign-in", request.url)
 		signInUrl.searchParams.set("redirect", pathname)
-		
+
 		console.log(`[Middleware] Redirecting unauthenticated user from ${pathname} to /sign-in`)
 		return NextResponse.redirect(signInUrl)
 	}
@@ -67,7 +67,7 @@ export async function middleware(request: NextRequest) {
 		// Redirect to sign-in, but preserve onboarding as redirect target
 		const signInUrl = new URL("/sign-in", request.url)
 		signInUrl.searchParams.set("redirect", "/onboarding")
-		
+
 		console.log(`[Middleware] Redirecting unauthenticated user from ${pathname} to /sign-in`)
 		return NextResponse.redirect(signInUrl)
 	}
@@ -93,7 +93,7 @@ export async function middleware(request: NextRequest) {
 	// ============================================================================
 	// Add custom headers if needed (e.g., user ID for server components)
 	const response = NextResponse.next()
-	
+
 	// Optional: Add user info to headers for server components
 	// This can be read in server components via headers()
 	if (isAuthenticated && sessionCookie) {

@@ -111,8 +111,8 @@ async function seedProducts(orgId: string, count: number = 10) {
 	const categories = ["Electronics", "Fashion", "Beauty", "Home & Living"]
 
 	for (let i = 0; i < count; i++) {
-		const category = db.categories.findFirst((q) => q.where({ name: randomElement(categories) }))
-		const platform = db.platforms.findFirst((q) => q.where({ slug: randomElement(platformSlugs) }))
+		const category = db.categories.findFirst((q) => q.where({ name: { equals: randomElement(categories) } }))
+		const platform = db.platforms.findFirst((q) => q.where({ slug: { equals: randomElement(platformSlugs) } }))
 		const now = new Date().toISOString()
 
 		const product: Product = {
@@ -337,7 +337,7 @@ async function seedTransactions(orgId: string, count: number = 30) {
 }
 
 async function seedActiveHolds(orgId: string, enrollments: Enrollment[]) {
-	const existingHolds = db.activeHolds.findMany((q) => q.where({ walletId: `wallet-${orgId}` }))
+	const existingHolds = db.activeHolds.findMany((q) => q.where({ walletId: { equals: `wallet-${orgId}` } }))
 	if (existingHolds.length > 0) return existingHolds
 
 	const holdsData: ActiveHold[] = []
@@ -413,7 +413,7 @@ async function seedInvoices(orgId: string, count: number = 12) {
 }
 
 async function seedTeamMembers(orgId: string) {
-	const existingMembers = db.teamMembers.findMany((q) => q.where({ organizationId: { equals: orgId } }))
+	const existingMembers = db.teamMembers.findMany((q) => q.where({ organizationId: orgId }))
 	if (existingMembers.length > 0) return existingMembers
 
 	// Get organization to match email domain
@@ -736,9 +736,7 @@ async function seedGstDetails(orgId: string) {
 }
 
 async function seedDashboardStats(orgId: string) {
-	const existing = await db.dashboardStats.findFirst({
-		where: { organizationId: { equals: orgId } },
-	})
+	const existing = db.dashboardStats.findFirst((q) => q.where({ organizationId: orgId }))
 	if (existing) return existing
 
 	// Calculate from actual data
@@ -865,10 +863,10 @@ async function seedDeliverableSubmissions(orgId: string, enrollments: Enrollment
 		if (Math.random() < 0.6 && relevantDeliverables.length > 0) {
 			for (const cd of relevantDeliverables.slice(0, Math.floor(Math.random() * 3) + 1)) {
 				const deliverableId = typeToDeliverableId[cd.type] || "del-order-screenshot"
-				const deliverable = db.deliverables.findFirst((q) => q.where({ id: deliverableId }))
+				const deliverable = db.deliverables.findFirst((q) => q.where({ id: { equals: deliverableId } }))
 				const hasProof = Math.random() < 0.7 // 70% have proof submitted
 
-				const submission = {
+				const submission: DeliverableSubmission = {
 					id: generateId("sub"),
 					enrollmentId: enrollment.id,
 					campaignDeliverableId: cd.id,
@@ -903,7 +901,7 @@ async function seedWithdrawals(orgId: string) {
 	if (!wallet || !bankAccount) return []
 
 	const withdrawalCount = faker.number.int({ min: 3, max: 8 })
-	const withdrawals = []
+	const withdrawals: Withdrawal[] = []
 
 	for (let i = 0; i < withdrawalCount; i++) {
 		const requestedDate = randomDate(
@@ -920,7 +918,7 @@ async function seedWithdrawals(orgId: string) {
 		] // Mostly completed
 		const status = randomElement(statuses)
 
-		const withdrawal = {
+		const withdrawal: Withdrawal = {
 			id: generateId("wd"),
 			holderType: "organization",
 			holderId: orgId,
