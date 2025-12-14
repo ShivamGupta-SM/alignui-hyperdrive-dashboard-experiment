@@ -22,6 +22,7 @@ import {
 	Image as ImageIcon,
 	CheckCircle,
 	X,
+	Lightbulb,
 } from "@phosphor-icons/react"
 import { cn } from "@/utils/cn"
 import { createProduct } from "@/app/actions/products"
@@ -234,7 +235,11 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 														<Select.Content>
 															{categories.map((cat) => (
 																<Select.Item key={cat.id} value={cat.id}>
-																	<span className="mr-2">{cat.icon || "📦"}</span>
+																	{cat.icon ? (
+																		<span className="mr-2">{cat.icon}</span>
+																	) : (
+																		<Package className="mr-2 inline size-4" weight="duotone" />
+																	)}
 																	{cat.name}
 																</Select.Item>
 															))}
@@ -390,8 +395,9 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 
 								{/* Quick Tips Card */}
 								<div className="mt-4 rounded-xl bg-information-lighter/50 p-4 ring-1 ring-inset ring-information-base/20">
-									<h3 className="text-label-sm text-information-base font-medium mb-2">
-										💡 Quick Tips
+									<h3 className="text-label-sm text-information-base font-medium mb-2 flex items-center gap-2">
+										<Lightbulb className="size-4" weight="duotone" />
+										Quick Tips
 									</h3>
 									<ul className="space-y-1.5 text-paragraph-xs text-text-sub-600">
 										<li>• Use high-quality product images</li>

@@ -53,6 +53,8 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 	const [, startTransition] = React.useTransition()
 	const [searchQuery, setSearchQuery] = React.useState("")
 	const [debouncedQuery, setDebouncedQuery] = React.useState("")
+	const [deletingCampaignId, setDeletingCampaignId] = React.useState<string | null>(null)
+	const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
 
 	// nuqs: URL state management for filters
 	const [searchParams, setSearchParams] = useCampaignSearchParams()
@@ -78,7 +80,7 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 	// Use server data first, fallback to search results
 	const isSearchActive = debouncedQuery.length >= 2
 	const campaigns: CampaignWithStats[] = isSearchActive
-		? (searchResults?.data ?? [])
+		? (searchResults?.data ?? []) as unknown as CampaignWithStats[]
 		: campaignsData
 
 	// Calculate stats from campaigns
@@ -123,13 +125,31 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 	}
 
 	const handleDelete = (campaignId: string) => {
-		if (!confirm("Are you sure you want to delete this campaign?")) return
+		setDeletingCampaignId(campaignId)
+		setIsDeleteModalOpen(true)
+	}
+
+	const confirmDeleteCampaign = async () => {
+		if (!deletingCampaignId) return
+		
 		startTransition(async () => {
-			await deleteCampaign(campaignId)
+			try {
+				const result = await deleteCampaign(deletingCampaignId)
+				if (result.success) {
+					toast.success("Campaign deleted successfully")
+					setIsDeleteModalOpen(false)
 			// Invalidate campaigns queries to refetch updated list
 			queryClient.invalidateQueries({ queryKey: ["campaigns"] })
-			queryClient.invalidateQueries({ queryKey: ["campaign", campaignId] })
+					queryClient.invalidateQueries({ queryKey: ["campaign", deletingCampaignId] })
 			router.refresh()
+				} else {
+					toast.error(result.error || "Failed to delete campaign")
+				}
+			} catch (error) {
+				toast.error("An error occurred while deleting campaign")
+			} finally {
+				setDeletingCampaignId(null)
+			}
 		})
 	}
 
@@ -388,6 +408,19 @@ export function CampaignsClient({ initialStatus = "all", initialData }: Campaign
 					</div>
 				)}
 			</div>
+
+			{/* Delete Confirmation Modal */}
+			<ConfirmationModal
+				open={isDeleteModalOpen}
+				onOpenChange={setIsDeleteModalOpen}
+				variant="danger"
+				title="Delete Campaign"
+				description="Are you sure you want to delete this campaign? This action cannot be undone. All associated enrollments will be affected."
+				confirmLabel="Delete Campaign"
+				cancelLabel="Cancel"
+				onConfirm={confirmDeleteCampaign}
+				isLoading={isPending}
+			/>
 		</Tooltip.Provider>
 	)
 }

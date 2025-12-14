@@ -83,6 +83,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 	const [isChangesModalOpen, setIsChangesModalOpen] = React.useState(false)
 	const [rejectionReason, setRejectionReason] = React.useState("")
 	const [changesComment, setChangesComment] = React.useState("")
+	const [isProcessing, setIsProcessing] = React.useState(false)
 
 	// Fetch enrollment data from API (hydrated from SSR)
 	// React Query hook removed - using server data via initialData
@@ -102,6 +103,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 	const isLoading = false // pure server actions don't track loading state this way automatically, could use useTransition
 
 	const handleApprove = async () => {
+		setIsProcessing(true)
 		try {
 			const result = await updateEnrollmentStatus(enrollmentId, "approved")
 			if (result.success) {
@@ -111,53 +113,72 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 				queryClient.invalidateQueries({ queryKey: ["enrollments"] })
 				queryClient.invalidateQueries({ queryKey: ["enrollment", enrollmentId] })
 				queryClient.invalidateQueries({ queryKey: ["campaigns"] }) // Campaign stats may change
+				// Give user time to see success message before redirect
+				setTimeout(() => {
 				router.push("/dashboard/enrollments")
+				}, 1500)
 			} else {
 				toast.error(result.error || "Failed to approve enrollment")
+				setIsProcessing(false)
 			}
 		} catch (error) {
 			toast.error("An unexpected error occurred")
+			setIsProcessing(false)
 		}
 	}
 
 	const handleReject = async () => {
 		if (!rejectionReason) return
 
+		setIsProcessing(true)
 		try {
 			const result = await updateEnrollmentStatus(enrollmentId, "rejected", rejectionReason)
 			if (result.success) {
 				toast.success("Enrollment rejected")
 				setIsRejectModalOpen(false)
+				setRejectionReason("")
 				// Invalidate enrollments queries to refetch updated data
 				queryClient.invalidateQueries({ queryKey: ["enrollments"] })
 				queryClient.invalidateQueries({ queryKey: ["enrollment", enrollmentId] })
 				queryClient.invalidateQueries({ queryKey: ["campaigns"] }) // Campaign stats may change
+				// Give user time to see success message before redirect
+				setTimeout(() => {
 				router.push("/dashboard/enrollments")
+				}, 1500)
 			} else {
 				toast.error(result.error || "Failed to reject enrollment")
+				setIsProcessing(false)
 			}
 		} catch (error) {
 			toast.error("An unexpected error occurred")
+			setIsProcessing(false)
 		}
 	}
 
 	const handleRequestChanges = async () => {
 		if (!changesComment.trim()) return
 
+		setIsProcessing(true)
 		try {
 			const result = await requestEnrollmentChanges(enrollmentId, changesComment.trim())
 			if (result.success) {
 				toast.success("Changes requested from shopper")
 				setIsChangesModalOpen(false)
+				setChangesComment("")
 				// Invalidate enrollments queries to refetch updated data
 				queryClient.invalidateQueries({ queryKey: ["enrollments"] })
 				queryClient.invalidateQueries({ queryKey: ["enrollment", enrollmentId] })
+				// Give user time to see success message before redirect
+				setTimeout(() => {
 				router.push("/dashboard/enrollments")
+				}, 1500)
 			} else {
 				toast.error(result.error || "Failed to request changes")
+				setIsProcessing(false)
 			}
 		} catch (error) {
 			toast.error("An unexpected error occurred")
+			setIsProcessing(false)
 		}
 	}
 
@@ -179,15 +200,16 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 		)
 	}
 
-	// Error state
+	// Error state (error is always null in current implementation, but kept for future use)
 	if (error) {
+		const errorMessage = (error as { message?: string })?.message ?? "An unknown error occurred"
 		return (
 			<div className="space-y-5 sm:space-y-6 max-w-4xl mx-auto">
 				<div className="rounded-2xl bg-error-lighter border border-error-base/20 p-4 sm:p-5 text-center">
 					<Warning className="size-8 text-error-base mx-auto mb-2" />
 					<p className="text-label-md text-error-base mb-1">Failed to load enrollment</p>
 					<p className="text-paragraph-sm text-text-sub-600">
-						{error instanceof Error ? error.message : "An unknown error occurred"}
+						{errorMessage}
 					</p>
 					<InlineBackButton label="Go Back" className="mt-4" />
 				</div>
@@ -374,12 +396,12 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 								const platformName =
 									platformId === "general"
 										? "General"
-										: platformMap.get(platformId) || "Unknown Platform"
+										: (platformMap.get(platformId) as string | undefined) || "Unknown Platform"
 
 								if (!acc[platformName]) {
 									acc[platformName] = []
 								}
-								acc[platformName].push(submission)
+								acc[platformName]!.push(submission)
 								return acc
 							},
 							{} as Record<string, typeof enrollmentDetail.submissions>
@@ -664,8 +686,8 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 						<Button.Root variant="ghost" onClick={() => setIsApproveModalOpen(false)}>
 							Cancel
 						</Button.Root>
-						<Button.Root variant="primary" onClick={handleApprove} disabled={isLoading}>
-							{isLoading ? "Processing..." : "Approve & Pay"}
+						<Button.Root variant="primary" onClick={handleApprove} disabled={isProcessing}>
+							{isProcessing ? "Processing..." : "Approve & Pay"}
 						</Button.Root>
 					</Modal.Footer>
 				</Modal.Content>
@@ -709,9 +731,9 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 						<Button.Root
 							variant="error"
 							onClick={handleReject}
-							disabled={isLoading || !rejectionReason}
+							disabled={isProcessing || !rejectionReason}
 						>
-							{isLoading ? "Rejecting..." : "Confirm Rejection"}
+							{isProcessing ? "Rejecting..." : "Confirm Rejection"}
 						</Button.Root>
 					</Modal.Footer>
 				</Modal.Content>
@@ -747,9 +769,9 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 						<Button.Root
 							variant="primary"
 							onClick={handleRequestChanges}
-							disabled={isLoading || !changesComment.trim()}
+							disabled={isProcessing || !changesComment.trim()}
 						>
-							{isLoading ? "Sending..." : "Send Request"}
+							{isProcessing ? "Sending..." : "Send Request"}
 						</Button.Root>
 					</Modal.Footer>
 				</Modal.Content>

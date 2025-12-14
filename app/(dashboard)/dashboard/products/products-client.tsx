@@ -35,6 +35,7 @@ import {
 	deleteProduct,
 	bulkImportProducts,
 } from "@/app/actions/products"
+import { productFormSchema, type ProductFormInput } from "@/lib/validations"
 
 type Product = products.ProductWithStats
 
@@ -58,6 +59,7 @@ interface ProductsClientProps {
 }
 
 export function ProductsClient({ initialData }: ProductsClientProps = {}) {
+	const router = useRouter()
 	// Use server data directly
 	const products = (initialData?.data ?? []) as Product[]
 	const categories = initialData?.categories ?? []
@@ -69,6 +71,8 @@ export function ProductsClient({ initialData }: ProductsClientProps = {}) {
 	const [isAddModalOpen, setIsAddModalOpen] = React.useState(false)
 	const [isBulkImportModalOpen, setIsBulkImportModalOpen] = React.useState(false)
 	const [editingProduct, setEditingProduct] = React.useState<Product | null>(null)
+	const [deletingProductId, setDeletingProductId] = React.useState<string | null>(null)
+	const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
 
 	const [isPending, startTransition] = React.useTransition()
 
@@ -98,20 +102,30 @@ export function ProductsClient({ initialData }: ProductsClientProps = {}) {
 	const stats = React.useMemo(() => getStats(products), [products])
 
 	const handleDeleteProduct = (productId: string) => {
-		if (window.confirm("Are you sure you want to delete this product?")) {
+		setDeletingProductId(productId)
+		setIsDeleteModalOpen(true)
+	}
+
+	const confirmDeleteProduct = async () => {
+		if (!deletingProductId) return
+		
 			startTransition(async () => {
 				try {
-					const res = await deleteProduct(productId)
+				const res = await deleteProduct(deletingProductId)
 					if (res.success) {
 						toast.success("Product deleted successfully")
+					setIsDeleteModalOpen(false)
+					setDeletingProductId(null)
+					router.refresh()
 					} else {
 						toast.error(res.error || "Failed to delete product")
 					}
 				} catch (e) {
 					toast.error("An error occurred")
+			} finally {
+				setDeletingProductId(null)
 				}
 			})
-		}
 	}
 
 	return (
@@ -307,12 +321,38 @@ export function ProductsClient({ initialData }: ProductsClientProps = {}) {
 				platforms={platforms}
 			/>
 
+			{/* Delete Confirmation Modal */}
+			<ConfirmationModal
+				open={isDeleteModalOpen}
+				onOpenChange={setIsDeleteModalOpen}
+				variant="danger"
+				title="Delete Product"
+				description="Are you sure you want to delete this product? This action cannot be undone and will affect all associated campaigns."
+				confirmLabel="Delete Product"
+				cancelLabel="Cancel"
+				onConfirm={confirmDeleteProduct}
+				isLoading={isPending}
+			/>
+
 			{/* Bulk Import Modal */}
 			<BulkImportModal
 				open={isBulkImportModalOpen}
 				onOpenChange={setIsBulkImportModalOpen}
 				categories={categories}
 				platforms={platforms}
+			/>
+
+			{/* Delete Confirmation Modal */}
+			<ConfirmationModal
+				open={isDeleteModalOpen}
+				onOpenChange={setIsDeleteModalOpen}
+				variant="danger"
+				title="Delete Product"
+				description="Are you sure you want to delete this product? This action cannot be undone and will affect all associated campaigns."
+				confirmLabel="Delete Product"
+				cancelLabel="Cancel"
+				onConfirm={confirmDeleteProduct}
+				isLoading={isPending}
 			/>
 		</div>
 	)
@@ -482,6 +522,7 @@ function ProductModal({ open, onOpenChange, product, categories, platforms }: Pr
 		formState: { errors },
 		reset,
 		watch,
+		control,
 	} = useForm<ProductFormInput>({
 		resolver: zodResolver(productFormSchema),
 		defaultValues: {

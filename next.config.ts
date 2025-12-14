@@ -3,6 +3,12 @@ import type { NextConfig } from "next"
 const nextConfig: NextConfig = {
 	// Enable Next.js 16 Cache Components feature
 	cacheComponents: true,
+	// Enable instrumentation hook (for MSW initialization)
+	experimental: {
+		instrumentationHook: true,
+		turbopackFileSystemCacheForDev: true,
+		// turbopackFileSystemCacheForBuild: true, // Only available in canary version
+	},
 	// Enable TypeScript type checking during build
 	typescript: {
 		// Don't ignore TypeScript errors during build

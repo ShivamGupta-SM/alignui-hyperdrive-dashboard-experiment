@@ -10,8 +10,8 @@ import { db } from "@/mocks/db"
 import { encoreUrl, encoreResponse } from "./utils"
 
 export const dashboardHandlers = [
-	// GET /organizations/:orgId/dashboard - Get dashboard overview
-	http.get(encoreUrl("/organizations/:orgId/dashboard"), async ({ params }) => {
+	// GET /organizations/:orgId/dashboard - Get dashboard overview (with query params)
+	http.get(encoreUrl("/organizations/:orgId/dashboard"), async ({ params, request }) => {
 		const rawOrgId = params.orgId as string
 		const orgId = rawOrgId === "default" || !rawOrgId ? "1" : rawOrgId
 

@@ -32,7 +32,17 @@ import type { auth } from "@/lib/encore-browser"
 import type { auth as authServer } from "@/lib/encore-client"
 // import { useProfileData } from '@/hooks/use-profile'
 
-type User = auth.User
+type User = {
+	id: string
+	name: string
+	email: string
+	phone?: string
+	role: string
+	image?: string | null
+	emailVerified?: boolean
+	twoFactorEnabled?: boolean
+	createdAt?: string | Date
+}
 
 // Icon mapping for sessions
 const getSessionIcon = (iconType: string) => {
@@ -147,10 +157,10 @@ export function ProfileClient({ initialData }: ProfileClientProps = {}) {
 				<MetricGroup columns={3} className="grid-cols-3">
 					<Metric
 						label="Member Since"
-						value={new Date(user.createdAt).toLocaleDateString("en-IN", {
+						value={user.createdAt ? new Date(user.createdAt).toLocaleDateString("en-IN", {
 							month: "short",
 							year: "numeric",
-						})}
+						}) : "N/A"}
 						size="sm"
 					/>
 					<Metric label="Active Sessions" value={sessions.length} size="sm" />
@@ -615,8 +625,22 @@ function NotificationsTab() {
 }
 
 // Sessions Tab - Using List
+type Session = {
+	id: string
+	device: string
+	browser: string
+	location: string
+	lastActive: string
+	current: boolean
+	iconType: "computer" | "smartphone" | "mac"
+	userAgent?: string
+	ipAddress?: string
+	updatedAt?: string | Date
+	createdAt?: string | Date
+}
+
 interface SessionsTabProps {
-	sessions: (auth.Session & { icon: React.ElementType })[]
+	sessions: (Session & { icon: React.ElementType })[]
 }
 
 function SessionsTab({ sessions }: SessionsTabProps) {
@@ -691,8 +715,8 @@ function SessionsTab({ sessions }: SessionsTabProps) {
 									</div>
 									<div className="text-paragraph-xs text-text-sub-600 mt-1 space-y-0.5">
 										<div>IP: {session.ipAddress || "Unknown"}</div>
-										<div>Last updated: {formatDate(session.updatedAt)}</div>
-										<div>Signed in: {formatDate(session.createdAt)}</div>
+										{session.updatedAt && <div>Last updated: {formatDate(typeof session.updatedAt === 'string' ? session.updatedAt : session.updatedAt.toISOString())}</div>}
+										{session.createdAt && <div>Signed in: {formatDate(typeof session.createdAt === 'string' ? session.createdAt : session.createdAt.toISOString())}</div>}
 									</div>
 								</List.ItemContent>
 								{!isCurrent && (

@@ -126,7 +126,14 @@ export const productsHandlers = [
 			return encoreNotFoundResponse("Product")
 		}
 
-		const updated = { ...product, ...body, updatedAt: new Date() }
+		// Update product in database
+		const updated = db.products.update({
+			where: { id },
+			data: {
+				...body,
+				updatedAt: new Date().toISOString(),
+			},
+		})
 		return encoreResponse(toProductWithStats(updated))
 	}),
 
@@ -147,6 +154,8 @@ export const productsHandlers = [
 			return encoreErrorResponse("Cannot delete product with active campaigns", 400)
 		}
 
+		// Delete product from database
+		db.products.delete({ where: { id } })
 		return encoreResponse({ deleted: true })
 	}),
 

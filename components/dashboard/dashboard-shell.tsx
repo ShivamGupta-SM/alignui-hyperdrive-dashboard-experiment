@@ -8,7 +8,6 @@ import { Header } from "@/components/dashboard/header"
 import { NotificationsDrawer } from "@/components/dashboard/notifications-drawer"
 import { CommandMenu } from "@/components/dashboard/command-menu"
 import { SettingsPanel } from "@/components/dashboard/settings-panel"
-import { NovuProvider } from "@/components/dashboard/novu-provider"
 import { useBreadcrumbs } from "@/hooks/use-breadcrumbs"
 import { useSignOut } from "@/hooks/use-sign-out"
 import { useSession } from "@/hooks/use-session"
@@ -28,11 +27,7 @@ interface DashboardShellProps {
 }
 
 export function DashboardShell({ children }: DashboardShellProps) {
-	return (
-		<NovuProvider>
-			<DashboardShellInner>{children}</DashboardShellInner>
-		</NovuProvider>
-	)
+	return <DashboardShellInner>{children}</DashboardShellInner>
 }
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
@@ -63,18 +58,20 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 	const markAllRead = useMarkAllNotificationsRead()
 	const markRead = useMarkNotificationRead()
 
-	// Dashboard data for pending enrollments count
-	const { data: dashboardData } = useDashboard()
-	const pendingEnrollmentsCount = dashboardData?.stats?.pendingEnrollments ?? 0
-
-	// Get auto-generated breadcrumbs from pathname
-	const breadcrumbItems = useBreadcrumbs()
-
 	// Prevent hydration mismatch by using consistent initial state
+	// MUST be declared before useDashboard to avoid "Cannot access before initialization" error
 	const [mounted, setMounted] = React.useState(false)
 	React.useEffect(() => {
 		setMounted(true)
 	}, [])
+
+	// Dashboard data for pending enrollments count
+	// Use try-catch to prevent hook order issues during errors
+	const dashboardQuery = useDashboard({ enabled: mounted }) // Only fetch after mount
+	const pendingEnrollmentsCount = dashboardQuery.data?.stats?.pendingEnrollments ?? 0
+
+	// Get auto-generated breadcrumbs from pathname
+	const breadcrumbItems = useBreadcrumbs()
 
 	// Close mobile sidebar on route change
 	React.useEffect(() => {
@@ -121,7 +118,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 	if (!mounted) {
 		return (
 			<div
-				className="h-dvh lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200"
+				className="h-dvh lg:p-3 bg-gradient-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200"
 				style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
 			>
 				{/* Desktop skeleton */}
@@ -166,10 +163,10 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 	}
 
 	return (
-		<div
-			className="h-dvh lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 transition-colors duration-200"
-			style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-		>
+			<div
+			className="h-dvh lg:p-3 bg-gradient-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 transition-colors duration-200"
+				style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+			>
 			{/* ============================================ */}
 			{/* DESKTOP LAYOUT - Traditional Inset Sidebar */}
 			{/* ============================================ */}
@@ -286,7 +283,6 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 							"relative z-10 flex flex-col h-full",
 							"bg-bg-white-0 rounded-2xl border border-stroke-soft-200 shadow-md ring-1 ring-black/3 dark:ring-white/3",
 							"transition-[transform,box-shadow] duration-300 ease-out will-change-transform",
-							// When sidebar is open, slide content down (70% to show more peek)
 							mobileSidebarOpen
 								? "translate-y-[70%] scale-[0.96] shadow-2xl"
 								: "translate-y-0 scale-100"
@@ -308,7 +304,15 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 						<button
 							type="button"
 							className="absolute inset-x-2 bottom-2 z-20 h-[35%] cursor-pointer"
-							onClick={() => setMobileSidebarOpen(false)}
+							onClick={(e) => {
+								e.preventDefault()
+								e.stopPropagation()
+								setMobileSidebarOpen(false)
+							}}
+							onMouseDown={(e) => {
+								// Prevent this from blocking other clicks
+								e.stopPropagation()
+							}}
 							aria-label="Close sidebar"
 						/>
 					)}
@@ -348,6 +352,6 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 
 			{/* Settings Panel */}
 			<SettingsPanel open={settingsPanelOpen} onOpenChange={setSettingsPanelOpen} />
-		</div>
+			</div>
 	)
 }

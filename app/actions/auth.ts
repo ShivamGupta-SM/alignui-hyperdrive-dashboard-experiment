@@ -1,5 +1,15 @@
 "use server"
 
+// Initialize MSW early for server actions - MUST be before any imports that use fetch
+if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
+	// Synchronously initialize MSW before any other imports
+	// This ensures fetch is patched before Encore client is created
+	const initPromise = import("@/lib/init-mocks-server").then((mod) => mod.initServerMocks()).catch((err) => {
+		console.error("[Auth] Failed to initialize MSW:", err)
+	})
+	// Wait for initialization in the action itself
+}
+
 import { getEncoreClient } from "@/lib/encore"
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
@@ -9,7 +19,24 @@ import type { auth } from "@/lib/encore-client"
  * Sign in with email and password
  */
 export async function signInEmail(email: string, password: string, rememberMe?: boolean) {
+	// Ensure MSW is initialized before making API calls
+	if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
+		console.log("[SignIn] Initializing MSW before API call...")
+		const { initServerMocks } = await import("@/lib/init-mocks-server")
+		await initServerMocks()
+		// Wait longer to ensure MSW is fully ready and fetch is patched
+		await new Promise((resolve) => setTimeout(resolve, 500))
+		
+		// Verify fetch is patched
+		if (typeof globalThis.fetch === "undefined") {
+			console.error("[SignIn] ❌ WARNING: globalThis.fetch is undefined!")
+		} else {
+			console.log("[SignIn] ✅ globalThis.fetch is available (should be patched)")
+		}
+	}
+
 	const client = getEncoreClient()
+	console.log("[SignIn] Encore client created, making signInEmail API call...")
 
 	try {
 		const result = await client.auth.signInEmail({ email, password, rememberMe })
@@ -29,13 +56,17 @@ export async function signInEmail(email: string, password: string, rememberMe?: 
 		}
 
 		// Set auth cookie if token is returned
+		// Note: Better Auth also sets "better-auth.session_token" cookie via createSessionCookie()
+		// We set "auth-token" cookie to match Better Auth's behavior:
+		// - rememberMe = true (or undefined) → 7 days (matches Better Auth's createSessionCookie)
+		// - rememberMe = false → 24 hours (session-only)
 		if (result.token) {
 			const cookieStore = await cookies()
 			cookieStore.set("auth-token", result.token, {
 				httpOnly: true,
 				secure: process.env.NODE_ENV === "production",
 				sameSite: "lax",
-				maxAge: rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7, // 30 days if remember me, else 7 days
+				maxAge: rememberMe !== false ? 60 * 60 * 24 * 7 : 60 * 60 * 24, // 7 days if remember me, else 24 hours (matches Better Auth)
 			})
 		}
 
@@ -43,11 +74,24 @@ export async function signInEmail(email: string, password: string, rememberMe?: 
 		const { revalidatePath } = await import("next/cache")
 		revalidatePath("/", "layout")
 
+		// Check if user has an organization
+		// This helps with smart redirects after sign-in
+		let hasOrganization = false
+		try {
+			const orgsResult = await client.auth.listOrganizations()
+			hasOrganization = (orgsResult.organizations?.length || 0) > 0
+		} catch (error) {
+			// If check fails, assume no org (safe default)
+			console.warn("[SignIn] Failed to check organizations:", error)
+			hasOrganization = false
+		}
+
 		return {
 			success: true,
 			user: result.user,
 			token: result.token,
 			redirect: result.redirect,
+			hasOrganization, // Flag to help with redirect logic
 		}
 	} catch (error: any) {
 		return {
@@ -66,7 +110,24 @@ export async function signUpEmail(
 	name?: string,
 	rememberMe?: boolean
 ) {
+	// Ensure MSW is initialized before making API calls
+	if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
+		console.log("[SignUp] Initializing MSW before API call...")
+		const { initServerMocks } = await import("@/lib/init-mocks-server")
+		await initServerMocks()
+		// Wait longer to ensure MSW is fully ready and fetch is patched
+		await new Promise((resolve) => setTimeout(resolve, 500))
+		
+		// Verify fetch is patched
+		if (typeof globalThis.fetch === "undefined") {
+			console.error("[SignUp] ❌ WARNING: globalThis.fetch is undefined!")
+		} else {
+			console.log("[SignUp] ✅ globalThis.fetch is available (should be patched)")
+		}
+	}
+
 	const client = getEncoreClient()
+	console.log("[SignUp] Encore client created, making signUpEmail API call...")
 
 	try {
 		const result = await client.auth.signUpEmail({
@@ -77,13 +138,17 @@ export async function signUpEmail(
 		})
 
 		// Set auth cookie if token is returned
+		// Note: Better Auth also sets "better-auth.session_token" cookie via createSessionCookie()
+		// We set "auth-token" cookie to match Better Auth's behavior:
+		// - rememberMe = true (or undefined) → 7 days (matches Better Auth's createSessionCookie)
+		// - rememberMe = false → 24 hours (session-only)
 		if (result.token) {
 			const cookieStore = await cookies()
 			cookieStore.set("auth-token", result.token, {
 				httpOnly: true,
 				secure: process.env.NODE_ENV === "production",
 				sameSite: "lax",
-				maxAge: rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7, // 30 days if remember me, else 7 days
+				maxAge: rememberMe !== false ? 60 * 60 * 24 * 7 : 60 * 60 * 24, // 7 days if remember me, else 24 hours (matches Better Auth)
 			})
 		}
 
@@ -91,10 +156,23 @@ export async function signUpEmail(
 		const { revalidatePath } = await import("next/cache")
 		revalidatePath("/", "layout")
 
+		// Check if user already has an organization
+		// New users won't have one, but existing users might
+		let hasOrganization = false
+		try {
+			const orgsResult = await client.auth.listOrganizations()
+			hasOrganization = (orgsResult.organizations?.length || 0) > 0
+		} catch (error) {
+			// If check fails, assume no org (safe default for new users)
+			console.warn("[SignUp] Failed to check organizations:", error)
+			hasOrganization = false
+		}
+
 		return {
 			success: true,
 			user: result.user,
 			token: result.token,
+			hasOrganization, // Flag to help with redirect logic
 		}
 	} catch (error: any) {
 		return {
@@ -108,7 +186,24 @@ export async function signUpEmail(
  * Sign in with social provider (OAuth)
  */
 export async function signInSocial(provider: "google" | "github" | "microsoft") {
+	// Ensure MSW is initialized before making API calls
+	if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
+		console.log("[SignInSocial] Initializing MSW before API call...")
+		const { initServerMocks } = await import("@/lib/init-mocks-server")
+		await initServerMocks()
+		// Wait longer to ensure MSW is fully ready and fetch is patched
+		await new Promise((resolve) => setTimeout(resolve, 500))
+		
+		// Verify fetch is patched
+		if (typeof globalThis.fetch === "undefined") {
+			console.error("[SignInSocial] ❌ WARNING: globalThis.fetch is undefined!")
+		} else {
+			console.log("[SignInSocial] ✅ globalThis.fetch is available (should be patched)")
+		}
+	}
+
 	const client = getEncoreClient()
+	console.log("[SignInSocial] Encore client created, making signInSocial API call...")
 
 	try {
 		const result = await client.auth.signInSocial({ provider })

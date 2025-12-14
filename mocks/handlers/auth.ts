@@ -6,17 +6,50 @@ import { http } from "msw"
 import { db } from "@/mocks/db"
 import { encoreUrl, encoreResponse, encoreErrorResponse } from "./utils"
 
-// Static user for auth
+// Static user for auth - matches seeded organization owner
 const mockUser = {
 	id: "1",
-	email: "admin@hypedrive.io",
-	name: "Admin User",
-	role: "admin",
-	avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=admin",
+	email: "rajesh@techstyle.in",
+	name: "Rajesh Kumar",
+	role: "user", // Regular user role
+	avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=rajesh",
 }
 
 export const authHandlers = [
-	// POST /auth/login
+	// POST /auth/sign-in/email - Encore client endpoint
+	http.post(encoreUrl("/auth/sign-in/email"), async ({ request }) => {
+		const body = (await request.json()) as { email: string; password: string; rememberMe?: boolean }
+
+		if (!body.email || !body.password) {
+			return encoreErrorResponse("Email and password are required", 400)
+		}
+
+		// Ensure database is seeded
+		const { seedDatabase } = await import("@/mocks/db/seed")
+		await seedDatabase("full", "1").catch(() => {
+			// Ignore if already seeded
+		})
+
+		const orgs = db.organizationSettings.findMany()
+
+		return encoreResponse({
+			redirect: false,
+			token: "mock-jwt-token",
+			url: null,
+			user: {
+				id: mockUser.id,
+				email: mockUser.email,
+				name: mockUser.name,
+				emailVerified: true,
+				image: mockUser.avatar,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+			},
+			twoFactorRedirect: false,
+		})
+	}),
+
+	// POST /auth/login - Legacy endpoint (for compatibility)
 	http.post(encoreUrl("/auth/login"), async ({ request }) => {
 		const body = (await request.json()) as { email: string; password: string }
 
@@ -24,7 +57,13 @@ export const authHandlers = [
 			return encoreErrorResponse("Email and password are required", 400)
 		}
 
-		const orgs = db.organizationSettings.findMany({})
+		// Ensure database is seeded
+		const { seedDatabase } = await import("@/mocks/db/seed")
+		await seedDatabase("full", "1").catch(() => {
+			// Ignore if already seeded
+		})
+
+		const orgs = db.organizationSettings.findMany()
 
 		return encoreResponse({
 			user: mockUser,
@@ -37,18 +76,91 @@ export const authHandlers = [
 		})
 	}),
 
+	// POST /auth/sign-in/social - Encore client endpoint for social sign-in
+	http.post(encoreUrl("/auth/sign-in/social"), async ({ request }) => {
+		const body = (await request.json()) as { provider: string; disableRedirect?: boolean }
+
+		// Ensure database is seeded
+		const { seedDatabase } = await import("@/mocks/db/seed")
+		await seedDatabase("full", "1").catch(() => {
+			// Ignore if already seeded
+		})
+
+		const orgs = db.organizationSettings.findMany()
+
+		// If redirect is disabled, return user data directly
+		if (body.disableRedirect) {
+			return encoreResponse({
+				redirect: false,
+				token: "mock-jwt-token",
+				url: null,
+				user: {
+					id: mockUser.id,
+					email: mockUser.email,
+					name: mockUser.name,
+					emailVerified: true,
+					image: mockUser.avatar,
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				},
+			})
+		}
+
+		// Otherwise, return redirect URL (for OAuth flow)
+		return encoreResponse({
+			redirect: true,
+			url: `https://accounts.google.com/oauth/authorize?client_id=mock&redirect_uri=${encodeURIComponent("http://localhost:3000/auth/callback/google")}`,
+			token: null,
+			user: null,
+		})
+	}),
+
 	// POST /auth/logout
 	http.post(encoreUrl("/auth/logout"), async () => {
 		return encoreResponse({ success: true })
 	}),
 
-	// POST /auth/register
+	// POST /auth/sign-up/email - Encore client endpoint
+	http.post(encoreUrl("/auth/sign-up/email"), async ({ request }) => {
+		const body = (await request.json()) as { email: string; password: string; name: string; rememberMe?: boolean }
+
+		if (!body.email || !body.password || !body.name) {
+			return encoreErrorResponse("Email, password, and name are required", 400)
+		}
+
+		// Ensure database is seeded
+		const { seedDatabase } = await import("@/mocks/db/seed")
+		await seedDatabase("full", "1").catch(() => {
+			// Ignore if already seeded
+		})
+
+		return encoreResponse({
+			token: "mock-jwt-token",
+			user: {
+				id: mockUser.id,
+				email: body.email,
+				name: body.name,
+				emailVerified: false,
+				image: mockUser.avatar,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+			},
+		})
+	}),
+
+	// POST /auth/register - Legacy endpoint (for compatibility)
 	http.post(encoreUrl("/auth/register"), async ({ request }) => {
 		const body = (await request.json()) as { email: string; password: string; name: string }
 
 		if (!body.email || !body.password || !body.name) {
 			return encoreErrorResponse("Email, password, and name are required", 400)
 		}
+
+		// Ensure database is seeded
+		const { seedDatabase } = await import("@/mocks/db/seed")
+		await seedDatabase("full", "1").catch(() => {
+			// Ignore if already seeded
+		})
 
 		return encoreResponse({
 			user: { ...mockUser, email: body.email, name: body.name },
@@ -58,7 +170,13 @@ export const authHandlers = [
 
 	// GET /auth/session
 	http.get(encoreUrl("/auth/session"), async () => {
-		const orgs = db.organizationSettings.findMany({})
+		// Ensure database is seeded
+		const { seedDatabase } = await import("@/mocks/db/seed")
+		await seedDatabase("full", "1").catch(() => {
+			// Ignore if already seeded
+		})
+
+		const orgs = db.organizationSettings.findMany()
 
 		return encoreResponse({
 			user: mockUser,
@@ -67,6 +185,130 @@ export const authHandlers = [
 				name: o.name,
 				slug: o.name.toLowerCase().replace(/\s+/g, "-"),
 			})),
+		})
+	}),
+
+	// GET /auth/get-session - Better Auth session endpoint (used by client.auth.me())
+	http.get(encoreUrl("/auth/get-session"), async () => {
+		// Ensure database is seeded
+		const { seedDatabase } = await import("@/mocks/db/seed")
+		await seedDatabase("full", "1").catch(() => {
+			// Ignore if already seeded
+		})
+
+		const orgs = db.organizationSettings.findMany()
+		const activeOrg = orgs[0] || null
+
+		return encoreResponse({
+			session: {
+				id: "session-1",
+				userId: mockUser.id,
+				expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+				token: "mock-session-token",
+				ipAddress: "127.0.0.1",
+				userAgent: "Mozilla/5.0",
+			},
+			user: {
+				id: mockUser.id,
+				email: mockUser.email,
+				name: mockUser.name,
+				emailVerified: true,
+				image: mockUser.avatar,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+				activeOrganizationId: activeOrg?.organizationId || "1", // Default to org "1" (seeded org)
+			},
+		})
+	}),
+
+	// GET /auth/organization/list - List user's organizations
+	http.get(encoreUrl("/auth/organization/list"), async () => {
+		// Ensure database is seeded
+		const { seedDatabase } = await import("@/mocks/db/seed")
+		await seedDatabase("full", "1").catch(() => {
+			// Ignore if already seeded
+		})
+
+		const orgs = db.organizationSettings.findMany()
+
+		return encoreResponse({
+			organizations: orgs.map((o) => ({
+				id: o.organizationId,
+				name: o.name,
+				slug: o.name.toLowerCase().replace(/\s+/g, "-"),
+				logo: o.logo,
+				createdAt: new Date().toISOString(),
+			})),
+		})
+	}),
+
+	// POST /auth/organization/create - Create organization (Better Auth)
+	http.post(encoreUrl("/auth/organization/create"), async ({ request }) => {
+		const body = (await request.json()) as {
+			name: string
+			slug?: string
+			logo?: string
+			keepCurrentActiveOrganization?: boolean
+		}
+
+		if (!body.name) {
+			return encoreErrorResponse("Organization name is required", 400)
+		}
+
+		const newOrgId = `org-${Date.now()}`
+		const newOrg = {
+			id: newOrgId,
+			name: body.name,
+			slug: body.slug || body.name.toLowerCase().replace(/\s+/g, "-"),
+			logo: body.logo || null,
+			createdAt: new Date().toISOString(),
+			members: [
+				{
+					id: "member-1",
+					userId: mockUser.id,
+					organizationId: newOrgId,
+					role: "owner",
+					createdAt: new Date().toISOString(),
+				},
+			],
+		}
+
+		// Add to mock database - ensure it's created immediately
+		// Use upsert pattern to avoid duplicates
+		const existing = db.organizationSettings.findFirst((q) => q.where({ organizationId: newOrgId }))
+		if (!existing) {
+			db.organizationSettings.create({
+				organizationId: newOrgId,
+				name: body.name,
+				logo: body.logo || null,
+				email: `${body.name.toLowerCase().replace(/\s+/g, "")}@example.com`,
+				approvalStatus: "draft", // New orgs start as draft
+			})
+		}
+
+		// Verify it was created
+		const created = db.organizationSettings.findFirst((q) => q.where({ organizationId: newOrgId }))
+		if (!created) {
+			console.error("[MSW] Failed to create organization in database:", newOrgId)
+		}
+
+		return encoreResponse(newOrg)
+	}),
+
+	// POST /auth/organization/set-active - Set active organization
+	http.post(encoreUrl("/auth/organization/set-active"), async ({ request }) => {
+		const body = (await request.json()) as { organizationId: string | null }
+
+		// Ensure database is seeded
+		const { seedDatabase } = await import("@/mocks/db/seed")
+		await seedDatabase("full", body.organizationId || "1").catch(() => {
+			// Ignore if already seeded
+		})
+
+		// In a real app, this would set a cookie or session variable
+		// For mocking, we just return success
+		return encoreResponse({
+			success: true,
 		})
 	}),
 

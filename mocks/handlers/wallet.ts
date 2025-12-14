@@ -181,40 +181,33 @@ export const walletHandlers = [
 		const skip = Number.parseInt(url.searchParams.get("skip") || "0", 10)
 		const take = Number.parseInt(url.searchParams.get("take") || "20", 10)
 
-		// Mock withdrawals
-		const withdrawals = [
-			{
-				id: "wd-1",
-				organizationId: orgId,
-				amount: 50000,
-				status: "completed",
-				createdAt: new Date().toISOString(),
-			},
-			{
-				id: "wd-2",
-				organizationId: orgId,
-				amount: 25000,
-				status: "processing",
-				createdAt: new Date().toISOString(),
-			},
-		]
+		// Get withdrawals from database
+		let withdrawals = db.withdrawals.findMany((q) =>
+			q.where({ organizationId: orgId as string })
+		)
 
-		return encoreListResponse(withdrawals.slice(skip, skip + take), withdrawals.length, skip, take)
+		// Sort by requestedAt descending
+		withdrawals.sort(
+			(a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
+		)
+
+		const total = withdrawals.length
+		const paginatedWithdrawals = withdrawals.slice(skip, skip + take)
+
+		return encoreListResponse(paginatedWithdrawals, total, skip, take)
 	}),
 
 	// GET /withdrawals/:id
 	http.get(encoreUrl("/withdrawals/:id"), async ({ params }) => {
 		const { id } = params as { id: string }
 
-		return encoreResponse({
-			id,
-			organizationId: "1",
-			amount: 50000,
-			status: "completed",
-			bankAccountId: "bank-1",
-			createdAt: new Date().toISOString(),
-			completedAt: new Date().toISOString(),
-		})
+		const withdrawal = db.withdrawals.findFirst((q) => q.where({ id: id as string }))
+
+		if (!withdrawal) {
+			return encoreNotFoundResponse("Withdrawal")
+		}
+
+		return encoreResponse(withdrawal)
 	}),
 
 	// GET /withdrawals/stats

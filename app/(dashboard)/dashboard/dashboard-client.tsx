@@ -25,6 +25,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { THRESHOLDS } from "@/lib/types/constants"
 import type { organizations } from "@/lib/encore-client"
 import { SimpleStatCard } from "@/components/dashboard/stat-card"
+import { CalloutWithActions } from "@/components/ui/callout"
+import { useRouter } from "next/navigation"
 
 // Helper to format currency in compact form (₹1.5L, ₹2.3Cr)
 const formatWalletAmount = (amount: number): string => {
@@ -125,6 +127,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 	// NOTE: This useMemo must be called before any early returns to maintain hooks order
 	const priorityEnrollments = useMemo(() => {
 		if (!data) return []
+		if (!data.pendingEnrollments || !Array.isArray(data.pendingEnrollments)) return []
 		if (!currentTime) return data.pendingEnrollments.slice(0, 3).map((e) => ({ ...e, hoursAgo: 0 }))
 		return data.pendingEnrollments.slice(0, 3).map((e) => ({
 			...e,
@@ -132,38 +135,50 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 		}))
 	}, [data, currentTime])
 
-	// Simple loading check
-	if (!data) {
+	// Show onboarding alert if no organization
+	const showOnboardingAlert = !hasOrganization && !dismissedOnboardingAlert
+
+	// Simple loading check - but allow render if no org (will show alert)
+	if (!hasOrganization && !showOnboardingAlert) {
+		// If alert dismissed, show skeleton
+		return <DashboardSkeleton />
+	}
+
+	// If no data but has org, show skeleton
+	if (hasOrganization && (!data || !data.stats || !data.enrollmentDistribution)) {
 		return <DashboardSkeleton />
 	}
 
 	// Transform API data to UI format - STRICT (no fallbacks, will fail if data is wrong)
 	const wallet = {
-		available: data.stats.walletBalance,
-		held: data.stats.heldAmount,
-		avgDailySpend: data.stats.avgDailySpend,
-		lowBalanceThreshold: data.stats.lowBalanceThreshold,
+		available: data.stats?.walletBalance ?? 0,
+		held: data.stats?.heldAmount ?? 0,
+		avgDailySpend: data.stats?.avgDailySpend ?? 0,
+		lowBalanceThreshold: data.stats?.lowBalanceThreshold ?? 0,
 	}
 
 	const metrics = {
-		activeCampaigns: data.stats.activeCampaigns,
-		pausedCampaigns: data.stats.pausedCampaigns,
-		endingSoon: data.stats.endingSoon,
-		pendingTotal: data.stats.pendingEnrollments,
-		pendingOverdue: data.stats.overdueEnrollments,
-		pendingHigh: data.stats.highValuePending,
-		totalEnrollments: data.enrollmentDistribution.total,
-		approvedCount: data.enrollmentDistribution.approved,
-		rejectedCount: data.enrollmentDistribution.rejected,
-		pendingCount: data.enrollmentDistribution.pending,
-		enrollmentsTrend: data.stats.enrollmentTrend,
-		approvalRateTrend: data.stats.approvalRateTrend,
+		activeCampaigns: data.stats?.activeCampaigns ?? 0,
+		pausedCampaigns: data.stats?.pausedCampaigns ?? 0,
+		endingSoon: data.stats?.endingSoon ?? 0,
+		pendingTotal: data.stats?.pendingEnrollments ?? 0,
+		pendingOverdue: data.stats?.overdueEnrollments ?? 0,
+		pendingHigh: data.stats?.highValuePending ?? 0,
+		totalEnrollments: data.enrollmentDistribution?.total ?? 0,
+		approvedCount: data.enrollmentDistribution?.approved ?? 0,
+		rejectedCount: data.enrollmentDistribution?.rejected ?? 0,
+		pendingCount: data.enrollmentDistribution?.pending ?? 0,
+		enrollmentsTrend: data.stats?.enrollmentTrend ?? 0,
+		approvalRateTrend: data.stats?.approvalRateTrend ?? 0,
 	}
 
-	const enrollmentChartData = data.enrollmentChart.map((d) => ({ value: d.enrollments }))
+	const enrollmentChartData = (data.enrollmentChart && Array.isArray(data.enrollmentChart))
+		? data.enrollmentChart.map((d) => ({ value: d.enrollments ?? 0 }))
+		: []
 
 	// Map top campaigns - use product image from API
-	const topCampaigns = data.topCampaigns.slice(0, 3).map((c) => ({
+	const topCampaigns = (data.topCampaigns && Array.isArray(data.topCampaigns))
+		? data.topCampaigns.slice(0, 3).map((c) => ({
 		id: c.id,
 		name: c.name,
 		enrollments: c.enrollments,
@@ -172,6 +187,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 		daysLeft: c.daysLeft,
 		image: c.productImage,
 	}))
+		: []
 
 	const approvalRate =
 		metrics.totalEnrollments > 0
@@ -190,8 +206,110 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 
 	const isEnrollmentOverdue = (hoursAgo: number) => hoursAgo > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS
 
+	// If no organization, show minimal dashboard with alert
+	if (!hasOrganization) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				{/* ONBOARDING ALERT */}
+				{showOnboardingAlert && (
+					<CalloutWithActions
+						variant="warning"
+						title="Complete Your Organization Setup"
+						dismissible
+						onDismiss={() => setDismissedOnboardingAlert(true)}
+						actions={
+							<>
+								<Button.Root
+									variant="primary"
+									size="small"
+									onClick={() => router.push("/onboarding")}
+								>
+									<Button.Icon as={ArrowRight} />
+									Start Onboarding
+								</Button.Root>
+								<Button.Root
+									variant="ghost"
+									size="small"
+									onClick={() => setDismissedOnboardingAlert(true)}
+								>
+									Maybe Later
+								</Button.Root>
+							</>
+						}
+					>
+						To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
+					</CalloutWithActions>
+				)}
+
+				{/* HEADER */}
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+					<div className="min-w-0">
+						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Dashboard</h1>
+						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5 min-h-[1.25rem]">
+							{formattedDate || <span className="invisible">Loading...</span>}
+						</p>
+					</div>
+				</div>
+
+				{/* EMPTY STATE */}
+				{dismissedOnboardingAlert && (
+					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
+						<div className="max-w-md mx-auto space-y-4">
+							<div className="flex justify-center">
+								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
+									<Warning weight="duotone" className="size-8 text-warning-base" />
+								</div>
+							</div>
+							<div>
+								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
+								<p className="text-paragraph-sm text-text-sub-600 mt-2">
+									Complete your organization setup to access dashboard features, create campaigns, and manage enrollments.
+								</p>
+							</div>
+							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
+								<Button.Icon as={ArrowRight} />
+								Start Onboarding
+							</Button.Root>
+						</div>
+					</div>
+				)}
+			</div>
+		)
+	}
+
 	return (
 		<div className="space-y-5 sm:space-y-6">
+			{/* ONBOARDING ALERT - Show if no organization */}
+			{showOnboardingAlert && (
+				<CalloutWithActions
+					variant="warning"
+					title="Complete Your Organization Setup"
+					dismissible
+					onDismiss={() => setDismissedOnboardingAlert(true)}
+					actions={
+						<>
+							<Button.Root
+								variant="primary"
+								size="small"
+								onClick={() => router.push("/onboarding")}
+							>
+								<Button.Icon as={ArrowRight} />
+								Start Onboarding
+							</Button.Root>
+							<Button.Root
+								variant="ghost"
+								size="small"
+								onClick={() => setDismissedOnboardingAlert(true)}
+							>
+								Maybe Later
+							</Button.Root>
+						</>
+					}
+				>
+					To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
+				</CalloutWithActions>
+			)}
+
 			{/* HEADER */}
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
 				<div className="min-w-0">
@@ -200,16 +318,18 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 						{formattedDate || <span className="invisible">Loading...</span>}
 					</p>
 				</div>
+				{hasOrganization && (
 				<Button.Root variant="primary" size="small" asChild className="shrink-0">
 					<Link href="/dashboard/campaigns/create">
 						<Button.Icon as={Plus} />
 						<span className="hidden sm:inline">New Campaign</span>
 					</Link>
 				</Button.Root>
+				)}
 			</div>
 
-			{/* ALERT BAR */}
-			{(hasOverdue || isLowBalance) && (
+			{/* ALERT BAR - Only show if has organization and data */}
+			{hasOrganization && data && (hasOverdue || isLowBalance) && (
 				<div
 					className={cn(
 						"rounded-xl p-3 flex items-start sm:items-center gap-3",
@@ -435,7 +555,8 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 				</div>
 			</div>
 
-			{/* PRIORITY QUEUE */}
+			{/* PRIORITY QUEUE - Only show if has organization and data */}
+			{hasOrganization && data && (
 			<div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
 				<div className="flex items-center justify-between p-4 border-b border-stroke-soft-200">
 					<div className="flex items-center gap-2">
@@ -581,6 +702,30 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 					</Link>
 				)}
 			</div>
+			)}
+
+			{/* EMPTY STATE - Show if no organization and alert dismissed */}
+			{!hasOrganization && dismissedOnboardingAlert && (
+				<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
+					<div className="max-w-md mx-auto space-y-4">
+						<div className="flex justify-center">
+							<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
+								<Warning weight="duotone" className="size-8 text-warning-base" />
+							</div>
+						</div>
+						<div>
+							<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
+							<p className="text-paragraph-sm text-text-sub-600 mt-2">
+								Complete your organization setup to access dashboard features, create campaigns, and manage enrollments.
+							</p>
+						</div>
+						<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
+							<Button.Icon as={ArrowRight} />
+							Start Onboarding
+						</Button.Root>
+					</div>
+				</div>
+			)}
 		</div>
 	)
 }

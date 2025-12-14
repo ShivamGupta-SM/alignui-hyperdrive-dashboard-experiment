@@ -1,40 +1,86 @@
 /**
  * MSW Request Handlers
  *
- * This file combines all mock API handlers.
- * Each handler mirrors the actual API route structure.
+ * This file combines all mock API handlers into a single array.
+ * Each handler file mirrors the actual API route structure from the Encore backend.
+ *
+ * Handler Organization:
+ * - Each handler file corresponds to a domain/feature (auth, campaigns, etc.)
+ * - Handlers are organized by API endpoint structure
+ * - All handlers use typed responses matching Encore API types
+ *
+ * Adding New Handlers:
+ * 1. Create a new handler file in `mocks/handlers/`
+ * 2. Export handlers array from that file
+ * 3. Import and add to this array
  */
 
+// Authentication & Authorization
+import { authHandlers } from "./auth"
+
+// Dashboard & Analytics
 import { dashboardHandlers } from "./dashboard"
+
+// Campaign Management
 import { campaignsHandlers } from "./campaigns"
+
+// Enrollment Management
 import { enrollmentsHandlers } from "./enrollments"
+
+// Product Management
+import { productsHandlers } from "./products"
+import { categoriesHandlers } from "./categories"
+import { platformsHandlers } from "./platforms"
+
+// Financial
 import { walletHandlers } from "./wallet"
+import { invoicesHandlers } from "./invoices"
+
+// Organization & Team
+import { organizationsHandlers } from "./organizations"
 import { teamHandlers } from "./team"
 import { profileHandlers } from "./profile"
-import { authHandlers } from "./auth"
-import { notificationsHandlers } from "./notifications"
-import { productsHandlers } from "./products"
-import { invoicesHandlers } from "./invoices"
-import { deliverablesHandlers } from "./deliverables"
-import { platformsHandlers } from "./platforms"
-import { categoriesHandlers } from "./categories"
-import { storageHandlers } from "./storage"
-import { organizationsHandlers } from "./organizations"
+import { settingsHandlers } from "./settings"
 
+// Notifications & Activity
+import { notificationsHandlers } from "./notifications"
+
+// Deliverables & Storage
+import { deliverablesHandlers } from "./deliverables"
+import { deliverableSubmissionsHandlers } from "./deliverable-submissions"
+import { storageHandlers } from "./storage"
+
+/**
+ * Combined array of all MSW handlers
+ * Order matters: more specific routes should come before general ones
+ */
 export const handlers = [
+	// Auth first (most general routes)
 	...authHandlers,
+	
+	// Dashboard & Analytics
 	...dashboardHandlers,
+	
+	// Core business logic
 	...campaignsHandlers,
 	...enrollmentsHandlers,
+	...productsHandlers,
+	
+	// Financial
 	...walletHandlers,
+	...invoicesHandlers,
+	
+	// Organization & Team
+	...organizationsHandlers,
 	...teamHandlers,
 	...profileHandlers,
+	...settingsHandlers,
+	
+	// Supporting features
 	...notificationsHandlers,
-	...productsHandlers,
-	...invoicesHandlers,
 	...deliverablesHandlers,
-	...platformsHandlers,
+	...deliverableSubmissionsHandlers,
 	...categoriesHandlers,
+	...platformsHandlers,
 	...storageHandlers,
-	...organizationsHandlers,
 ]

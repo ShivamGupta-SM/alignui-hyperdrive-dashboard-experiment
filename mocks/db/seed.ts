@@ -29,6 +29,9 @@ faker.seed(123)
 const DEFAULT_ORG_ID = "1"
 const DEFAULT_USER_ID = "1"
 
+// Multiple organization IDs for demo user
+const DEMO_ORG_IDS = ["1", "2", "3", "4", "5"]
+
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
@@ -236,6 +239,9 @@ async function seedEnrollments(orgId: string, campaigns: Campaign[], count: numb
 		const submissionDeadline = faker.date.future({ years: 0.1 })
 		const createdAt = faker.date.recent({ days: 30 })
 
+		// Calculate payout amount (for approved enrollments)
+		const payoutAmount = status === "approved" ? billAmount : 0
+
 		const enrollment: Enrollment = {
 			id: generateId("enr"),
 			organizationId: orgId,
@@ -249,6 +255,7 @@ async function seedEnrollments(orgId: string, campaigns: Campaign[], count: numb
 			lockedBillRate: billAmount, // Encore format
 			lockedPlatformFee: platformFee, // Encore format
 			lockedBonusAmount: 0,
+			payoutAmount, // Add payout amount for dashboard stats
 			submittedAt: createdAt.toISOString(), // Encore format
 			approvedAt: status === "approved" ? faker.date.recent({ days: 7 }).toISOString() : undefined,
 			rejectionCount: 0,
@@ -288,9 +295,7 @@ async function seedEnrollments(orgId: string, campaigns: Campaign[], count: numb
 }
 
 async function seedTransactions(orgId: string, count: number = 30) {
-	const existingTransactions = await db.transactions.findMany({
-		where: { organizationId: { equals: orgId } },
-	})
+	const existingTransactions = db.transactions.findMany((q) => q.where({ organizationId: orgId }))
 	if (existingTransactions.length > 0) return existingTransactions
 
 	const transactionsData: Transaction[] = []
@@ -404,18 +409,20 @@ async function seedInvoices(orgId: string, count: number = 12) {
 }
 
 async function seedTeamMembers(orgId: string) {
-	const existingMembers = await db.teamMembers.findMany({
-		where: { organizationId: { equals: orgId } },
-	})
+	const existingMembers = db.teamMembers.findMany((q) => q.where({ organizationId: orgId }))
 	if (existingMembers.length > 0) return existingMembers
+
+	// Get organization to match email domain
+	const org = db.organizationSettings.findFirst((q) => q.where({ organizationId: orgId }))
+	const emailDomain = org?.email?.split("@")[1] || "techstyle.in"
 
 	const membersData: TeamMember[] = [
 		{
 			id: DEFAULT_USER_ID,
 			organizationId: orgId,
 			userId: DEFAULT_USER_ID,
-			name: "Demo User",
-			email: "demo@hypedrive.test",
+			name: "Rajesh Kumar",
+			email: `rajesh@${emailDomain}`,
 			role: "owner",
 			avatar: faker.image.avatar(),
 			joinedAt: faker.date.past({ years: 2 }),
@@ -426,22 +433,33 @@ async function seedTeamMembers(orgId: string) {
 			organizationId: orgId,
 			userId: generateId("user"),
 			name: faker.person.fullName(),
-			email: faker.internet.email(),
+			email: `admin@${emailDomain}`,
 			role: "admin",
 			avatar: faker.image.avatar(),
 			joinedAt: faker.date.past({ years: 1 }),
-			lastActive: faker.date.recent({ days: 3 }),
+			lastActive: faker.date.recent({ days: 1 }),
 		},
 		{
 			id: generateId("member"),
 			organizationId: orgId,
 			userId: generateId("user"),
 			name: faker.person.fullName(),
-			email: faker.internet.email(),
+			email: `manager@${emailDomain}`,
 			role: "manager",
 			avatar: faker.image.avatar(),
 			joinedAt: faker.date.past({ years: 0.5 }),
-			lastActive: faker.date.recent({ days: 7 }),
+			lastActive: faker.date.recent({ days: 2 }),
+		},
+		{
+			id: generateId("member"),
+			organizationId: orgId,
+			userId: generateId("user"),
+			name: faker.person.fullName(),
+			email: `viewer@${emailDomain}`,
+			role: "viewer",
+			avatar: faker.image.avatar(),
+			joinedAt: faker.date.past({ months: 3 }),
+			lastActive: faker.date.recent({ days: 5 }),
 		},
 	]
 
@@ -456,37 +474,143 @@ async function seedWalletBalance(orgId: string) {
 	const existing = db.walletBalances.findFirst((q) => q.where({ organizationId: orgId }))
 	if (existing) return existing
 
+	// Create wallet with varying balances for different orgs
+	const orgIndex = parseInt(orgId) - 1
+	const baseBalance = 200000
+	const balanceMultiplier = [1.25, 1.5, 1.0, 0.75, 0.5][orgIndex % 5] // Varying balances
+
 	const balance = {
 		organizationId: orgId,
-		availableBalance: faker.number.int({ min: 50000, max: 500000 }),
-		heldAmount: faker.number.int({ min: 10000, max: 100000 }),
-		creditLimit: 200000,
-		creditUtilized: faker.number.int({ min: 0, max: 50000 }),
+		availableBalance: Math.round(baseBalance * balanceMultiplier),
+		heldAmount: Math.round(45000 * balanceMultiplier),
+		creditLimit: 500000,
+		creditUtilized: Math.round(125000 * balanceMultiplier),
 	}
 
 	await db.walletBalances.create(balance)
 	return balance
 }
 
-async function seedOrganizationSettings(orgId: string) {
+async function seedOrganizationSettings(orgId: string, orgIndex: number = 0) {
 	const existing = db.organizationSettings.findFirst((q) => q.where({ organizationId: orgId }))
 	if (existing) return existing
 
+	// Create multiple realistic organizations with different data
+	const orgTemplates = [
+		{
+			name: "TechStyle India Pvt. Ltd.",
+			email: "contact@techstyle.in",
+			phone: "+91 98765 43210",
+			website: "https://techstyle.in",
+			address: "123 Business Park, Andheri East",
+			city: "Mumbai",
+			state: "Maharashtra",
+			pincode: "400069",
+			gstNumber: "27AABCU9603R1ZM",
+			panNumber: "AABCU9603R",
+			cinNumber: "U12345MH2020PTC123456",
+			industry: "E-commerce",
+			industryCategory: "Fashion & Apparel",
+			contactPerson: "Rajesh Kumar",
+			description: "Leading fashion and lifestyle brand in India",
+		},
+		{
+			name: "BeautyGlow Cosmetics",
+			email: "info@beautyglow.in",
+			phone: "+91 98765 43211",
+			website: "https://beautyglow.in",
+			address: "456 Mall Road, Connaught Place",
+			city: "New Delhi",
+			state: "Delhi",
+			pincode: "110001",
+			gstNumber: "07AABCB9604R1ZN",
+			panNumber: "AABCB9604R",
+			cinNumber: "U12345DL2021PTC234567",
+			industry: "Beauty & Personal Care",
+			industryCategory: "Cosmetics",
+			contactPerson: "Priya Sharma",
+			description: "Premium beauty and skincare products",
+		},
+		{
+			name: "HomeDecor Solutions",
+			email: "sales@homedecor.in",
+			phone: "+91 98765 43212",
+			website: "https://homedecor.in",
+			address: "789 MG Road, Koramangala",
+			city: "Bangalore",
+			state: "Karnataka",
+			pincode: "560095",
+			gstNumber: "29AABCD9605R1ZO",
+			panNumber: "AABCD9605R",
+			cinNumber: "U12345KA2022PTC345678",
+			industry: "Home & Living",
+			industryCategory: "Furniture & Decor",
+			contactPerson: "Amit Patel",
+			description: "Modern home furniture and decor solutions",
+		},
+		{
+			name: "FitLife Wellness",
+			email: "contact@fitlife.in",
+			phone: "+91 98765 43213",
+			website: "https://fitlife.in",
+			address: "321 Park Street, Salt Lake",
+			city: "Kolkata",
+			state: "West Bengal",
+			pincode: "700091",
+			gstNumber: "19AABCE9606R1ZP",
+			panNumber: "AABCE9606R",
+			cinNumber: "U12345WB2023PTC456789",
+			industry: "Health & Fitness",
+			industryCategory: "Fitness Equipment",
+			contactPerson: "Sneha Reddy",
+			description: "Fitness equipment and wellness products",
+		},
+		{
+			name: "Gourmet Foods India",
+			email: "info@gourmetfoods.in",
+			phone: "+91 98765 43214",
+			website: "https://gourmetfoods.in",
+			address: "654 Commercial Street, Hitech City",
+			city: "Hyderabad",
+			state: "Telangana",
+			pincode: "500081",
+			gstNumber: "36AABCF9607R1ZQ",
+			panNumber: "AABCF9607R",
+			cinNumber: "U12345TG2024PTC567890",
+			industry: "Food & Beverages",
+			industryCategory: "Gourmet Foods",
+			contactPerson: "Rahul Verma",
+			description: "Premium gourmet food products and snacks",
+		},
+	]
+
+	const template = orgTemplates[orgIndex % orgTemplates.length]
+
+	// Create a complete, realistic organization with all fields
 	const settings = {
 		organizationId: orgId,
-		name: "Demo Brand Co.",
-		email: "contact@demobrand.com",
-		phone: "+91 98765 43210",
-		website: "https://demobrand.com",
+		name: template.name,
+		email: template.email,
+		phone: template.phone,
+		website: template.website,
 		logo: faker.image.urlLoremFlickr({ category: "business" }),
-		address: faker.location.streetAddress(),
-		city: "Mumbai",
-		state: "Maharashtra",
-		pincode: "400001",
-		gstNumber: "27AABCU9603R1ZM",
-		panNumber: "AABCU9603R",
+		address: template.address,
+		city: template.city,
+		state: template.state,
+		pincode: template.pincode,
+		postalCode: template.pincode,
+		country: "IN",
+		gstNumber: template.gstNumber,
+		panNumber: template.panNumber,
+		cinNumber: template.cinNumber,
 		businessType: "Private Limited",
-		industry: "E-commerce",
+		industry: template.industry,
+		industryCategory: template.industryCategory,
+		contactPerson: template.contactPerson,
+		description: template.description,
+		gstVerified: orgIndex < 3, // First 3 orgs verified
+		panVerified: orgIndex < 3, // First 3 orgs verified
+		approvalStatus: (orgIndex < 3 ? "approved" : orgIndex === 3 ? "pending" : "draft") as const,
 	}
 
 	await db.organizationSettings.create(settings)
@@ -559,6 +683,54 @@ async function seedRecentActivity(orgId: string, count: number = 10) {
 	return activities
 }
 
+async function seedBankAccounts(orgId: string) {
+	const existing = db.bankAccounts.findMany((q) => q.where({ organizationId: orgId }))
+	if (existing.length > 0) return existing
+
+	const org = db.organizationSettings.findFirst((q) => q.where({ organizationId: orgId }))
+	const bankNames = ["HDFC Bank", "ICICI Bank", "Axis Bank", "SBI", "Kotak Mahindra Bank"]
+	const orgIndex = parseInt(orgId) - 1
+
+	const bankAccounts = [
+		{
+			id: generateId("bank"),
+			organizationId: orgId,
+			accountName: org?.name || "Organization",
+			accountNumber: `${1000000000 + orgIndex}${faker.string.numeric(3)}`,
+			ifscCode: `${bankNames[orgIndex % bankNames.length].substring(0, 4).toUpperCase()}${faker.string.alphanumeric(6).toUpperCase()}`,
+			bankName: bankNames[orgIndex % bankNames.length],
+			branch: `${org?.city || "Mumbai"} Branch`,
+			isPrimary: true,
+		},
+	]
+
+	for (const account of bankAccounts) {
+		await db.bankAccounts.create(account)
+	}
+
+	return bankAccounts
+}
+
+async function seedGstDetails(orgId: string) {
+	const existing = db.gstDetails.findFirst((q) => q.where({ organizationId: orgId }))
+	if (existing) return existing
+
+	const org = db.organizationSettings.findFirst((q) => q.where({ organizationId: orgId }))
+	if (!org?.gstNumber) return null
+
+	const gstDetails = {
+		organizationId: orgId,
+		gstNumber: org.gstNumber,
+		legalName: org.name,
+		tradeName: org.name.split(" ")[0], // First word as trade name
+		gstStatus: org.gstVerified ? "Active" : "Pending",
+		address: org.address || `${org.city || "Mumbai"} - ${org.pincode || "400001"}`,
+	}
+
+	await db.gstDetails.create(gstDetails)
+	return gstDetails
+}
+
 async function seedDashboardStats(orgId: string) {
 	const existing = await db.dashboardStats.findFirst({
 		where: { organizationId: { equals: orgId } },
@@ -570,20 +742,208 @@ async function seedDashboardStats(orgId: string) {
 	const allEnrollments = db.enrollments.findMany((q) => q.where({ organizationId: orgId }))
 	const wallet = db.walletBalances.findFirst((q) => q.where({ organizationId: orgId }))
 
+	// Calculate total payout from approved enrollments
+	const approvedEnrollments = allEnrollments.filter((e) => e.status === "approved")
+	const totalPayout = approvedEnrollments.reduce((sum, e) => {
+		// Use payoutAmount if available, otherwise calculate from lockedBillRate
+		return sum + ((e as any).payoutAmount || e.lockedBillRate || 0)
+	}, 0)
+
 	const stats = {
 		organizationId: orgId,
 		activeCampaigns: allCampaigns.filter((c) => c.status === "active").length,
 		totalEnrollments: allEnrollments.length,
 		pendingReviews: allEnrollments.filter((e) => e.status === "awaiting_review").length,
-		totalPayout: allEnrollments
-			.filter((e) => e.status === "approved")
-			.reduce((sum, e) => sum + e.payoutAmount, 0),
+		totalPayout,
 		walletBalance: wallet?.availableBalance || 0,
 		monthlyGrowth: faker.number.float({ min: 5, max: 25 }),
 	}
 
 	await db.dashboardStats.create(stats)
 	return stats
+}
+
+async function seedDeliverables() {
+	const existing = db.deliverables.findMany()
+	if (existing.length > 0) return existing
+
+	const deliverableTypes = [
+		{
+			id: "del-order-screenshot",
+			name: "Order Screenshot",
+			description: "Screenshot of confirmed order from the platform",
+			category: "order_verification",
+			requireLink: false,
+			requireScreenshot: true,
+			status: "active" as const,
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		},
+		{
+			id: "del-delivery-photo",
+			name: "Delivery Photo",
+			description: "Photo of the delivered product",
+			category: "delivery_verification",
+			requireLink: false,
+			requireScreenshot: true,
+			status: "active" as const,
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		},
+		{
+			id: "del-product-review",
+			name: "Product Review",
+			description: "Written or video review of the product",
+			category: "review",
+			requireLink: true,
+			requireScreenshot: false,
+			status: "active" as const,
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		},
+		{
+			id: "del-social-media-post",
+			name: "Social Media Post",
+			description: "Post on social media platform (Instagram, Facebook, etc.)",
+			category: "social_media",
+			requireLink: true,
+			requireScreenshot: true,
+			status: "active" as const,
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		},
+		{
+			id: "del-unboxing-video",
+			name: "Unboxing Video",
+			description: "Video of product unboxing",
+			category: "video",
+			requireLink: true,
+			requireScreenshot: false,
+			status: "active" as const,
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		},
+	]
+
+	for (const deliverable of deliverableTypes) {
+		await db.deliverables.create(deliverable)
+	}
+
+	return deliverableTypes
+}
+
+async function seedDeliverableSubmissions(orgId: string, enrollments: Enrollment[]) {
+	// Get campaign deliverables for enrollments
+	const campaignIds = [...new Set(enrollments.map((e) => e.campaignId))]
+	const allCampaignDeliverables = db.campaignDeliverables.findMany()
+	const campaignDeliverables = allCampaignDeliverables.filter((cd) =>
+		campaignIds.includes(cd.campaignId)
+	)
+
+	// Map deliverable types to deliverable IDs
+	const typeToDeliverableId: Record<string, string> = {
+		order_screenshot: "del-order-screenshot",
+		delivery_photo: "del-delivery-photo",
+		product_review: "del-product-review",
+		social_media_post: "del-social-media-post",
+		unboxing_video: "del-unboxing-video",
+	}
+
+	const submissions = []
+
+	for (const enrollment of enrollments) {
+		// Get deliverables for this enrollment's campaign
+		const relevantDeliverables = campaignDeliverables.filter(
+			(cd) => cd.campaignId === enrollment.campaignId
+		)
+
+		// Create submissions for some enrollments (60% chance)
+		if (Math.random() < 0.6 && relevantDeliverables.length > 0) {
+			for (const cd of relevantDeliverables.slice(0, Math.floor(Math.random() * 3) + 1)) {
+				const deliverableId = typeToDeliverableId[cd.type] || "del-order-screenshot"
+				const deliverable = db.deliverables.findFirst((q) => q.where({ id: deliverableId }))
+				const hasProof = Math.random() < 0.7 // 70% have proof submitted
+
+				const submission = {
+					id: generateId("sub"),
+					enrollmentId: enrollment.id,
+					campaignDeliverableId: cd.id,
+					proofLink: hasProof && deliverable?.requireLink ? faker.internet.url() : undefined,
+					proofScreenshot: hasProof && deliverable?.requireScreenshot ? faker.image.url() : undefined,
+					lockedDeliverableName: cd.title,
+					lockedDeliverableDescription: cd.description,
+					lockedIsRequired: cd.isRequired,
+					lockedInstructions: cd.instructions,
+					lockedRequireLink: deliverable?.requireLink ?? true,
+					lockedRequireScreenshot: deliverable?.requireScreenshot ?? true,
+					createdAt: enrollment.submittedAt || enrollment.createdAt,
+					updatedAt: enrollment.updatedAt,
+				}
+
+				await db.deliverableSubmissions.create(submission)
+				submissions.push(submission)
+			}
+		}
+	}
+
+	return submissions
+}
+
+async function seedWithdrawals(orgId: string) {
+	const existing = db.withdrawals.findMany((q) => q.where({ organizationId: orgId }))
+	if (existing.length > 0) return existing
+
+	const wallet = db.walletBalances.findFirst((q) => q.where({ organizationId: orgId }))
+	const bankAccount = db.bankAccounts.findFirst((q) => q.where({ organizationId: orgId }))
+
+	if (!wallet || !bankAccount) return []
+
+	const withdrawalCount = faker.number.int({ min: 3, max: 8 })
+	const withdrawals = []
+
+	for (let i = 0; i < withdrawalCount; i++) {
+		const requestedDate = randomDate(
+			new Date(Date.now() - 90 * 24 * 60 * 60 * 1000), // 90 days ago
+			new Date()
+		)
+
+		const statuses: Array<"pending" | "processing" | "completed" | "failed" | "cancelled"> = [
+			"completed",
+			"completed",
+			"completed",
+			"processing",
+			"pending",
+		] // Mostly completed
+		const status = randomElement(statuses)
+
+		const withdrawal = {
+			id: generateId("wd"),
+			holderType: "organization",
+			holderId: orgId,
+			organizationId: orgId,
+			amount: faker.number.int({ min: 10000, max: 100000 }),
+			status,
+			requestedAt: requestedDate.toISOString(),
+			processedAt: status === "completed" ? new Date(requestedDate.getTime() + 24 * 60 * 60 * 1000).toISOString() : undefined,
+			requiresApproval: false,
+			bankAccountId: bankAccount.id,
+			createdAt: requestedDate.toISOString(),
+			updatedAt: new Date().toISOString(),
+		}
+
+		await db.withdrawals.create(withdrawal)
+		withdrawals.push(withdrawal)
+	}
+
+	return withdrawals
+}
+
+async function seedWithdrawalMethods(orgId: string) {
+	// Withdrawal methods are for shoppers, not organizations
+	// But we can create some for demo purposes
+	// This would typically be seeded per shopper, but for now we'll skip
+	// as it's not critical for the brand dashboard
+	return []
 }
 
 // =============================================================================
@@ -606,33 +966,93 @@ export async function seedDatabase(
 	// Always seed reference data
 	await seedCategories()
 	await seedPlatforms()
+	await seedDeliverables() // Seed base deliverables
 
 	if (scenario === "minimal") {
 		// Just basic data for testing
 		const products = await seedProducts(orgId, 3)
 		await seedCampaigns(orgId, products, 2)
 		await seedWalletBalance(orgId)
-		await seedOrganizationSettings(orgId)
+		await seedOrganizationSettings(orgId, parseInt(orgId) - 1)
 		await seedTeamMembers(orgId)
 		console.log("[MSW DB] Minimal scenario complete")
 		return
 	}
 
-	// Full scenario
-	const products = await seedProducts(orgId, 10)
-	const campaigns = await seedCampaigns(orgId, products, 8)
-	const enrollments = await seedEnrollments(orgId, campaigns, 50)
-	await seedTransactions(orgId, 30)
-	await seedActiveHolds(orgId, enrollments)
-	await seedInvoices(orgId, 12)
-	await seedTeamMembers(orgId)
-	await seedWalletBalance(orgId)
-	await seedOrganizationSettings(orgId)
-	await seedNotifications(orgId, DEFAULT_USER_ID, 10)
-	await seedRecentActivity(orgId, 10)
-	await seedDashboardStats(orgId)
+	// Full scenario - Create multiple organizations for demo user
+	if (orgId === DEFAULT_ORG_ID) {
+		// Seed all demo organizations
+		console.log("[MSW DB] Seeding multiple organizations for demo user...")
+		for (let i = 0; i < DEMO_ORG_IDS.length; i++) {
+			const currentOrgId = DEMO_ORG_IDS[i]
+			console.log(`[MSW DB] Seeding organization ${i + 1}/${DEMO_ORG_IDS.length} (ID: ${currentOrgId})`)
 
-	console.log("[MSW DB] Full scenario complete")
+			await seedOrganizationSettings(currentOrgId, i)
+			await seedTeamMembers(currentOrgId)
+			await seedWalletBalance(currentOrgId)
+			const products = await seedProducts(currentOrgId, 20) // More products per org
+			const campaigns = await seedCampaigns(currentOrgId, products, 15) // More campaigns per org
+			const enrollments = await seedEnrollments(currentOrgId, campaigns, 100) // More enrollments per org
+			await seedTransactions(currentOrgId, 60)
+			await seedActiveHolds(currentOrgId, enrollments)
+			await seedDeliverableSubmissions(currentOrgId, enrollments) // Seed deliverable submissions
+			await seedWithdrawals(currentOrgId) // Seed withdrawals
+			await seedInvoices(currentOrgId, 18)
+			await seedBankAccounts(currentOrgId)
+			await seedGstDetails(currentOrgId)
+			await seedNotifications(currentOrgId, DEFAULT_USER_ID, 25)
+			await seedRecentActivity(currentOrgId, 20)
+			await seedDashboardStats(currentOrgId)
+		}
+
+		// Log summary
+		const allOrgs = db.organizationSettings.findMany()
+		const allProducts = db.products.findMany()
+		const allCampaigns = db.campaigns.findMany()
+		const allEnrollments = db.enrollments.findMany()
+
+		console.log("[MSW DB] ✅ Multiple organizations seeded successfully")
+		console.log(`[MSW DB] Total Organizations: ${allOrgs.length}`)
+		console.log(`[MSW DB] Total Products: ${allProducts.length}`)
+		console.log(`[MSW DB] Total Campaigns: ${allCampaigns.length}`)
+		return
+	}
+
+	// Full scenario - Create complete organization with all data (single org)
+	// Order matters: Organization first, then related data
+	await seedOrganizationSettings(orgId, parseInt(orgId) - 1) // Create organization first (use orgId as index)
+	await seedTeamMembers(orgId) // Team members
+	await seedWalletBalance(orgId) // Wallet balance
+	const products = await seedProducts(orgId, 15) // More products
+	const campaigns = await seedCampaigns(orgId, products, 12) // More campaigns
+	const enrollments = await seedEnrollments(orgId, campaigns, 75) // More enrollments
+	await seedTransactions(orgId, 50) // More transactions
+	await seedActiveHolds(orgId, enrollments)
+	await seedDeliverableSubmissions(orgId, enrollments) // Seed deliverable submissions
+	await seedWithdrawals(orgId) // Seed withdrawals
+	await seedInvoices(orgId, 15) // More invoices
+	await seedBankAccounts(orgId) // Bank accounts
+	await seedGstDetails(orgId) // GST details
+	await seedNotifications(orgId, DEFAULT_USER_ID, 20) // More notifications
+	await seedRecentActivity(orgId, 15) // More activity
+	await seedDashboardStats(orgId) // Dashboard stats
+
+	const wallet = db.walletBalances.findFirst((q) => q.where({ organizationId: orgId }))
+	const org = db.organizationSettings.findFirst((q) => q.where({ organizationId: orgId }))
+	const teamMembers = db.teamMembers.findMany((q) => q.where({ organizationId: orgId }))
+	const bankAccounts = db.bankAccounts.findMany((q) => q.where({ organizationId: orgId }))
+
+	console.log("[MSW DB] ✅ Full scenario complete")
+	console.log(`[MSW DB] Organization: ${org?.name || "N/A"} (ID: ${orgId})`)
+	console.log(`[MSW DB] Products: ${products.length}`)
+	console.log(`[MSW DB] Campaigns: ${campaigns.length}`)
+	console.log(`[MSW DB] Enrollments: ${enrollments.length}`)
+	console.log(`[MSW DB] Team Members: ${teamMembers.length}`)
+	console.log(`[MSW DB] Bank Accounts: ${bankAccounts.length}`)
+	console.log(`[MSW DB] Wallet Balance: ₹${wallet?.availableBalance || 0}`)
+	console.log(`[MSW DB] GST Verified: ${org?.gstVerified ? "✅" : "❌"}`)
+	console.log(`[MSW DB] PAN Verified: ${org?.panVerified ? "✅" : "❌"}`)
+	console.log(`[MSW DB] Approval Status: ${org?.approvalStatus || "N/A"}`)
 }
 
 /**
@@ -659,6 +1079,10 @@ export function clearDatabase() {
 	db.gstDetails.clear()
 	db.dashboardStats.clear()
 	db.recentActivity.clear()
+	db.deliverableSubmissions.clear()
+	db.deliverables.clear()
+	db.withdrawals.clear()
+	db.withdrawalMethods.clear()
 
 	console.log("[MSW DB] Database cleared")
 }

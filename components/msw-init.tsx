@@ -15,22 +15,30 @@ import { MSWDevTools } from "./msw-devtools"
  * Note: MSW is only initialized in development when NEXT_PUBLIC_API_MOCKING=enabled
  */
 export function MSWInit({ children }: { children: React.ReactNode }) {
+	// Always call hooks in the same order, regardless of environment
 	const [mockingReady, setMockingReady] = useState(false)
+	const [shouldUseMSW, setShouldUseMSW] = useState(false)
+
+	// Determine if MSW should be used (check once on mount)
+	useEffect(() => {
+		const isDev = process.env.NODE_ENV === "development"
+		const isMockingEnabled = process.env.NEXT_PUBLIC_API_MOCKING === "enabled"
+		setShouldUseMSW(isDev && isMockingEnabled)
+		
+		// If not using MSW, mark as ready immediately
+		if (!isDev || !isMockingEnabled) {
+				setMockingReady(true)
+				return
+			}
+	}, [])
 
 	useEffect(() => {
+		// Only initialize MSW if it should be used
+		if (!shouldUseMSW) {
+				return
+			}
+
 		async function enableMocking() {
-			// Only mock in development
-			if (process.env.NODE_ENV !== "development") {
-				setMockingReady(true)
-				return
-			}
-
-			// Check if mocking is enabled
-			if (process.env.NEXT_PUBLIC_API_MOCKING !== "enabled") {
-				setMockingReady(true)
-				return
-			}
-
 			try {
 				// Initialize MSW handlers
 				const { initMocks } = await import("@/mocks")
@@ -84,21 +92,17 @@ export function MSWInit({ children }: { children: React.ReactNode }) {
 				console.log("[MSW] Database ready")
 			} catch (error) {
 				console.warn("[MSW] Failed to initialize mocking:", error)
+			} finally {
+				setMockingReady(true)
 			}
-
-			setMockingReady(true)
 		}
 
 		enableMocking()
-	}, [])
+	}, [shouldUseMSW])
 
-	// In production or when mocking is disabled, render children immediately
-	if (process.env.NODE_ENV !== "development" || process.env.NEXT_PUBLIC_API_MOCKING !== "enabled") {
-		return <>{children}</>
-	}
-
+	// Always render consistently - no early returns that skip hooks
 	// In development with mocking, wait for MSW to be ready
-	if (!mockingReady) {
+	if (shouldUseMSW && !mockingReady) {
 		return (
 			<div className="fixed inset-0 flex items-center justify-center bg-bg-white-0 dark:bg-bg-strong-950">
 				<div className="text-center">
@@ -109,10 +113,11 @@ export function MSWInit({ children }: { children: React.ReactNode }) {
 		)
 	}
 
+	// Render children, conditionally include MSWDevTools
 	return (
 		<>
 			{children}
-			<MSWDevTools />
+			{shouldUseMSW && <MSWDevTools />}
 		</>
 	)
 }

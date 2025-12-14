@@ -5,6 +5,14 @@
  * Used by RSC pages to fetch data before passing to client components.
  */
 
+// Initialize MSW on server side early (for RSC + Server Actions mocking)
+if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
+	// Dynamic import to avoid bundling in production
+	import("@/lib/init-mocks-server").catch(() => {
+		// Silently fail if MSW not available
+	})
+}
+
 import { getEncoreClient } from "@/lib/encore"
 import { cookies } from "next/headers"
 import type { shared } from "@/lib/encore-client"
@@ -13,13 +21,40 @@ import type { shared } from "@/lib/encore-client"
 const ACTIVE_ORG_COOKIE = "active-organization-id"
 
 /**
- * Get current organization ID from cookies
+ * Get current organization ID from cookies or session
  *
  * @throws {Error} If organization ID is not found
  */
 async function getOrganizationId(): Promise<string> {
 	const cookieStore = await cookies()
-	const orgId = cookieStore.get(ACTIVE_ORG_COOKIE)?.value
+	let orgId = cookieStore.get(ACTIVE_ORG_COOKIE)?.value
+
+	// If not in cookie, try to get from session
+	if (!orgId) {
+		try {
+			const client = getEncoreClient()
+			const me = await client.auth.me()
+			orgId = me.activeOrganizationId
+		} catch (error) {
+			// If session fetch fails, continue to check if user has organizations
+			console.warn("Failed to get organization ID from session:", error)
+		}
+	}
+
+	// If still no orgId, try to get first organization from list
+	if (!orgId) {
+		try {
+			const client = getEncoreClient()
+			const orgsResult = await client.auth.listOrganizations()
+			const organizations = orgsResult.organizations || []
+			
+			if (organizations.length > 0) {
+				orgId = organizations[0].id
+			}
+		} catch (error) {
+			console.warn("Failed to get organizations list:", error)
+		}
+	}
 
 	if (!orgId) {
 		// In production, this should redirect to organization selection
@@ -31,23 +66,77 @@ async function getOrganizationId(): Promise<string> {
 }
 
 /**
- * Check if user has an organization, redirect to onboarding if not
- * Use this in pages that require an organization
+ * Check if user has an organization
+ * Returns organization info or null if no organization
+ * 
+ * IMPORTANT: This function assumes cookies/headers have already been accessed
+ * in the calling Server Component to satisfy Next.js 16 requirements.
+ * 
+ * SECURITY: Middleware should handle authentication checks.
+ * This function only checks for organization existence.
+ * 
+ * @returns Organization ID if exists, null otherwise
  */
-export async function requireOrganization() {
-	const { redirect } = await import("next/navigation")
+export async function getOrganizationIdOrNull(): Promise<string | null> {
+	// Access cookies first to ensure proper Next.js 16 static generation
+	// This must happen before any API calls that might use Math.random()
+	const cookieStore = await cookies()
+	cookieStore.toString() // Touch cookies to mark as dynamic
+	
 	const client = getEncoreClient()
 
 	try {
+		// First check if user is authenticated (session exists)
+		// This is a secondary check - middleware should have already verified
+		const sessionResult = await client.auth.getSession()
+		if (!sessionResult.session || !sessionResult.user) {
+			// No session - return null (middleware should handle redirect)
+			return null
+		}
+
+		// Then check for organization
 		const orgsResult = await client.auth.listOrganizations()
 		const organizations = orgsResult.organizations || []
 
-		// If user has no organization, redirect to onboarding
-		if (organizations.length === 0) {
-			redirect("/onboarding")
-		}
+		// Return first organization ID or null
+		return organizations.length > 0 ? organizations[0].id : null
 	} catch (error) {
-		// If error fetching organizations, redirect to onboarding
+		// Check if it's an authentication error
+		if (error instanceof Error) {
+			const errorMessage = error.message.toLowerCase()
+			if (
+				errorMessage.includes("unauthenticated") ||
+				errorMessage.includes("unauthorized") ||
+				errorMessage.includes("session expired")
+			) {
+				return null
+			}
+		}
+		
+		// If error fetching organizations, return null
+		return null
+	}
+}
+
+/**
+ * Check if user has an organization, redirect to onboarding if not
+ * Use this in pages that REQUIRE an organization (not dashboard)
+ * 
+ * Note: redirect() throws a special error that should not be caught
+ * 
+ * IMPORTANT: This function assumes cookies/headers have already been accessed
+ * in the calling Server Component to satisfy Next.js 16 requirements.
+ * 
+ * SECURITY: Middleware should handle authentication checks.
+ * This function only checks for organization existence.
+ */
+export async function requireOrganization() {
+	const { redirect } = await import("next/navigation")
+	
+	const orgId = await getOrganizationIdOrNull()
+	
+	if (!orgId) {
+		// No organization - redirect to onboarding
 		redirect("/onboarding")
 	}
 }
@@ -57,11 +146,28 @@ export async function requireOrganization() {
 // ===========================================
 
 export async function getDashboardData() {
-	const client = getEncoreClient()
-	const orgId = await getOrganizationId()
+	// Access cookies first to ensure proper Next.js 16 static generation
+	// This must happen before any API calls that might use Math.random()
+	const cookieStore = await cookies()
+	cookieStore.toString() // Touch cookies to mark as dynamic
+	
+	try {
+		const client = getEncoreClient()
+		const orgId = await getOrganizationId()
 
-	const response = await client.organizations.getDashboardOverview(orgId, { days: 7 })
-	return response
+		const response = await client.organizations.getDashboardOverview(orgId, { days: 7 })
+		return response
+	} catch (error) {
+		console.error("Failed to fetch dashboard data:", error)
+		// Log more details for debugging
+		if (error instanceof Error) {
+			console.error("Error message:", error.message)
+			console.error("Error stack:", error.stack)
+		}
+		// Re-throw the error so the page can handle it properly
+		// The page will redirect or show error boundary
+		throw error
+	}
 }
 
 // ===========================================
@@ -69,6 +175,10 @@ export async function getDashboardData() {
 // ===========================================
 
 export async function getWalletData() {
+	// Access cookies first to ensure proper Next.js 16 static generation
+	const cookieStore = await cookies()
+	cookieStore.toString() // Touch cookies to mark as dynamic
+	
 	const client = getEncoreClient()
 	const orgId = await getOrganizationId()
 
@@ -94,6 +204,10 @@ export async function getWalletData() {
 // ===========================================
 
 export async function getCampaignsData(status?: string) {
+	// Access cookies first to ensure proper Next.js 16 static generation
+	const cookieStore = await cookies()
+	cookieStore.toString() // Touch cookies to mark as dynamic
+	
 	const client = getEncoreClient()
 	const orgId = await getOrganizationId()
 
@@ -149,6 +263,10 @@ export async function getCampaignDetailData(campaignId: string) {
 // ===========================================
 
 export async function getEnrollmentsData(status?: string, campaignId?: string) {
+	// Access cookies first to ensure proper Next.js 16 static generation
+	const cookieStore = await cookies()
+	cookieStore.toString() // Touch cookies to mark as dynamic
+	
 	const client = getEncoreClient()
 	const orgId = await getOrganizationId()
 
@@ -178,6 +296,10 @@ export async function getEnrollmentsData(status?: string, campaignId?: string) {
 }
 
 export async function getEnrollmentDetailData(enrollmentId: string) {
+	// Access cookies first to ensure proper Next.js 16 static generation
+	const cookieStore = await cookies()
+	cookieStore.toString() // Touch cookies to mark as dynamic
+	
 	const client = getEncoreClient()
 
 	// Use getEnrollmentDetail which includes history, shopper info, campaign info, etc.
@@ -205,6 +327,10 @@ export async function getEnrollmentDetailData(enrollmentId: string) {
 // ===========================================
 
 export async function getProductsData() {
+	// Access cookies first to ensure proper Next.js 16 static generation
+	const cookieStore = await cookies()
+	cookieStore.toString() // Touch cookies to mark as dynamic
+	
 	const client = getEncoreClient()
 
 	const [products, categories, platforms] = await Promise.all([
@@ -223,6 +349,10 @@ export async function getProductsData() {
 
 // Get categories for product form (server-side)
 export async function getCategoriesData() {
+	// Access cookies first to ensure proper Next.js 16 static generation
+	const cookieStore = await cookies()
+	cookieStore.toString() // Touch cookies to mark as dynamic
+	
 	const client = getEncoreClient()
 	const result = await client.products.listAllCategories()
 	return result.categories || []
@@ -233,6 +363,10 @@ export async function getCategoriesData() {
 // ===========================================
 
 export async function getInvoicesData() {
+	// Access cookies first to ensure proper Next.js 16 static generation
+	const cookieStore = await cookies()
+	cookieStore.toString() // Touch cookies to mark as dynamic
+	
 	const client = getEncoreClient()
 	const orgId = await getOrganizationId()
 
@@ -246,6 +380,10 @@ export async function getInvoicesData() {
 // ===========================================
 
 export async function getTeamData() {
+	// Access cookies first to ensure proper Next.js 16 static generation
+	const cookieStore = await cookies()
+	cookieStore.toString() // Touch cookies to mark as dynamic
+	
 	const client = getEncoreClient()
 	const orgId = await getOrganizationId()
 
@@ -265,6 +403,10 @@ export async function getTeamData() {
 // ===========================================
 
 export async function getSettingsData() {
+	// Access cookies first to ensure proper Next.js 16 static generation
+	const cookieStore = await cookies()
+	cookieStore.toString() // Touch cookies to mark as dynamic
+	
 	const client = getEncoreClient()
 	const orgId = await getOrganizationId()
 
@@ -278,7 +420,8 @@ export async function getSettingsData() {
 
 	let gstDetails = null
 	try {
-		gstDetails = await client.organizations.getGSTDetails(orgId)
+		const gstResponse = await client.organizations.getGSTDetails(orgId)
+		gstDetails = gstResponse.gstDetails
 	} catch {
 		// GST not verified yet
 	}
@@ -321,6 +464,10 @@ export async function getSettingsData() {
 // ===========================================
 
 export async function getProfileData() {
+	// Access cookies first to ensure proper Next.js 16 static generation
+	const cookieStore = await cookies()
+	cookieStore.toString() // Touch cookies to mark as dynamic
+	
 	const client = getEncoreClient()
 
 	try {

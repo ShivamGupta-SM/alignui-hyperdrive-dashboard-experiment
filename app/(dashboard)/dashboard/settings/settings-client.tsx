@@ -25,6 +25,7 @@ import {
 	sendVerificationEmail,
 } from "@/app/actions"
 import { verifyBankAccount } from "@/app/actions/settings"
+import type { organizations } from "@/lib/encore-client"
 import {
 	enable2FA,
 	disable2FA,
@@ -102,31 +103,25 @@ interface SettingsData {
 		id: string
 		name: string
 		slug: string
-		website: string
+		website?: string
 		logo?: string
-		email: string
-		phone: string
-		address: string
-		industry: string
+		email?: string
+		phone?: string
+		address?: string
+		industry?: string
 	}
 	bankAccounts: Array<{
 		id: string
 		bankName: string
 		accountNumber: string
-		accountHolder: string
+		accountHolderName: string
 		ifscCode: string
 		isDefault: boolean
 		isVerified: boolean
+		accountType?: "current" | "savings"
+		organizationId?: string
 	}>
-	gstDetails: {
-		gstNumber: string
-		legalName: string
-		tradeName: string
-		state: string
-		stateCode?: string
-		status?: string
-		isVerified: boolean
-	}
+	gstDetails: organizations.GSTDetails | null
 }
 
 interface SettingsClientProps {
@@ -476,17 +471,16 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 			<SettingsCard title="Details">
 				<div className="space-y-4">
 					<div className="grid gap-4 sm:grid-cols-2">
-						<FormField label="Organization Name" required>
-							<Input.Root>
-								<Input.Wrapper>
-									<Input.Icon as={Buildings} />
-									<Input.El
-										value={name}
-										onChange={(e) => setName(e.target.value)}
-										placeholder="Enter organization name"
-									/>
-								</Input.Wrapper>
-							</Input.Root>
+								<FormField label="Organization Name" required>
+									<Input.Root>
+										<Input.Wrapper>
+											<Input.Icon as={Buildings} />
+											<Input.El
+												{...register("name")}
+												placeholder="Enter organization name"
+											/>
+										</Input.Wrapper>
+									</Input.Root>
 						</FormField>
 
 						<FormField label="Handle">
@@ -692,43 +686,49 @@ function GstSection({ gstDetails }: { gstDetails: SettingsData["gstDetails"] }) 
 		<div className="space-y-6">
 			{/* GST Details */}
 			<SettingsCard
-				title="GST Details"
-				badge={
-					gstDetails.isVerified && (
-						<Badge.Root color="green" variant="lighter" size="small">
-							<Badge.Icon as={SealCheck} weight="duotone" />
-							Verified
+			title="GST Details"
+			badge={
+				gstDetails?.isVerified && (
+					<Badge.Root color="green" variant="lighter" size="small">
+						<Badge.Icon as={SealCheck} weight="duotone" />
+						Verified
 						</Badge.Root>
 					)
 				}
 			>
 				<div className="space-y-4">
-					{/* GST Number Display */}
-					<div className="p-4 rounded-xl bg-gradient-to-br from-primary-base/5 to-primary-darker/5 border border-stroke-soft-200">
-						<div className="flex items-center justify-between mb-2">
-							<span className="text-label-xs text-text-sub-600 uppercase tracking-wider">
-								GST Number
-							</span>
-							<Badge.Root
-								color={gstDetails.status === "Active" ? "green" : "gray"}
-								variant="lighter"
-								size="small"
-							>
-								{gstDetails.status || "Active"}
-							</Badge.Root>
-						</div>
-						<div className="text-title-h5 sm:text-title-h4 text-text-strong-950 font-mono tracking-wider break-all">
-							{gstDetails.gstNumber}
-						</div>
-					</div>
+					{gstDetails ? (
+						<>
+							{/* GST Number Display */}
+							<div className="p-4 rounded-xl bg-gradient-to-br from-primary-base/5 to-primary-darker/5 border border-stroke-soft-200">
+								<div className="flex items-center justify-between mb-2">
+									<span className="text-label-xs text-text-sub-600 uppercase tracking-wider">
+										GST Number
+									</span>
+									<Badge.Root
+										color={gstDetails.gstStatus === "Active" ? "green" : "gray"}
+										variant="lighter"
+										size="small"
+									>
+										{gstDetails.gstStatus || "Active"}
+									</Badge.Root>
+								</div>
+								<div className="text-title-h5 sm:text-title-h4 text-text-strong-950 font-mono tracking-wider break-all">
+									{gstDetails.gstNumber}
+								</div>
+							</div>
 
-					{/* Details Grid */}
-					<div className="grid grid-cols-2 gap-3">
-						<DetailCard label="Legal Name" value={gstDetails.legalName} fullWidth />
-						<DetailCard label="Trade Name" value={gstDetails.tradeName} fullWidth />
-						<DetailCard label="State" value={gstDetails.state} />
-						<DetailCard label="Code" value={gstDetails.stateCode || "27"} />
-					</div>
+							{/* Details Grid */}
+							<div className="grid grid-cols-2 gap-3">
+								<DetailCard label="Legal Name" value={gstDetails.legalName} fullWidth />
+								<DetailCard label="Trade Name" value={gstDetails.tradeName || ""} fullWidth />
+								<DetailCard label="State" value={gstDetails.address || ""} />
+								<DetailCard label="Code" value={gstDetails.businessType || ""} />
+							</div>
+						</>
+					) : (
+						<p className="text-paragraph-sm text-text-sub-600">No GST details available</p>
+					)}
 				</div>
 			</SettingsCard>
 

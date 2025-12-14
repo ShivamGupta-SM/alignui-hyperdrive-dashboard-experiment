@@ -936,7 +936,7 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
 					// Convert backend export data to CSV
 					const { exportToCSV } = await import("@/lib/excel")
 					exportToCSV(
-						res.data as Record<string, unknown>[],
+						res.data as unknown as Record<string, unknown>[],
 						`campaign-${campaignId}-enrollments-${new Date().toISOString().split("T")[0]}`,
 						[
 							{ key: "enrollmentId", header: "Enrollment ID" },

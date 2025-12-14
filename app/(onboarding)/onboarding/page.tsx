@@ -14,7 +14,6 @@ import * as HorizontalStepper from "@/components/ui/horizontal-stepper"
 import * as FileUpload from "@/components/ui/file-upload"
 import * as Hint from "@/components/ui/hint"
 import { Callout } from "@/components/ui/callout"
-import * as ProgressCircle from "@/components/ui/progress-circle"
 import { FormField } from "@/components/ui/form-field"
 import {
 	ArrowRight,
@@ -23,11 +22,14 @@ import {
 	Clock,
 	CloudArrowUp,
 	Info,
+	FileText,
 } from "@phosphor-icons/react/dist/ssr"
 import { cn } from "@/utils/cn"
 import { BUSINESS_TYPE_OPTIONS, INDUSTRY_CATEGORY_OPTIONS, INDIAN_STATES } from "@/lib/constants"
 import { onboardingFormSchema, type OnboardingFormInput } from "@/lib/validations"
 import type { BusinessType, IndustryCategory } from "@/lib/types"
+import { useSession } from "@/hooks/use-session"
+import { getEncoreClient } from "@/lib/encore"
 
 const steps = [
 	{ label: "Basic Info", value: 1 },
@@ -38,10 +40,61 @@ const steps = [
 
 export default function OnboardingPage() {
 	const router = useRouter()
+	const { data: session, isPending: isSessionPending } = useSession()
 	const [currentStep, setCurrentStep] = React.useState(1)
 	const [isLoading, setIsLoading] = React.useState(false)
 	const [isVerifyingGst, setIsVerifyingGst] = React.useState(false)
 	const [isVerifyingPan, setIsVerifyingPan] = React.useState(false)
+	const [termsAccepted, setTermsAccepted] = React.useState(false)
+	const [hasCheckedOrg, setHasCheckedOrg] = React.useState(false)
+
+	// Check if user already has an organization - redirect to dashboard if yes
+	// This prevents forcing onboarding on users who already completed it
+	React.useEffect(() => {
+		async function checkOrganization() {
+			// Wait for session to load
+			if (isSessionPending) return
+
+			// If not authenticated, let them stay (middleware will handle redirect)
+			if (!session?.user) {
+				setHasCheckedOrg(true)
+				return
+			}
+
+			// Check if user already has organization using Encore client directly
+			// This is a client-side check, so we use the browser client
+			try {
+				// Import client-side Encore client
+				const { getEncoreBrowserClient } = await import("@/lib/encore-browser")
+				const client = getEncoreBrowserClient()
+				
+				const orgsResult = await client.auth.listOrganizations()
+				if (orgsResult.organizations && orgsResult.organizations.length > 0) {
+					console.log("[Onboarding] User already has organization, redirecting to dashboard")
+					router.replace("/dashboard")
+					return
+				}
+			} catch (error) {
+				console.error("[Onboarding] Error checking organization:", error)
+				// Don't block onboarding on error - let user proceed
+				// Maybe API is down or user has network issues
+				// User might be trying to create a second organization, which is allowed
+			}
+
+			setHasCheckedOrg(true)
+		}
+
+		checkOrganization()
+	}, [session, isSessionPending, router])
+
+	// Show loading while checking
+	if (isSessionPending || !hasCheckedOrg) {
+		return (
+			<div className="flex items-center justify-center min-h-screen">
+				<div className="text-paragraph-sm text-text-sub-600">Loading...</div>
+			</div>
+		)
+	}
 
 	// GST verification result
 	const [gstDetails, setGstDetails] = React.useState<{
@@ -248,6 +301,15 @@ export default function OnboardingPage() {
 	}
 
 	const onSubmit = async (data: OnboardingFormInput) => {
+		// Check if terms are accepted
+		if (!termsAccepted) {
+			console.error("Terms and conditions must be accepted")
+			// Scroll to terms section
+			const termsElement = document.querySelector('[data-terms-checkbox]')
+			termsElement?.scrollIntoView({ behavior: "smooth", block: "center" })
+			return
+		}
+
 		setIsLoading(true)
 		try {
 			const { submitOnboarding } = await import("@/app/actions")
@@ -267,17 +329,18 @@ export default function OnboardingPage() {
 			router.push("/onboarding/pending")
 		} catch (error: any) {
 			console.error("Onboarding submission error:", error)
-			// Still redirect on error for demo purposes
-			router.push("/onboarding/pending")
+			// Show error to user
+			alert(error.message || "Failed to submit application. Please try again.")
+			// Don't redirect on error - let user fix and retry
 		} finally {
 			setIsLoading(false)
 		}
 	}
 
 	return (
-		<div className="w-full max-w-2xl">
+		<div className="w-full max-w-2xl mx-auto px-4 sm:px-0">
 			{/* Stepper */}
-			<div className="mb-8">
+			<div className="mb-4 sm:mb-6 lg:mb-8">
 				<HorizontalStepper.Root>
 					{steps.map((step, index) => (
 						<React.Fragment key={step.value}>
@@ -308,7 +371,7 @@ export default function OnboardingPage() {
 			</div>
 
 			{/* Step Content */}
-			<div className="rounded-20 bg-bg-white-0 p-8 ring-1 ring-inset ring-stroke-soft-200 shadow-regular">
+			<div className="rounded-xl sm:rounded-2xl bg-bg-white-0 p-4 sm:p-5 lg:p-6 xl:p-8 ring-1 ring-inset ring-stroke-soft-200 shadow-sm">
 				<form id="onboarding-form" onSubmit={handleSubmit(onSubmit)}>
 					{currentStep === 1 && (
 						<Step1BasicInfo register={register} control={control} errors={errors} />
@@ -331,29 +394,57 @@ export default function OnboardingPage() {
 							isVerifyingPan={isVerifyingPan}
 						/>
 					)}
-					{currentStep === 4 && <Step4Review watch={watch} onEdit={setCurrentStep} />}
-				</form>
+					{currentStep === 4 && (
+						<Step4Review
+							watch={watch}
+							onEdit={setCurrentStep}
+							termsAccepted={termsAccepted}
+							onTermsChange={setTermsAccepted}
+						/>
+					)}
 
 				{/* Actions */}
-				<div className="flex items-center justify-between mt-8 pt-6 border-t border-stroke-soft-200">
-					<div>
+					<div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-stroke-soft-200">
+						<div className="w-full sm:w-auto">
 						{currentStep > 1 && (
-							<BackButton onClick={handleBack} size="medium" iconOnlyOnMobile={false} />
+								<BackButton
+									type="button"
+									onClick={() => {
+										handleBack()
+										window.scrollTo({ top: 0, behavior: "smooth" })
+									}}
+									size="medium"
+									iconOnlyOnMobile={false}
+								/>
 						)}
 					</div>
-					<div className="flex items-center gap-3">
+						<div className="flex items-center gap-3 w-full sm:w-auto">
 						{currentStep < 4 ? (
-							<Button.Root variant="primary" onClick={handleNext}>
+								<Button.Root
+									type="button"
+									variant="primary"
+									onClick={(e) => {
+										e.preventDefault()
+										handleNext()
+									}}
+									className="flex-1 sm:flex-initial"
+								>
 								Continue
 								<Button.Icon as={ArrowRight} />
 							</Button.Root>
 						) : (
-							<Button.Root variant="primary" onClick={handleSubmit} disabled={isLoading}>
+								<Button.Root
+									type="submit"
+									variant="primary"
+									disabled={isLoading || !termsAccepted}
+									className="flex-1 sm:flex-initial"
+								>
 								{isLoading ? "Submitting..." : "Submit for Approval"}
 							</Button.Root>
 						)}
 					</div>
 				</div>
+				</form>
 			</div>
 		</div>
 	)
@@ -368,10 +459,10 @@ interface Step1Props {
 
 function Step1BasicInfo({ register, control, errors }: Step1Props) {
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4 sm:space-y-6">
 			<div>
-				<h2 className="text-title-h5 text-text-strong-950 mb-1">Basic Information</h2>
-				<p className="text-paragraph-sm text-text-sub-600">Tell us about your organization</p>
+				<h2 className="text-title-h5 sm:text-title-h4 text-text-strong-950 mb-1">Basic Information</h2>
+				<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">Tell us about your organization</p>
 			</div>
 
 			<FormField label="Organization Name" required error={errors.basicInfo?.name?.message}>
@@ -385,16 +476,14 @@ function Step1BasicInfo({ register, control, errors }: Step1Props) {
 				</Input.Root>
 			</FormField>
 
-			<div>
-				<label className="block text-label-sm text-text-strong-950 mb-2">Logo</label>
+			<FormField label="Logo" hint="Recommended: 200x200px">
 				<FileUpload.Root htmlFor="org-logo">
 					<FileUpload.Icon as={CloudArrowUp} />
 					<FileUpload.Button>Choose file</FileUpload.Button>
 					<p className="text-paragraph-xs text-text-soft-400">PNG or JPG, max 2MB</p>
 					<input id="org-logo" type="file" accept="image/*" className="sr-only" />
 				</FileUpload.Root>
-				<p className="mt-1 text-paragraph-xs text-text-soft-400">Recommended: 200x200px</p>
-			</div>
+			</FormField>
 
 			<FormField label="Website" error={errors.basicInfo?.website?.message}>
 				<Input.Root>
@@ -428,13 +517,13 @@ interface Step2Props {
 
 function Step2BusinessDetails({ register, control, errors }: Step2Props) {
 	return (
-		<div className="space-y-6">
+		<div className="space-y-5 sm:space-y-6">
 			<div>
-				<h2 className="text-title-h5 text-text-strong-950 mb-1">Business Details</h2>
-				<p className="text-paragraph-sm text-text-sub-600">Provide your business information</p>
+				<h2 className="text-title-h5 sm:text-title-h4 text-text-strong-950 mb-1">Business Details</h2>
+				<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">Provide your business information</p>
 			</div>
 
-			<div className="grid grid-cols-2 gap-4">
+			<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 				<FormField
 					label="Business Type"
 					required
@@ -485,7 +574,7 @@ function Step2BusinessDetails({ register, control, errors }: Step2Props) {
 				</FormField>
 			</div>
 
-			<div className="grid grid-cols-2 gap-4">
+			<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 				<FormField
 					label="Contact Person"
 					required
@@ -517,7 +606,7 @@ function Step2BusinessDetails({ register, control, errors }: Step2Props) {
 				</Input.Root>
 			</FormField>
 
-			<div className="grid grid-cols-3 gap-4">
+			<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 				<FormField label="City" required error={errors.businessDetails?.city?.message}>
 					<Input.Root>
 						<Input.Wrapper>
@@ -592,28 +681,28 @@ function Step3Verification({
 	const businessType = watch("businessDetails.businessType")
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4 sm:space-y-6">
 			<div>
-				<h2 className="text-title-h5 text-text-strong-950 mb-1">Verification</h2>
-				<p className="text-paragraph-sm text-text-sub-600">
+				<h2 className="text-title-h5 sm:text-title-h4 text-text-strong-950 mb-1">Verification</h2>
+				<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">
 					GST verification is mandatory for platform access
 				</p>
 			</div>
 
 			{/* GST Verification */}
-			<Callout variant="warning" title="GST VERIFICATION (Mandatory)" className="mb-6">
+			<Callout variant="warning" title="GST VERIFICATION (Mandatory)" className="mb-4 sm:mb-6">
 				GST verification is required to access the platform and receive payments.
 			</Callout>
 
-			<div className="rounded-10 ring-1 ring-inset ring-stroke-soft-200 p-4">
-				<div className="flex gap-3">
-					<div className="flex-1">
+			<div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
 						<FormField
 							label="GST Number"
 							required
 							error={errors.verification?.gstNumber?.message}
 							hint="15-character GSTIN format"
 						>
+					<div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-start">
+						<div className="flex-1 min-w-0">
 							<Input.Root>
 								<Input.Wrapper>
 									<Input.El
@@ -629,63 +718,66 @@ function Step3Verification({
 									/>
 								</Input.Wrapper>
 							</Input.Root>
-						</FormField>
 					</div>
 					<Button.Root
 						type="button"
-						variant="primary"
+							variant={gstVerified ? "neutral" : "primary"}
 						onClick={onVerifyGst}
 						disabled={isVerifyingGst || !gstNumber || gstVerified}
-						className="self-end"
+							className="w-full sm:w-auto shrink-0"
 					>
 						{isVerifyingGst ? "Verifying..." : gstVerified ? "Verified" : "Verify GST"}
 					</Button.Root>
 				</div>
+				</FormField>
 
 				{gstDetails && (
-					<div className="mt-4 rounded-10 bg-bg-white-0 p-3 space-y-1">
-						<div className="flex items-center gap-2 text-success-base text-label-sm">
-							<ProgressCircle.Root value={100} size="48" className="size-5">
-								<span className="text-[8px]">✓</span>
-							</ProgressCircle.Root>
+					<div className="mt-4 rounded-xl bg-bg-weak-50 p-3 sm:p-4 space-y-2">
+						<div className="flex items-center gap-2 text-success-base text-label-sm font-medium">
+							<SealCheck className="size-5" weight="duotone" />
 							GST Verified
 						</div>
-						<div className="text-paragraph-sm text-text-sub-600">
-							<div>
-								Legal Name: <span className="text-text-strong-950">{gstDetails.legalName}</span>
+						<div className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 space-y-1.5">
+							<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+								<span className="font-medium text-text-strong-950 min-w-[100px]">Legal Name:</span>
+								<span className="text-text-strong-950">{gstDetails.legalName}</span>
 							</div>
-							<div>
-								Trade Name: <span className="text-text-strong-950">{gstDetails.tradeName}</span>
+							<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+								<span className="font-medium text-text-strong-950 min-w-[100px]">Trade Name:</span>
+								<span className="text-text-strong-950">{gstDetails.tradeName}</span>
 							</div>
-							<div>
-								Status: <span className="text-success-base">{gstDetails.status}</span>
+							<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+								<span className="font-medium text-text-strong-950 min-w-[100px]">Status:</span>
+								<span className="text-success-base font-medium">{gstDetails.status}</span>
 							</div>
-							<div>
-								Address: <span className="text-text-strong-950">{gstDetails.address}</span>
+							<div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
+								<span className="font-medium text-text-strong-950 min-w-[100px]">Address:</span>
+								<span className="text-text-strong-950">{gstDetails.address}</span>
 							</div>
 						</div>
 					</div>
 				)}
 				{errors.verification?.gstVerified && (
-					<p className="mt-2 text-paragraph-xs text-error-base">
+					<p className="mt-2 text-paragraph-xs text-error-base font-medium">
 						{errors.verification.gstVerified.message}
 					</p>
 				)}
 			</div>
 
 			{/* PAN Verification */}
-			<div className="rounded-10 ring-1 ring-inset ring-stroke-soft-200 p-4">
-				<h3 className="text-label-sm text-text-strong-950 mb-3">
-					📋 PAN VERIFICATION (Recommended)
+			<div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
+				<h3 className="text-label-xs sm:text-label-sm text-text-strong-950 mb-3 sm:mb-4 flex items-center gap-2">
+					<FileText className="size-4" weight="duotone" />
+					PAN VERIFICATION (Recommended)
 				</h3>
 
-				<div className="flex gap-3">
-					<div className="flex-1">
 						<FormField
 							label="PAN Number"
 							error={errors.verification?.panNumber?.message}
 							hint="10-character PAN format"
 						>
+					<div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-start">
+						<div className="flex-1 min-w-0">
 							<Input.Root>
 								<Input.Wrapper>
 									<Input.El
@@ -701,18 +793,18 @@ function Step3Verification({
 									/>
 								</Input.Wrapper>
 							</Input.Root>
-						</FormField>
 					</div>
 					<Button.Root
 						type="button"
-						variant="neutral"
+							variant={panVerified ? "neutral" : "primary"}
 						onClick={onVerifyPan}
 						disabled={isVerifyingPan || !panNumber || panVerified}
-						className="self-end"
+							className="w-full sm:w-auto shrink-0"
 					>
 						{isVerifyingPan ? "Verifying..." : panVerified ? "Verified" : "Verify PAN"}
 					</Button.Root>
 				</div>
+				</FormField>
 
 				{panVerified && (
 					<div className="mt-3 flex items-center gap-2 text-success-base text-label-sm">
@@ -752,75 +844,76 @@ function Step3Verification({
 interface Step4Props {
 	watch: ReturnType<typeof useForm<OnboardingFormInput>>["watch"]
 	onEdit: (step: number) => void
+	termsAccepted: boolean
+	onTermsChange: (accepted: boolean) => void
 }
 
-function Step4Review({ watch, onEdit }: Step4Props) {
-	const [termsAccepted, setTermsAccepted] = React.useState(false)
+function Step4Review({ watch, onEdit, termsAccepted, onTermsChange }: Step4Props) {
 	const formData = watch()
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-5 sm:space-y-6">
 			<div>
-				<h2 className="text-title-h5 text-text-strong-950 mb-1">Review & Submit</h2>
-				<p className="text-paragraph-sm text-text-sub-600">
+				<h2 className="text-title-h5 sm:text-title-h4 text-text-strong-950 mb-1">Review & Submit</h2>
+				<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">
 					Please verify all details before submitting
 				</p>
 			</div>
 
 			{/* Basic Information */}
-			<div className="rounded-10 ring-1 ring-inset ring-stroke-soft-200 p-4">
-				<div className="flex items-center justify-between mb-3">
-					<h3 className="text-label-sm text-text-strong-950">Basic Information</h3>
+			<div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
+				<div className="flex items-center justify-between mb-3 sm:mb-4">
+					<h3 className="text-label-sm text-text-strong-950 font-medium">Basic Information</h3>
 					<Button.Root type="button" variant="ghost" size="xsmall" onClick={() => onEdit(1)}>
 						Edit
 					</Button.Root>
 				</div>
-				<div className="space-y-2 text-paragraph-sm">
-					<div className="flex justify-between">
-						<span className="text-text-sub-600">Organization</span>
-						<span className="text-text-strong-950">{formData.basicInfo?.name || "-"}</span>
+				<div className="space-y-2.5 text-paragraph-xs sm:text-paragraph-sm">
+					<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-2">
+						<span className="text-text-sub-600 font-medium min-w-[120px]">Organization</span>
+						<span className="text-text-strong-950 break-words">{formData.basicInfo?.name || "-"}</span>
 					</div>
-					<div className="flex justify-between">
-						<span className="text-text-sub-600">Website</span>
-						<span className="text-text-strong-950">{formData.basicInfo?.website || "-"}</span>
+					<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-2">
+						<span className="text-text-sub-600 font-medium min-w-[120px]">Website</span>
+						<span className="text-text-strong-950 break-all">{formData.basicInfo?.website || "-"}</span>
 					</div>
 				</div>
 			</div>
 
 			{/* Business Details */}
-			<div className="rounded-10 ring-1 ring-inset ring-stroke-soft-200 p-4">
-				<div className="flex items-center justify-between mb-3">
-					<h3 className="text-label-sm text-text-strong-950">Business Details</h3>
+			<div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
+				<div className="flex items-center justify-between mb-3 sm:mb-4">
+					<h3 className="text-label-sm text-text-strong-950 font-medium">Business Details</h3>
 					<Button.Root type="button" variant="ghost" size="xsmall" onClick={() => onEdit(2)}>
 						Edit
 					</Button.Root>
 				</div>
-				<div className="space-y-2 text-paragraph-sm">
-					<div className="flex justify-between">
-						<span className="text-text-sub-600">Business Type</span>
+				<div className="space-y-2.5 text-paragraph-xs sm:text-paragraph-sm">
+					<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-2">
+						<span className="text-text-sub-600 font-medium min-w-[120px]">Business Type</span>
 						<span className="text-text-strong-950 capitalize">
 							{formData.businessDetails?.businessType?.replace("_", " ") || "-"}
 						</span>
 					</div>
-					<div className="flex justify-between">
-						<span className="text-text-sub-600">Industry</span>
+					<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-2">
+						<span className="text-text-sub-600 font-medium min-w-[120px]">Industry</span>
 						<span className="text-text-strong-950 capitalize">
 							{formData.businessDetails?.industryCategory?.replace("_", " ") || "-"}
 						</span>
 					</div>
-					<div className="flex justify-between">
-						<span className="text-text-sub-600">Contact Person</span>
+					<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-2">
+						<span className="text-text-sub-600 font-medium min-w-[120px]">Contact Person</span>
 						<span className="text-text-strong-950">
 							{formData.businessDetails?.contactPerson || "-"}
 						</span>
 					</div>
-					<div className="flex justify-between">
-						<span className="text-text-sub-600">Phone</span>
+					<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-2">
+						<span className="text-text-sub-600 font-medium min-w-[120px]">Phone</span>
 						<span className="text-text-strong-950">{formData.businessDetails?.phone || "-"}</span>
 					</div>
-					<div className="flex justify-between">
-						<span className="text-text-sub-600">Address</span>
-						<span className="text-text-strong-950 text-right">
+					<div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-2">
+						<span className="text-text-sub-600 font-medium min-w-[120px]">Address</span>
+						<span className="text-text-strong-950 text-right sm:text-left break-words">
 							{formData.businessDetails?.address}, {formData.businessDetails?.city},{" "}
 							{formData.businessDetails?.state} - {formData.businessDetails?.pinCode}
 						</span>
@@ -829,22 +922,22 @@ function Step4Review({ watch, onEdit }: Step4Props) {
 			</div>
 
 			{/* Verification Status */}
-			<div className="rounded-10 ring-1 ring-inset ring-stroke-soft-200 p-4">
-				<div className="flex items-center justify-between mb-3">
-					<h3 className="text-label-sm text-text-strong-950">Verification Status</h3>
+			<div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
+				<div className="flex items-center justify-between mb-3 sm:mb-4">
+					<h3 className="text-label-sm text-text-strong-950 font-medium">Verification Status</h3>
 					<Button.Root type="button" variant="ghost" size="xsmall" onClick={() => onEdit(3)}>
 						Edit
 					</Button.Root>
 				</div>
-				<div className="space-y-2 text-paragraph-sm">
-					<div className="flex justify-between items-center">
-						<span className="text-text-sub-600">GST</span>
-						<div className="flex items-center gap-2">
-							<span className="text-text-strong-950 font-mono">
+				<div className="space-y-2.5 text-paragraph-xs sm:text-paragraph-sm">
+					<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+						<span className="text-text-sub-600 font-medium min-w-[120px]">GST</span>
+						<div className="flex items-center gap-2 flex-wrap">
+							<span className="text-text-strong-950 font-mono text-label-xs sm:text-paragraph-sm">
 								{formData.verification?.gstNumber || "-"}
 							</span>
 							{formData.verification?.gstVerified ? (
-								<span className="flex items-center gap-1 text-success-base text-label-xs">
+								<span className="flex items-center gap-1 text-success-base text-label-xs font-medium">
 									<SealCheck className="size-3.5" weight="duotone" /> Verified
 								</span>
 							) : (
@@ -854,14 +947,14 @@ function Step4Review({ watch, onEdit }: Step4Props) {
 							)}
 						</div>
 					</div>
-					<div className="flex justify-between items-center">
-						<span className="text-text-sub-600">PAN</span>
-						<div className="flex items-center gap-2">
-							<span className="text-text-strong-950 font-mono">
+					<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+						<span className="text-text-sub-600 font-medium min-w-[120px]">PAN</span>
+						<div className="flex items-center gap-2 flex-wrap">
+							<span className="text-text-strong-950 font-mono text-label-xs sm:text-paragraph-sm">
 								{formData.verification?.panNumber || "-"}
 							</span>
 							{formData.verification?.panVerified ? (
-								<span className="flex items-center gap-1 text-success-base text-label-xs">
+								<span className="flex items-center gap-1 text-success-base text-label-xs font-medium">
 									<SealCheck className="size-3.5" weight="duotone" /> Verified
 								</span>
 							) : (
@@ -875,24 +968,41 @@ function Step4Review({ watch, onEdit }: Step4Props) {
 			</div>
 
 			{/* Terms Agreement */}
-			<div>
-				<label className="flex items-start gap-2 cursor-pointer">
+			<div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5 bg-bg-weak-50">
+				<label className="flex items-start gap-2.5 sm:gap-3 cursor-pointer" data-terms-checkbox>
 					<Checkbox.Root
 						checked={termsAccepted}
-						onCheckedChange={(checked) => setTermsAccepted(checked === true)}
-						className="mt-0.5"
+						onCheckedChange={(checked) => onTermsChange(checked === true)}
+						className="mt-0.5 shrink-0"
 					/>
-					<span className="text-paragraph-sm text-text-sub-600">
+					<span className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 leading-relaxed">
 						I confirm that all information provided is accurate and I agree to the{" "}
-						<a href="/terms" className="text-primary-base hover:underline">
+						<a
+							href="/terms"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="text-primary-base hover:underline font-medium"
+							onClick={(e) => e.stopPropagation()}
+						>
 							Terms of Service
 						</a>{" "}
 						and{" "}
-						<a href="/privacy" className="text-primary-base hover:underline">
+						<a
+							href="/privacy"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="text-primary-base hover:underline font-medium"
+							onClick={(e) => e.stopPropagation()}
+						>
 							Privacy Policy
 						</a>
 					</span>
 				</label>
+				{!termsAccepted && (
+					<p className="mt-2 text-paragraph-xs text-error-base font-medium">
+						Please accept the terms and conditions to continue
+					</p>
+				)}
 			</div>
 		</div>
 	)

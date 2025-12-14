@@ -26,9 +26,10 @@ export function useDashboard(options?: {
 }) {
 	const { organizationId, days = 7, enabled = true } = options ?? {}
 
-	return useQuery({
+	return useQuery<DashboardData | null>({
 		queryKey: dashboardKeys.stats(),
 		queryFn: async () => {
+			try {
       const client = getEncoreBrowserClient()
 
 			// If organizationId is provided, use it; otherwise get from active org
@@ -38,7 +39,9 @@ export function useDashboard(options?: {
 				const activeOrgId = sessionResponse?.user?.activeOrganizationId
 
 				if (!activeOrgId) {
-					throw new Error("No active organization found")
+						// Return null instead of throwing to prevent hook order issues
+						console.warn("No active organization found for dashboard")
+						return null
 				}
 
 				const response = await client.organizations.getDashboardOverview(activeOrgId, { days })
@@ -47,9 +50,15 @@ export function useDashboard(options?: {
 
 			const response = await client.organizations.getDashboardOverview(organizationId, { days })
 			return response
+			} catch (error) {
+				// Log error but return null instead of throwing to prevent hook order issues
+				console.error("Failed to fetch dashboard data:", error)
+				return null
+			}
 		},
 		enabled,
 		staleTime: 30 * 1000, // 30 seconds
 		gcTime: 5 * 60 * 1000, // 5 minutes
+		retry: false, // Don't retry to prevent hook order issues
 	})
 }

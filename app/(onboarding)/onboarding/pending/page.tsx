@@ -7,7 +7,7 @@ import { Envelope, Clock, Headset } from "@phosphor-icons/react/dist/ssr"
 export default function PendingApprovalPage() {
 	return (
 		<div className="w-full max-w-md text-center">
-			<div className="rounded-20 bg-bg-white-0 p-8 ring-1 ring-inset ring-stroke-soft-200 shadow-regular">
+			<div className="rounded-xl sm:rounded-2xl bg-bg-white-0 p-6 sm:p-8 ring-1 ring-inset ring-stroke-soft-200 shadow-sm">
 				{/* Icon */}
 				<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter mx-auto mb-6">
 					<Clock weight="duotone" className="size-8 text-warning-base" />
@@ -21,7 +21,7 @@ export default function PendingApprovalPage() {
 				</p>
 
 				{/* What's Next */}
-				<div className="rounded-12 bg-bg-weak-50 p-4 text-left mb-6">
+				<div className="rounded-xl bg-bg-weak-50 p-4 sm:p-5 text-left mb-6">
 					<h3 className="text-label-sm text-text-strong-950 mb-3">What&apos;s Next?</h3>
 					<ul className="space-y-3 text-paragraph-sm text-text-sub-600">
 						<li className="flex items-start gap-3">

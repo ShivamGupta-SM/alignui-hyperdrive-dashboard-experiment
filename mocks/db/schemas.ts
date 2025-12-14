@@ -155,6 +155,7 @@ export const EnrollmentSchema = z.object({
 	lockedBillRate: z.number(), // Encore uses lockedBillRate
 	lockedPlatformFee: z.number(), // Encore uses lockedPlatformFee
 	lockedBonusAmount: z.number().optional(),
+	payoutAmount: z.number().optional(), // Payout amount for approved enrollments
 	submittedAt: z.string().optional(), // Encore uses ISO string
 	approvedAt: z.string().optional(), // Encore uses ISO string
 	rejectionCount: z.number(),
@@ -316,8 +317,17 @@ export const OrganizationSettingsSchema = z.object({
 	pincode: z.string().optional(),
 	gstNumber: z.string().optional(),
 	panNumber: z.string().optional(),
+	gstVerified: z.boolean().optional(),
+	panVerified: z.boolean().optional(),
 	businessType: z.string().optional(),
 	industry: z.string().optional(),
+	industryCategory: z.string().optional(),
+	contactPerson: z.string().optional(),
+	postalCode: z.string().optional(),
+	country: z.string().optional(),
+	cinNumber: z.string().optional(),
+	description: z.string().optional(),
+	approvalStatus: z.enum(["draft", "pending", "approved", "rejected"]).optional(),
 })
 
 export const BankAccountSchema = z.object({
@@ -360,6 +370,97 @@ export const RecentActivitySchema = z.object({
 })
 
 // =============================================================================
+// NEW ENTITIES - Deliverable Submissions, Deliverables, Withdrawals, Withdrawal Methods
+// =============================================================================
+
+// Match Encore DeliverableSubmission format
+export const DeliverableSubmissionSchema = z.object({
+	id: z.string(),
+	enrollmentId: z.string(),
+	campaignDeliverableId: z.string(),
+	proofLink: z.string().optional(),
+	proofScreenshot: z.string().optional(),
+	// Locked deliverable snapshot (captured at enrollment time)
+	lockedDeliverableName: z.string().optional(),
+	lockedDeliverableDescription: z.string().optional(),
+	lockedQuantity: z.number().optional(),
+	lockedIsRequired: z.boolean().optional(),
+	lockedInstructions: z.string().optional(),
+	lockedRequireLink: z.boolean().optional(),
+	lockedRequireScreenshot: z.boolean().optional(),
+	createdAt: z.string(), // ISO string
+	updatedAt: z.string(), // ISO string
+})
+
+// Match Encore Deliverable (base) format
+export const DeliverableSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	description: z.string().optional(),
+	platformId: z.string().optional(),
+	category: z.string(),
+	requireLink: z.boolean(),
+	requireScreenshot: z.boolean(),
+	status: z.enum(["active", "inactive", "archived"]),
+	metadata: z.record(z.any()).optional(),
+	createdAt: z.string(), // ISO string
+	updatedAt: z.string(), // ISO string
+})
+
+// Match Encore Withdrawal format
+export const WithdrawalStatusSchema = z.enum([
+	"pending",
+	"processing",
+	"completed",
+	"failed",
+	"cancelled",
+	"rejected",
+])
+
+export const WithdrawalSchema = z.object({
+	id: z.string(),
+	holderType: z.string(), // "shopper" | "organization"
+	holderId: z.string(),
+	shopperId: z.string().optional(),
+	organizationId: z.string().optional(),
+	amount: z.number(),
+	status: WithdrawalStatusSchema,
+	requestedAt: z.string(), // ISO string
+	processedAt: z.string().optional(), // ISO string
+	requiresApproval: z.boolean(),
+	approvedBy: z.string().optional(),
+	approvedAt: z.string().optional(), // ISO string
+	rejectionReason: z.string().optional(),
+	rejectedBy: z.string().optional(),
+	withdrawalMethodId: z.string().optional(),
+	bankAccountId: z.string().optional(),
+	notes: z.string().optional(),
+	createdAt: z.string(), // ISO string
+	updatedAt: z.string(), // ISO string
+})
+
+// Match Encore WithdrawalMethod format
+export const WithdrawalMethodSchema = z.object({
+	id: z.string(),
+	shopperId: z.string(),
+	accountType: z.string(), // "bank" | "upi" | "wallet"
+	accountHolderName: z.string().optional(),
+	accountNumber: z.string().optional(),
+	bankName: z.string().optional(),
+	ifscCode: z.string().optional(),
+	upiId: z.string().optional(),
+	walletProvider: z.string().optional(),
+	walletAddress: z.string().optional(),
+	isVerified: z.boolean(),
+	verificationMethod: z.string().optional(),
+	verifiedAt: z.string().optional(), // ISO string
+	verificationDetails: z.record(z.any()).optional(),
+	isDefault: z.boolean(),
+	createdAt: z.string(), // ISO string
+	updatedAt: z.string(), // ISO string
+})
+
+// =============================================================================
 // TYPE EXPORTS
 // =============================================================================
 
@@ -381,3 +482,7 @@ export type BankAccount = z.infer<typeof BankAccountSchema>
 export type GstDetails = z.infer<typeof GstDetailsSchema>
 export type DashboardStats = z.infer<typeof DashboardStatsSchema>
 export type RecentActivity = z.infer<typeof RecentActivitySchema>
+export type DeliverableSubmission = z.infer<typeof DeliverableSubmissionSchema>
+export type Deliverable = z.infer<typeof DeliverableSchema>
+export type Withdrawal = z.infer<typeof WithdrawalSchema>
+export type WithdrawalMethod = z.infer<typeof WithdrawalMethodSchema>

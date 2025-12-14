@@ -60,9 +60,22 @@ export default function SignInPage() {
 
 			// Redirect will be handled by server action if needed
 			if (!result.redirect) {
-				// Trigger session refetch (like Better Auth does)
-				// router.refresh() will trigger useSession to refetch
-				router.push("/dashboard")
+				// Check for redirect query param (from middleware)
+				const redirectParam = new URLSearchParams(window.location.search).get("redirect")
+				
+				// If redirect param exists, use it (middleware set it)
+				if (redirectParam) {
+					router.push(redirectParam)
+				} else {
+					// Smart redirect based on organization status
+					// User with org → dashboard
+					// User without org → onboarding (will be redirected by requireOrganization anyway)
+					if (result.hasOrganization) {
+						router.push("/dashboard")
+					} else {
+						router.push("/onboarding")
+					}
+				}
 				router.refresh()
 			}
 		} catch (error) {
@@ -86,7 +99,12 @@ export default function SignInPage() {
 
 			// If redirect is needed, it will be handled by the server action
 			if (!result.redirect) {
-				router.push("/dashboard")
+				// Smart redirect based on organization status
+				if (result.hasOrganization) {
+					router.push("/dashboard")
+				} else {
+					router.push("/onboarding")
+				}
 				router.refresh()
 			}
 		} catch (error) {
@@ -99,15 +117,15 @@ export default function SignInPage() {
 	}
 
 	return (
-		<div className="w-full max-w-md">
-			<div className="rounded-2xl bg-bg-white-0 p-6 sm:p-8 ring-1 ring-inset ring-stroke-soft-200 shadow-lg">
+		<div className="w-full">
+			<div className="w-full max-w-md mx-auto rounded-2xl bg-bg-white-0/95 backdrop-blur-xl p-6 sm:p-8 lg:p-10 ring-1 ring-inset ring-stroke-soft-200/50 shadow-xl shadow-primary-base/5">
 				{/* Header */}
 				<div className="mb-6 sm:mb-8 text-center">
-					<div className="flex size-14 sm:size-16 items-center justify-center rounded-2xl bg-linear-to-br from-primary-base to-primary-darker mx-auto mb-4 shadow-md">
-						<ShieldCheck weight="duotone" className="size-7 sm:size-8 text-white" />
+					<div className="flex size-16 sm:size-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-base via-primary-darker to-primary-darkest mx-auto mb-5 shadow-lg shadow-primary-base/20">
+						<ShieldCheck weight="duotone" className="size-8 sm:size-10 text-white" />
 					</div>
-					<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950 mb-1">Welcome back</h1>
-					<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">
+					<h1 className="text-title-h4 sm:text-title-h3 text-text-strong-950 mb-2 font-semibold">Welcome back</h1>
+					<p className="text-paragraph-sm sm:text-paragraph-base text-text-sub-600">
 						Sign in to your Hypedrive account
 					</p>
 				</div>
@@ -120,7 +138,7 @@ export default function SignInPage() {
 				)}
 
 				{/* Form */}
-				<form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-5" noValidate>
+				<form onSubmit={handleSubmit(onSubmit)} className="space-y-5 sm:space-y-6" noValidate>
 					<div>
 						<label htmlFor="email" className="block text-label-sm text-text-strong-950 mb-2">
 							Email address
@@ -189,7 +207,7 @@ export default function SignInPage() {
 						)}
 					</div>
 
-					<div className="flex items-center justify-between">
+					<div className="flex items-center justify-between pt-1">
 						<label className="flex items-center gap-2.5 cursor-pointer group">
 							<Checkbox.Root {...register("rememberMe")} aria-label="Remember me on this device" />
 							<span className="text-paragraph-sm text-text-sub-600 group-hover:text-text-strong-950 transition-colors">
@@ -198,7 +216,7 @@ export default function SignInPage() {
 						</label>
 						<Link
 							href="/forgot-password"
-							className="text-paragraph-sm text-primary-base hover:text-primary-darker hover:underline transition-colors"
+							className="text-paragraph-sm text-primary-base font-medium hover:text-primary-darker hover:underline transition-colors"
 						>
 							Forgot password?
 						</Link>
@@ -210,16 +228,17 @@ export default function SignInPage() {
 				</form>
 
 				{/* Divider */}
-				<div className="my-6">
+				<div className="my-6 sm:my-7">
 					<Divider.Root variant="content">
-						<span className="text-paragraph-xs text-text-soft-400 px-2">or continue with</span>
+						<span className="text-paragraph-xs text-text-soft-400 px-3 bg-bg-white-0/95">or continue with</span>
 					</Divider.Root>
 				</div>
 
 				{/* Google Sign In */}
 				<Button.Root
-					variant="neutral"
-					className="w-full h-11"
+					variant="basic"
+					size="medium"
+					className="w-full h-12 font-medium border border-stroke-soft-200 hover:border-stroke-soft-300 hover:bg-bg-weak-50 transition-all"
 					onClick={handleGoogleSignIn}
 					disabled={isLoading}
 				>
@@ -232,7 +251,7 @@ export default function SignInPage() {
 					Don&apos;t have an account?{" "}
 					<Link
 						href="/sign-up"
-						className="text-primary-base font-medium hover:text-primary-darker hover:underline transition-colors"
+						className="text-primary-base font-semibold hover:text-primary-darker hover:underline transition-colors"
 					>
 						Sign up
 					</Link>

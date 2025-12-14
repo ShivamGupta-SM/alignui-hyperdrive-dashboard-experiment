@@ -693,8 +693,10 @@ function Step2Schedule({ register, control, errors, watch, setValue }: Step2Prop
 								mode="single"
 								selected={startDate}
 								onSelect={(date) => {
-									setValue("startDate", date, { shouldValidate: true })
-									setStartDateOpen(false)
+									if (date) {
+										setValue("startDate", date, { shouldValidate: true })
+										setStartDateOpen(false)
+									}
 								}}
 								disabled={(date) => date < new Date()}
 							/>
@@ -723,8 +725,10 @@ function Step2Schedule({ register, control, errors, watch, setValue }: Step2Prop
 								mode="single"
 								selected={endDate}
 								onSelect={(date) => {
-									setValue("endDate", date, { shouldValidate: true })
-									setEndDateOpen(false)
+									if (date) {
+										setValue("endDate", date, { shouldValidate: true })
+										setEndDateOpen(false)
+									}
 								}}
 								disabled={(date) => (startDate ? date < startDate : date < new Date())}
 							/>

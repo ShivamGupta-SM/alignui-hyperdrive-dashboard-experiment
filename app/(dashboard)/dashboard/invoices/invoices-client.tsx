@@ -127,7 +127,7 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
 			// Export to CSV
 			const { exportToCSV } = await import("@/lib/excel")
 			exportToCSV(
-				enrollments.map((e) => {
+				enrollments.filter((e): e is NonNullable<typeof e> => e !== null).map((e) => {
 					const billAmount = e.orderValue * ((e.lockedBillRate ?? 0) / 100)
 					const gstAmount = billAmount * 0.18
 					const platformFee = e.orderValue * ((e.lockedPlatformFee ?? 0) / 100)
@@ -552,8 +552,8 @@ function InvoiceContent({
 	formatDate: (d: Date | string | undefined) => string
 	onDownloadPDF: (invoice: Invoice) => Promise<void>
 	isDownloading: boolean
-	onExportEnrollments: (invoiceId: string) => Promise<void>
-	isExportingEnrollments: boolean
+	onExportEnrollments?: (invoiceId: string) => Promise<void>
+	isExportingEnrollments?: boolean
 }) {
 	return (
 		<>
@@ -675,11 +675,11 @@ function InvoiceContent({
 						<Button.Icon as={Printer} />
 						Print
 					</Button.Root>
-					{invoice.enrollmentCount > 0 && (
+					{invoice.enrollmentCount > 0 && onExportEnrollments && (
 						<Button.Root
 							variant="neutral"
 							size="xsmall"
-							onClick={() => handleExportEnrollments(invoice.id)}
+							onClick={() => onExportEnrollments(invoice.id)}
 							disabled={isExportingEnrollments}
 						>
 							<Button.Icon
@@ -707,6 +707,8 @@ function InvoiceModal({
 	formatDate,
 	onDownloadPDF,
 	downloadingId,
+	onExportEnrollments,
+	isExportingEnrollments,
 }: {
 	invoice: Invoice | null
 	onClose: () => void
@@ -714,6 +716,8 @@ function InvoiceModal({
 	formatDate: (d: Date | string | undefined) => string
 	onDownloadPDF: (invoice: Invoice, e?: React.MouseEvent) => Promise<void>
 	downloadingId: string | null
+	onExportEnrollments?: (invoiceId: string) => Promise<void>
+	isExportingEnrollments?: boolean
 }) {
 	const isMobile = useMediaQuery("(max-width: 639px)")
 
@@ -768,6 +772,8 @@ function InvoiceModal({
 					formatDate={formatDate}
 					onDownloadPDF={onDownloadPDF}
 					isDownloading={isDownloading}
+					onExportEnrollments={onExportEnrollments}
+					isExportingEnrollments={isExportingEnrollments}
 				/>
 			</Modal.Content>
 		</Modal.Root>

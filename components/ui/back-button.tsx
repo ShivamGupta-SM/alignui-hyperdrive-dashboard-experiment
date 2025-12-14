@@ -22,7 +22,7 @@ export interface BackButtonProps {
 	/**
 	 * Custom onClick handler. If provided, overrides default navigation
 	 */
-	onClick?: () => void
+	onClick?: (e?: React.MouseEvent<HTMLButtonElement>) => void
 	/**
 	 * Size variant. Defaults to "small"
 	 */
@@ -35,6 +35,10 @@ export interface BackButtonProps {
 	 * Whether to show only icon on mobile. Defaults to true
 	 */
 	iconOnlyOnMobile?: boolean
+	/**
+	 * Button type. Defaults to "button" to prevent form submission
+	 */
+	type?: "button" | "submit" | "reset"
 }
 
 /**
@@ -51,18 +55,25 @@ export function BackButton({
 	size = "small",
 	className,
 	iconOnlyOnMobile = true,
+	type = "button",
 }: BackButtonProps) {
 	const router = useRouter()
 
-	const handleClick = React.useCallback(() => {
+	const handleClick = React.useCallback(
+		(e: React.MouseEvent<HTMLButtonElement>) => {
+			e.preventDefault()
+			e.stopPropagation()
+			
 		if (onClick) {
-			onClick()
+				onClick(e)
 		} else if (href) {
 			router.push(href)
 		} else {
 			router.back()
 		}
-	}, [onClick, href, router])
+		},
+		[onClick, href, router]
+	)
 
 	// Determine if label should be shown
 	const shouldShowLabel =
@@ -70,6 +81,7 @@ export function BackButton({
 
 	return (
 		<Button.Root
+			type={type}
 			variant="ghost"
 			size={size}
 			onClick={handleClick}

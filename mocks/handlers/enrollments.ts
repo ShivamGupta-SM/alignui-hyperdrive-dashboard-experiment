@@ -83,7 +83,7 @@ export const enrollmentsHandlers = [
 		)
 	}),
 
-	// GET /enrollments/:id - Get enrollment
+	// GET /enrollments/:id - Get enrollment (with detail including submissions)
 	http.get(encoreUrl("/enrollments/:id"), async ({ params }) => {
 		await delay(DELAY.FAST)
 
@@ -102,7 +102,52 @@ export const enrollmentsHandlers = [
 			return encoreNotFoundResponse("Enrollment")
 		}
 
-		return encoreResponse(toEnrollmentWithRelations(enrollment))
+		// Get campaign for additional info
+		const campaign = db.campaigns.findFirst((q) => q.where({ id: enrollment.campaignId }))
+
+		// Get campaign deliverables
+		const campaignDeliverables = db.campaignDeliverables.findMany((q) =>
+			q.where({ campaignId: enrollment.campaignId })
+		)
+
+		// Get deliverable submissions for this enrollment
+		const submissions = db.deliverableSubmissions.findMany((q) =>
+			q.where({ enrollmentId: enrollmentId as string })
+		)
+
+		// Build submissions array (include both submitted and not-yet-submitted deliverables)
+		const submissionsArray = campaignDeliverables.map((cd) => {
+			const submitted = submissions.find((s) => s.campaignDeliverableId === cd.id)
+			return {
+				id: submitted?.id ?? "",
+				campaignDeliverableId: cd.id,
+				deliverableName: submitted?.lockedDeliverableName ?? cd.title,
+				deliverableDescription: submitted?.lockedDeliverableDescription ?? cd.description,
+				isRequired: submitted?.lockedIsRequired ?? cd.isRequired,
+				requireLink: submitted?.lockedRequireLink ?? true,
+				requireScreenshot: submitted?.lockedRequireScreenshot ?? true,
+				instructions: submitted?.lockedInstructions ?? cd.instructions,
+				proofLink: submitted?.proofLink,
+				proofScreenshot: submitted?.proofScreenshot,
+				submittedAt: submitted?.createdAt,
+			}
+		})
+
+		// Build enrollment detail response
+		const enrollmentDetail = {
+			...toEnrollmentWithRelations(enrollment),
+			submissions: submissionsArray,
+			campaign: campaign
+				? {
+						id: campaign.id,
+						title: campaign.title,
+						status: campaign.status,
+						type: campaign.campaignType,
+					}
+				: undefined,
+		}
+
+		return encoreResponse(enrollmentDetail)
 	}),
 
 	// POST /enrollments/:id/approve
@@ -121,11 +166,35 @@ export const enrollmentsHandlers = [
 			return encoreErrorResponse("Only enrollments awaiting review can be approved", 400)
 		}
 
-		return encoreResponse({
-			...toEnrollmentWithRelations(enrollment),
+		// Update enrollment in database
+		const updated = db.enrollments.update({
+			where: { id },
+			data: {
 			status: "approved",
 			approvedAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+				payoutAmount: enrollment.lockedBillRate || 0, // Set payout amount
+			},
 		})
+
+		// Update campaign stats
+		const campaign = db.campaigns.findFirst((q) => q.where({ id: enrollment.campaignId }))
+		if (campaign) {
+			const approvedCount = db.enrollments
+				.findMany((q) => q.where({ campaignId: campaign.id }))
+				.filter((e) => e.status === "approved").length
+			
+			db.campaigns.update({
+				where: { id: campaign.id },
+				data: {
+					approvedCount,
+					currentEnrollments: campaign.currentEnrollments || 0,
+					updatedAt: new Date().toISOString(),
+				},
+			})
+		}
+
+		return encoreResponse(toEnrollmentWithRelations(updated))
 	}),
 
 	// POST /enrollments/:id/reject
@@ -163,11 +232,17 @@ export const enrollmentsHandlers = [
 			return encoreNotFoundResponse("Enrollment")
 		}
 
-		return encoreResponse({
-			...toEnrollmentWithRelations(enrollment),
+		// Update enrollment in database
+		const updated = db.enrollments.update({
+			where: { id },
+			data: {
 			status: "changes_requested",
 			canResubmit: true,
+				updatedAt: new Date().toISOString(),
+			},
 		})
+
+		return encoreResponse(toEnrollmentWithRelations(updated))
 	}),
 
 	// POST /enrollments/batch/approve - Bulk approve
@@ -191,6 +266,16 @@ export const enrollmentsHandlers = [
 			} else if (enrollment.status !== "awaiting_review") {
 				errors[enrollmentId] = "Not awaiting review"
 			} else {
+				// Update enrollment in database
+				db.enrollments.update({
+					where: { id: enrollmentId },
+					data: {
+						status: "approved",
+						approvedAt: new Date().toISOString(),
+						updatedAt: new Date().toISOString(),
+						payoutAmount: enrollment.lockedBillRate || 0,
+					},
+				})
 				approved++
 			}
 		}
@@ -219,6 +304,14 @@ export const enrollmentsHandlers = [
 			} else if (enrollment.status !== "awaiting_review") {
 				errors[enrollmentId] = "Not awaiting review"
 			} else {
+				// Update enrollment in database
+				db.enrollments.update({
+					where: { id: enrollmentId },
+					data: {
+						status: "rejected",
+						updatedAt: new Date().toISOString(),
+					},
+				})
 				rejected++
 			}
 		}
