@@ -6,15 +6,15 @@ import type { ReactNode } from "react"
 import { getQueryClient } from "./get-query-client"
 
 export function QueryProvider({ children }: { children: ReactNode }) {
-    // Get the singleton QueryClient (created once on client, fresh per request on server)
-    const queryClient = getQueryClient()
+	// Get the singleton QueryClient (created once on client, fresh per request on server)
+	const queryClient = getQueryClient()
 
-    return (
-        <QueryClientProvider client={queryClient}>
-            {children}
-            <ReactQueryDevtools initialIsOpen={false} />
-        </QueryClientProvider>
-    )
+	return (
+		<QueryClientProvider client={queryClient}>
+			{children}
+			<ReactQueryDevtools initialIsOpen={false} />
+		</QueryClientProvider>
+	)
 }
 
 export { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"

@@ -1,7 +1,5 @@
-import { SettingsPageLoading } from '@/components/dashboard/loading-skeletons'
+import { SettingsPageLoading } from "@/components/dashboard/loading-skeletons"
 
 export default function Loading() {
-  return <SettingsPageLoading />
+	return <SettingsPageLoading />
 }
-
-

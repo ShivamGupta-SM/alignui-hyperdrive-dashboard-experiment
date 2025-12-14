@@ -1,15 +1,18 @@
-import { getCampaignDetailData } from '@/lib/ssr-data'
-import { CampaignDetailClient } from './campaign-detail-client'
+import { getCampaignDetailData, requireOrganization } from "@/lib/ssr-data"
+import { CampaignDetailClient } from "./campaign-detail-client"
 
 export default async function CampaignDetailPage({
-  params,
+	params,
 }: {
-  params: Promise<{ id: string }>
+	params: Promise<{ id: string }>
 }) {
-  const { id } = await params
+	// Check if user has organization
+	await requireOrganization()
 
-  // Direct server fetch - pure RSC
-  const data = await getCampaignDetailData(id)
+	const { id } = await params
 
-  return <CampaignDetailClient campaignId={id} initialData={data} />
+	// Direct server fetch - pure RSC
+	const data = await getCampaignDetailData(id)
+
+	return <CampaignDetailClient campaignId={id} initialData={data} />
 }

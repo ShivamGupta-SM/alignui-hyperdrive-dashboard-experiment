@@ -3,9 +3,9 @@
  * Generates consistent avatar colors based on a string (usually name or email)
  */
 
-export type AvatarColor = 'blue' | 'purple' | 'sky' | 'yellow' | 'red'
+export type AvatarColor = "blue" | "purple" | "sky" | "yellow" | "red"
 
-const AVATAR_COLORS: AvatarColor[] = ['blue', 'purple', 'sky', 'yellow', 'red']
+const AVATAR_COLORS: AvatarColor[] = ["blue", "purple", "sky", "yellow", "red"]
 
 /**
  * Get a consistent avatar color based on a string input
@@ -22,19 +22,19 @@ const AVATAR_COLORS: AvatarColor[] = ['blue', 'purple', 'sky', 'yellow', 'red']
  * ```
  */
 export function getAvatarColor(input: string): AvatarColor {
-  if (!input || input.length === 0) {
-    return AVATAR_COLORS[0]
-  }
+	if (!input || input.length === 0) {
+		return AVATAR_COLORS[0]
+	}
 
-  // Simple hash function to get consistent results
-  let hash = 0
-  for (let i = 0; i < input.length; i++) {
-    const char = input.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash // Convert to 32bit integer
-  }
+	// Simple hash function to get consistent results
+	let hash = 0
+	for (let i = 0; i < input.length; i++) {
+		const char = input.charCodeAt(i)
+		hash = (hash << 5) - hash + char
+		hash = hash & hash // Convert to 32bit integer
+	}
 
-  // Use absolute value and modulo to get index
-  const index = Math.abs(hash) % AVATAR_COLORS.length
-  return AVATAR_COLORS[index]
+	// Use absolute value and modulo to get index
+	const index = Math.abs(hash) % AVATAR_COLORS.length
+	return AVATAR_COLORS[index]
 }

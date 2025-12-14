@@ -1,43 +1,69 @@
-'use server'
+"use server"
 
-import { getEncoreClient } from '@/lib/encore'
-import { revalidatePath } from 'next/cache'
-import { cookies } from 'next/headers'
+import { getEncoreClient } from "@/lib/encore"
+import { revalidatePath } from "next/cache"
+
+/**
+ * Create basic organization using Better Auth (name only)
+ * Advanced details (GST, PAN, etc.) can be added later in settings
+ */
+export async function createBasicOrganization(name: string) {
+	const client = getEncoreClient()
+
+	try {
+		// Use Better Auth's createOrganization - only needs name
+		const result = await client.auth.createOrganization({
+			name,
+			// slug will be auto-generated
+			// logo can be added later
+		})
+
+		if (!result?.id) {
+			return {
+				success: false,
+				error: "Failed to create organization",
+			}
+		}
+
+		// Set as active organization
+		await client.auth.setActiveOrganization({
+			organizationId: result.id,
+		})
+
+		revalidatePath("/dashboard")
+		revalidatePath("/onboarding")
+
+		return {
+			success: true,
+			organizationId: result.id,
+			organization: result,
+		}
+	} catch (error: any) {
+		return {
+			success: false,
+			error: error.message || "Failed to create organization",
+		}
+	}
+}
 
 /**
  * Switch active organization
- * Updates the active organization in the backend and syncs with frontend
  */
 export async function switchOrganization(organizationId: string) {
-  const client = getEncoreClient()
+	const client = getEncoreClient()
 
-  try {
-    // Set active organization via Encore client
-    await client.auth.setActiveOrganization({ organizationId })
+	try {
+		await client.auth.setActiveOrganization({
+			organizationId,
+		})
 
-    // Update cookie for server-side access
-    const cookieStore = await cookies()
-    cookieStore.set('active-organization-id', organizationId, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 365, // 1 year
-      path: '/',
-    })
+		revalidatePath("/dashboard")
 
-    // Revalidate all paths to refresh data with new organization context
-    revalidatePath('/', 'layout')
-    // Also revalidate session to update activeOrganizationId in user object
-    revalidatePath('/dashboard', 'layout')
-
-    return {
-      success: true,
-      organizationId,
-    }
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error.message || 'Failed to switch organization',
-    }
-  }
+		return { success: true }
+	} catch (error: any) {
+		return {
+			success: false,
+			error: error.message || "Failed to switch organization",
+		}
+	}
 }

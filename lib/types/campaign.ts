@@ -1,103 +1,50 @@
 // Campaign Types
+// Re-export from Encore (source of truth) for backwards compatibility
 
-import type { Product } from './product'
+import type { campaigns, shared } from "@/lib/encore-client"
 
-export type CampaignStatus =
-  | 'draft'
-  | 'pending_approval'
-  | 'rejected'
-  | 'approved'
-  | 'active'
-  | 'paused'
-  | 'ended'
-  | 'expired'
-  | 'completed'
-  | 'cancelled'
-  | 'archived'
+// Re-export Encore types as source of truth
+export type CampaignStatus = shared.CampaignStatus
+export type CampaignType = shared.CampaignType
+export type Campaign = campaigns.Campaign
+export type CampaignWithStats = campaigns.CampaignWithStats
+export type CampaignDeliverable = campaigns.CampaignDeliverableResponse
 
-export type CampaignType = 'cashback' | 'barter' | 'hybrid'
-
-export interface Campaign {
-  id: string
-  organizationId: string
-  productId: string
-
-  title: string
-  description?: string
-  type: CampaignType
-  status: CampaignStatus
-  isPublic: boolean
-
-  // Dates
-  startDate: Date
-  endDate: Date
-  submissionDeadlineDays: number
-
-  // Limits
-  maxEnrollments: number
-  currentEnrollments: number
-
-  // Billing (set by admin)
-  billRate?: number
-  platformFee?: number
-
-  // Stats
-  approvedCount: number
-  rejectedCount: number
-  pendingCount: number
-  totalPayout: number
-
-  // Relations
-  product?: Product
-  deliverables?: CampaignDeliverable[]
-
-  createdAt: Date
-  updatedAt: Date
-}
-
+// DeliverableType - Frontend-only type (not in Encore shared types)
+// Used for form inputs and UI display
+// Note: Backend uses deliverable.category field, but this type is for UI forms
 export type DeliverableType =
-  | 'order_screenshot'
-  | 'delivery_photo'
-  | 'product_review'
-  | 'social_media_post'
-  | 'unboxing_video'
-  | 'custom'
-
-export interface CampaignDeliverable {
-  id: string
-  campaignId: string
-  type: DeliverableType
-  title: string
-  description?: string
-  instructions?: string
-  isRequired: boolean
-  sortOrder: number
-}
+	| "order_screenshot"
+	| "delivery_photo"
+	| "product_review"
+	| "social_media_post"
+	| "unboxing_video"
+	| "custom"
 
 export interface CampaignFormData {
-  // Step 1: Basic Info
-  productId: string
-  title: string
-  description?: string
-  type: CampaignType
-  isPublic: boolean
+	// Step 1: Basic Info
+	productId: string
+	title: string
+	description?: string
+	type: CampaignType
+	isPublic: boolean
 
-  // Step 2: Dates & Limits
-  startDate: Date
-  endDate: Date
-  maxEnrollments: number
-  submissionDeadlineDays: number
+	// Step 2: Dates & Limits
+	startDate: Date
+	endDate: Date
+	maxEnrollments: number
+	submissionDeadlineDays: number
 
-  // Step 3: Deliverables
-  deliverables: {
-    id: string
-    type: DeliverableType
-    title: string
-    instructions?: string
-    isRequired: boolean
-  }[]
+	// Step 3: Deliverables
+	deliverables: {
+		id: string
+		type: DeliverableType
+		title: string
+		instructions?: string
+		isRequired: boolean
+	}[]
 
-  // Step 4: Terms
-  terms: string[]
-  minOrderValue?: number
+	// Step 4: Terms
+	terms: string[]
+	minOrderValue?: number
 }

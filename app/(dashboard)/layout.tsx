@@ -1,16 +1,12 @@
-import { DashboardShell } from '@/components/dashboard/dashboard-shell'
+import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 
 // All dashboard pages require authentication
-export const dynamic = 'force-dynamic'
+// Note: dynamic export removed - incompatible with cacheComponents
 
 export default function DashboardLayout({
-  children,
+	children,
 }: {
-  children: React.ReactNode
+	children: React.ReactNode
 }) {
-  return (
-    <DashboardShell>
-      {children}
-    </DashboardShell>
-  )
+	return <DashboardShell>{children}</DashboardShell>
 }

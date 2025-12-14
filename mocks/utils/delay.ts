@@ -5,13 +5,13 @@
 
 // Delay durations in milliseconds
 export const DELAY = {
-    INSTANT: 0,
-    FAST: 100,
-    STANDARD: 200,
-    MEDIUM: 300,
-    NORMAL: 300,
-    SLOW: 800,
-    VERY_SLOW: 1500,
+	INSTANT: 0,
+	FAST: 100,
+	STANDARD: 200,
+	MEDIUM: 300,
+	NORMAL: 300,
+	SLOW: 800,
+	VERY_SLOW: 1500,
 } as const
 
 /**
@@ -19,5 +19,5 @@ export const DELAY = {
  * @param ms - Milliseconds to delay
  */
 export function delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
+	return new Promise((resolve) => setTimeout(resolve, ms))
 }

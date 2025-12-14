@@ -1,18 +1,21 @@
-import { getCampaignsData } from '@/lib/ssr-data'
-import { CampaignsClient } from './campaigns-client'
+"use cache"
 
-export const revalidate = 60
+import { getCampaignsData, requireOrganization } from "@/lib/ssr-data"
+import { CampaignsClient } from "./campaigns-client"
 
 export default async function CampaignsPage({
-  searchParams,
+	searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>
+	searchParams: Promise<{ status?: string }>
 }) {
-  const params = await searchParams
-  const statusFilter = params.status || 'all'
+	// Check if user has organization
+	await requireOrganization()
 
-  // Direct server fetch - pure RSC, no React Query
-  const data = await getCampaignsData(statusFilter)
+	const params = await searchParams
+	const statusFilter = params.status || "all"
 
-  return <CampaignsClient initialData={data} initialStatus={statusFilter} />
+	// Direct server fetch - pure RSC, no React Query
+	const data = await getCampaignsData(statusFilter)
+
+	return <CampaignsClient initialData={data} initialStatus={statusFilter} />
 }

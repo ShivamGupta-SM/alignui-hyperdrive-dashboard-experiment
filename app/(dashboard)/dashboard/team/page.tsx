@@ -1,11 +1,14 @@
-import { getTeamData } from '@/lib/ssr-data'
-import { TeamClient } from './team-client'
+"use cache"
 
-export const revalidate = 60
+import { getTeamData, requireOrganization } from "@/lib/ssr-data"
+import { TeamClient } from "./team-client"
 
 export default async function TeamPage() {
-  // Direct server fetch - pure RSC
-  const data = await getTeamData()
+	// Check if user has organization
+	await requireOrganization()
 
-  return <TeamClient initialData={data} />
+	// Direct server fetch - pure RSC
+	const data = await getTeamData()
+
+	return <TeamClient initialData={data} />
 }

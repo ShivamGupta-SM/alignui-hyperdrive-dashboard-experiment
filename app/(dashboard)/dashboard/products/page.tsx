@@ -1,11 +1,14 @@
-import { getProductsData } from '@/lib/ssr-data'
-import { ProductsClient } from './products-client'
+"use cache"
 
-export const revalidate = 60
+import { getProductsData, requireOrganization } from "@/lib/ssr-data"
+import { ProductsClient } from "./products-client"
 
 export default async function ProductsPage() {
-  // Direct server fetch - pure RSC
-  const data = await getProductsData()
+	// Check if user has organization
+	await requireOrganization()
 
-  return <ProductsClient initialData={data} />
+	// Direct server fetch - pure RSC
+	const data = await getProductsData()
+
+	return <ProductsClient initialData={data} />
 }

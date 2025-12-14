@@ -5,4 +5,4 @@
  * This file exists for backwards compatibility.
  */
 
-export * from './db/index'
+export * from "./db/index"

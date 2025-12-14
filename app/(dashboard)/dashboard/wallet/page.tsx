@@ -1,11 +1,14 @@
-import { getWalletData } from '@/lib/ssr-data'
-import { WalletClient } from './wallet-client'
+"use cache"
 
-export const revalidate = 30
+import { getWalletData, requireOrganization } from "@/lib/ssr-data"
+import { WalletClient } from "./wallet-client"
 
 export default async function WalletPage() {
-  // Direct server fetch - pure RSC
-  const data = await getWalletData()
+	// Check if user has organization
+	await requireOrganization()
 
-  return <WalletClient initialData={data} />
+	// Direct server fetch - pure RSC
+	const data = await getWalletData()
+
+	return <WalletClient initialData={data} />
 }

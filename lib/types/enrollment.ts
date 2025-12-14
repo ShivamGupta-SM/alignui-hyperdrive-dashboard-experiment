@@ -1,83 +1,31 @@
 // Enrollment Types
+// Re-export from Encore (source of truth) for backwards compatibility
 
-import type { Campaign } from './campaign'
+import type { enrollments, shared } from "@/lib/encore-client"
 
-export type EnrollmentStatus =
-  | 'enrolled'
-  | 'awaiting_submission'
-  | 'awaiting_review'
-  | 'changes_requested'
-  | 'approved'
-  | 'rejected'
-  | 'permanently_rejected'
-  | 'withdrawn'
-  | 'expired'
+// Re-export Encore types as source of truth
+export type EnrollmentStatus = shared.EnrollmentStatus
+export type Enrollment = enrollments.Enrollment
+export type EnrollmentWithRelations = enrollments.EnrollmentWithRelations
 
-export interface Enrollment {
-  id: string
-  organizationId: string
-  campaignId: string
-  shopperId: string
-
-  status: EnrollmentStatus
-
-  // Order details
-  orderId: string
-  orderValue: number
-  orderDate: Date
-  platform: string
-
-  // Deadlines
-  submissionDeadline: Date
-
-  // Billing (calculated)
-  billAmount: number
-  platformFee: number
-  gstAmount: number
-  totalCost: number
-
-  // OCR verification
-  ocrData?: {
-    extractedOrderId?: string
-    extractedAmount?: number
-    extractedDate?: string
-    extractedProduct?: string
-    confidence: number
-    isVerified: boolean
-  }
-
-  // Relations
-  campaign?: Campaign
-  shopper?: {
-    id: string
-    name: string
-    email: string
-    avatar?: string
-    previousEnrollments: number
-    approvalRate: number
-  }
-  submissions?: EnrollmentSubmission[]
-  history?: EnrollmentHistoryItem[]
-
-  createdAt: Date
-  updatedAt: Date
-}
+// Frontend-specific types (not in backend)
+// These are UI-only types that don't exist in Encore
 
 export interface EnrollmentSubmission {
-  id: string
-  enrollmentId: string
-  deliverableId: string
-  fileUrl: string
-  fileType: string
-  status: 'pending' | 'approved' | 'rejected'
-  submittedAt: Date
+	id: string
+	enrollmentId: string
+	deliverableId: string
+	fileUrl: string
+	fileType: string
+	status: "pending" | "approved" | "rejected"
+	submittedAt: Date
 }
 
 export interface EnrollmentHistoryItem {
-  id: string
-  enrollmentId: string
-  action: string
-  description: string
-  performedBy?: string
-  performedAt: Date
+	id: string
+	enrollmentId: string
+	action: string
+	description: string
+	performedBy?: string
+	performedAt: Date
 }

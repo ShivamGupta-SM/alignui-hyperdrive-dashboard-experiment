@@ -1,16 +1,16 @@
-'use client'
+"use client"
 
-import { useState, useCallback } from 'react'
-import { useCopyToClipboard as useClipboard } from 'usehooks-ts'
-import { DURATIONS } from '@/lib/types/constants'
+import { useState, useCallback } from "react"
+import { useCopyToClipboard as useClipboard } from "usehooks-ts"
+import { DURATIONS } from "@/lib/types/constants"
 
 export interface UseClipboardOptions {
-  /** Duration in ms before resetting copied state (default: DURATIONS.CLIPBOARD_FEEDBACK_MS) */
-  timeout?: number
-  /** Callback when copy succeeds */
-  onSuccess?: (text: string) => void
-  /** Callback when copy fails */
-  onError?: (error: Error) => void
+	/** Duration in ms before resetting copied state (default: DURATIONS.CLIPBOARD_FEEDBACK_MS) */
+	timeout?: number
+	/** Callback when copy succeeds */
+	onSuccess?: (text: string) => void
+	/** Callback when copy fails */
+	onError?: (error: Error) => void
 }
 
 /**
@@ -31,49 +31,49 @@ export interface UseClipboardOptions {
  * ```
  */
 export function useCopyToClipboard(options: UseClipboardOptions = {}) {
-  const { timeout = DURATIONS.CLIPBOARD_FEEDBACK_MS, onSuccess, onError } = options
+	const { timeout = DURATIONS.CLIPBOARD_FEEDBACK_MS, onSuccess, onError } = options
 
-  const [_, copyToClipboard] = useClipboard()
-  const [copied, setCopied] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
+	const [_, copyToClipboard] = useClipboard()
+	const [copied, setCopied] = useState(false)
+	const [error, setError] = useState<Error | null>(null)
 
-  const copy = useCallback(
-    async (text: string) => {
-      try {
-        const success = await copyToClipboard(text)
+	const copy = useCallback(
+		async (text: string) => {
+			try {
+				const success = await copyToClipboard(text)
 
-        if (success) {
-          setCopied(true)
-          setError(null)
-          onSuccess?.(text)
+				if (success) {
+					setCopied(true)
+					setError(null)
+					onSuccess?.(text)
 
-          // Reset after timeout
-          setTimeout(() => {
-            setCopied(false)
-          }, timeout)
-        } else {
-          throw new Error('Failed to copy to clipboard')
-        }
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error('Unknown error')
-        setError(error)
-        onError?.(error)
-      }
-    },
-    [copyToClipboard, timeout, onSuccess, onError]
-  )
+					// Reset after timeout
+					setTimeout(() => {
+						setCopied(false)
+					}, timeout)
+				} else {
+					throw new Error("Failed to copy to clipboard")
+				}
+			} catch (err) {
+				const error = err instanceof Error ? err : new Error("Unknown error")
+				setError(error)
+				onError?.(error)
+			}
+		},
+		[copyToClipboard, timeout, onSuccess, onError]
+	)
 
-  const reset = useCallback(() => {
-    setCopied(false)
-    setError(null)
-  }, [])
+	const reset = useCallback(() => {
+		setCopied(false)
+		setError(null)
+	}, [])
 
-  return {
-    copy,
-    copied,
-    error,
-    reset,
-  }
+	return {
+		copy,
+		copied,
+		error,
+		reset,
+	}
 }
 
 /**
@@ -101,50 +101,48 @@ export function useCopyToClipboard(options: UseClipboardOptions = {}) {
  * }
  * ```
  */
-export function useCopyWithField<T extends string = string>(
-  options: UseClipboardOptions = {}
-) {
-  const { timeout = DURATIONS.CLIPBOARD_FEEDBACK_MS, onSuccess, onError } = options
+export function useCopyWithField<T extends string = string>(options: UseClipboardOptions = {}) {
+	const { timeout = DURATIONS.CLIPBOARD_FEEDBACK_MS, onSuccess, onError } = options
 
-  const [_, copyToClipboard] = useClipboard()
-  const [copiedField, setCopiedField] = useState<T | null>(null)
-  const [error, setError] = useState<Error | null>(null)
+	const [_, copyToClipboard] = useClipboard()
+	const [copiedField, setCopiedField] = useState<T | null>(null)
+	const [error, setError] = useState<Error | null>(null)
 
-  const copy = useCallback(
-    async (text: string, field: T) => {
-      try {
-        const success = await copyToClipboard(text)
+	const copy = useCallback(
+		async (text: string, field: T) => {
+			try {
+				const success = await copyToClipboard(text)
 
-        if (success) {
-          setCopiedField(field)
-          setError(null)
-          onSuccess?.(text)
+				if (success) {
+					setCopiedField(field)
+					setError(null)
+					onSuccess?.(text)
 
-          setTimeout(() => {
-            setCopiedField(null)
-          }, timeout)
-        } else {
-          throw new Error('Failed to copy to clipboard')
-        }
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error('Unknown error')
-        setError(error)
-        onError?.(error)
-      }
-    },
-    [copyToClipboard, timeout, onSuccess, onError]
-  )
+					setTimeout(() => {
+						setCopiedField(null)
+					}, timeout)
+				} else {
+					throw new Error("Failed to copy to clipboard")
+				}
+			} catch (err) {
+				const error = err instanceof Error ? err : new Error("Unknown error")
+				setError(error)
+				onError?.(error)
+			}
+		},
+		[copyToClipboard, timeout, onSuccess, onError]
+	)
 
-  const reset = useCallback(() => {
-    setCopiedField(null)
-    setError(null)
-  }, [])
+	const reset = useCallback(() => {
+		setCopiedField(null)
+		setError(null)
+	}, [])
 
-  return {
-    copy,
-    copiedField,
-    isCopied: (field: T) => copiedField === field,
-    error,
-    reset,
-  }
+	return {
+		copy,
+		copiedField,
+		isCopied: (field: T) => copiedField === field,
+		error,
+		reset,
+	}
 }

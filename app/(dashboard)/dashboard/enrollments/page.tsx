@@ -1,18 +1,32 @@
-import { getEnrollmentsData } from '@/lib/ssr-data'
-import { EnrollmentsClient } from './enrollments-client'
+"use cache"
 
-export const revalidate = 60
+import { getEnrollmentsData, getCampaignsData, requireOrganization } from "@/lib/ssr-data"
+import { EnrollmentsClient } from "./enrollments-client"
 
 export default async function EnrollmentsPage({
-  searchParams,
+	searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>
+	searchParams: Promise<{ status?: string; campaign?: string }>
 }) {
-  const params = await searchParams
-  const statusFilter = params.status || 'all'
+	// Check if user has organization
+	await requireOrganization()
 
-  // Direct server fetch - pure RSC
-  const data = await getEnrollmentsData(statusFilter)
+	const params = await searchParams
+	const statusFilter = params.status || "all"
+	const campaignFilter = params.campaign || ""
 
-  return <EnrollmentsClient initialData={data} initialStatus={statusFilter} />
+	// Direct server fetch - pure RSC
+	const [data, campaignsData] = await Promise.all([
+		getEnrollmentsData(statusFilter, campaignFilter),
+		getCampaignsData(), // Fetch campaigns for filter dropdown
+	])
+
+	return (
+		<EnrollmentsClient
+			initialData={data}
+			initialStatus={statusFilter}
+			initialCampaign={campaignFilter}
+			campaigns={campaignsData.campaigns || []}
+		/>
+	)
 }

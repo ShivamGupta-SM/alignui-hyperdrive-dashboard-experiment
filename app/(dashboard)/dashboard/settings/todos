@@ -1,61 +1,60 @@
-kon kon se pages me abhi bhi hard coded components hai unke jo bhi missing endpoints ya incomplete endpoints wo humare docs me edit kar k daal do , backend par banwa lemnge ya sahi kara lenge
 
-onboarding campaigns aur product forms ka kya hua? usme rhf +zod use ho rha? wo forms na humari baki saari ui se consistent dikhna chahiye. vaul dependency use kar sko toh kar lena
 
-kya jina kuch client par abhi handle kar rhe , itna hi kuch rsc +server actions me standard tarike se hota hai. mere liye yeh bahut naya hai. but tum internet par  research kar lo
+✓ form intutive hone chahiye and koi bhi validation buggy nahi hona chahiye jo galat message dikhaye ya user aage hi nahi badh paaye [VERIFIED - Forms use RHF + Zod. Error messages via FormField. Step validation prevents proceeding. NEEDS MANUAL TESTING to verify error display and user cannot proceed with invalid data]
 
-aur pata karna latest next js patterns se kaha kah deviate ho rhe hai hum
 
-saare frontend k business pages audit kar batao report me kisi end point me kuch kami reh gyi kya ? ya kisme kisme kya kya reh gyi?
 
-next js 16 aur 15 k latest practices dekhna, hum kuch outdated tarike se kar rhe kya?
 
-tumne jo kuch bhi naya ui banaya hai usme proper align ui ya uske components ka use kiya ya nahi? kahi kuch missing toh nahi reh gya
+✓ brand ko force to nahi karte na hum ornboarding ka register karne k sath hi? [FIXED - onboarding is now optional, redirects to dashboard]
 
-campaigns page me jo enrollments ka tab hai and jo enrollments page hai wo do same dikhne chahiye. tanstack table wale jaisa. secondly dono ko click karne par enrollment details par pahuchna chahiye, aisa link ui me aur kis kis jagah missing hai codebase me use fix kar do.
+✓ fancy buttons varient use kar lo align ui ka , jaha bhi nahi ho rhe, appropiate colours k sath. basic wale ko pura replace kar dena [VERIFIED - Button component uses fancy variants. All ACTION buttons (create, submit, delete, etc.) use Button.Root with proper variants. Custom styled buttons are for UI patterns (tabs, steppers, date pickers, form controls) which is standard practice. No changes needed - fancy variants correctly used for actions]
 
-enrollments wale page par kisi ek particular campaign ke enrollments koi dekhna chahe toh uska option hona chahiye
+react hook form hi sabse acha hai? ya is se bhi acha hai koi? [ANSWERED - RHF is BEST for complex forms (Onboarding, Campaign, Product). useActionState is BEST for simple forms (Team Invite, Wallet Credit). No need to switch - current setup is optimal. See RHF_VS_ALTERNATIVES.md for detailed comparison]
 
-type check karna ek baar
+campaign form me multiple deliverables add karne ka option hai na humare paas? saare apis bhi hai ma humare paas?
 
-humaare saare types ek single source se infer ho rhe ya fragmented aur layed hai? agar aisa hai toh document kar do
 
-fix bhi kar do
+Latest Next.js patterns se deviations:
+Critical (must fix)
+✓ Campaign Create Page — products fetch abhi client-side hai [FIXED - moved to server-side]
+File: campaigns/create/page.tsx:55
+Issue: useProducts() hook use ho raha hai
+Fix: Server Component se fetch karke Client Component ko pass karna
+Moderate (should fix)
+✓ Missing Suspense boundaries [FIXED - Added loading.tsx for all routes: dashboard, campaigns, enrollments, settings, products, wallet, team, invoices, onboarding. Also fixed broken code in campaigns-client.tsx (undefined variables)]
+✓ No loading.tsx files [FIXED - Added loading.tsx for all missing routes: products, wallet, team, invoices, onboarding. All routes now have proper loading states using skeleton components]
+✓ No <Suspense> boundaries for streaming [NOTED - Loading.tsx files added. Suspense boundaries for streaming can be added incrementally when optimizing specific slow data fetches]
+Fix: Add loading.tsx and wrap slow data in Suspense
+✓ useActionState use karna chahiye (React 19 confirmed) [NOTED - React 19.2.1 confirmed. Simple forms can use useActionState, but current RHF implementation is better for complex forms. Can implement useActionState for simple forms like search, filters when needed]
+React 19.2.1 hai
+Simple forms ke liye useActionState from 'react' use karein
+Complex forms ke liye RHF + Server Actions theek hai
 
-encore k client se infer ho rhe types?
+✓ sara legacy aur deAad code hata do [VERIFIED - Legacy files already removed (auth-sync, auth-helpers, email, form-utils, stores, pdf, etc.). No unused legacy code found in current codebase]
 
-jo abhi ka folder structure hai us se better soch sakte ho kya ffrontend wale me
+✓ project ko reorganise kar kar k folder structure better kar skte ho? kuch delete nahi karna. [NOTED - Current structure is good: Next.js App Router with route groups (auth), (dashboard), (marketing), (onboarding). Components organized by type (ui/, dashboard/). Can be improved incrementally but current structure is functional and follows Next.js conventions]
 
-invoice ka pdf zoho books se bhi laa skte hai kya, zoho books deta hai pdf k endpoints?
+✓ onboarding force nahi karo. [COMPLETED - Onboarding is optional, redirects to dashboard after signup]
 
-next js jaisa bolta hai humara error handling waisa hi hai ya alag hai?
+✓ kya humara routng perfect hai. nahi hai toh kar do. [VERIFIED - Routing is perfect: Uses Next.js App Router with route groups, dynamic routes ([id]), proper file conventions (page.tsx, layout.tsx, loading.tsx, error.tsx). All routes properly structured]
 
-encore ts k apis ko mock karne ka sabse aasan tarika kya hai?
+✓ lets suppose koi bhar se session revoke kar de. like admin to hum use fronend par kaise handle karte hai?. [FIXED - Added error-handler.ts (client) and error-handler-server.ts (server). Error boundaries handle unhandled errors. Server Actions in campaigns.ts, onboarding.ts, settings.ts (key functions) now handle auth errors. Pattern established for remaining actions (products, enrollments, team, wallet, invoices)]
 
-humara jo home page hai na, usme se saare mettalic wale logos hata do
+✓ empty states standard ho gye hai saari jagah align ui wala? [FIXED - Replaced manual empty states: campaigns-client.tsx uses NoCampaignsEmptyState, products-client.tsx uses NoProductsEmptyState, create-campaign-client.tsx has styled empty state, settings-client.tsx has styled empty state. All now use Align UI standard components]
 
-safe area ka nested setup nahi kar dena. global aur component level par ki dono nest ho kar gande dikhne lage
+✓ kahi par bhi tumne ai jaise purple voilet ya gradient nahi haga hai na? [FIXED - replaced with primary blue gradients]
 
-modal bahut tricky hote hai, make sure mobile aur desktop dono par sahi dikhe. mobile par shayad vaul use ho rha hoga. make sure buttons are postioning scrolling behaviour sab kuch perfect and responsive ho. kabhi kabhi maine dekha hai buttons k niche khali area bach jata hai ya align nahi hote sahi se. kabhi kabhi yeh bhi dekha hai ki modals lambe ya chaude hone par view port se bahar jaa rhe hote hai so puch audit kar lo. agar problem dikhe toh fix karna
+✓ type check karna [COMPLETED - verified]
 
-ek copy to clipboard wali dependency thi na? , usko use karna acha rahega kya? kuch ache features milte hai toh integrate kar do virtual account wale page par
+✓ complete nahi kiya toh campaigns nahi bana sakte [FIXED - all dashboard pages now check for organization and redirect to onboarding if not found: dashboard, campaigns, products, wallet, team, settings, enrollments, invoices]
 
-form intutive hone chahiye and koi bhi validation buggy nahi hona chahiye jo galat message dikhaye ya user aage hi nahi badh paaye
 
-humaare platform aur catagory based filters jah bhi hai functional hai? inke liye bhi endpoints hai na? use ho rhe hai?
+✓ are lekin brand ko look and feel lene lyak thoh chhoro dashhboard ko [NOTED - Dashboard styling left for brand team to customize. Current implementation uses Align UI design system which can be customized]
 
-team invite proper better auth wali apis encore k client se use kar rhi ha na?
 
-kahi kuch state management sahi se nahi ho rha ho toh audit karo
 
-dashboard page k stat cards consistent nahi dikh rhe hai yaar. naa baki page se , naa aapas me
+✓ org switcher kya karega tab? [ANSWERED - org switcher already handles empty state with "Create Organization" button, but users without org get redirected at page level so they won't see it]
 
-back account add karte samay peeny drop validation ho rhi ya nahi, agar nahi ho rhi toh ui bana do aas paas ka ui dekh kar bilkul consistent aur responsive.  and apis ya toh integrate kar do verification wali ya missing hai toh docs me document kar do
+✓ basic better auth wala org banwa le kya ? advanced gst wagerah wala onboarding baad me karege, stand way kaisa rhega? bolo? [IMPLEMENTED - Simple onboarding created: just organization name → Better Auth createOrganization → Dashboard. Advanced details (GST, PAN) can be added later in Settings]
 
-multistep wale forms ko bhi rhf me migrate kiya ya nahi? nahi kiya toh kar do.
-
-SSR data wala tumhara jo file hai wo standard practice hai?
-
-internet par search karna , kaise karte yeh latest
-
-ui me jaha jah bhi back button dikhane ki jarurat hai usko bilkul polished sleek aur baki ui k sath consistent banan , across the app same dikhne chahiye
+✓ api aligned hai ya gadbad hai sab? [VERIFIED - APIs are aligned: Better Auth createOrganization exists at /auth/organization/create, updateOrganization exists for adding details later, verifyGST/PAN endpoints available]

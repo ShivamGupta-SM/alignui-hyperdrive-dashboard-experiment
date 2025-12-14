@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import type { wallets } from '@/lib/encore-browser'
+import type { wallets } from "@/lib/encore-browser"
 
 // ============================================
 // Types - Re-export from Encore client for convenience
@@ -12,13 +12,13 @@ export type ActiveHold = wallets.ActiveHold
 export type Withdrawal = wallets.Withdrawal
 export type WithdrawalStats = wallets.WithdrawalStats
 export type WalletStats = wallets.WithdrawalStats // Mapping WalletStats to WithdrawalStats if that's what it was used for, or check usage.
-// Actually in original file: export type WalletStats was NOT explicitly exported? 
-// Let's check original file content in step 2594. 
+// Actually in original file: export type WalletStats was NOT explicitly exported?
+// Let's check original file content in step 2594.
 // It had `export { walletKeys }`.
 // It had `export type Wallet = ...`
-// It DID NOT export `WalletStats`. 
-// But `WalletClient` imported `WalletStats`. 
-// Wait, `WalletClient` imported `WalletStats` in step 2553 summary? 
+// It DID NOT export `WalletStats`.
+// But `WalletClient` imported `WalletStats`.
+// Wait, `WalletClient` imported `WalletStats` in step 2553 summary?
 // "Removed useWithdrawals, useCancelWithdrawal, useWithdrawalStats..."
 // In `WalletClient` import list:
 // import { Wallet, WalletTransaction, WalletWithdrawal, WalletHold, WithdrawalStats, WalletStats } from '@/hooks/use-wallet'
@@ -28,7 +28,7 @@ export type WalletStats = wallets.WithdrawalStats // Mapping WalletStats to With
 // No WalletStats.
 // Maybe `WalletClient` uses `WithdrawalStats` as alias? props.initialData.stats is type `WithdrawalStats`.
 // I will check `WalletClient` code if possible or just export `WithdrawalStats`.
-// If `WalletClient` imports `WalletStats`, I should probably alias it. 
+// If `WalletClient` imports `WalletStats`, I should probably alias it.
 // "const stats = (initialData?.stats ?? defaultStats) as WithdrawalStats"
 
 export type WalletBalance = Wallet

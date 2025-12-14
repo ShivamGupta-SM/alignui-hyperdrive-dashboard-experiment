@@ -8,7 +8,7 @@ A B2B SaaS dashboard for influencer marketing campaign management built with Nex
 - **Styling**: Tailwind CSS 4.1.17 (CSS-first with @theme)
 - **Design System**: AlignUI with OKLCH colors
 - **Language**: TypeScript 5 (strict mode)
-- **Authentication**: Better-Auth 1.4.5 (OAuth, Passkey, 2FA, Magic Links, Email OTP)
+- **Authentication**: Encore Client (OAuth, Passkey, 2FA, Magic Links, Email OTP via backend)
 - **Data Fetching**: TanStack React Query 5.90.11
 - **State Management**: Zustand 5.0.9
 - **Forms**: React Hook Form 7.67 + Zod 4.1.13
@@ -44,7 +44,6 @@ A B2B SaaS dashboard for influencer marketing campaign management built with Nex
 │   │       └── products/       # Product catalog
 │   ├── (onboarding)/           # Onboarding flow
 │   ├── api/                    # API routes
-│   │   ├── auth/[...all]/      # Better-Auth handler
 │   │   ├── campaigns/          # Campaign CRUD
 │   │   ├── enrollments/        # Enrollment CRUD
 │   │   ├── invoices/           # Invoice listing
@@ -61,10 +60,10 @@ A B2B SaaS dashboard for influencer marketing campaign management built with Nex
 ├── hooks/                      # Custom React hooks
 ├── lib/
 │   ├── types/                  # TypeScript definitions
-│   ├── auth/                   # Better-Auth UI components (140+ files)
 │   ├── data/                   # Server-side data fetching
 │   ├── mocks/                  # Mock data
-│   ├── auth-client.ts          # Better-Auth client config
+│   ├── encore-client.ts        # Encore client (auto-generated)
+│   ├── encore.ts               # Encore client helper
 │   ├── axios.ts                # Axios instance with interceptors
 │   ├── query-client.tsx        # React Query provider
 │   └── utils/                  # Utility functions
@@ -150,8 +149,10 @@ const { data: list } = useFetchList<Campaign>('/api/campaigns', QUERY_KEYS.CAMPA
 
 ## Authentication
 
-### Better-Auth Setup
-Configured in `lib/auth-client.ts` with plugins:
+### Encore Client Setup
+Authentication is handled via Encore client (`lib/encore-client.ts`) which connects to the backend Encore API. The backend uses Better Auth for session management.
+
+**Features Available:**
 - OAuth (Google, GitHub, etc.)
 - Passkey (WebAuthn)
 - Two-Factor Authentication
@@ -160,19 +161,32 @@ Configured in `lib/auth-client.ts` with plugins:
 - Organization management
 - Multi-session support
 
-### Auth Client Usage
+### Auth Usage
+
+**Server Actions** (`app/actions/auth.ts`):
 ```tsx
-import { authClient } from '@/lib/auth-client'
+import { getEncoreClient } from '@/lib/encore'
 
 // Sign in
-await authClient.signIn.email({ email, password })
-await authClient.signIn.social({ provider: 'google' })
+const client = getEncoreClient()
+await client.auth.signInEmail({ email, password })
+await client.auth.signInSocial({ provider: 'google' })
 
 // Session
-const session = await authClient.getSession()
+const session = await client.auth.getSession()
 
 // Sign out
-await authClient.signOut()
+await client.auth.signOut()
+```
+
+**Client Hooks** (`hooks/use-session.ts`):
+```tsx
+import { useSession } from '@/hooks/use-session'
+
+// In components
+const { data, isPending, error } = useSession()
+const user = data?.user
+const session = data?.session
 ```
 
 ### Protected Routes
@@ -359,7 +373,6 @@ className="*:last:pb-0"
 `app/providers.tsx` wraps the app with:
 - `QueryProvider` - React Query
 - `ThemeProvider` - next-themes (system + class-based dark mode)
-- `AuthUIProvider` - Better-Auth UI
 - `TooltipProvider` - Radix tooltips
 - `NotificationProvider` - Custom notifications
 - `Toaster` - Sonner toasts

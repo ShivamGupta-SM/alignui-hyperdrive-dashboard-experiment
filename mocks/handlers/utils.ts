@@ -7,27 +7,27 @@
  * All response helpers enforce Encore types for end-to-end type safety.
  */
 
-import { HttpResponse } from 'msw'
+import { HttpResponse } from "msw"
 
 // Import Encore types for type safety
 import type {
-  wallets,
-  organizations,
-  campaigns,
-  enrollments,
-  products,
-  invoices,
-  notifications,
-} from '@/lib/encore-browser'
+	wallets,
+	organizations,
+	campaigns,
+	enrollments,
+	products,
+	invoices,
+	notifications,
+} from "@/lib/encore-browser"
 
 // =============================================================================
 // ENCORE URL HELPER
 // =============================================================================
 
-export const ENCORE_BASE_URL = process.env.NEXT_PUBLIC_ENCORE_URL || 'http://localhost:4000'
+export const ENCORE_BASE_URL = process.env.NEXT_PUBLIC_ENCORE_URL || "http://localhost:4000"
 
 export function encoreUrl(path: string): string {
-  return `${ENCORE_BASE_URL}${path}`
+	return `${ENCORE_BASE_URL}${path}`
 }
 
 // =============================================================================
@@ -41,17 +41,17 @@ export function encoreUrl(path: string): string {
 // =============================================================================
 
 export interface AuthContext {
-  userId: string
-  organizationId: string
-  role: 'admin' | 'member' | 'manager'
+	userId: string
+	organizationId: string
+	role: "admin" | "member" | "manager"
 }
 
 export function getAuthContext(): AuthContext {
-  return {
-    userId: '1',
-    organizationId: '1',
-    role: 'admin',
-  }
+	return {
+		userId: "1",
+		organizationId: "1",
+		role: "admin",
+	}
 }
 
 // =============================================================================
@@ -62,40 +62,35 @@ export function getAuthContext(): AuthContext {
  * Generic typed response - data MUST be valid object
  */
 export function encoreResponse<T extends object>(data: T) {
-  return HttpResponse.json(data)
+	return HttpResponse.json(data)
 }
 
 /**
  * Type-safe list response - STRICT pagination (no defaults)
  */
-export function encoreListResponse<T>(
-  data: T[],
-  total: number,
-  skip: number,
-  take: number
-) {
-  return HttpResponse.json({
-    data,
-    total,
-    skip,
-    take,
-    hasMore: skip + data.length < total,
-  })
+export function encoreListResponse<T>(data: T[], total: number, skip: number, take: number) {
+	return HttpResponse.json({
+		data,
+		total,
+		skip,
+		take,
+		hasMore: skip + data.length < total,
+	})
 }
 
 /**
  * Error responses
  */
 export function encoreErrorResponse(message: string, status = 400) {
-  return HttpResponse.json({ error: message, code: 'invalid_argument' }, { status })
+	return HttpResponse.json({ error: message, code: "invalid_argument" }, { status })
 }
 
 export function encoreNotFoundResponse(entity: string) {
-  return HttpResponse.json({ error: `${entity} not found`, code: 'not_found' }, { status: 404 })
+	return HttpResponse.json({ error: `${entity} not found`, code: "not_found" }, { status: 404 })
 }
 
 export function encoreUnauthorizedResponse(message: string) {
-  return HttpResponse.json({ error: message, code: 'unauthenticated' }, { status: 401 })
+	return HttpResponse.json({ error: message, code: "unauthenticated" }, { status: 401 })
 }
 
 // =============================================================================
@@ -105,129 +100,121 @@ export function encoreUnauthorizedResponse(message: string) {
 
 /** Type-safe Wallet response */
 export function typedWalletResponse(wallet: wallets.Wallet) {
-  return HttpResponse.json(wallet)
+	return HttpResponse.json(wallet)
 }
 
 /** Type-safe WalletTransaction list */
 export function typedTransactionListResponse(
-  data: wallets.WalletTransaction[],
-  total: number,
-  skip: number,
-  take: number
+	data: wallets.WalletTransaction[],
+	total: number,
+	skip: number,
+	take: number
 ) {
-  return encoreListResponse(data, total, skip, take)
+	return encoreListResponse(data, total, skip, take)
 }
 
 /** Type-safe ActiveHold list */
 export function typedHoldsResponse(holds: { holds: wallets.ActiveHold[] }) {
-  return HttpResponse.json(holds)
+	return HttpResponse.json(holds)
 }
 
 /** Type-safe Dashboard response */
 export function typedDashboardResponse(data: organizations.DashboardOverviewResponse) {
-  return HttpResponse.json(data)
+	return HttpResponse.json(data)
 }
 
 /** Type-safe Organization response */
 export function typedOrganizationResponse(org: organizations.Organization) {
-  return HttpResponse.json(org)
+	return HttpResponse.json(org)
 }
 
 /** Type-safe Organization list */
 export function typedOrganizationListResponse(
-  data: organizations.Organization[],
-  total: number,
-  skip: number,
-  take: number
+	data: organizations.Organization[],
+	total: number,
+	skip: number,
+	take: number
 ) {
-  return encoreListResponse(data, total, skip, take)
+	return encoreListResponse(data, total, skip, take)
 }
 
 /** Type-safe Campaign response */
 export function typedCampaignResponse(campaign: campaigns.CampaignWithStats) {
-  return HttpResponse.json(campaign)
+	return HttpResponse.json(campaign)
 }
 
 /** Type-safe Campaign list */
 export function typedCampaignListResponse(
-  data: campaigns.CampaignWithStats[],
-  total: number,
-  skip: number,
-  take: number
+	data: campaigns.CampaignWithStats[],
+	total: number,
+	skip: number,
+	take: number
 ) {
-  return encoreListResponse(data, total, skip, take)
+	return encoreListResponse(data, total, skip, take)
 }
 
 /** Type-safe Enrollment response */
 export function typedEnrollmentResponse(enrollment: enrollments.EnrollmentWithRelations) {
-  return HttpResponse.json(enrollment)
+	return HttpResponse.json(enrollment)
 }
 
 /** Type-safe Enrollment list */
 export function typedEnrollmentListResponse(
-  data: enrollments.EnrollmentWithRelations[],
-  total: number,
-  skip: number,
-  take: number
+	data: enrollments.EnrollmentWithRelations[],
+	total: number,
+	skip: number,
+	take: number
 ) {
-  return encoreListResponse(data, total, skip, take)
+	return encoreListResponse(data, total, skip, take)
 }
 
 /** Type-safe Product response */
 export function typedProductResponse(product: products.ProductWithStats) {
-  return HttpResponse.json(product)
+	return HttpResponse.json(product)
 }
 
 /** Type-safe Product list */
 export function typedProductListResponse(
-  data: products.ProductWithStats[],
-  total: number,
-  skip: number,
-  take: number
+	data: products.ProductWithStats[],
+	total: number,
+	skip: number,
+	take: number
 ) {
-  return encoreListResponse(data, total, skip, take)
+	return encoreListResponse(data, total, skip, take)
 }
 
 /** Type-safe Invoice response */
 export function typedInvoiceResponse(invoice: invoices.Invoice) {
-  return HttpResponse.json(invoice)
+	return HttpResponse.json(invoice)
 }
 
 /** Type-safe Invoice list */
 export function typedInvoiceListResponse(
-  data: invoices.Invoice[],
-  total: number,
-  skip: number,
-  take: number
+	data: invoices.Invoice[],
+	total: number,
+	skip: number,
+	take: number
 ) {
-  return encoreListResponse(data, total, skip, take)
+	return encoreListResponse(data, total, skip, take)
 }
 
 /** Type-safe Notification response */
 export function typedNotificationResponse(notification: notifications.Notification) {
-  return HttpResponse.json(notification)
+	return HttpResponse.json(notification)
 }
 
 /** Type-safe Notification list */
 export function typedNotificationListResponse(
-  data: notifications.Notification[],
-  total: number,
-  skip: number,
-  take: number
+	data: notifications.Notification[],
+	total: number,
+	skip: number,
+	take: number
 ) {
-  return encoreListResponse(data, total, skip, take)
+	return encoreListResponse(data, total, skip, take)
 }
 
 // =============================================================================
 // TYPE RE-EXPORTS
 // =============================================================================
 
-export type {
-  wallets,
-  organizations,
-  campaigns,
-  enrollments,
-  products,
-  invoices,
-  notifications,
-}
+export type { wallets, organizations, campaigns, enrollments, products, invoices, notifications }

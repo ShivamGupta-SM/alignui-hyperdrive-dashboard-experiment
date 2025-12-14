@@ -1,11 +1,14 @@
-import { getSettingsData } from '@/lib/ssr-data'
-import { SettingsClient } from './settings-client'
+"use cache"
 
-export const revalidate = 120
+import { getSettingsData, requireOrganization } from "@/lib/ssr-data"
+import { SettingsClient } from "./settings-client"
 
 export default async function SettingsPage() {
-  // Direct server fetch - pure RSC
-  const data = await getSettingsData()
+	// Check if user has organization
+	await requireOrganization()
 
-  return <SettingsClient initialData={data} />
+	// Direct server fetch - pure RSC
+	const data = await getSettingsData()
+
+	return <SettingsClient initialData={data} />
 }

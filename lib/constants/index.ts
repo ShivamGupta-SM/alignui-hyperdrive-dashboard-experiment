@@ -1,255 +1,281 @@
 // Hypedrive Brand Dashboard - Constants
 
-import type { 
-  OrganizationStatus, 
-  CampaignStatus, 
-  EnrollmentStatus, 
-  InvoiceStatus,
-  UserRole,
-  BusinessType,
-  IndustryCategory,
-  CampaignType,
-  DeliverableType,
-  TransactionType
-} from '@/lib/types'
+import type {
+	OrganizationStatus,
+	CampaignStatus,
+	EnrollmentStatus,
+	InvoiceStatus,
+	UserRole,
+	BusinessType,
+	IndustryCategory,
+	CampaignType,
+	DeliverableType,
+	TransactionType,
+} from "@/lib/types"
 
 // ============================================================================
 // STATUS CONFIGURATIONS
 // ============================================================================
 
-export const ORGANIZATION_STATUS_CONFIG: Record<OrganizationStatus, {
-  label: string
-  color: 'yellow' | 'green' | 'red' | 'gray'
-  description: string
-}> = {
-  pending: {
-    label: 'Pending Approval',
-    color: 'yellow',
-    description: 'Awaiting admin review'
-  },
-  approved: {
-    label: 'Active',
-    color: 'green',
-    description: 'Fully operational'
-  },
-  rejected: {
-    label: 'Rejected',
-    color: 'red',
-    description: 'Application rejected'
-  },
-  suspended: {
-    label: 'Suspended',
-    color: 'gray',
-    description: 'Temporarily disabled'
-  }
+export const ORGANIZATION_STATUS_CONFIG: Record<
+	OrganizationStatus,
+	{
+		label: string
+		color: "yellow" | "green" | "red" | "gray"
+		description: string
+	}
+> = {
+	pending: {
+		label: "Pending Approval",
+		color: "yellow",
+		description: "Awaiting admin review",
+	},
+	approved: {
+		label: "Active",
+		color: "green",
+		description: "Fully operational",
+	},
+	rejected: {
+		label: "Rejected",
+		color: "red",
+		description: "Application rejected",
+	},
+	suspended: {
+		label: "Suspended",
+		color: "gray",
+		description: "Temporarily disabled",
+	},
 }
 
-export const CAMPAIGN_STATUS_CONFIG: Record<CampaignStatus, {
-  label: string
-  color: 'yellow' | 'orange' | 'blue' | 'green' | 'gray' | 'red'
-  iconName: 'draft' | 'pending' | 'rejected' | 'approved' | 'active' | 'paused' | 'ended' | 'expired' | 'completed' | 'cancelled' | 'archived'
-  description: string
-}> = {
-  draft: {
-    label: 'Draft',
-    color: 'yellow',
-    iconName: 'draft',
-    description: 'Being edited'
-  },
-  pending_approval: {
-    label: 'Pending Approval',
-    color: 'orange',
-    iconName: 'pending',
-    description: 'Awaiting admin review'
-  },
-  rejected: {
-    label: 'Rejected',
-    color: 'red',
-    iconName: 'rejected',
-    description: 'Rejected by admin'
-  },
-  approved: {
-    label: 'Approved',
-    color: 'blue',
-    iconName: 'approved',
-    description: 'Ready to activate'
-  },
-  active: {
-    label: 'Active',
-    color: 'green',
-    iconName: 'active',
-    description: 'Live and accepting enrollments'
-  },
-  paused: {
-    label: 'Paused',
-    color: 'gray',
-    iconName: 'paused',
-    description: 'Temporarily stopped'
-  },
-  ended: {
-    label: 'Ended',
-    color: 'gray',
-    iconName: 'ended',
-    description: 'Campaign period ended'
-  },
-  expired: {
-    label: 'Expired',
-    color: 'gray',
-    iconName: 'expired',
-    description: 'Past end date without completion'
-  },
-  completed: {
-    label: 'Completed',
-    color: 'green',
-    iconName: 'completed',
-    description: 'Successfully completed'
-  },
-  cancelled: {
-    label: 'Cancelled',
-    color: 'red',
-    iconName: 'cancelled',
-    description: 'Cancelled before completion'
-  },
-  archived: {
-    label: 'Archived',
-    color: 'gray',
-    iconName: 'archived',
-    description: 'Historical record'
-  }
+export const CAMPAIGN_STATUS_CONFIG: Record<
+	CampaignStatus,
+	{
+		label: string
+		color: "yellow" | "orange" | "blue" | "green" | "gray" | "red"
+		iconName:
+			| "draft"
+			| "pending"
+			| "rejected"
+			| "approved"
+			| "active"
+			| "paused"
+			| "ended"
+			| "expired"
+			| "completed"
+			| "cancelled"
+			| "archived"
+		description: string
+	}
+> = {
+	draft: {
+		label: "Draft",
+		color: "yellow",
+		iconName: "draft",
+		description: "Being edited",
+	},
+	pending_approval: {
+		label: "Pending Approval",
+		color: "orange",
+		iconName: "pending",
+		description: "Awaiting admin review",
+	},
+	rejected: {
+		label: "Rejected",
+		color: "red",
+		iconName: "rejected",
+		description: "Rejected by admin",
+	},
+	approved: {
+		label: "Approved",
+		color: "blue",
+		iconName: "approved",
+		description: "Ready to activate",
+	},
+	active: {
+		label: "Active",
+		color: "green",
+		iconName: "active",
+		description: "Live and accepting enrollments",
+	},
+	paused: {
+		label: "Paused",
+		color: "gray",
+		iconName: "paused",
+		description: "Temporarily stopped",
+	},
+	ended: {
+		label: "Ended",
+		color: "gray",
+		iconName: "ended",
+		description: "Campaign period ended",
+	},
+	expired: {
+		label: "Expired",
+		color: "gray",
+		iconName: "expired",
+		description: "Past end date without completion",
+	},
+	completed: {
+		label: "Completed",
+		color: "green",
+		iconName: "completed",
+		description: "Successfully completed",
+	},
+	cancelled: {
+		label: "Cancelled",
+		color: "red",
+		iconName: "cancelled",
+		description: "Cancelled before completion",
+	},
+	archived: {
+		label: "Archived",
+		color: "gray",
+		iconName: "archived",
+		description: "Historical record",
+	},
 }
 
-export const ENROLLMENT_STATUS_CONFIG: Record<EnrollmentStatus, {
-  label: string
-  color: 'yellow' | 'blue' | 'orange' | 'green' | 'red' | 'gray'
-  description: string
-}> = {
-  enrolled: {
-    label: 'Enrolled',
-    color: 'blue',
-    description: 'Just enrolled'
-  },
-  awaiting_submission: {
-    label: 'Awaiting Submission',
-    color: 'yellow',
-    description: 'Waiting for proofs'
-  },
-  awaiting_review: {
-    label: 'Awaiting Review',
-    color: 'blue',
-    description: 'Ready for brand review'
-  },
-  changes_requested: {
-    label: 'Changes Requested',
-    color: 'orange',
-    description: 'Needs shopper action'
-  },
-  approved: {
-    label: 'Approved',
-    color: 'green',
-    description: 'Approved for payout'
-  },
-  rejected: {
-    label: 'Rejected',
-    color: 'red',
-    description: 'Submission rejected'
-  },
-  permanently_rejected: {
-    label: 'Permanently Rejected',
-    color: 'red',
-    description: 'Permanently rejected'
-  },
-  withdrawn: {
-    label: 'Withdrawn',
-    color: 'gray',
-    description: 'Shopper withdrew'
-  },
-  expired: {
-    label: 'Expired',
-    color: 'gray',
-    description: 'Deadline passed'
-  }
+export const ENROLLMENT_STATUS_CONFIG: Record<
+	EnrollmentStatus,
+	{
+		label: string
+		color: "yellow" | "blue" | "orange" | "green" | "red" | "gray"
+		description: string
+	}
+> = {
+	enrolled: {
+		label: "Enrolled",
+		color: "blue",
+		description: "Just enrolled",
+	},
+	awaiting_submission: {
+		label: "Awaiting Submission",
+		color: "yellow",
+		description: "Waiting for proofs",
+	},
+	awaiting_review: {
+		label: "Awaiting Review",
+		color: "blue",
+		description: "Ready for brand review",
+	},
+	changes_requested: {
+		label: "Changes Requested",
+		color: "orange",
+		description: "Needs shopper action",
+	},
+	approved: {
+		label: "Approved",
+		color: "green",
+		description: "Approved for payout",
+	},
+	rejected: {
+		label: "Rejected",
+		color: "red",
+		description: "Submission rejected",
+	},
+	permanently_rejected: {
+		label: "Permanently Rejected",
+		color: "red",
+		description: "Permanently rejected",
+	},
+	withdrawn: {
+		label: "Withdrawn",
+		color: "gray",
+		description: "Shopper withdrew",
+	},
+	expired: {
+		label: "Expired",
+		color: "gray",
+		description: "Deadline passed",
+	},
 }
 
-export const INVOICE_STATUS_CONFIG: Record<InvoiceStatus, {
-  label: string
-  color: 'yellow' | 'green' | 'red' | 'gray'
-}> = {
-  pending: {
-    label: 'Pending',
-    color: 'yellow'
-  },
-  paid: {
-    label: 'Paid',
-    color: 'green'
-  },
-  overdue: {
-    label: 'Overdue',
-    color: 'red'
-  },
-  cancelled: {
-    label: 'Cancelled',
-    color: 'gray'
-  }
+export const INVOICE_STATUS_CONFIG: Record<
+	InvoiceStatus,
+	{
+		label: string
+		color: "yellow" | "green" | "red" | "gray"
+	}
+> = {
+	pending: {
+		label: "Pending",
+		color: "yellow",
+	},
+	paid: {
+		label: "Paid",
+		color: "green",
+	},
+	overdue: {
+		label: "Overdue",
+		color: "red",
+	},
+	cancelled: {
+		label: "Cancelled",
+		color: "gray",
+	},
 }
 
 // Encore WalletTransaction types: 'credit' | 'debit' | 'hold' | 'release' | 'hold_committed'
-type EncoreTransactionType = 'credit' | 'debit' | 'hold' | 'release' | 'hold_committed'
+type EncoreTransactionType = "credit" | "debit" | "hold" | "release" | "hold_committed"
 
 // Union of old and new transaction types for backwards compatibility
 type AllTransactionTypes = TransactionType | EncoreTransactionType
 
-export const TRANSACTION_TYPE_CONFIG: Record<AllTransactionTypes, {
-  label: string
-  color: 'green' | 'red' | 'blue' | 'gray'
-  sign: '+' | '-' | ''
-}> = {
-  // New Encore types
-  credit: {
-    label: 'Credit',
-    color: 'green',
-    sign: '+'
-  },
-  debit: {
-    label: 'Debit',
-    color: 'red',
-    sign: '-'
-  },
-  hold: {
-    label: 'Hold Created',
-    color: 'red',
-    sign: '-'
-  },
-  release: {
-    label: 'Hold Released',
-    color: 'green',
-    sign: '+'
-  },
-  hold_committed: {
-    label: 'Hold Committed',
-    color: 'red',
-    sign: '-'
-  },
-  // Legacy types (for backwards compatibility)
-  hold_created: {
-    label: 'Hold Created',
-    color: 'red',
-    sign: '-'
-  },
-  hold_voided: {
-    label: 'Hold Released',
-    color: 'green',
-    sign: '+'
-  },
-  withdrawal: {
-    label: 'Withdrawal',
-    color: 'red',
-    sign: '-'
-  },
-  refund: {
-    label: 'Refund',
-    color: 'green',
-    sign: '+'
-  }
+export const TRANSACTION_TYPE_CONFIG: Record<
+	AllTransactionTypes,
+	{
+		label: string
+		color: "green" | "red" | "blue" | "gray"
+		sign: "+" | "-" | ""
+	}
+> = {
+	// New Encore types
+	credit: {
+		label: "Credit",
+		color: "green",
+		sign: "+",
+	},
+	debit: {
+		label: "Debit",
+		color: "red",
+		sign: "-",
+	},
+	hold: {
+		label: "Hold Created",
+		color: "red",
+		sign: "-",
+	},
+	release: {
+		label: "Hold Released",
+		color: "green",
+		sign: "+",
+	},
+	hold_committed: {
+		label: "Hold Committed",
+		color: "red",
+		sign: "-",
+	},
+	// Legacy types (for backwards compatibility)
+	hold_created: {
+		label: "Hold Created",
+		color: "red",
+		sign: "-",
+	},
+	hold_voided: {
+		label: "Hold Released",
+		color: "green",
+		sign: "+",
+	},
+	withdrawal: {
+		label: "Withdrawal",
+		color: "red",
+		sign: "-",
+	},
+	refund: {
+		label: "Refund",
+		color: "green",
+		sign: "+",
+	},
 }
 
 // ============================================================================
@@ -257,171 +283,174 @@ export const TRANSACTION_TYPE_CONFIG: Record<AllTransactionTypes, {
 // ============================================================================
 
 export const ROLE_OPTIONS: { value: UserRole; label: string; description: string }[] = [
-  {
-    value: 'owner',
-    label: 'Owner',
-    description: 'Full access, cannot be removed'
-  },
-  {
-    value: 'admin',
-    label: 'Admin',
-    description: 'Manage campaigns, enrollments, wallet, team'
-  },
-  {
-    value: 'manager',
-    label: 'Manager',
-    description: 'Manage campaigns and review enrollments'
-  },
-  {
-    value: 'viewer',
-    label: 'Viewer',
-    description: 'View-only access to dashboard'
-  }
+	{
+		value: "owner",
+		label: "Owner",
+		description: "Full access, cannot be removed",
+	},
+	{
+		value: "admin",
+		label: "Admin",
+		description: "Manage campaigns, enrollments, wallet, team",
+	},
+	{
+		value: "manager",
+		label: "Manager",
+		description: "Manage campaigns and review enrollments",
+	},
+	{
+		value: "viewer",
+		label: "Viewer",
+		description: "View-only access to dashboard",
+	},
 ]
 
 export const BUSINESS_TYPE_OPTIONS: { value: BusinessType; label: string }[] = [
-  { value: 'sole_proprietorship', label: 'Sole Proprietorship' },
-  { value: 'partnership', label: 'Partnership' },
-  { value: 'llp', label: 'LLP' },
-  { value: 'private_limited', label: 'Private Limited' },
-  { value: 'public_limited', label: 'Public Limited' }
+	{ value: "sole_proprietorship", label: "Sole Proprietorship" },
+	{ value: "partnership", label: "Partnership" },
+	{ value: "llp", label: "LLP" },
+	{ value: "private_limited", label: "Private Limited" },
+	{ value: "public_limited", label: "Public Limited" },
 ]
 
 export const INDUSTRY_CATEGORY_OPTIONS: { value: IndustryCategory; label: string }[] = [
-  { value: 'electronics', label: 'Electronics' },
-  { value: 'fashion', label: 'Fashion & Apparel' },
-  { value: 'fmcg', label: 'FMCG' },
-  { value: 'beauty', label: 'Beauty & Personal Care' },
-  { value: 'home_appliances', label: 'Home Appliances' },
-  { value: 'sports', label: 'Sports & Fitness' },
-  { value: 'automotive', label: 'Automotive' },
-  { value: 'other', label: 'Other' }
+	{ value: "electronics", label: "Electronics" },
+	{ value: "fashion", label: "Fashion & Apparel" },
+	{ value: "fmcg", label: "FMCG" },
+	{ value: "beauty", label: "Beauty & Personal Care" },
+	{ value: "home_appliances", label: "Home Appliances" },
+	{ value: "sports", label: "Sports & Fitness" },
+	{ value: "automotive", label: "Automotive" },
+	{ value: "other", label: "Other" },
 ]
 
-export const CAMPAIGN_TYPE_OPTIONS: { value: CampaignType; label: string; description: string }[] = [
-  {
-    value: 'cashback',
-    label: 'Cashback',
-    description: 'Shoppers receive cashback on purchase'
-  },
-  {
-    value: 'barter',
-    label: 'Barter',
-    description: 'Product exchange for content'
-  },
-  {
-    value: 'hybrid',
-    label: 'Hybrid',
-    description: 'Combination of cashback and barter'
-  }
-]
+export const CAMPAIGN_TYPE_OPTIONS: { value: CampaignType; label: string; description: string }[] =
+	[
+		{
+			value: "cashback",
+			label: "Cashback",
+			description: "Shoppers receive cashback on purchase",
+		},
+		{
+			value: "barter",
+			label: "Barter",
+			description: "Product exchange for content",
+		},
+		{
+			value: "hybrid",
+			label: "Hybrid",
+			description: "Combination of cashback and barter",
+		},
+	]
 
-export const DELIVERABLE_TYPE_OPTIONS: { value: DeliverableType; label: string; description: string }[] = [
-  {
-    value: 'order_screenshot',
-    label: 'Order Screenshot',
-    description: 'Screenshot of order confirmation'
-  },
-  {
-    value: 'delivery_photo',
-    label: 'Delivery Photo',
-    description: 'Photo of received product'
-  },
-  {
-    value: 'product_review',
-    label: 'Product Review',
-    description: 'Written review on platform'
-  },
-  {
-    value: 'social_media_post',
-    label: 'Social Media Post',
-    description: 'Post on social media'
-  },
-  {
-    value: 'unboxing_video',
-    label: 'Unboxing Video',
-    description: 'Video of product unboxing'
-  },
-  {
-    value: 'custom',
-    label: 'Custom',
-    description: 'Custom deliverable'
-  }
+export const DELIVERABLE_TYPE_OPTIONS: {
+	value: DeliverableType
+	label: string
+	description: string
+}[] = [
+	{
+		value: "order_screenshot",
+		label: "Order Screenshot",
+		description: "Screenshot of order confirmation",
+	},
+	{
+		value: "delivery_photo",
+		label: "Delivery Photo",
+		description: "Photo of received product",
+	},
+	{
+		value: "product_review",
+		label: "Product Review",
+		description: "Written review on platform",
+	},
+	{
+		value: "social_media_post",
+		label: "Social Media Post",
+		description: "Post on social media",
+	},
+	{
+		value: "unboxing_video",
+		label: "Unboxing Video",
+		description: "Video of product unboxing",
+	},
+	{
+		value: "custom",
+		label: "Custom",
+		description: "Custom deliverable",
+	},
 ]
 
 export const INDIAN_STATES = [
-  'Andhra Pradesh',
-  'Arunachal Pradesh',
-  'Assam',
-  'Bihar',
-  'Chhattisgarh',
-  'Goa',
-  'Gujarat',
-  'Haryana',
-  'Himachal Pradesh',
-  'Jharkhand',
-  'Karnataka',
-  'Kerala',
-  'Madhya Pradesh',
-  'Maharashtra',
-  'Manipur',
-  'Meghalaya',
-  'Mizoram',
-  'Nagaland',
-  'Odisha',
-  'Punjab',
-  'Rajasthan',
-  'Sikkim',
-  'Tamil Nadu',
-  'Telangana',
-  'Tripura',
-  'Uttar Pradesh',
-  'Uttarakhand',
-  'West Bengal',
-  'Delhi',
-  'Jammu and Kashmir',
-  'Ladakh'
+	"Andhra Pradesh",
+	"Arunachal Pradesh",
+	"Assam",
+	"Bihar",
+	"Chhattisgarh",
+	"Goa",
+	"Gujarat",
+	"Haryana",
+	"Himachal Pradesh",
+	"Jharkhand",
+	"Karnataka",
+	"Kerala",
+	"Madhya Pradesh",
+	"Maharashtra",
+	"Manipur",
+	"Meghalaya",
+	"Mizoram",
+	"Nagaland",
+	"Odisha",
+	"Punjab",
+	"Rajasthan",
+	"Sikkim",
+	"Tamil Nadu",
+	"Telangana",
+	"Tripura",
+	"Uttar Pradesh",
+	"Uttarakhand",
+	"West Bengal",
+	"Delhi",
+	"Jammu and Kashmir",
+	"Ladakh",
 ]
 
 export const E_COMMERCE_PLATFORMS = [
-  'Amazon',
-  'Flipkart',
-  'Myntra',
-  'Ajio',
-  'Nykaa',
-  'Tata CLiQ',
-  'Reliance Digital',
-  'Croma',
-  'Any Platform'
+	"Amazon",
+	"Flipkart",
+	"Myntra",
+	"Ajio",
+	"Nykaa",
+	"Tata CLiQ",
+	"Reliance Digital",
+	"Croma",
+	"Any Platform",
 ]
 
 export const PRODUCT_CATEGORIES = [
-  'Electronics',
-  'Fashion',
-  'Footwear',
-  'Beauty & Personal Care',
-  'Home & Kitchen',
-  'Sports & Fitness',
-  'Toys & Games',
-  'Books',
-  'Automotive',
-  'Other'
+	"Electronics",
+	"Fashion",
+	"Footwear",
+	"Beauty & Personal Care",
+	"Home & Kitchen",
+	"Sports & Fitness",
+	"Toys & Games",
+	"Books",
+	"Automotive",
+	"Other",
 ]
-
-
 
 // ============================================================================
 // REJECTION REASONS
 // ============================================================================
 
 export const REJECTION_REASONS = [
-  { id: 'fraudulent_screenshot', label: 'Fraudulent order screenshot' },
-  { id: 'wrong_platform', label: 'Order not from approved platform' },
-  { id: 'value_mismatch', label: 'Order value mismatch' },
-  { id: 'fake_review', label: 'Fake/plagiarized review' },
-  { id: 'wrong_date', label: 'Order date outside campaign period' },
-  { id: 'max_rejections', label: 'Exceeded maximum rejection attempts' },
-  { id: 'other', label: 'Other' }
+	{ id: "fraudulent_screenshot", label: "Fraudulent order screenshot" },
+	{ id: "wrong_platform", label: "Order not from approved platform" },
+	{ id: "value_mismatch", label: "Order value mismatch" },
+	{ id: "fake_review", label: "Fake/plagiarized review" },
+	{ id: "wrong_date", label: "Order date outside campaign period" },
+	{ id: "max_rejections", label: "Exceeded maximum rejection attempts" },
+	{ id: "other", label: "Other" },
 ]
 
 // ============================================================================
@@ -432,4 +461,3 @@ export const DEFAULT_SUBMISSION_DEADLINE_DAYS = 45
 export const DEFAULT_PAGE_SIZE = 10
 export const MIN_WALLET_BALANCE_WARNING = 10000 // ₹10,000
 export const INVITATION_EXPIRY_DAYS = 7
-

@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import type { organizations, auth } from '@/lib/encore-browser'
+import type { organizations, auth } from "@/lib/encore-browser"
 
 // ============================================
 // Types - Re-export from Encore client for convenience
@@ -14,13 +14,13 @@ export type Invitation = auth.Invitation
 // ============================================
 
 export interface TeamStats {
-  total: number
-  admins: number
-  viewers: number
+	total: number
+	admins: number
+	viewers: number
 }
 
 export interface TeamData {
-  members: Member[]
-  invitations: Invitation[]
-  stats: TeamStats
+	members: Member[]
+	invitations: Invitation[]
+	stats: TeamStats
 }

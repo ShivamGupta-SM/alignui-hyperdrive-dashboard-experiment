@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import type { campaigns, shared } from '@/lib/encore-browser'
+import type { campaigns, shared } from "@/lib/encore-browser"
 
 // ============================================
 // Types - Re-export from Encore client for convenience
@@ -16,27 +16,54 @@ export type CampaignType = shared.CampaignType
 
 // Filter types
 export interface CampaignFilters {
-  status?: CampaignStatus
-  search?: string
-  page?: number
-  limit?: number
-  organizationId?: string
-  productId?: string
-  platformId?: string
-  categoryId?: string
+	status?: CampaignStatus
+	search?: string
+	page?: number
+	limit?: number
+	organizationId?: string
+	productId?: string
+	platformId?: string
+	categoryId?: string
 }
 
 export interface PayoutEstimate {
-  orderValue: number
-  shopperPayout: number
-  brandCost: number
-  gstAmount: number
-  platformFee: number
+	orderValue: number
+	shopperPayout: number
+	brandCost: number
+	gstAmount: number
+	platformFee: number
 }
 
 export interface CampaignSearchParams {
-  q: string
-  skip?: number
-  take?: number
-  status?: CampaignStatus
+	q: string
+	skip?: number
+	take?: number
+	status?: CampaignStatus
+}
+
+// ============================================
+// React Query Hooks
+// ============================================
+
+import { useQuery } from "@tanstack/react-query"
+import { getEncoreBrowserClient } from "@/lib/encore-browser"
+
+/**
+ * Search campaigns hook
+ */
+export function useSearchCampaigns(params: CampaignSearchParams) {
+	return useQuery({
+		queryKey: ["campaigns", "search", params],
+		queryFn: async () => {
+			const client = getEncoreBrowserClient()
+			return await client.campaigns.searchCampaigns({
+				q: params.q,
+				skip: params.skip,
+				take: params.take,
+				status: params.status,
+			})
+		},
+		enabled: params.q.length >= 2, // Only search if query is at least 2 characters
+		staleTime: 30 * 1000, // 30 seconds
+	})
 }
