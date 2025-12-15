@@ -1,16 +1,29 @@
-"use cache: private"
-
-import { getProductsData, requireOrganization } from "@/lib/ssr-data"
+import type { Metadata } from "next"
+import { getProductsData } from "@/lib/ssr-data"
 import { CreateCampaignClient } from "./create-campaign-client"
+import type { ProductWithStats } from "@/hooks/use-products"
+import { logSSRError } from "@/lib/error-logger-simple"
+
+export const metadata: Metadata = {
+	title: "Create Campaign",
+	description: "Create a new influencer marketing campaign",
+	openGraph: {
+		title: "Create Campaign | Hypedrive",
+		description: "Create a new influencer marketing campaign",
+	},
+}
 
 export default async function CreateCampaignPage() {
-	// Industry Standard: Session-based active organization (single source of truth)
-	// Check if user has organization
-	await requireOrganization()
+	// Industry Standard: Fetch data, let context handle organization state
+	let products: ProductWithStats[] = []
+	try {
+		const data = await getProductsData()
+		products = data.data ?? []
+	} catch (error) {
+		logSSRError(error, "getProductsData", "products-data", {})
+		products = []
+	}
 
-	// Server-side fetch of products
-	const data = await getProductsData()
-	const products = data.data ?? []
-
+	// Industry Standard: Don't pass hasOrganization prop - use context instead
 	return <CreateCampaignClient products={products} />
 }

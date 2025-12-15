@@ -5,7 +5,6 @@ import { cn } from "@/utils/cn"
 import * as Button from "@/components/ui/button"
 import { Logo } from "@/components/ui/logo"
 import { Tracker } from "@/components/ui/tracker"
-import { MetallicLogo } from "@/components/dashboard/metallic-logo"
 import { MARKETING_STATS } from "@/lib/types/constants"
 
 // Testimonials will be fetched from API/CMS if needed
@@ -46,12 +45,6 @@ function Navigation() {
 			<nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 				<div className="flex h-16 items-center justify-between">
 					<Link href="/" className="flex items-center gap-3">
-						<div className="size-8">
-							<MetallicLogo
-								className="size-8"
-								params={{ patternScale: 2, refraction: 0.015, speed: 0.3 }}
-							/>
-						</div>
 						<Logo width={110} height={24} />
 					</Link>
 
@@ -154,19 +147,6 @@ function HeroSection() {
 
 			<div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 				<div className="text-center">
-					{/* Metallic Logo Hero */}
-					<div className="flex justify-center mb-8">
-						<div className="relative">
-							<div className="size-24 sm:size-32">
-								<MetallicLogo
-									className="size-24 sm:size-32"
-									params={{ patternScale: 1.5, refraction: 0.02, speed: 0.25, liquid: 0.08 }}
-								/>
-							</div>
-							{/* Subtle glow ring */}
-							<div className="absolute inset-0 rounded-full bg-primary-base/5 blur-2xl scale-150" />
-						</div>
-					</div>
 
 					{/* Badge */}
 					<div className="inline-flex items-center gap-2 rounded-full bg-bg-weak-50 ring-1 ring-inset ring-stroke-soft-200 px-4 py-1.5 mb-6">
@@ -804,15 +784,6 @@ function CTASection() {
 					/>
 
 					<div className="relative text-center">
-						{/* Metallic Logo */}
-						<div className="flex justify-center mb-8">
-							<div className="size-16 sm:size-20">
-								<MetallicLogo
-									className="size-16 sm:size-20"
-									params={{ patternScale: 1.5, refraction: 0.02, speed: 0.2 }}
-								/>
-							</div>
-						</div>
 
 						<h2 className="text-title-h3 sm:text-title-h2 text-white mb-4">
 							Ready to Scale Your Influencer Marketing?
@@ -877,12 +848,6 @@ function Footer() {
 				<div className="grid grid-cols-2 md:grid-cols-6 gap-8 mb-12">
 					<div className="col-span-2">
 						<div className="flex items-center gap-3 mb-4">
-							<div className="size-8">
-								<MetallicLogo
-									className="size-8"
-									params={{ patternScale: 2, refraction: 0.015, speed: 0.25 }}
-								/>
-							</div>
 							<Logo width={110} height={24} forceTheme="dark" />
 						</div>
 						<p className="text-paragraph-sm text-white/60 mt-4 max-w-xs">

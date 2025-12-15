@@ -3,29 +3,23 @@
 import { useEffect } from "react"
 import { PageError } from "@/components/error-boundary"
 import { handleAuthError, isAuthError } from "@/lib/error-handler"
+import { logError } from "@/lib/error-logger-simple"
 
-export default function Error({
-	error,
-	reset,
-}: {
+interface ErrorProps {
 	error: Error & { digest?: string }
 	reset: () => void
-}) {
+}
+
+export default function Error({ error, reset }: ErrorProps) {
 	useEffect(() => {
 		// Enhanced error logging with context
-		console.error(
-			"\n🚨 [Dashboard Error]\n",
-			{
-				error: {
-					name: error.name,
-					message: error.message,
-					stack: error.stack,
-					digest: error.digest,
-				},
-				timestamp: new Date().toISOString(),
+		logError(error, {
+			source: "DashboardErrorBoundary",
+			data: {
+				digest: error.digest,
+				component: "dashboard",
 			},
-			"\n"
-		)
+		})
 
 		// Handle session revoke/auth errors
 		if (isAuthError(error)) {

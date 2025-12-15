@@ -1,6 +1,6 @@
 'use client'
 
-import * as React from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import * as Button from '@/components/ui/button'
 import * as Input from '@/components/ui/input'
 import * as Modal from '@/components/ui/modal'
@@ -21,12 +21,13 @@ import {
 } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/utils/cn'
 import { useInvoiceSearchParams } from '@/hooks'
-// import { useInvoicesData } from '@/hooks/use-invoices'
 import { useDebounceValue, useMediaQuery } from 'usehooks-ts'
 import { exportInvoices } from '@/lib/excel'
 import { toast } from 'sonner'
 import type { invoices } from '@/lib/encore-browser'
 import { formatCurrency, formatCurrencyCompact, formatDateShort, formatDateMedium } from '@/lib/format'
+import { logError } from '@/lib/error-logger-simple'
+import { TIMEOUTS } from '@/lib/constants'
 
 type Invoice = invoices.Invoice
 
@@ -50,23 +51,21 @@ interface InvoicesClientProps {
 }
 
 export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
-  const [selectedInvoice, setSelectedInvoice] = React.useState<Invoice | null>(null)
-  const [downloadingId, setDownloadingId] = React.useState<string | null>(null)
-  const [isExportingEnrollments, setIsExportingEnrollments] = React.useState(false)
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [isExportingEnrollments, setIsExportingEnrollments] = useState(false)
+  const downloadLinkRef = useRef<HTMLAnchorElement>(null)
 
   // Hydration-safe: Reference date for period filtering (set after mount to avoid SSR mismatch)
-  const [referenceDate, setReferenceDate] = React.useState<Date | null>(null)
-  React.useEffect(() => {
+  const [referenceDate, setReferenceDate] = useState<Date | null>(null)
+  useEffect(() => {
     setReferenceDate(new Date())
   }, [])
 
   // nuqs: URL state management for filters
   const [searchParams, setSearchParams] = useInvoiceSearchParams()
   const periodFilter = searchParams.period
-  const [search, setSearch] = React.useState(searchParams.search)
-
-  // React Query hook removed - using server data via initialData
-  // const { data } = useInvoicesData()
+  const [search, setSearch] = useState(searchParams.search)
 
   // Use initialData directly - type-safe with Encore types
   const invoicesList: invoices.Invoice[] = (initialData?.invoices ?? [])
@@ -81,12 +80,21 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
   // usehooks-ts: Debounce search input to avoid excessive URL updates
   const [debouncedSearch] = useDebounceValue(search, 300)
 
-  // Sync debounced search to URL
-  React.useEffect(() => {
+  // Sync debounced search to URL - Industry Standard: Simple, one-way sync
+  // Only update URL when debounced value changes (not on every keystroke)
+  useEffect(() => {
+    // Only update if debounced value differs from current URL param
     if (debouncedSearch !== searchParams.search) {
       setSearchParams({ search: debouncedSearch, page: 1 })
     }
-  }, [debouncedSearch, searchParams.search, setSearchParams])
+  }, [debouncedSearch]) // Only depend on debouncedSearch, not searchParams
+  
+  // Sync local search state when URL changes externally (browser back/forward)
+  useEffect(() => {
+    if (searchParams.search !== search) {
+      setSearch(searchParams.search || "")
+    }
+  }, [searchParams.search]) // Only depend on searchParams.search
 
   // Excel export handler
   const handleExport = () => {
@@ -116,9 +124,15 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
       
       // Fetch enrollments by IDs
       const enrollmentPromises = result.enrollmentIds.map(id => 
-        client.enrollments.getEnrollment(id).catch(() => null)
+        client.enrollments.getEnrollment(id).catch((error) => {
+          logError(error, { source: "InvoicesClient", data: { action: "getEnrollment", enrollmentId: id } })
+          return null
+        })
       )
-      const enrollments = (await Promise.all(enrollmentPromises)).filter((e): e is NonNullable<typeof e> => e !== null)
+      const results = await Promise.allSettled(enrollmentPromises)
+      const enrollments = results
+        .map((result) => result.status === "fulfilled" ? result.value : null)
+        .filter((e): e is NonNullable<typeof e> => e !== null)
       
       if (enrollments.length === 0) {
         toast.error('Failed to fetch enrollment data')
@@ -156,7 +170,7 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
             createdAt: new Date(e.createdAt).toLocaleDateString(),
           }
         }),
-        `invoice-${result.invoiceNumber}-enrollments-${new Date().toISOString().split('T')[0]}`,
+        `invoice-${result.invoiceNumber}-enrollments-${referenceDate ? referenceDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}`,
         [
           { key: 'enrollmentId', header: 'Enrollment ID' },
           { key: 'orderId', header: 'Order ID' },
@@ -186,7 +200,7 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
     }
   }
 
-  // PDF download handler
+  // PDF download handler - direct fetch for one-time downloads
   const handleDownloadPDF = async (invoice: Invoice, e?: React.MouseEvent) => {
     e?.stopPropagation()
     setDownloadingId(invoice.id)
@@ -199,20 +213,40 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
       }
 
       // Fetch the PDF from the URL
-      const response = await fetch(result.pdfUrl)
-      if (!response.ok) throw new Error('Failed to download PDF')
+      // Note: Direct fetch is acceptable for file downloads (blob responses)
+      // Could be wrapped in React Query for caching if needed
+      const response = await fetch(result.pdfUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/pdf',
+        },
+        // Add error handling
+        signal: AbortSignal.timeout(30000), // 30 second timeout
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to download PDF: ${response.status} ${response.statusText}`)
+      }
       
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${invoice.invoiceNumber}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+      
+      // Use React ref instead of direct DOM manipulation
+      if (downloadLinkRef.current) {
+        downloadLinkRef.current.href = url
+        downloadLinkRef.current.download = `${invoice.invoiceNumber}.pdf`
+        downloadLinkRef.current.click()
+      }
+      
+      // Clean up object URL after a short delay to ensure download starts
+      setTimeout(() => {
+        URL.revokeObjectURL(url)
+      }, TIMEOUTS.FILE_DOWNLOAD_CLEANUP)
       toast.success(`Downloaded ${invoice.invoiceNumber}.pdf`)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to download invoice PDF'
       toast.error(errorMessage)
+      logError(error, { source: "InvoicesClient", data: { action: "downloadPDF", invoiceId: invoice.id } })
     } finally {
       setDownloadingId(null)
     }
@@ -223,25 +257,17 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
     setSearchParams({ period: value as typeof periodFilter, page: 1 })
   }
 
-  // Use centralized formatting functions from lib/format.ts
-  const formatCurrencyLocal = (amount: number): string => formatCurrency(amount)
-  const formatCurrencyCompactLocal = (amount: number): string => formatCurrencyCompact(amount)
-  const formatDateLocal = (date: Date | string | undefined): string => {
+  // Formatting functions - directly use lib functions
+  const formatDate = (date: Date | string | undefined): string => {
     if (!date) return '-'
     return formatDateShort(date)
   }
-  const formatDateFullLocal = (date: Date | string | undefined): string => {
+  const formatDateFull = (date: Date | string | undefined): string => {
     if (!date) return '-'
     return formatDateMedium(date)
   }
-  
-  // Alias for backward compatibility
-  const formatCurrency = formatCurrencyLocal
-  const formatCurrencyCompact = formatCurrencyCompactLocal
-  const formatDate = formatDateLocal
-  const formatDateFull = formatDateFullLocal
 
-  const filteredInvoices = React.useMemo(() => {
+  const filteredInvoices = useMemo(() => {
     let result = allInvoices
 
     // Only apply period filters after hydration (when referenceDate is set)
@@ -270,7 +296,7 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
     return result
   }, [allInvoices, periodFilter, search, referenceDate])
 
-  const stats = React.useMemo(() => ({
+  const stats = useMemo(() => ({
     count: filteredInvoices.length,
     totalAmount: filteredInvoices.reduce((acc, i) => acc + i.totalAmount, 0),
     totalGst: filteredInvoices.reduce((acc, i) => acc + i.gstAmount, 0),
@@ -280,6 +306,8 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
   return (
     <Tooltip.Provider>
     <div className="space-y-5 sm:space-y-6">
+      {/* Hidden download link for PDF downloads */}
+      <a ref={downloadLinkRef} className="hidden" aria-hidden="true" />
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
@@ -310,7 +338,7 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
           ].map((stat) => (
             <div
               key={stat.label}
-              className="flex flex-col rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 px-4 py-3 min-w-[100px] sm:min-w-0"
+              className="flex flex-col rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 px-3 py-2.5 min-w-[95px] sm:min-w-0"
             >
               <span className="text-[10px] sm:text-paragraph-xs text-text-soft-400 uppercase tracking-wide">{stat.label}</span>
               <span className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold mt-0.5">{stat.value}</span>
@@ -472,7 +500,7 @@ function InvoiceItem({
           <p className="text-paragraph-xs text-text-soft-400">GST {formatCurrency(invoice.gstAmount)}</p>
         </div>
 
-        <Button.Root variant="ghost" size="xsmall" onClick={(e) => { e.stopPropagation() }}>
+        <Button.Root variant="ghost" size="xsmall" onClick={(e) => { e.stopPropagation() }} aria-label="Download invoice">
           <Button.Icon as={DownloadSimple} />
         </Button.Root>
       </div>
@@ -655,7 +683,7 @@ function InvoiceModal({
           <div className="flex items-center justify-between px-4 pt-4 pb-2">
             <Logo forceTheme="light" width={90} height={22} />
             <BottomSheet.Close asChild>
-              <Button.Root variant="ghost" size="xsmall">
+              <Button.Root variant="ghost" size="xsmall" aria-label="Close invoice preview">
                 <Button.Icon as={X} />
               </Button.Root>
             </BottomSheet.Close>
@@ -685,7 +713,7 @@ function InvoiceModal({
         <div className="flex items-center justify-between px-4 py-3 border-b border-stroke-soft-200">
           <Logo forceTheme="light" width={90} height={22} />
           <Modal.Close asChild>
-            <Button.Root variant="ghost" size="xsmall">
+            <Button.Root variant="ghost" size="xsmall" aria-label="Close invoice preview">
               <Button.Icon as={X} />
             </Button.Root>
           </Modal.Close>

@@ -57,3 +57,6 @@ The app now focuses on:
 - ✅ User profile & security
 
 **No subscription/billing code remains in the frontend.** 🎉
+
+
+

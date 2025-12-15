@@ -37,7 +37,6 @@ import { updateEnrollmentStatus, requestEnrollmentChanges } from "@/app/actions/
 import type { EnrollmentStatus } from "@/hooks/use-enrollments"
 import { EnrollmentTimeline } from "@/components/dashboard/enrollment-timeline"
 import type { enrollments, campaigns, integrations } from "@/lib/encore-client"
-import { formatCurrency, formatDateMedium } from "@/lib/format"
 
 // Helper to calculate costs from Encore enrollment
 function calculateCosts(enrollment: Enrollment | enrollments.EnrollmentDetail) {
@@ -92,18 +91,15 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 
 	const enrollmentDetail = initialData as enrollments.EnrollmentDetail | undefined
 	// Use enrollmentDetail directly - it has all the fields we need
-	const enrollment: enrollments.EnrollmentDetail | undefined = enrollmentDetail
+	const enrollment = enrollmentDetail as unknown as Enrollment & enrollments.EnrollmentDetail
 	const isLoadingEnrollment = !enrollmentDetail
 	const error = null
 
 	// Action handlers
 	const statusConfig = enrollmentDetail ? ENROLLMENT_STATUS_CONFIG[enrollmentDetail.status] : null
-	const formatCurrencyLocal = (amount: number): string => formatCurrency(amount)
-	const formatDateLocal = (date: Date | string): string => formatDateMedium(date)
-	
-	// Alias for backward compatibility
-	const formatCurrency = formatCurrencyLocal
-	const formatDate = formatDateLocal
+	const formatCurrency = (amount: number) => `₹${amount.toLocaleString("en-IN")}`
+	const formatDate = (date: Date) =>
+		new Date(date).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
 	const isLoading = false // pure server actions don't track loading state this way automatically, could use useTransition
 
 	const handleApprove = async () => {
@@ -564,7 +560,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 			{enrollment.status === "awaiting_review" && (
 				<>
 					{/* Desktop: Card with centered buttons */}
-					<div className="hidden sm:block rounded-2xl bg-linear-to-r from-primary-lighter to-bg-white-0 ring-1 ring-inset ring-primary-light p-5">
+					<div className="hidden sm:block rounded-2xl bg-gradient-to-r from-primary-lighter to-bg-white-0 ring-1 ring-inset ring-primary-light p-5">
 						<div className="flex items-center justify-between">
 							<div>
 								<h3 className="text-label-md text-text-strong-950 mb-1">Ready to Review</h3>

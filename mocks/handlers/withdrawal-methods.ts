@@ -123,10 +123,10 @@ export const withdrawalMethodsHandlers = [
 			)
 			for (const method of existingDefaults) {
 				if (method.isDefault) {
-					db.withdrawalMethods.update({
-						where: { id: method.id },
-						data: { isDefault: false },
-					})
+					// Update withdrawal method - use findFirst + manual update pattern
+					const updated = { ...method, isDefault: false }
+					db.withdrawalMethods.delete((q) => q.where({ id: method.id }))
+					db.withdrawalMethods.create(updated)
 				}
 			}
 		}
@@ -172,22 +172,18 @@ export const withdrawalMethodsHandlers = [
 			)
 			for (const existing of existingDefaults) {
 				if (existing.id !== methodId && existing.isDefault) {
-					db.withdrawalMethods.update({
-						where: { id: existing.id },
-						data: { isDefault: false },
-					})
+					// Update withdrawal method - use findFirst + manual update pattern
+					const updated = { ...existing, isDefault: false }
+					db.withdrawalMethods.delete((q) => q.where({ id: existing.id }))
+					db.withdrawalMethods.create(updated)
 				}
 			}
 		}
 
-		// Update method in database
-		const updated = db.withdrawalMethods.update({
-			where: { id: methodId as string },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update method in database - use findFirst + manual update pattern
+		const updated = { ...method, ...body, updatedAt: new Date().toISOString() }
+		db.withdrawalMethods.delete((q) => q.where({ id: methodId as string }))
+		db.withdrawalMethods.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -218,22 +214,18 @@ export const withdrawalMethodsHandlers = [
 			)
 			for (const existing of existingDefaults) {
 				if (existing.id !== methodId && existing.isDefault) {
-					db.withdrawalMethods.update({
-						where: { id: existing.id },
-						data: { isDefault: false },
-					})
+					// Update withdrawal method - use findFirst + manual update pattern
+					const updated = { ...existing, isDefault: false }
+					db.withdrawalMethods.delete((q) => q.where({ id: existing.id }))
+					db.withdrawalMethods.create(updated)
 				}
 			}
 		}
 
-		// Update method in database
-		const updated = db.withdrawalMethods.update({
-			where: { id: methodId as string },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update method in database - use findFirst + manual update pattern
+		const updated = { ...method, ...body, updatedAt: new Date().toISOString() }
+		db.withdrawalMethods.delete((q) => q.where({ id: methodId as string }))
+		db.withdrawalMethods.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -264,7 +256,7 @@ export const withdrawalMethodsHandlers = [
 		}
 
 		// Delete method from database
-		db.withdrawalMethods.delete({ where: { id: methodId as string } })
+		db.withdrawalMethods.delete((q) => q.where({ id: methodId as string }))
 
 		return encoreResponse({ deleted: true })
 	}),

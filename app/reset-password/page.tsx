@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams, useParams } from "next/navigation"
 import { useForm } from "react-hook-form"
@@ -17,18 +17,19 @@ export default function ResetPasswordPage() {
 	const params = useParams()
 	const searchParams = useSearchParams()
 	// Support both path param (/reset-password/[token]) and query param (?token=xxx)
-	const token = (params?.token as string) || searchParams.get("token")
+	// useParams() returns a synchronous object in client components, not a Promise
+	const token = (params?.token as string) || searchParams.get("token") || ""
 	// Get callbackURL from query params (validated)
 	const callbackURL = searchParams.get("callbackURL")
 
-	const [showPassword, setShowPassword] = React.useState(false)
-	const [showConfirmPassword, setShowConfirmPassword] = React.useState(false)
-	const [isLoading, setIsLoading] = React.useState(false)
-	const [isValidating, setIsValidating] = React.useState(true)
-	const [isValid, setIsValid] = React.useState(false)
-	const [email, setEmail] = React.useState("")
-	const [error, setError] = React.useState("")
-	const [success, setSuccess] = React.useState(false)
+	const [showPassword, setShowPassword] = useState(false)
+	const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+	const [isLoading, setIsLoading] = useState(false)
+	const [isValidating, setIsValidating] = useState(true)
+	const [isValid, setIsValid] = useState(false)
+	const [email, setEmail] = useState("")
+	const [error, setError] = useState("")
+	const [success, setSuccess] = useState(false)
 
 	const {
 		register,
@@ -44,7 +45,7 @@ export default function ResetPasswordPage() {
 
 	// Skip pre-validation API call - validate when password is submitted
 	// This avoids issues with the token validation endpoint
-	React.useEffect(() => {
+	useEffect(() => {
 		if (!token) {
 			setIsValidating(false)
 			setIsValid(false)

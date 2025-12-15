@@ -130,7 +130,7 @@ function SidePanelHeader({ children, className }: SidePanelHeaderProps) {
 			)}
 		>
 			<div className="flex-1">{children}</div>
-			<Button.Root variant="ghost" size="small" onClick={() => onOpenChange(false)}>
+			<Button.Root variant="ghost" size="small" onClick={() => onOpenChange(false)} aria-label="Close side panel">
 				<Button.Icon as={X} />
 			</Button.Root>
 		</div>
@@ -162,7 +162,9 @@ interface SidePanelBodyProps {
 
 function SidePanelBody({ children, className }: SidePanelBodyProps) {
 	return (
-		<div className={cn("overflow-y-auto p-5", className)} style={{ height: "calc(100vh - 73px)" }}>
+		<div 
+			className={cn("overflow-y-auto p-5 h-[calc(100vh-73px)]", className)}
+		>
 			{children}
 		</div>
 	)

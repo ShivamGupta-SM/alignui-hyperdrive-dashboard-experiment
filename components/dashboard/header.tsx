@@ -114,6 +114,7 @@ export function Header({
 						"size-11 sm:size-10 sm:w-auto sm:min-w-[180px] md:min-w-[220px] sm:px-3 shrink-0",
 						isMobileSidebarOpen && "hidden lg:flex" // Hide on mobile when sidebar open
 					)}
+					aria-label="Open command menu to search"
 				>
 					<MagnifyingGlass className="size-4 shrink-0" weight="duotone" />
 					<span className="hidden sm:inline text-paragraph-sm ml-2">Search...</span>
@@ -145,19 +146,19 @@ export function Header({
 						className={cn(iconButtonStyles, "size-11 sm:size-10 p-[3px]")}
 						aria-label="Open settings"
 					>
-						<Avatar.Root size="32" color="blue" className="size-full rounded-full overflow-hidden">
-							{user.avatar ? (
-								<Avatar.Image
-									src={user.avatar}
-									alt={user.name}
-									className="size-full object-cover"
-								/>
-							) : (
-								<span className="text-label-xs sm:text-label-sm font-semibold">
-									{user.name.charAt(0).toUpperCase()}
-								</span>
-							)}
-						</Avatar.Root>
+					<Avatar.Root size="32" color="blue" className="size-full rounded-full overflow-hidden">
+						{"image" in user && user.image ? (
+							<Avatar.Image
+								src={user.image}
+								alt={user.name}
+								className="size-full object-cover"
+							/>
+						) : (
+							<span className="text-label-xs sm:text-label-sm font-semibold">
+								{user.name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
+							</span>
+						)}
+					</Avatar.Root>
 					</button>
 				)}
 			</div>

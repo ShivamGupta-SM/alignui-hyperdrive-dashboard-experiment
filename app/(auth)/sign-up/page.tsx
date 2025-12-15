@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
@@ -21,14 +21,14 @@ import {
 	X,
 } from "@phosphor-icons/react/dist/ssr"
 import { cn } from "@/utils/cn"
-import { signUpSchema, type SignUpFormData } from "@/lib/validations"
+import { signUpSchema, VALIDATION_CONSTANTS, type SignUpFormData } from "@/lib/validations"
 
 export default function SignUpPage() {
 	const router = useRouter()
-	const [showPassword, setShowPassword] = React.useState(false)
-	const [showConfirmPassword, setShowConfirmPassword] = React.useState(false)
-	const [isLoading, setIsLoading] = React.useState(false)
-	const [error, setError] = React.useState("")
+	const [showPassword, setShowPassword] = useState(false)
+	const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+	const [isLoading, setIsLoading] = useState(false)
+	const [error, setError] = useState("")
 
 	const {
 		register,
@@ -47,9 +47,9 @@ export default function SignUpPage() {
 	const password = watch("password")
 
 	// Password requirements
-	const passwordRequirements = React.useMemo(
+		const passwordRequirements = useMemo(
 		() => ({
-			minLength: password.length >= 8,
+			minLength: password.length >= VALIDATION_CONSTANTS.PASSWORD_MIN_LENGTH,
 			hasUppercase: /[A-Z]/.test(password),
 			hasNumber: /[0-9]/.test(password),
 			hasSpecial: /[^A-Za-z0-9]/.test(password),
@@ -58,7 +58,7 @@ export default function SignUpPage() {
 	)
 
 	// Password strength calculation
-	const passwordStrength = React.useMemo(() => {
+	const passwordStrength = useMemo(() => {
 		let strength = 0
 		if (passwordRequirements.minLength) strength += 25
 		if (passwordRequirements.hasUppercase) strength += 25
@@ -67,7 +67,7 @@ export default function SignUpPage() {
 		return strength
 	}, [passwordRequirements])
 
-	const passwordStrengthLabel = React.useMemo(() => {
+	const passwordStrengthLabel = useMemo(() => {
 		if (passwordStrength === 0) return ""
 		if (passwordStrength <= 25) return "Weak"
 		if (passwordStrength <= 50) return "Fair"
@@ -75,7 +75,7 @@ export default function SignUpPage() {
 		return "Strong"
 	}, [passwordStrength])
 
-	const passwordStrengthColor = React.useMemo(() => {
+	const passwordStrengthColor = useMemo(() => {
 		if (passwordStrength <= 25) return "red"
 		if (passwordStrength <= 50) return "orange"
 		if (passwordStrength <= 75) return "yellow"
@@ -87,6 +87,21 @@ export default function SignUpPage() {
 		setIsLoading(true)
 
 		try {
+			// Clear any previous user's onboarding draft data before signup
+			try {
+				localStorage.removeItem("onboarding-draft")
+				localStorage.removeItem("onboarding-draft-timestamp")
+				// Clear all onboarding alert dismissals
+				const keys = Object.keys(localStorage)
+				keys.forEach(key => {
+					if (key.includes("onboarding-alert-dismissed")) {
+						localStorage.removeItem(key)
+					}
+				})
+			} catch (e) {
+				// Ignore localStorage errors
+			}
+
 			const { signUpEmail } = await import("@/app/actions")
 			const result = await signUpEmail(data.email, data.password, data.email.split("@")[0])
 
@@ -95,17 +110,14 @@ export default function SignUpPage() {
 				throw new Error(errorMessage)
 			}
 
-			// Smart redirect based on organization status
-			// New users (no org) → onboarding
-			// Existing users (has org) → dashboard
-			const hasOrg = "hasOrganization" in result ? result.hasOrganization : false
-			if (hasOrg) {
-				// User already has organization (rare case - maybe from previous session)
-				router.push("/dashboard")
-			} else {
-				// New user - redirect to onboarding to create organization
-				router.push("/onboarding")
+			// ✅ FIX: Wait a bit if active org was just set to ensure session is refreshed
+			const activeOrgSet = "activeOrgSet" in result ? result.activeOrgSet : false
+			if (activeOrgSet) {
+				await new Promise((resolve) => setTimeout(resolve, 500))
 			}
+
+			// Always redirect to dashboard - onboarding alert will show if needed
+			router.push("/dashboard")
 			router.refresh()
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to create account")
@@ -140,30 +152,27 @@ export default function SignUpPage() {
 	}
 
 	return (
-		<div className="w-full">
-			<div className="w-full max-w-md mx-auto rounded-2xl bg-bg-white-0/95 backdrop-blur-xl p-6 sm:p-8 lg:p-10 ring-1 ring-inset ring-stroke-soft-200/50 shadow-xl shadow-primary-base/5">
-				{/* Header */}
-				<div className="mb-6 sm:mb-8 text-center">
-					<div className="flex size-16 sm:size-20 items-center justify-center rounded-2xl bg-linear-to-br from-primary-base via-primary-darker to-primary-darkest mx-auto mb-5 shadow-lg shadow-primary-base/20">
-						<UserPlus weight="duotone" className="size-8 sm:size-10 text-white" />
-					</div>
-					<h1 className="text-title-h4 sm:text-title-h3 text-text-strong-950 mb-2 font-semibold">
-						Create your account
-					</h1>
-					<p className="text-paragraph-sm sm:text-paragraph-base text-text-sub-600">
-						Start managing your influencer campaigns
-					</p>
-				</div>
+		<div className="w-full space-y-8">
+			{/* Header */}
+			<div className="text-center space-y-3">
+				<h1 className="text-title-h3 sm:text-title-h2 text-text-strong-950 font-bold">
+					Create your account
+				</h1>
+				<p className="text-paragraph-base text-text-sub-600">
+					Start managing your influencer campaigns today
+				</p>
+			</div>
 
-				{/* Error Message */}
-				{error && (
-					<Callout variant="error" size="sm" className="mb-6">
-						{error}
-					</Callout>
-				)}
+			{/* Error Message */}
+			{error && (
+				<Callout variant="error" size="sm">
+					{error}
+				</Callout>
+			)}
 
-				{/* Form */}
-				<form onSubmit={handleSubmit(onSubmit)} className="space-y-5 sm:space-y-6" noValidate>
+			{/* Form */}
+			<div className="space-y-6">
+				<form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
 					<div>
 						<label htmlFor="email" className="block text-label-sm text-text-strong-950 mb-2">
 							Email address
@@ -257,7 +266,7 @@ export default function SignUpPage() {
 
 								{/* Password Requirements Checklist */}
 								<div className="grid grid-cols-2 gap-x-4 gap-y-2 p-3.5 rounded-xl bg-bg-weak-50 border border-stroke-soft-200/50">
-									<RequirementItem met={passwordRequirements.minLength} text="8+ characters" />
+									<RequirementItem met={passwordRequirements.minLength} text={`${VALIDATION_CONSTANTS.PASSWORD_MIN_LENGTH}+ characters`} />
 									<RequirementItem
 										met={passwordRequirements.hasUppercase}
 										text="Uppercase letter"
@@ -318,7 +327,7 @@ export default function SignUpPage() {
 						type="submit" 
 						variant="primary" 
 						size="medium"
-						className="w-full h-12 font-medium shadow-lg shadow-primary-base/20 hover:shadow-xl hover:shadow-primary-base/30 transition-all" 
+						className="w-full h-12 font-medium" 
 						disabled={isLoading}
 					>
 						{isLoading ? "Creating account..." : "Create Account"}
@@ -326,10 +335,13 @@ export default function SignUpPage() {
 				</form>
 
 				{/* Divider */}
-				<div className="my-6 sm:my-7">
-					<Divider.Root variant="content">
-						<span className="text-paragraph-xs text-text-soft-400 px-3 bg-bg-white-0/95">or continue with</span>
-					</Divider.Root>
+				<div className="relative">
+					<div className="absolute inset-0 flex items-center">
+						<div className="w-full border-t border-stroke-soft-200" />
+					</div>
+					<div className="relative flex justify-center text-paragraph-xs">
+						<span className="bg-bg-white-0 px-4 text-text-soft-400">or continue with</span>
+					</div>
 				</div>
 
 				{/* Google Sign Up */}
@@ -345,7 +357,7 @@ export default function SignUpPage() {
 				</Button.Root>
 
 				{/* Sign In Link */}
-				<p className="mt-6 sm:mt-8 text-center text-paragraph-sm text-text-sub-600">
+				<p className="text-center text-paragraph-sm text-text-sub-600">
 					Already have an account?{" "}
 					<Link
 						href="/sign-in"

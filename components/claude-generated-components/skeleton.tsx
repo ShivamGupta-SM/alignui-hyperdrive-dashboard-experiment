@@ -105,7 +105,7 @@ function SkeletonText({
 		<div className={cn("flex flex-col", gapClasses[gap], className)} {...rest}>
 			{Array.from({ length: lines }, (_, index) => (
 				<Skeleton
-					key={index}
+					key={`skeleton-line-${index}-${lines}`}
 					variant="text"
 					animation={animation}
 					height={16}

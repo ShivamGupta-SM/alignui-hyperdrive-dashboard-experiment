@@ -5,12 +5,21 @@
  * Used by RSC pages to fetch data before passing to client components.
  */
 
-// Mocking disabled - removed MSW initialization
-
-import { getEncoreClient, getAuthenticatedEncoreClient } from "@/lib/encore"
+import { unstable_cache } from "next/cache"
+import { getEncoreClient, getAuthenticatedEncoreClient, getErrorDetails } from "@/lib/encore"
 import { cookies } from "next/headers"
 import type { shared } from "@/lib/encore-client"
-import { logSSRError, logAPIError } from "@/lib/error-logger-simple"
+import { logSSRError, logAPIError, logError, logWarn, logInfo } from "@/lib/error-logger-simple"
+import { initServerMocks } from "@/lib/init-mocks-server"
+import { getSession } from "@/app/actions/auth"
+
+// Initialize MSW before any fetch calls (only in development with mocking enabled)
+if (typeof window === "undefined" && process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
+	// Initialize MSW asynchronously - don't block module load
+	initServerMocks().catch((error) => {
+		console.error("[ssr-data] Failed to initialize MSW:", error)
+	})
+}
 
 /**
  * Get authenticated Encore client using auth-token from cookies
@@ -22,6 +31,11 @@ import { logSSRError, logAPIError } from "@/lib/error-logger-simple"
  * Active organization comes from session (via me() or getSession()).
  */
 async function getAuthClient() {
+	// Ensure MSW is initialized before making fetch calls
+	if (typeof window === "undefined" && process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
+		await initServerMocks()
+	}
+	
 	const cookieStore = await cookies()
 	const token = cookieStore.get("auth-token")?.value
 	
@@ -34,7 +48,8 @@ async function getAuthClient() {
 }
 
 /**
- * Get current organization ID from session (single source of truth)
+ * Get active organization ID from session (single source of truth)
+ * Uses getSession() action - standardized pattern
  *
  * Industry Standard: Session-based active organization (like Stripe, Notion, Clerk)
  * No cookies needed - session.activeOrganizationId is the source
@@ -42,27 +57,27 @@ async function getAuthClient() {
  * @throws {Error} If organization ID is not found
  */
 async function getOrganizationId(): Promise<string> {
-	const client = await getAuthClient()
-
-	try {
-		// Get from session (single source of truth)
-		const me = await client.auth.me()
-		if (me.activeOrganizationId) {
-			return me.activeOrganizationId
-		}
-	} catch (error) {
-		console.warn("Failed to get organization ID from session:", error)
+	const sessionResult = await getSession()
+	
+	if (!sessionResult.success || !sessionResult.user) {
+		throw new Error("Session not found. Please sign in.")
 	}
 
-	// Industry Standard: Session is source of truth
-	// If session has no active org, don't guess - let pages handle it
-	// Pages should redirect to onboarding or show "select organization" UI
-	throw new Error("Organization ID not found. Please select an organization.")
+	const activeOrgId = (sessionResult.user as { activeOrganizationId?: string }).activeOrganizationId
+	
+	if (!activeOrgId) {
+		// Industry Standard: Session is source of truth
+		// If session has no active org, don't guess - let pages handle it
+		// Pages should redirect to onboarding or show "select organization" UI
+		throw new Error("Organization ID not found. Please select an organization.")
+	}
+
+	return activeOrgId
 }
 
 /**
- * Check if user has an organization
- * Returns organization ID or null if no organization
+ * Get active organization ID from session (single source of truth)
+ * Uses getSession() action - standardized pattern
  * 
  * Industry Standard: Session-based active organization (single source of truth)
  * No cookies needed - session.activeOrganizationId is the source
@@ -73,89 +88,69 @@ async function getOrganizationId(): Promise<string> {
  * @returns Organization ID if exists, null otherwise
  */
 export async function getOrganizationIdOrNull(): Promise<string | null> {
-	const client = await getAuthClient()
-
 	try {
-		// First check if user is authenticated using me() endpoint (more reliable)
-		// This is a secondary check - middleware should have already verified
-		let activeOrgId: string | undefined = undefined
-		try {
-			const meResult = await client.auth.me()
-			// MeResponse IS the user object (not wrapped in user property)
-			activeOrgId = meResult.activeOrganizationId
-			
-			// If activeOrganizationId is already set in session, use it
-			if (activeOrgId) {
-				console.log(`[getOrganizationIdOrNull] Using activeOrganizationId from me(): ${activeOrgId}`)
-				return activeOrgId
-			}
-		} catch (meError) {
-			// Check if it's a network/connectivity error
-			const errorMessage = meError instanceof Error ? meError.message : String(meError)
-			if (errorMessage.includes("fetch failed") || errorMessage.includes("ECONNREFUSED") || errorMessage.includes("Failed to fetch")) {
-				console.error("[getOrganizationIdOrNull] Backend connection failed - is backend running?", {
-					error: errorMessage,
-					baseURL: process.env.NEXT_PUBLIC_ENCORE_URL || process.env.ENCORE_API_URL || "http://localhost:4000"
-				})
-				// Re-throw to let caller handle (they can redirect to sign-in or show error)
-				throw new Error(`Backend connection failed: ${errorMessage}. Please ensure the backend is running.`)
-			}
-			
-			// If me() fails, try getSession() as fallback
-			console.warn("[getOrganizationIdOrNull] me() failed, trying getSession():", meError)
-			try {
-				const sessionResult = await client.auth.getSession()
-				if (!sessionResult.session || !sessionResult.user) {
-					// No session - return null (middleware should handle redirect)
-					console.warn("[getOrganizationIdOrNull] No active session found")
-					return null
-				}
-				// Use session data to continue
-				// Type assertion: getSession() returns user with activeOrganizationId
-				activeOrgId = (sessionResult.user as { activeOrganizationId?: string }).activeOrganizationId
-				if (activeOrgId) {
-					console.log(`[getOrganizationIdOrNull] Using activeOrganizationId from getSession(): ${activeOrgId}`)
-					return activeOrgId
-				}
-			} catch (sessionError) {
-				// Both me() and getSession() failed
-				const sessionErrorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError)
-				if (sessionErrorMessage.includes("fetch failed") || sessionErrorMessage.includes("ECONNREFUSED")) {
-					throw new Error(`Backend connection failed: ${sessionErrorMessage}. Please ensure the backend is running.`)
-				}
-				// Authentication error - token might be invalid
-				console.warn("[getOrganizationIdOrNull] Both me() and getSession() failed:", sessionErrorMessage)
-				return null
-			}
+		const sessionResult = await getSession()
+		
+		if (!sessionResult.success || !sessionResult.user) {
+			return null
 		}
 
+		const activeOrgId = (sessionResult.user as { activeOrganizationId?: string }).activeOrganizationId
+		
 		// Industry Standard: Session is source of truth
 		// If session has no activeOrganizationId, return null
-		// Don't fallback to first org - let pages handle "no org" state
-		// Pages should redirect to onboarding or show organization selector
-		console.log("[getOrganizationIdOrNull] No activeOrganizationId in session, returning null")
-		return null
+		return activeOrgId || null
 	} catch (error) {
 		// Log error for debugging
-		console.error("[getOrganizationIdOrNull] Error fetching organizations:", error)
+		logError(error, { source: "getOrganizationIdOrNull", data: { action: "get session" } })
 		
-		// Check if it's an authentication error
+		// Check if it's a network/connectivity error
 		if (error instanceof Error) {
 			const errorMessage = error.message.toLowerCase()
 			if (
+				errorMessage.includes("fetch failed") ||
+				errorMessage.includes("econnrefused") ||
+				errorMessage.includes("failed to fetch")
+			) {
+				throw new Error(`Backend connection failed: ${error.message}. Please ensure the backend is running.`)
+			}
+			
+			// Check if it's an authentication error
+			if (
 				errorMessage.includes("unauthenticated") ||
 				errorMessage.includes("unauthorized") ||
-				errorMessage.includes("session expired") ||
-				errorMessage.includes("fetch failed")
+				errorMessage.includes("session expired")
 			) {
-				console.warn("[getOrganizationIdOrNull] Authentication error:", errorMessage)
+				logWarn("Authentication error in getOrganizationIdOrNull", { source: "getOrganizationIdOrNull", data: { errorMessage } })
 				return null
 			}
 		}
 
-		// If error fetching organizations, return null
-		console.error("[getOrganizationIdOrNull] Unexpected error, returning null")
+		// If error fetching session, return null
 		return null
+	}
+}
+
+/**
+ * Get organizations list (SSR helper)
+ * Uses getSession() for authentication, then fetches organizations
+ * 
+ * @returns Organizations list or empty array
+ */
+export async function getOrganizations(): Promise<Array<{ id: string; name: string; [key: string]: unknown }>> {
+	try {
+		const sessionResult = await getSession()
+		
+		if (!sessionResult.success) {
+			return []
+		}
+
+		const client = await getAuthClient()
+		const result = await client.auth.listOrganizations()
+		return result.organizations || []
+	} catch (error) {
+		logSSRError(error, "getOrganizations", "organizations", {})
+		return []
 	}
 }
 
@@ -176,45 +171,144 @@ export async function requireOrganization() {
 	const orgId = await getOrganizationIdOrNull()
 
 	if (!orgId) {
-		console.log("[requireOrganization] No organization found, redirecting to onboarding")
+		logInfo("No organization found, redirecting to onboarding", { source: "requireOrganization" })
 		// No organization - redirect to onboarding
 		redirect("/onboarding")
 	}
 	
-	console.log("[requireOrganization] Organization found:", orgId)
+	logInfo("Organization found", { source: "requireOrganization", data: { orgId } })
 }
 
 // ===========================================
 // DASHBOARD
 // ===========================================
 
-export async function getDashboardData() {
-	const client = await getAuthClient()
-	
-	// Use getOrganizationIdOrNull to avoid throwing errors
-	const orgId = await getOrganizationIdOrNull()
-	
-	if (!orgId) {
-		console.warn("[getDashboardData] No organization ID found for dashboard data")
-		return null
-	}
+// Cached dashboard data fetching
+async function getDashboardDataCached(client: ReturnType<typeof getAuthenticatedEncoreClient>, activeOrgId: string) {
+	return client.organizations.getDashboardOverview({ days: 7 })
+}
 
-	// Fetch dashboard data with error handling - always return null on error
-	// This ensures page can still render even if dashboard data fails
-	try {
-		const response = await client.organizations.getDashboardOverview(orgId, { days: 7 })
-		return response
+export const getDashboardData = unstable_cache(
+	async () => {
+		// CRITICAL: Check for active organization BEFORE calling API
+		// This prevents unnecessary API calls and clearer error messages
+		const activeOrgId = await getOrganizationIdOrNull()
+
+		if (!activeOrgId) {
+			// No active organization - return null gracefully
+			// DashboardClient will show appropriate UI
+			return null
+		}
+
+		// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
+		// Fetch dashboard data with error handling - always return null on error
+		// This ensures page can still render even if dashboard data fails
+		try {
+			const client = await getAuthClient()
+			const response = await getDashboardDataCached(client, activeOrgId)
+			return response
 	} catch (error) {
-		// CRITICAL: Log with full context BEFORE returning fallback
-		// This ensures root cause is always visible for debugging
+		// CRITICAL: Deep error inspection for debugging
+		// Check if it's a network error first
+		if (error && typeof error === "object" && "message" in error) {
+			const errorMsg = String(error.message || "")
+			if (
+				errorMsg.includes("fetch failed") ||
+				errorMsg.includes("ECONNREFUSED") ||
+				errorMsg.includes("Failed to fetch") ||
+				errorMsg.includes("NetworkError")
+			) {
+				logSSRError(error, "getDashboardData", "dashboard-overview", {
+					data: { 
+						errorType: "network",
+						activeOrgId,
+						message: "Backend connection failed",
+					},
+				})
+				return null
+			}
+		}
+		
+		// Log error details for debugging
 		logSSRError(error, "getDashboardData", "dashboard-overview", {
-			data: { organizationId: orgId },
+			data: { 
+				activeOrgId,
+			},
+		})
+
+
+		// Try multiple extraction methods
+		let errorMessage = "Unknown error"
+		let errorCode: string | undefined
+		let errorStatus: number | undefined
+		let errorDetails: unknown = null
+
+		// Method 1: Use error extraction utilities
+		const errorInfo = getErrorDetails(error)
+		errorMessage = errorInfo.message
+		errorCode = errorInfo.code
+		errorStatus = errorInfo.status
+		errorDetails = errorInfo.details
+
+		// Method 2: If that didn't work, try manual extraction
+		if (errorMessage === "An unexpected error occurred" || !errorMessage) {
+			if (error && typeof error === "object") {
+				// Try common error properties
+				if ("message" in error && typeof error.message === "string") {
+					errorMessage = error.message
+				}
+				if ("code" in error) {
+					errorCode = String(error.code)
+				}
+				if ("status" in error && typeof error.status === "number") {
+					errorStatus = error.status
+				}
+				if ("details" in error) {
+					errorDetails = error.details
+				}
+				// Try nested error (common in wrapped errors)
+				if ("error" in error && error.error) {
+					const nestedError = error.error
+					if (nestedError instanceof Error) {
+						errorMessage = nestedError.message || errorMessage
+					} else if (typeof nestedError === "string") {
+						errorMessage = nestedError
+					} else if (nestedError && typeof nestedError === "object" && "message" in nestedError) {
+						errorMessage = String(nestedError.message) || errorMessage
+					}
+				}
+			} else if (error instanceof Error) {
+				errorMessage = error.message || error.name || errorMessage
+			} else if (typeof error === "string") {
+				errorMessage = error
+			}
+		}
+
+		// Log with full context
+		logSSRError(error, "getDashboardData", "dashboard-overview", {
+			data: { 
+				automaticScoping: true,
+				activeOrgId,
+				errorMessage,
+				errorCode,
+				errorStatus,
+				isAPIError: errorInfo.isAPIError,
+				errorDetails,
+				rawErrorType: typeof error,
+				rawErrorConstructor: error?.constructor?.name,
+			},
 		})
 		
 		// Return null - DashboardClient handles null data gracefully
 		return null
 	}
-}
+	},
+	["dashboard"], // Cache key
+	{
+		tags: ["dashboard"],
+		revalidate: 60, // Revalidate every 60 seconds
+	}
+)
 
 // ===========================================
 // WALLET
@@ -222,20 +316,15 @@ export async function getDashboardData() {
 
 export async function getWalletData() {
 	const client = await getAuthClient()
-	const orgId = await getOrganizationIdOrNull()
-	
-	if (!orgId) {
-		console.warn("[getWalletData] No organization ID found for wallet data")
-		return null
-	}
 
+	// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
 	try {
 		const [wallet, withdrawals, transactions, holds, stats] = await Promise.all([
-			client.wallets.getOrganizationWallet(orgId),
-			client.wallets.listOrganizationWithdrawals(orgId, { skip: 0, take: 50 }),
-			client.wallets.getOrganizationWalletTransactions(orgId, { skip: 0, take: 50 }),
-			client.wallets.getWalletHolds(orgId),
-			client.wallets.getWithdrawalStats({ holderType: "organization", holderId: orgId }),
+			client.wallets.getOrganizationWallet(),
+			client.wallets.listOrganizationWithdrawals({ skip: 0, take: 50 }),
+			client.wallets.getOrganizationWalletTransactions({ skip: 0, take: 50 }),
+			client.wallets.getWalletHolds(),
+			client.wallets.getWithdrawalStats({ holderType: "organization" }),
 		])
 
 		return {
@@ -247,7 +336,7 @@ export async function getWalletData() {
 		}
 	} catch (error) {
 		logSSRError(error, "getWalletData", "wallet-data", {
-			data: { organizationId: orgId },
+			data: { automaticScoping: true },
 		})
 		return null
 	}
@@ -257,61 +346,56 @@ export async function getWalletData() {
 // CAMPAIGNS
 // ===========================================
 
-export async function getCampaignsData(status?: string) {
-	const client = await getAuthClient()
-	const orgId = await getOrganizationIdOrNull()
-	
-	if (!orgId) {
-		console.warn("[getCampaignsData] No organization ID found for campaigns data")
-		return {
-			campaigns: [],
-			data: [],
-			total: 0,
-		}
-	}
+export const getCampaignsData = unstable_cache(
+	async (status?: string) => {
+		const client = await getAuthClient()
 
-	const params: {
-		organizationId: string
-		skip: number
-		take: number
-		status?: shared.CampaignStatus
-	} = {
-		organizationId: orgId,
-		skip: 0,
-		take: 50,
-	}
-
-	if (status && status !== "all") {
-		params.status = status as shared.CampaignStatus
-	}
-
-	// Fetch campaigns with error handling - always return valid structure
-	try {
-		const response = await client.campaigns.listCampaigns(params)
-		// Return with 'campaigns' key for CampaignsClient compatibility
-		return { campaigns: response.data, ...response }
-	} catch (error) {
-		// CRITICAL: Log with full context BEFORE returning fallback
-		const orgId = await getOrganizationId().catch(() => "unknown")
-		logSSRError(error, "getCampaignsData", "campaigns", {
-			data: {
-				organizationId: orgId,
-				statusFilter: status,
-				fallbackUsed: true, // Important flag
-			},
-		})
-		
-		// Return empty structure - CampaignsClient handles empty data gracefully
-		return {
-			campaigns: [],
-			data: [],
-			total: 0,
+		// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
+		const params: {
+			skip: number
+			take: number
+			status?: shared.CampaignStatus
+		} = {
 			skip: 0,
 			take: 50,
-			hasMore: false,
 		}
+
+		if (status && status !== "all") {
+			params.status = status as shared.CampaignStatus
+		}
+
+		// Fetch campaigns with error handling - always return valid structure
+		try {
+			const response = await client.campaigns.listCampaigns(params)
+			// Return with 'campaigns' key for CampaignsClient compatibility
+			return { campaigns: response.data, ...response }
+		} catch (error) {
+			// CRITICAL: Log with full context BEFORE returning fallback
+			logSSRError(error, "getCampaignsData", "campaigns", {
+				data: {
+					automaticScoping: true,
+					statusFilter: status,
+					fallbackUsed: true, // Important flag
+				},
+			})
+		
+			// Return empty structure - CampaignsClient handles empty data gracefully
+			return {
+				campaigns: [],
+				data: [],
+				total: 0,
+				skip: 0,
+				take: 50,
+				hasMore: false,
+			}
+		}
+	},
+	["campaigns"], // Cache key
+	{
+		tags: ["campaigns"],
+		revalidate: 60, // Revalidate every 60 seconds
 	}
-}
+)
 
 export async function getCampaignDetailData(campaignId: string) {
 	const client = await getAuthClient()
@@ -319,14 +403,32 @@ export async function getCampaignDetailData(campaignId: string) {
 	const [campaign, stats, pricing, deliverables, performance, enrollments, platforms] =
 		await Promise.all([
 			client.campaigns.getCampaign(campaignId),
-			client.campaigns.getCampaignStats(campaignId).catch(() => undefined),
-			client.campaigns.getCampaignPricing(campaignId).catch(() => undefined),
-			client.campaigns.listCampaignDeliverables(campaignId).catch(() => ({ data: [] })),
-			client.campaigns.getCampaignPerformance(campaignId, {}).catch(() => ({ data: [] })),
+			client.campaigns.getCampaignStats(campaignId).catch((error) => {
+				logSSRError(error, "getCampaignDetailData", "campaign-stats", { data: { campaignId } })
+				return undefined
+			}),
+			client.campaigns.getCampaignPricing(campaignId).catch((error) => {
+				logSSRError(error, "getCampaignDetailData", "campaign-pricing", { data: { campaignId } })
+				return undefined
+			}),
+			client.campaigns.listCampaignDeliverables(campaignId).catch((error) => {
+				logSSRError(error, "getCampaignDetailData", "campaign-deliverables", { data: { campaignId } })
+				return { data: [] }
+			}),
+			client.campaigns.getCampaignPerformance(campaignId, {}).catch((error) => {
+				logSSRError(error, "getCampaignDetailData", "campaign-performance", { data: { campaignId } })
+				return { data: [] }
+			}),
 			client.enrollments
 				.listCampaignEnrollments(campaignId, { take: 100 })
-				.catch(() => ({ data: [] })),
-			client.integrations.listActivePlatforms().catch(() => ({ platforms: [] })),
+				.catch((error) => {
+					logSSRError(error, "getCampaignDetailData", "campaign-enrollments", { data: { campaignId } })
+					return { data: [] }
+				}),
+			client.integrations.listActivePlatforms().catch((error) => {
+				logSSRError(error, "getCampaignDetailData", "active-platforms", { data: { campaignId } })
+				return { platforms: [] }
+			}),
 		])
 
 	return {
@@ -346,16 +448,20 @@ export async function getCampaignDetailData(campaignId: string) {
 
 export async function getEnrollmentsData(status?: string, campaignId?: string) {
 	const client = await getAuthClient()
-	const orgId = await getOrganizationId()
 
+	// Industry Standard: Backend uses activeOrganizationId automatically
+	// For brands: Use listOrganizationEnrollments (all enrollments across all campaigns)
+	// For shoppers: Use listMyEnrollments (their own enrollments)
+	
+	// Check if user has active organization (brand) or is a shopper
+	const orgId = await getOrganizationIdOrNull()
+	
 	const params: {
-		organizationId?: string
 		skip: number
 		take: number
 		status?: shared.EnrollmentStatus
 		campaignId?: string
 	} = {
-		organizationId: orgId,
 		skip: 0,
 		take: 50,
 	}
@@ -368,7 +474,15 @@ export async function getEnrollmentsData(status?: string, campaignId?: string) {
 		params.campaignId = campaignId
 	}
 
-	const response = await client.enrollments.listMyEnrollments(params)
+	// If user has active organization, use organization-level endpoint (for brands)
+	// Otherwise, use shopper endpoint (for shoppers)
+	let response
+	if (orgId) {
+		response = await client.enrollments.listOrganizationEnrollments(params)
+	} else {
+		response = await client.enrollments.listMyEnrollments(params)
+	}
+	
 	// Return with 'enrollments' key for EnrollmentsClient compatibility
 	return { enrollments: response.data, ...response }
 }
@@ -381,11 +495,17 @@ export async function getEnrollmentDetailData(enrollmentId: string) {
 
 	// Fetch platforms and campaign deliverables for categorization
 	const [platforms, campaignDeliverables] = await Promise.all([
-		client.integrations.listActivePlatforms().catch(() => ({ platforms: [] })),
+		client.integrations.listActivePlatforms().catch((error) => {
+			logSSRError(error, "getEnrollmentDetailData", "active-platforms", { data: { enrollmentId } })
+			return { platforms: [] }
+		}),
 		enrollmentDetail.campaign?.id
 			? client.campaigns
 				.listCampaignDeliverables(enrollmentDetail.campaign.id)
-				.catch(() => ({ data: [] }))
+				.catch((error) => {
+					logSSRError(error, "getEnrollmentDetailData", "campaign-deliverables", { data: { enrollmentId, campaignId: enrollmentDetail.campaign?.id } })
+					return { data: [] }
+				})
 			: Promise.resolve({ data: [] }),
 	])
 
@@ -431,15 +551,14 @@ export async function getCategoriesData() {
 export async function getInvoicesData() {
 	try {
 		const client = await getAuthClient()
-		const orgId = await getOrganizationId()
 
-		// Use default page size from constants
+		// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
 		const DEFAULT_INVOICE_PAGE_SIZE = 50
-		const response = await client.invoices.listInvoices({ organizationId: orgId, skip: 0, take: DEFAULT_INVOICE_PAGE_SIZE })
+		const response = await client.invoices.listInvoices({ skip: 0, take: DEFAULT_INVOICE_PAGE_SIZE })
 		// Return with 'invoices' key for InvoicesClient compatibility
 		return { invoices: response.data || [], ...response }
 	} catch (error) {
-		console.error("Failed to fetch invoices data:", error)
+		logError(error, { source: "getInvoicesData", data: { action: "fetch invoices" } })
 		return { invoices: [], data: [], total: 0 }
 	}
 }
@@ -450,12 +569,24 @@ export async function getInvoicesData() {
 
 export async function getTeamData() {
 	const client = await getAuthClient()
-	const orgId = await getOrganizationId()
 
+	// Get active organization ID from session (single source of truth)
+	const activeOrgId = await getOrganizationIdOrNull() || undefined
+
+	// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
+	// But listInvitations requires organizationId parameter
 	const [members, invitations] = await Promise.all([
 		// listMembers was moved to Better Auth service
-		client.auth.listMembersAuth({ organizationId: orgId }).catch(() => ({ members: [] })),
-		client.auth.listInvitations({ organizationId: orgId }).catch(() => ({ invitations: [] })),
+		client.auth.listMembersAuth().catch((error) => {
+			logSSRError(error, "getTeamData", "members", { data: { activeOrgId } })
+			return { members: [] }
+		}),
+		activeOrgId
+			? client.auth.listInvitations({ organizationId: activeOrgId }).catch((error) => {
+				logSSRError(error, "getTeamData", "invitations", { data: { activeOrgId } })
+				return { invitations: [] }
+			})
+			: Promise.resolve({ invitations: [] }),
 	])
 
 	return {
@@ -470,81 +601,99 @@ export async function getTeamData() {
 
 export async function getSettingsData() {
 	const client = await getAuthClient()
-	const orgId = await getOrganizationIdOrNull()
-	
-	if (!orgId) {
-		console.warn("[getSettingsData] No organization ID found for settings data")
-		return {
-			user: {
-				id: "",
-				name: "",
-				email: "",
-				phone: "",
-				role: "owner",
-				emailVerified: false,
-				twoFactorEnabled: false,
-			},
-			organization: {
-				id: "",
-				name: "Organization",
-				slug: "",
-				phone: "",
-				industry: "",
-				email: "",
-			},
-			bankAccounts: [],
-			gstDetails: null,
-		}
-	}
 
+	// Industry Standard: Backend uses activeOrganizationId automatically - no need to check here
+	// Backend will return appropriate errors if no active org
+
+	// Get active organization ID from session (single source of truth)
+	const activeOrgId = await getOrganizationIdOrNull()
+
+	// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
 	// Fetch all data with individual error handling - never fail completely
 	// Each call has fallback so page always loads, even with partial data
 	const [organization, bankAccounts, userData] = await Promise.allSettled([
-		client.organizations.getOrganization(orgId).catch((error) => {
+		activeOrgId
+			? client.organizations.getOrganization(activeOrgId).catch((error) => {
+					// CRITICAL: Log with full context BEFORE returning fallback
+					logAPIError(error, "getSettingsData", `/organizations/${activeOrgId}`, { automaticScoping: true })
+					// Return minimal organization object so page can still render
+					return {
+						id: "",
+						name: "Organization",
+						slug: "",
+						logo: undefined,
+						description: undefined,
+						website: undefined,
+						gstNumber: undefined,
+						gstVerified: false,
+						gstLegalName: undefined,
+						gstTradeName: undefined,
+						panNumber: undefined,
+						panVerified: false,
+						panHolderName: undefined,
+						cinNumber: undefined,
+						businessType: undefined,
+						industryCategory: undefined,
+						contactPerson: undefined,
+						phoneNumber: undefined,
+						email: undefined,
+						phone: undefined,
+						industry: undefined,
+						approvalStatus: "draft" as const,
+						accountTier: "standard" as const,
+						creditLimit: undefined,
+						address: undefined,
+						city: undefined,
+						state: undefined,
+						country: "IN",
+						postalCode: undefined,
+						createdAt: new Date().toISOString(),
+						updatedAt: new Date().toISOString(),
+					} as any
+				})
+			: Promise.resolve({
+					id: "",
+					name: "Organization",
+					slug: "",
+					logo: undefined,
+					description: undefined,
+					website: undefined,
+					gstNumber: undefined,
+					gstVerified: false,
+					gstLegalName: undefined,
+					gstTradeName: undefined,
+					panNumber: undefined,
+					panVerified: false,
+					panHolderName: undefined,
+					cinNumber: undefined,
+					businessType: undefined,
+					industryCategory: undefined,
+					contactPerson: undefined,
+					phoneNumber: undefined,
+					email: undefined,
+					phone: undefined,
+					industry: undefined,
+					approvalStatus: "draft" as const,
+					accountTier: "standard" as const,
+					creditLimit: undefined,
+					address: undefined,
+					city: undefined,
+					state: undefined,
+					country: "IN",
+					postalCode: undefined,
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				} as any),
+		client.organizations.listBankAccounts().catch((error) => {
 			// CRITICAL: Log with full context BEFORE returning fallback
-			logAPIError(error, "getSettingsData", `/organizations/${orgId}`, { organizationId: orgId })
-			// Return minimal organization object so page can still render
-			return {
-				id: orgId,
-				name: "Organization",
-				slug: "",
-				logo: undefined,
-				description: undefined,
-				website: undefined,
-				gstNumber: undefined,
-				gstVerified: false,
-				gstLegalName: undefined,
-				gstTradeName: undefined,
-				panNumber: undefined,
-				panVerified: false,
-				panHolderName: undefined,
-				cinNumber: undefined,
-				businessType: undefined,
-				industryCategory: undefined,
-				contactPerson: undefined,
-				phoneNumber: undefined,
-				email: undefined,
-				phone: undefined,
-				industry: undefined,
-				approvalStatus: "draft" as const,
-				accountTier: "standard" as const,
-				creditLimit: undefined,
-				address: undefined,
-				city: undefined,
-				state: undefined,
-				country: "IN",
-				postalCode: undefined,
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}
-		}),
-		client.organizations.listBankAccounts(orgId).catch((error) => {
-			// CRITICAL: Log with full context BEFORE returning fallback
-			logAPIError(error, "getSettingsData", `/organizations/${orgId}/bank-accounts`, { organizationId: orgId })
+			logAPIError(error, "getSettingsData", `/organizations/bank-accounts`, { automaticScoping: true })
 			// Return empty array so page can still render
 			return { data: [] }
 		}),
-		client.auth.me().catch(() => null), // Get user data, fallback to null if fails
+		client.auth.me().catch((error) => {
+			logSSRError(error, "getSettingsData", "user-data", { data: { automaticScoping: true } })
+			return null
+		}), // Get user data, fallback to null if fails
 	])
 
 	// Extract values from Promise.allSettled results
@@ -554,12 +703,12 @@ export async function getSettingsData() {
 
 	let gstDetails = null
 	try {
-		const gstResponse = await client.organizations.getGSTDetails(orgId)
+		const gstResponse = await client.organizations.getGSTDetails()
 		gstDetails = gstResponse.gstDetails
 	} catch (error) {
 		// GST not verified yet or error - continue without it
 		logSSRError(error, "getSettingsData", "gst-details", {
-			data: { organizationId: orgId, fallbackUsed: true },
+			data: { automaticScoping: true, fallbackUsed: true },
 		})
 	}
 
@@ -586,7 +735,7 @@ export async function getSettingsData() {
 				emailVerified: false,
 			},
 		organization: {
-			id: orgResult.id || orgId,
+			id: orgResult.id || "",
 			...orgResult,
 			// Use standardized field names (backend now provides phone, industry, email)
 			phone: orgResult.phone || orgResult.phoneNumber || "",
@@ -603,32 +752,46 @@ export async function getSettingsData() {
 // ===========================================
 
 export async function getProfileData() {
-	const client = await getAuthClient()
-
 	try {
-		// Try to get the current user from Encore's auth service
-		// This requires the request to be authenticated (token in cookies/headers)
-		const me = await client.auth.me()
+		// Use getSession() as single source of truth
+		const sessionResult = await getSession()
+		
+		if (!sessionResult.success || !sessionResult.user) {
+			throw new Error("Session not found")
+		}
+
+		const user = sessionResult.user as {
+			userID: string
+			name: string
+			email: string
+			phone?: string
+			organizationRole?: string
+			role?: string
+			image?: string
+			emailVerified?: boolean
+			twoFactorEnabled?: boolean
+			activeOrganizationId?: string
+		}
 
 		return {
 			user: {
-				id: me.userID,
-				name: me.name,
-				email: me.email,
-				phone: me.phone || "", // ✅ Backend now provides phone field
-				role: me.organizationRole || me.role,
-				image: me.image,
-				emailVerified: me.emailVerified,
-				twoFactorEnabled: me.twoFactorEnabled ?? false, // ✅ Backend now provides twoFactorEnabled field
+				id: user.userID,
+				name: user.name,
+				email: user.email,
+				phone: user.phone || "",
+				role: user.organizationRole || user.role || "user",
+				image: user.image,
+				emailVerified: user.emailVerified || false,
+				twoFactorEnabled: user.twoFactorEnabled ?? false,
 			},
 			sessions: [],
-			activeOrganizationId: me.activeOrganizationId,
+			activeOrganizationId: user.activeOrganizationId,
 		}
 	} catch (error) {
 		// In production, should redirect to sign-in or show error
 		// For development, we can provide a fallback, but this should be removed in production
 		if (process.env.NODE_ENV === "development") {
-			console.warn("Failed to fetch user profile, using fallback data:", error)
+			logWarn("Failed to fetch user profile, using fallback data", { source: "getProfileData", data: { error } })
 			return {
 				user: {
 					id: "1",

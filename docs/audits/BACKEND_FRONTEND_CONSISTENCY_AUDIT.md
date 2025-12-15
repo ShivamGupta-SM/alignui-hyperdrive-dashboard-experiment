@@ -491,3 +491,6 @@ Frontend parses `userAgent` client-side, but this is unreliable and incomplete.
 
 **Status:** ⚠️ **Action Required** - Fix frontend bugs immediately, coordinate with backend for missing fields/endpoints
 
+
+
+

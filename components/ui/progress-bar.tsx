@@ -156,7 +156,7 @@ function ProgressBarSteps({
 			<div className="flex gap-1">
 				{Array.from({ length: steps }).map((_, index) => (
 					<div
-						key={index}
+						key={`progress-step-${index}-${currentStep}`}
 						className={cn(root(), "flex-1")}
 						role="progressbar"
 						aria-valuenow={index < currentStep ? 100 : 0}
@@ -170,7 +170,7 @@ function ProgressBarSteps({
 			{labels && labels.length > 0 && (
 				<div className="flex justify-between text-paragraph-xs text-text-sub-600">
 					{labels.map((label, index) => (
-						<span key={index} className={cn(index < currentStep && "text-text-strong-950")}>
+						<span key={`progress-label-${label}-${index}`} className={cn(index < currentStep && "text-text-strong-950")}>
 							{label}
 						</span>
 					))}

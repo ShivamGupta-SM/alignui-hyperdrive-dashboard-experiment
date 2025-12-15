@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import crypto from "node:crypto"
-import { handleServerAuthError } from "@/lib/error-handler-server"
+import { handleServerAuthError } from "@/lib/error-handler"
 import { handleAPIError } from "@/lib/encore"
 import type { SettingsActionResult } from "@/lib/types"
 import {
@@ -89,7 +89,26 @@ export async function updateOrganization(data: unknown): Promise<SettingsActionR
 			return { success: false, error: "Organization ID not found" }
 		}
 
-		await client.organizations.updateOrganization(orgId, validation.data)
+		// Map frontend field names to backend field names
+		const updateData: {
+			id: string
+			name?: string
+			website?: string
+			email?: string
+			phoneNumber?: string
+			industryCategory?: string
+			address?: string
+		} = {
+			id: orgId,
+			name: validation.data.name,
+			website: validation.data.website || undefined,
+			email: validation.data.email || undefined,
+			phoneNumber: validation.data.phone || undefined, // Map phone → phoneNumber
+			industryCategory: validation.data.industry || undefined, // Map industry → industryCategory
+			address: validation.data.address || undefined,
+		}
+
+		await client.organizations.updateOrganization(orgId, updateData)
 		revalidatePath("/dashboard/settings")
 
 		return { success: true, message: "Organization updated successfully" }
@@ -143,6 +162,7 @@ export async function updateNotifications(data: unknown): Promise<SettingsAction
 	try {
 		const client = getEncoreClient()
 		// TODO: Implement notification settings update when endpoint is available
+		// See: Backend ticket - Add notification settings update endpoint
 		// await client.settings.updateNotifications(validation.data)
 
 		revalidatePath("/dashboard/settings")
@@ -175,9 +195,9 @@ export async function addBankAccount(data: unknown): Promise<SettingsActionResul
 			return { success: false, error: "Organization ID not found" }
 		}
 
-		const result = await client.organizations.addBankAccount(orgId, {
+		// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
+		const result = await client.organizations.addBankAccount({
 			...validation.data,
-			accountHolderName: validation.data.accountHolder,
 		})
 		const accountId = result.id
 
@@ -211,8 +231,8 @@ export async function removeBankAccount(accountId: string): Promise<SettingsActi
 			return { success: false, error: "Organization ID not found" }
 		}
 
-		// Use deleteBankAccount endpoint (exists in backend)
-		await client.organizations.deleteBankAccount(orgId, accountId)
+		// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
+		await client.organizations.deleteBankAccount(accountId)
 
 		revalidatePath("/dashboard/settings")
 
@@ -240,7 +260,8 @@ export async function setDefaultBankAccount(accountId: string): Promise<Settings
 			return { success: false, error: "Organization ID not found" }
 		}
 
-		await client.organizations.setDefaultBankAccount(orgId, accountId)
+		// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
+		await client.organizations.setDefaultBankAccount(accountId)
 
 		revalidatePath("/dashboard/settings")
 
@@ -268,10 +289,10 @@ export async function verifyBankAccount(accountId: string): Promise<SettingsActi
 			return { success: false, error: "Organization ID not found" }
 		}
 
-		// ⚠️ NOTE: This API endpoint is currently unimplemented in the backend
-		// It will throw APIError.unimplemented until RazorpayX integration is complete
-		// See: Hypedrive Encore/organizations/organizations.ts:728-737
-		const result = await client.organizations.verifyBankAccount(orgId, accountId)
+		// ✅ NOTE: Bank account verification is now fully implemented with RazorpayX integration
+		// See: Hypedrive Encore/organizations/organizations.ts:984-1068
+		// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
+		const result = await client.organizations.verifyBankAccount(accountId)
 
 		revalidatePath("/dashboard/settings")
 
@@ -505,6 +526,7 @@ export async function getUserSessions(): Promise<{
 		// Map Encore session format to our UI format
 		// ❌ Backend missing: device, browser, location, lastActive, current, iconType
 		// TODO: Backend should add these fields to SessionResponse
+		// See: Backend ticket - Extend SessionResponse with device/browser/location fields
 		const sessions = (result.sessions || []).map((session: auth.SessionResponse) => {
 			// Parse userAgent for device/browser if available
 			const userAgent = session.userAgent || ""

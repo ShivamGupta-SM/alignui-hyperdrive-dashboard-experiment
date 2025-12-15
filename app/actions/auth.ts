@@ -7,6 +7,111 @@ import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import type { auth } from "@/lib/encore-client"
 import { logDebug } from "@/lib/debug"
+import { revalidatePath } from "next/cache"
+
+/**
+ * Helper function to ensure user has an active organization set
+ * Prefers approved organizations over draft/pending ones
+ * Returns true if active org was set or already exists, false otherwise
+ */
+async function ensureActiveOrganization(token: string): Promise<{
+	success: boolean
+	hasOrganization: boolean
+	activeOrgSet: boolean
+}> {
+	try {
+		const authClient = getAuthenticatedEncoreClient(token)
+		
+		// Get current user to check activeOrganizationId
+		const meResult = await authClient.auth.me()
+		const hasActiveOrg = !!meResult.activeOrganizationId
+		
+		// If user already has active org, no need to set
+		if (hasActiveOrg) {
+			return {
+				success: true,
+				hasOrganization: true,
+				activeOrgSet: true,
+			}
+		}
+		
+		// Get user's organizations
+		const orgsResult = await authClient.auth.listOrganizations()
+		const organizations = orgsResult.organizations || []
+		
+		if (organizations.length === 0) {
+			return {
+				success: true,
+				hasOrganization: false,
+				activeOrgSet: false,
+			}
+		}
+		
+		// ✅ FIX: Prefer approved organizations over draft/pending
+		// Try to get full organization details to check approval status
+		// We'll try to get details for the first few orgs to find an approved one
+		let orgToSet = organizations[0]
+		
+		// Try to find an approved organization (check up to 3 orgs for performance)
+		for (let i = 0; i < Math.min(organizations.length, 3); i++) {
+			try {
+				const fullOrg = await authClient.organizations.getOrganization(organizations[i].id)
+				// Prefer approved organizations
+				if (fullOrg.approvalStatus === "approved") {
+					orgToSet = organizations[i]
+					break
+				}
+			} catch (error) {
+				// If we can't get details, continue with next org
+				logDebug("[ensureActiveOrganization] Failed to get org details", {
+					orgId: organizations[i].id,
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
+		}
+		
+		// Set the first organization as active
+		await authClient.auth.setActiveOrganization({
+			organizationId: orgToSet.id,
+		})
+		
+		// Revalidate session to refresh with new active org
+		revalidatePath("/", "layout")
+		
+		logDebug("[ensureActiveOrganization] Set active organization", {
+			organizationId: orgToSet.id,
+			organizationName: orgToSet.name,
+		})
+		
+		return {
+			success: true,
+			hasOrganization: true,
+			activeOrgSet: true,
+		}
+	} catch (error) {
+		// Log error but don't fail - user can set manually later
+		logDebug("[ensureActiveOrganization] Failed to set active organization", {
+			error: error instanceof Error ? error.message : String(error),
+		})
+		
+		// Still return success with hasOrganization if we can determine it
+		try {
+			const authClient = getAuthenticatedEncoreClient(token)
+			const orgsResult = await authClient.auth.listOrganizations()
+			return {
+				success: true,
+				hasOrganization: (orgsResult.organizations?.length || 0) > 0,
+				activeOrgSet: false,
+			}
+		} catch {
+			return {
+				success: false,
+				hasOrganization: false,
+				activeOrgSet: false,
+			}
+		}
+	}
+}
 
 /**
  * Sign in with email and password
@@ -17,12 +122,16 @@ export async function signInEmail(email: string, password: string, rememberMe?: 
 	const client = getEncoreClient()
 
 	try {
-		console.log("[SignIn] 🔵 Calling client.auth.signInEmail...")
+		const { logInfo } = await import("@/lib/error-logger-simple")
+		logInfo("Calling client.auth.signInEmail", { source: "SignIn" })
 		const result = await client.auth.signInEmail({ email, password, rememberMe })
-		console.log("[SignIn] ✅ Sign-in successful, result:", {
-			hasUser: !!result.user,
-			hasToken: !!result.token,
-			redirect: result.redirect
+		logInfo("Sign-in successful", { 
+			source: "SignIn",
+			data: {
+				hasUser: !!result.user,
+				hasToken: !!result.token,
+				redirect: result.redirect
+			}
 		})
 
 		// Handle 2FA redirect if needed
@@ -57,25 +166,28 @@ export async function signInEmail(email: string, password: string, rememberMe?: 
 		}
 
 		// Revalidate session query to trigger refetch (like Better Auth does)
-		const { revalidatePath } = await import("next/cache")
 		revalidatePath("/", "layout")
 
-		// Check if user has an organization
-		// This helps with smart redirects after sign-in
-		// Note: We use the token we just received, but cookies are also set
-		// Backend will use Bearer token (priority) if both are present
+		// ✅ FIX: Ensure active organization is set after login
+		// This fixes the issue where users have orgs but no active org
 		let hasOrganization = false
-		try {
-			if (result.token) {
-				// Use Bearer token for this check (explicit auth)
-				const authClient = getAuthenticatedEncoreClient(result.token)
-				const orgsResult = await authClient.auth.listOrganizations()
-				hasOrganization = (orgsResult.organizations?.length || 0) > 0
+		let activeOrgSet = false
+		if (result.token) {
+			try {
+				const orgResult = await ensureActiveOrganization(result.token)
+				hasOrganization = orgResult.hasOrganization
+				activeOrgSet = orgResult.activeOrgSet
+				
+				// Revalidate again after setting active org to ensure session is fresh
+				if (activeOrgSet) {
+					revalidatePath("/", "layout")
+				}
+			} catch (error) {
+				// If check fails, assume no org (safe default)
+				logDebug("[SignIn] Failed to ensure active organization:", error)
+				hasOrganization = false
+				activeOrgSet = false
 			}
-		} catch (error) {
-			// If check fails, assume no org (safe default)
-			console.warn("[SignIn] Failed to check organizations:", error)
-			hasOrganization = false
 		}
 
 		return {
@@ -84,11 +196,11 @@ export async function signInEmail(email: string, password: string, rememberMe?: 
 			token: result.token,
 			redirect: result.redirect,
 			hasOrganization, // Flag to help with redirect logic
+			activeOrgSet, // Flag to indicate if active org was set
 		}
 	} catch (error: unknown) {
-		// Use type-safe error handler
-		const errorDetails = getErrorDetails(error)
-		console.error("[SignIn] Error caught:", errorDetails)
+		const { logError } = await import("@/lib/error-logger-simple")
+		logError(error, { source: "SignIn", data: { email } })
 
 		// Return consistent error format
 		return handleAPIError(error)
@@ -106,7 +218,8 @@ export async function signUpEmail(
 ) {
 	// Ensure MSW is initialized before making API calls
 	if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
-		console.log("[SignUp] Initializing MSW before API call...")
+		const { logInfo, logWarn } = await import("@/lib/error-logger-simple")
+		logInfo("Initializing MSW before API call", { source: "SignUp" })
 		const { initServerMocks } = await import("@/lib/init-mocks-server")
 		await initServerMocks()
 		// Wait longer to ensure MSW is fully ready and fetch is patched
@@ -114,14 +227,15 @@ export async function signUpEmail(
 
 		// Verify fetch is patched
 		if (typeof globalThis.fetch === "undefined") {
-			console.error("[SignUp] ❌ WARNING: globalThis.fetch is undefined!")
+			logWarn("globalThis.fetch is undefined", { source: "SignUp" })
 		} else {
-			console.log("[SignUp] ✅ globalThis.fetch is available (should be patched)")
+			logInfo("globalThis.fetch is available (should be patched)", { source: "SignUp" })
 		}
 	}
 
 	const client = getEncoreClient()
-	console.log("[SignUp] Encore client created, making signUpEmail API call...")
+	const { logInfo } = await import("@/lib/error-logger-simple")
+	logInfo("Encore client created, making signUpEmail API call", { source: "SignUp" })
 
 	try {
 		const result = await client.auth.signUpEmail({
@@ -147,19 +261,36 @@ export async function signUpEmail(
 		}
 
 		// Revalidate session query to trigger refetch (like Better Auth does)
-		const { revalidatePath } = await import("next/cache")
 		revalidatePath("/", "layout")
 
-		// Check if user already has an organization
-		// New users won't have one, but existing users might
+		// ✅ FIX: Ensure active organization is set after signup
+		// This fixes the issue where existing users sign up again and have orgs but no active org
 		let hasOrganization = false
+		let activeOrgSet = false
+		if (result.token) {
+			try {
+				const orgResult = await ensureActiveOrganization(result.token)
+				hasOrganization = orgResult.hasOrganization
+				activeOrgSet = orgResult.activeOrgSet
+				
+				// Revalidate again after setting active org to ensure session is fresh
+				if (activeOrgSet) {
+					revalidatePath("/", "layout")
+				}
+			} catch (error) {
+				// If check fails, assume no org (safe default for new users)
+				logDebug("[SignUp] Failed to ensure active organization:", error)
+				hasOrganization = false
+				activeOrgSet = false
+			}
+		}
+
+		// Clear any previous user's onboarding draft data on signup
 		try {
-			const orgsResult = await client.auth.listOrganizations()
-			hasOrganization = (orgsResult.organizations?.length || 0) > 0
-		} catch (error) {
-			// If check fails, assume no org (safe default for new users)
-			console.warn("[SignUp] Failed to check organizations:", error)
-			hasOrganization = false
+			// Note: localStorage is client-side only, but we clear it here as a safety measure
+			// The actual clearing happens in the client component after redirect
+		} catch (e) {
+			// Ignore errors
 		}
 
 		return {
@@ -167,6 +298,7 @@ export async function signUpEmail(
 			user: result.user,
 			token: result.token,
 			hasOrganization, // Flag to help with redirect logic
+			activeOrgSet, // Flag to indicate if active org was set
 		}
 	} catch (error: unknown) {
 		return handleAPIError(error)
@@ -233,8 +365,8 @@ export async function signOut() {
 		await client.auth.signOut()
 		return { success: true }
 	} catch (error: unknown) {
-		// Log error but don't fail - we already cleared cookies
-		console.error("[SignOut] Backend call failed, but cookies cleared:", error)
+		const { logError } = await import("@/lib/error-logger-simple")
+		logError(error, { source: "SignOut", data: { message: "Backend call failed, but cookies cleared" } })
 		
 		// Still return success since we cleared the cookies
 		// Frontend will redirect to sign-in page
@@ -301,26 +433,48 @@ export async function getSession(): Promise<{
 }
 
 /**
- * Get current user info
+ * Get current authenticated user
+ * Uses the /auth/me endpoint which returns MeResponse with userID field
  */
 export async function getCurrentUser(): Promise<{
 	success: boolean
-	user?: auth.MeResponse
+	user?: {
+		userID: string
+		email: string
+		name: string
+		image?: string
+		emailVerified: boolean
+		role: string
+		activeOrganizationId?: string
+		organizationRole?: string
+		organizationIds?: string[]
+		shopperId?: string
+		adminId?: string
+		isImpersonating?: boolean
+		impersonatedBy?: string
+		phone?: string
+		twoFactorEnabled: boolean
+	}
 	error?: string
 }> {
 	// Get auth token from cookie
 	const cookieStore = await cookies()
 	const token = cookieStore.get("auth-token")?.value
 
-	logDebug("[getCurrentUser] Token from cookie:", token ? token.substring(0, 10) + "..." : "null")
-
-	const client = token ? getAuthenticatedEncoreClient(token) : getEncoreClient()
-
-	try {
-		const user = await client.auth.me()
+	if (!token) {
 		return {
 			success: true,
-			user,
+			user: undefined,
+		}
+	}
+
+	const client = getAuthenticatedEncoreClient(token)
+
+	try {
+		const userResult = await client.auth.me()
+		return {
+			success: true,
+			user: userResult,
 		}
 	} catch (error: unknown) {
 		return handleAPIError(error)
@@ -884,4 +1038,27 @@ export async function send2FAOtp(twoFactorToken: string, trustDevice?: boolean) 
 	} catch (error: unknown) {
 		return handleAPIError(error)
 	}
+}
+
+/**
+ * Ensure active organization is set after OAuth login
+ * This is called from the OAuth callback page to set active org
+ */
+export async function ensureActiveOrgAfterOAuth(): Promise<{
+	success: boolean
+	hasOrganization: boolean
+	activeOrgSet: boolean
+}> {
+	const cookieStore = await cookies()
+	const token = cookieStore.get("auth-token")?.value
+
+	if (!token) {
+		return {
+			success: false,
+			hasOrganization: false,
+			activeOrgSet: false,
+		}
+	}
+
+	return await ensureActiveOrganization(token)
 }

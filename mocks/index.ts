@@ -127,6 +127,7 @@ export async function initMocks() {
 		try {
 			console.log("[MSW Browser] Importing worker...")
 			const { worker, startOptions } = await import("./browser")
+			const { handlers } = await import("./handlers")
 			
 			console.log("[MSW Browser] Starting worker...")
 			console.log("[MSW Browser] Handler count:", handlers.length)

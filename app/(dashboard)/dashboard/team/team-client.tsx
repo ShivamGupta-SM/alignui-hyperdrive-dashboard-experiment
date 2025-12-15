@@ -36,7 +36,6 @@ import { inviteMemberSchema, type InviteMemberFormData } from "@/lib/validations
 import { useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import type { auth } from "@/lib/encore-client"
-import { formatDateMedium } from "@/lib/format"
 
 // Types (simplified for internal use or imported if shared)
 // Assuming Member type is available or just using the shape
@@ -106,7 +105,13 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 	const invitations = initialData?.invitations ?? []
 	const currentUserId = session?.user?.id ? String(session.user.id) : ""
 
-	const formatDate = (date: Date | string): string => formatDateMedium(date)
+	const formatDate = (date: Date | string) => {
+		return new Date(date).toLocaleDateString("en-IN", {
+			month: "short",
+			day: "numeric",
+			year: "numeric",
+		})
+	}
 
 	// Stats
 	const stats = React.useMemo(

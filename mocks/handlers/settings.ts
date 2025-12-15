@@ -20,12 +20,12 @@ export const settingsHandlers = [
 	// PUT /organizations/:orgId/settings
 	http.put(encoreUrl("/organizations/:orgId/settings"), async ({ params, request }) => {
 		const { orgId } = params as { orgId: string }
-		const body = await request.json()
+		const body = (await request.json()) as Record<string, unknown>
 		const settings = db.organizationSettings.findFirst((q) =>
 			q.where({ organizationId: orgId || "1" })
 		)
 		if (!settings) return encoreErrorResponse("Settings not found", 404)
-		return encoreResponse({ ...settings, ...body })
+		return encoreResponse({ ...(settings as Record<string, unknown>), ...(body as Record<string, unknown>) })
 	}),
 
 	// GET /organizations/:orgId/bank-accounts
@@ -87,13 +87,10 @@ export const settingsHandlers = [
 			return encoreErrorResponse("Bank account not found", 404)
 		}
 
-		// Update bank account in database
-		const updated = db.bankAccounts.update({
-			where: { id },
-			data: {
-				...body,
-			},
-		})
+		// Update bank account in database - use findFirst + manual update pattern
+		const updated = { ...bankAccount, ...body }
+		db.bankAccounts.delete((q) => q.where({ id: id }))
+		db.bankAccounts.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -110,13 +107,10 @@ export const settingsHandlers = [
 			return encoreErrorResponse("Bank account not found", 404)
 		}
 
-		// Update bank account in database
-		const updated = db.bankAccounts.update({
-			where: { id },
-			data: {
-				...body,
-			},
-		})
+		// Update bank account in database - use findFirst + manual update pattern
+		const updated = { ...bankAccount, ...body }
+		db.bankAccounts.delete((q) => q.where({ id: id }))
+		db.bankAccounts.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -138,7 +132,7 @@ export const settingsHandlers = [
 		}
 
 		// Delete bank account from database
-		db.bankAccounts.delete({ where: { id } })
+		db.bankAccounts.delete((q) => q.where({ id: id }))
 
 		return encoreResponse({ deleted: true })
 	}),
@@ -150,34 +144,25 @@ export const settingsHandlers = [
 		if (!gst) return encoreErrorResponse("GST details not found", 404)
 		return encoreResponse({
 			...gst,
-			registrationDate:
-				gst.registrationDate instanceof Date
-					? gst.registrationDate.toISOString()
-					: gst.registrationDate,
+			registrationDate: new Date().toISOString(), // Not in schema, use current time
 		})
 	}),
 
 	// PUT /organizations/:orgId/gst
 	http.put(encoreUrl("/organizations/:orgId/gst"), async ({ params, request }) => {
 		const { orgId } = params as { orgId: string }
-		const body = await request.json()
+		const body = (await request.json()) as Record<string, unknown>
 		const gst = db.gstDetails.findFirst((q) => q.where({ organizationId: orgId || "1" }))
 		if (!gst) return encoreErrorResponse("GST details not found", 404)
 
-		// Update GST details in database
-		const updated = db.gstDetails.update({
-			where: { organizationId: orgId || "1" },
-			data: {
-				...body,
-			},
-		})
+		// Update GST details in database - use findFirst + manual update pattern
+		const updated = { ...(gst as Record<string, unknown>), ...body }
+		db.gstDetails.delete((q) => q.where({ organizationId: orgId || "1" }))
+		db.gstDetails.create(updated as typeof gst)
 
 		return encoreResponse({
 			...updated,
-			registrationDate:
-				updated.registrationDate instanceof Date
-					? updated.registrationDate.toISOString()
-					: updated.registrationDate,
+			registrationDate: new Date().toISOString(), // Not in schema, use current time
 		})
 	}),
 
@@ -201,18 +186,13 @@ export const settingsHandlers = [
 			return encoreErrorResponse("GST details already exist for this organization", 400)
 		}
 
-		const now = new Date().toISOString()
 		const newGstDetails = {
-			id: `gst-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
 			organizationId: orgId || "1",
 			gstNumber: body.gstNumber,
 			legalName: body.legalName || "",
 			tradeName: body.tradeName || "",
 			address: body.address || "",
-			isVerified: false,
-			registrationDate: now,
-			createdAt: now,
-			updatedAt: now,
+			gstStatus: "pending", // Required by schema
 		}
 
 		// Save to database
@@ -220,7 +200,7 @@ export const settingsHandlers = [
 
 		return encoreResponse({
 			...newGstDetails,
-			registrationDate: newGstDetails.registrationDate,
+			registrationDate: new Date().toISOString(), // Not in schema, use current time
 		})
 	}),
 
@@ -234,7 +214,7 @@ export const settingsHandlers = [
 		}
 
 		// Delete GST details from database
-		db.gstDetails.delete({ where: { id: gst.id } })
+		db.gstDetails.delete((q) => q.where({ organizationId: orgId || "1" }))
 
 		return encoreResponse({ deleted: true })
 	}),

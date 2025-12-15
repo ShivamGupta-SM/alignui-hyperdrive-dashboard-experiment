@@ -1,8 +1,12 @@
-"use client"
-
+import type { Metadata } from "next"
 import Link from "next/link"
 import * as Button from "@/components/ui/button"
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr"
+
+export const metadata: Metadata = {
+	title: "Terms of Service",
+	description: "Hypedrive Terms of Service - Legal agreement for using our platform",
+}
 
 export default function TermsPage() {
 	return (

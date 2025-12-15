@@ -51,9 +51,13 @@ export const notificationsHandlers = [
 	http.post(encoreUrl("/notifications/:id/read"), async ({ params }) => {
 		await delay(DELAY.FAST)
 		const { id } = params
+		const notificationId = Array.isArray(id) ? id[0] : id
+		if (!notificationId) {
+			return encoreNotFoundResponse("Notification")
+		}
 		const auth = getAuthContext()
 		const notification = db.notifications.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId || "1" })
+			q.where({ id: notificationId as string, organizationId: auth.organizationId || "1" })
 		)
 		if (!notification) return encoreNotFoundResponse("Notification")
 		return encoreResponse({ ...notification, isRead: true })
@@ -66,12 +70,11 @@ export const notificationsHandlers = [
 			q.where({ organizationId: auth.organizationId || "1" })
 		)
 
-		// Mark all as read
+		// Mark all as read - use findFirst + manual update pattern
 		for (const notification of notifications) {
-			db.notifications.update({
-				where: { id: notification.id },
-				data: { isRead: true },
-			})
+			const updated = { ...notification, isRead: true }
+			db.notifications.delete((q) => q.where({ id: notification.id }))
+			db.notifications.create(updated)
 		}
 
 		return encoreResponse({ success: true })
@@ -118,16 +121,20 @@ export const notificationsHandlers = [
 	http.delete(encoreUrl("/notifications/:id"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const notificationId = Array.isArray(id) ? id[0] : id
+		if (!notificationId) {
+			return encoreNotFoundResponse("Notification")
+		}
 
 		const notification = db.notifications.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId || "1" })
+			q.where({ id: notificationId as string, organizationId: auth.organizationId || "1" })
 		)
 		if (!notification) {
 			return encoreNotFoundResponse("Notification")
 		}
 
 		// Delete notification from database
-		db.notifications.delete({ where: { id } })
+		db.notifications.delete((q) => q.where({ id: notificationId as string }))
 
 		return encoreResponse({ deleted: true })
 	}),

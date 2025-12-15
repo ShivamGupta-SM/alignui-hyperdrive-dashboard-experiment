@@ -1,12 +1,13 @@
 "use client"
 
-import * as React from "react"
+import { Component, useEffect, type ReactNode, type ErrorInfo } from "react"
+import Link from "next/link"
 import * as Button from "@/components/ui/button"
 import { ArrowClockwise, House, WarningCircle } from "@phosphor-icons/react"
 
 interface ErrorBoundaryProps {
-	children: React.ReactNode
-	fallback?: React.ReactNode
+	children: ReactNode
+	fallback?: ReactNode
 }
 
 interface ErrorBoundaryState {
@@ -18,7 +19,7 @@ interface ErrorBoundaryState {
  * Error Boundary Component
  * Catches JavaScript errors anywhere in the child component tree
  */
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 	constructor(props: ErrorBoundaryProps) {
 		super(props)
 		this.state = { hasError: false, error: null }
@@ -28,7 +29,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 		return { hasError: true, error }
 	}
 
-	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+	componentDidCatch(error: Error, errorInfo: ErrorInfo) {
 		// Log error to console in development
 		console.error("Error Boundary caught an error:", error, errorInfo)
 
@@ -67,10 +68,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 							Try Again
 						</Button.Root>
 						<Button.Root variant="neutral" asChild>
-							<a href="/dashboard">
+							<Link href="/dashboard">
 								<Button.Icon as={House} />
 								Go to Dashboard
-							</a>
+							</Link>
 						</Button.Root>
 					</div>
 				</div>
@@ -132,7 +133,7 @@ interface PageErrorProps {
 }
 
 export function PageError({ error, reset }: PageErrorProps) {
-	React.useEffect(() => {
+	useEffect(() => {
 		// Log error to console
 		console.error("Page Error:", error)
 	}, [error])
@@ -147,24 +148,34 @@ export function PageError({ error, reset }: PageErrorProps) {
 				We apologize for the inconvenience. An unexpected error has occurred. Please try again or
 				contact support if the problem persists.
 			</p>
-			{process.env.NODE_ENV === "development" && (
-				<div className="mb-8 p-4 rounded-10 bg-bg-weak-50 max-w-xl w-full overflow-auto">
-					<p className="text-paragraph-sm text-error-base font-mono">{error.message}</p>
+		{process.env.NODE_ENV === "development" && (
+			<details className="mb-8 w-full max-w-xl">
+				<summary className="text-paragraph-xs text-text-sub-600 cursor-pointer mb-2">
+					Error details (development only)
+				</summary>
+				<div className="p-4 rounded-10 bg-bg-weak-50 overflow-auto">
+					<p className="text-paragraph-sm text-error-base font-mono break-all">{error.message}</p>
+					{error.stack && (
+						<pre className="text-paragraph-xs text-text-sub-600 font-mono mt-3 whitespace-pre-wrap break-all">
+							{error.stack}
+						</pre>
+					)}
 					{error.digest && (
-						<p className="text-paragraph-xs text-text-soft-400 mt-2">Error ID: {error.digest}</p>
+						<p className="text-paragraph-xs text-text-soft-400 mt-3">Error ID: {error.digest}</p>
 					)}
 				</div>
-			)}
+			</details>
+		)}
 			<div className="flex items-center gap-4">
 				<Button.Root variant="primary" size="medium" onClick={reset}>
 					<Button.Icon as={ArrowClockwise} />
 					Try Again
 				</Button.Root>
 				<Button.Root variant="neutral" size="medium" asChild>
-					<a href="/dashboard">
+					<Link href="/dashboard">
 						<Button.Icon as={House} />
 						Go to Dashboard
-					</a>
+					</Link>
 				</Button.Root>
 			</div>
 		</div>

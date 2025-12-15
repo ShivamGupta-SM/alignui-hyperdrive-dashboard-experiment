@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -32,6 +32,7 @@ import type { organizations, auth } from "@/lib/encore-client"
 import { useSession } from "@/hooks/use-session"
 import { getEncoreClient } from "@/lib/encore"
 import { toast } from "sonner"
+import { logInfo, logError } from "@/lib/error-logger-simple"
 
 const steps = [
 	{ label: "Basic Info", value: 1 },
@@ -43,27 +44,30 @@ const steps = [
 export default function OnboardingPage() {
 	const router = useRouter()
 	const { data: session, isPending: isSessionPending } = useSession()
-	const [currentStep, setCurrentStep] = React.useState(1)
-	const [isLoading, setIsLoading] = React.useState(false)
-	const [isVerifyingGst, setIsVerifyingGst] = React.useState(false)
-	const [isVerifyingPan, setIsVerifyingPan] = React.useState(false)
-	const [termsAccepted, setTermsAccepted] = React.useState(false)
-	const [hasCheckedOrg, setHasCheckedOrg] = React.useState(false)
-	const [organizationId, setOrganizationId] = React.useState<string | null>(null)
-	const [draftSaved, setDraftSaved] = React.useState(false)
-	const [isLoadingDraft, setIsLoadingDraft] = React.useState(true)
-	const [draftRestored, setDraftRestored] = React.useState(false)
+	const [currentStep, setCurrentStep] = useState(1)
+	const [isLoading, setIsLoading] = useState(false)
+	const [isVerifyingGst, setIsVerifyingGst] = useState(false)
+	// ❌ REMOVED: PAN verification state - PAN is only for shoppers
+	const [termsAccepted, setTermsAccepted] = useState(false)
+	const [hasCheckedOrg, setHasCheckedOrg] = useState(false)
+	const [organizationId, setOrganizationId] = useState<string | null>(null)
+	const [draftSaved, setDraftSaved] = useState(false)
+	const [isLoadingDraft, setIsLoadingDraft] = useState(true)
+	const [draftRestored, setDraftRestored] = useState(false)
 	// GST verification result - MUST be before any early returns
-	const [gstDetails, setGstDetails] = React.useState<{
+	const [gstDetails, setGstDetails] = useState<{
 		legalName: string
 		tradeName: string
 		status: string
 		address: string
 	} | null>(null)
-
+	
+	// Ref map for form fields to avoid direct DOM manipulation
+	const fieldRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>>(new Map())
+	
 	// Check if user already has an organization - redirect to dashboard if yes
 	// This prevents forcing onboarding on users who already completed it
-	React.useEffect(() => {
+	useEffect(() => {
 		async function checkOrganization() {
 			// Wait for session to load
 			if (isSessionPending) return
@@ -74,29 +78,24 @@ export default function OnboardingPage() {
 				return
 			}
 
-			// Check if user already has organization using Encore client directly
-			// This is a client-side check, so we use the browser client
+			// Clear any previous user's draft data when checking (safety measure)
+			// This ensures new users don't see previous user's data
 			try {
-				// Import client-side Encore client
-				// Note: getEncoreBrowserClient() uses credentials: "include" which automatically sends cookies
-				// No need to use getAuthenticatedBrowserClient() when cookies are available
-				// Backend prioritizes Bearer token, but cookies work fine for browser requests
+				// Check if this is a new user (no organizations) and clear draft
 				const { getEncoreBrowserClient } = await import("@/lib/encore-browser")
 				const client = getEncoreBrowserClient()
-
 				const orgsResult = await client.auth.listOrganizations()
+				
 				// Only redirect if user has approved organizations (not drafts)
-				// Note: approvalStatus may exist at runtime (in mocks) but not in OrganizationResponse type
-				// Use type assertion with runtime check
 				const approvedOrgs = orgsResult.organizations?.filter(
 					(org): org is auth.OrganizationResponse & { approvalStatus?: string } => 
 						'approvalStatus' in org && (org as { approvalStatus?: string }).approvalStatus === "approved"
 				)
 				if (approvedOrgs && approvedOrgs.length > 0) {
-					console.log("[Onboarding] User already has approved organization, redirecting to dashboard")
 					router.replace("/dashboard")
 					return
 				}
+				
 				// If user has draft org, allow them to continue onboarding
 				const draftOrgs = orgsResult.organizations?.filter(
 					(org): org is auth.OrganizationResponse & { approvalStatus?: string } => 
@@ -105,15 +104,21 @@ export default function OnboardingPage() {
 						 (org as { approvalStatus?: string }).approvalStatus === "pending")
 				)
 				if (draftOrgs && draftOrgs.length > 0) {
-					console.log("[Onboarding] User has draft organization, allowing to continue onboarding")
 					// Set organizationId so backend auto-save can work
 					setOrganizationId(draftOrgs[0].id)
+				} else {
+					// New user with no orgs - clear any stale draft data
+					try {
+						localStorage.removeItem("onboarding-draft")
+						localStorage.removeItem("onboarding-draft-timestamp")
+					} catch (e) {
+						// Ignore localStorage errors
+					}
 				}
 			} catch (error) {
-				console.error("[Onboarding] Error checking organization:", error)
+				const { logError } = await import("@/lib/error-logger-simple")
+				logError(error, { source: "Onboarding", data: { action: "checkOrganization" } })
 				// Don't block onboarding on error - let user proceed
-				// Maybe API is down or user has network issues
-				// User might be trying to create a second organization, which is allowed
 			}
 
 			setHasCheckedOrg(true)
@@ -160,26 +165,58 @@ export default function OnboardingPage() {
 			verification: {
 				gstNumber: "",
 				gstVerified: false,
-				panNumber: "",
-				panVerified: false,
+				// ❌ REMOVED: PAN fields - PAN is only for shoppers
 				cinNumber: "",
 			},
 		},
 	})
+
+	// useEffect to scroll to first error field when errors change
+	useEffect(() => {
+		const firstError = Object.keys(errors)[0]
+		if (firstError) {
+			// Try to find the field in our ref map first
+			const fieldElement = fieldRefs.current.get(firstError)
+			if (fieldElement) {
+				// Use requestAnimationFrame to ensure DOM is updated
+				requestAnimationFrame(() => {
+					fieldElement.scrollIntoView({ behavior: "smooth", block: "center" })
+					fieldElement.focus()
+				})
+			} else {
+				// Fallback: use querySelector only if ref not found (shouldn't happen in practice)
+				// This is acceptable as a fallback since we're in a useEffect (React-managed)
+				const element = document.querySelector(`[name="${firstError}"]`) as HTMLInputElement | HTMLTextAreaElement | null
+				if (element) {
+					requestAnimationFrame(() => {
+						element.scrollIntoView({ behavior: "smooth", block: "center" })
+						element.focus()
+						// Store in ref map for future use
+						fieldRefs.current.set(firstError, element)
+					})
+				}
+			}
+		}
+	}, [errors])
 
 	// ============================================================================
 	// RESUMABLE FORM: Phase 1 - Load Draft on Mount
 	// ============================================================================
 
 	// Load draft from backend and localStorage on mount
-	React.useEffect(() => {
+	useEffect(() => {
+		const abortController = new AbortController()
+
 		async function loadDraft() {
 			if (isSessionPending || !session?.user) {
-				setIsLoadingDraft(false)
+				if (!abortController.signal.aborted) {
+					setIsLoadingDraft(false)
+				}
 				return
 			}
 
 			try {
+				if (abortController.signal.aborted) return
 				// First, try to load from backend (cross-device persistence)
 				// Use browser client with cookies (credentials: "include" sends cookies automatically)
 				// No need for Bearer token when cookies are available
@@ -200,15 +237,19 @@ export default function OnboardingPage() {
 					const backendDraft = await loadOnboardingDraft(draftOrg.id)
 
 					if (backendDraft) {
+						if (abortController.signal.aborted) return
 						setOrganizationId(draftOrg.id)
 						reset(backendDraft)
 						setDraftRestored(true)
-						console.log("[Onboarding] ✅ Draft restored from backend")
-						toast.success("Draft restored", {
-							description: "Continuing where you left off",
-							duration: 3000,
-						})
-						setIsLoadingDraft(false)
+						const { logInfo } = await import("@/lib/error-logger-simple")
+						logInfo("Draft restored from backend", { source: "Onboarding" })
+						if (!abortController.signal.aborted) {
+							toast.success("Draft restored", {
+								description: "Continuing where you left off",
+								duration: 3000,
+							})
+							setIsLoadingDraft(false)
+						}
 						return
 					}
 				}
@@ -217,37 +258,57 @@ export default function OnboardingPage() {
 				const savedDraft = localStorage.getItem("onboarding-draft")
 				if (savedDraft) {
 					try {
+						if (abortController.signal.aborted) return
 						const draft = JSON.parse(savedDraft)
 						reset(draft)
 						setDraftRestored(true)
-						console.log("[Onboarding] ✅ Draft restored from localStorage")
-						toast.success("Draft restored", {
-							description: "Your progress has been restored",
-							duration: 3000,
-						})
+						const { logInfo } = await import("@/lib/error-logger-simple")
+						logInfo("Draft restored from localStorage", { source: "Onboarding" })
+						if (!abortController.signal.aborted) {
+							toast.success("Draft restored", {
+								description: "Your progress has been restored",
+								duration: 3000,
+							})
+						}
 					} catch (e) {
-						console.error("[Onboarding] Failed to parse localStorage draft:", e)
+						if (!abortController.signal.aborted) {
+							const { logError } = await import("@/lib/error-logger-simple")
+							logError(e, { source: "Onboarding", data: { action: "parseLocalStorageDraft" } })
+						}
 					}
 				}
 			} catch (error) {
-				console.error("[Onboarding] Failed to load draft:", error)
+				if (!abortController.signal.aborted) {
+					const { logError } = await import("@/lib/error-logger-simple")
+					logError(error, { source: "Onboarding", data: { action: "loadDraft" } })
+				}
 				// Fallback to localStorage
 				const savedDraft = localStorage.getItem("onboarding-draft")
 				if (savedDraft) {
 					try {
+						if (abortController.signal.aborted) return
 						const draft = JSON.parse(savedDraft)
 						reset(draft)
 						setDraftRestored(true)
 					} catch (e) {
-						console.error("[Onboarding] Failed to parse localStorage draft:", e)
+						if (!abortController.signal.aborted) {
+							const { logError: logErr } = await import("@/lib/error-logger-simple")
+							logErr(e, { source: "Onboarding", data: { action: "parseLocalStorageDraftFallback" } })
+						}
 					}
 				}
 			} finally {
-				setIsLoadingDraft(false)
+				if (!abortController.signal.aborted) {
+					setIsLoadingDraft(false)
+				}
 			}
 		}
 
 		loadDraft()
+
+		return () => {
+			abortController.abort()
+		}
 	}, [session, isSessionPending, reset])
 
 	// ============================================================================
@@ -255,7 +316,7 @@ export default function OnboardingPage() {
 	// ============================================================================
 
 	// Auto-save to localStorage (immediate, debounced)
-	React.useEffect(() => {
+	useEffect(() => {
 		let timeoutId: NodeJS.Timeout | null = null
 
 		const subscription = watch((value) => {
@@ -269,9 +330,9 @@ export default function OnboardingPage() {
 				try {
 					localStorage.setItem("onboarding-draft", JSON.stringify(value))
 					localStorage.setItem("onboarding-draft-timestamp", Date.now().toString())
-					console.log("[Onboarding] 💾 Draft saved to localStorage")
+					logInfo("Draft saved to localStorage", { source: "Onboarding" })
 				} catch (error) {
-					console.error("[Onboarding] Failed to save to localStorage:", error)
+					logError(error, { source: "Onboarding", data: { action: "saveToLocalStorage" } })
 				}
 			}, 1000)
 		})
@@ -289,11 +350,12 @@ export default function OnboardingPage() {
 	// ============================================================================
 
 	// Auto-save to backend (after organization is created, debounced)
-	React.useEffect(() => {
+	useEffect(() => {
 		// Only save if organization exists
 		if (!organizationId) return
 
 		let timeoutId: NodeJS.Timeout | null = null
+		let innerTimeoutId: NodeJS.Timeout | null = null
 
 		const subscription = watch(async (value) => {
 			// Clear previous timeout
@@ -343,8 +405,7 @@ export default function OnboardingPage() {
 								verification: {
 									gstNumber: value.verification.gstNumber,
 									gstVerified: value.verification.gstVerified,
-									...(value.verification.panNumber && { panNumber: value.verification.panNumber }),
-									...(typeof value.verification.panVerified === 'boolean' && { panVerified: value.verification.panVerified }),
+									// ❌ REMOVED: PAN fields - PAN is only for shoppers
 									...(value.verification.cinNumber && { cinNumber: value.verification.cinNumber }),
 								}
 							}
@@ -354,7 +415,7 @@ export default function OnboardingPage() {
 
 					if (result.success) {
 						setDraftSaved(true)
-						console.log("[Onboarding] ✅ Draft saved to backend")
+						logInfo("Draft saved to backend", { source: "Onboarding" })
 						// Show subtle toast (only once per session to avoid spam)
 						if (!draftSaved) {
 							toast.success("Draft saved", {
@@ -363,12 +424,17 @@ export default function OnboardingPage() {
 							})
 						}
 						// Hide indicator after 3 seconds
-						setTimeout(() => setDraftSaved(false), 3000)
+						innerTimeoutId = setTimeout(() => {
+							setDraftSaved(false)
+						}, 3000)
 					} else {
-						console.error("[Onboarding] Failed to save draft:", "error" in result ? result.error : "Unknown error")
+						logError(new Error("error" in result ? result.error : "Unknown error"), { 
+							source: "Onboarding", 
+							data: { action: "saveDraft" } 
+						})
 					}
 				} catch (error) {
-					console.error("[Onboarding] Failed to save draft to backend:", error)
+					logError(error, { source: "Onboarding", data: { action: "saveDraftToBackend" } })
 					// Continue with localStorage only
 				}
 			}, 3000)
@@ -379,6 +445,9 @@ export default function OnboardingPage() {
 			if (timeoutId) {
 				clearTimeout(timeoutId)
 			}
+			if (innerTimeoutId) {
+				clearTimeout(innerTimeoutId)
+			}
 		}
 	}, [watch, organizationId, draftSaved])
 
@@ -387,7 +456,7 @@ export default function OnboardingPage() {
 	// ============================================================================
 
 	// Create organization when user completes Step 1 (if not already created)
-	React.useEffect(() => {
+	useEffect(() => {
 		async function createOrganizationIfNeeded() {
 			// Only create if we're past step 1 and organization doesn't exist
 			if (currentStep < 2 || organizationId) return
@@ -417,20 +486,20 @@ export default function OnboardingPage() {
 					return
 				}
 
-				// Create new organization
-				const basicOrg = await client.auth.createOrganization({
+				// Create new organization using custom backend endpoint (auto-sets active org)
+				// Industry Standard: Backend handles Better Auth sync + auto-set
+				const basicOrg = await client.organizations.createOrganization({
 					name: formData.basicInfo.name,
+					// Backend auto-sets if user has no active org
 				})
 
 				if (basicOrg?.id) {
 					setOrganizationId(basicOrg.id)
-					await client.auth.setActiveOrganization({
-						organizationId: basicOrg.id,
-					})
-					console.log("[Onboarding] ✅ Organization created for draft saving")
+					// ✅ No need to call setActiveOrganization - backend does it automatically!
+					logInfo("Organization created and auto-set as active", { source: "Onboarding" })
 				}
 			} catch (error) {
-				console.error("[Onboarding] Failed to create organization for draft:", error)
+				logError(error, { source: "Onboarding", data: { action: "createOrganizationForDraft" } })
 				// Continue without backend saving - localStorage will still work
 			}
 		}
@@ -461,7 +530,7 @@ export default function OnboardingPage() {
 				])
 				break
 			case 3:
-				// Verification step - GST is required, PAN is optional
+				// Verification step - GST is required (PAN is only for shoppers, not organizations)
 				isValid = await trigger(["verification.gstNumber", "verification.gstVerified"])
 				// Also check if GST is verified
 				const gstVerified = getValues("verification.gstVerified")
@@ -480,14 +549,8 @@ export default function OnboardingPage() {
 		if (isValid && currentStep < 4) {
 			setCurrentStep(currentStep + 1)
 			window.scrollTo({ top: 0, behavior: "smooth" })
-		} else if (!isValid) {
-			// Scroll to first error
-			const firstError = Object.keys(errors)[0]
-			if (firstError) {
-				const element = document.querySelector(`[name="${firstError}"]`)
-				element?.scrollIntoView({ behavior: "smooth", block: "center" })
-			}
 		}
+		// Error scrolling is now handled by useEffect watching errors
 	}
 
 	const handleBack = () => {
@@ -507,50 +570,75 @@ export default function OnboardingPage() {
 
 		setIsVerifyingGst(true)
 		try {
-			// TODO: Call actual GST verification API when available
-			// const { verifyGST } = await import('@/app/actions/onboarding')
-			// const result = await verifyGST(gstNumber)
+			// Get or create organization ID if needed
+			let orgId = organizationId
+			
+			if (!orgId) {
+				// Create draft organization if it doesn't exist
+				const { getEncoreBrowserClient } = await import("@/lib/encore-browser")
+				const client = getEncoreBrowserClient()
+				
+				const orgsResult = await client.auth.listOrganizations()
+				const draftOrg = orgsResult.organizations?.find(
+					(org): org is auth.OrganizationResponse & { approvalStatus?: string } => 
+						'approvalStatus' in org && 
+						((org as { approvalStatus?: string }).approvalStatus === "draft" || 
+						 (org as { approvalStatus?: string }).approvalStatus === "pending")
+				)
 
-			// Extract organization name from form data for more realistic mock
-			const orgName = getValues("basicInfo.name") || "Organization"
-			const stateCode = gstNumber.substring(0, 2)
-			const stateName = getStateFromCode(stateCode)
-			const address = getValues("businessDetails.address") || "Registered Address"
+				if (draftOrg) {
+					// Use existing draft organization
+					orgId = draftOrg.id
+					setOrganizationId(draftOrg.id)
+				} else {
+					// Create new draft organization
+					const orgName = getValues("basicInfo.name") || "Organization"
+					const newOrg = await client.organizations.createOrganization({ name: orgName })
+					if (newOrg?.id) {
+						orgId = newOrg.id
+						setOrganizationId(newOrg.id)
+					} else {
+						throw new Error("Failed to create organization for GST verification")
+					}
+				}
+			}
 
-			setGstDetails({
-				legalName: orgName.toUpperCase(),
-				tradeName: orgName.split(" ")[0],
-				status: "Active",
-				address: `${address}, ${stateName}`,
-			})
-			setValue("verification.gstVerified", true, { shouldValidate: true })
+			// Call actual GST verification API (SurePass integration)
+			// Server action will handle setting active organization server-side
+			const { verifyGST } = await import('@/app/actions/onboarding')
+			const result = await verifyGST(gstNumber, orgId)
+
+			if (result.success && result.gstDetails) {
+				// Success - set verified GST details from SurePass API
+				setGstDetails({
+					legalName: result.gstDetails.legalName || "",
+					tradeName: result.gstDetails.tradeName || "",
+					status: result.gstDetails.gstStatus || "Active",
+					address: result.gstDetails.address || "",
+				})
+				setValue("verification.gstVerified", true, { shouldValidate: true })
+				toast.success("GST verified successfully")
+			} else {
+				// Error from API
+				const errorMessage = "error" in result ? result.error : "GST verification failed"
+				toast.error(errorMessage)
+				setGstDetails(null)
+				setValue("verification.gstVerified", false, { shouldValidate: true })
+			}
+		} catch (error) {
+			// Network or other errors
+			const errorMessage = error instanceof Error ? error.message : "Failed to verify GST. Please try again."
+			toast.error(errorMessage)
+			setGstDetails(null)
+			setValue("verification.gstVerified", false, { shouldValidate: true })
 		} finally {
 			setIsVerifyingGst(false)
 		}
 	}
 
-	const handleVerifyPan = async () => {
-		const panNumber = getValues("verification.panNumber") || ""
-
-		// Validate PAN format first
-		if (panNumber) {
-			const isValid = await trigger("verification.panNumber")
-			if (!isValid) {
-				return
-			}
-		}
-
-		setIsVerifyingPan(true)
-		try {
-			// TODO: Call actual PAN verification API when available
-			// const { verifyPAN } = await import('@/app/actions/onboarding')
-			// const result = await verifyPAN(panNumber)
-
-			setValue("verification.panVerified", true, { shouldValidate: true })
-		} finally {
-			setIsVerifyingPan(false)
-		}
-	}
+	// ❌ REMOVED: PAN verification for organizations
+	// PAN verification is only for shoppers, not organizations
+	// handleVerifyPan function removed - not needed for organizations
 
 	// Helper function to get state name from GST state code
 	const getStateFromCode = (code: string): string => {
@@ -598,7 +686,7 @@ export default function OnboardingPage() {
 	const onSubmit = async (data: OnboardingFormInput) => {
 		// Check if terms are accepted
 		if (!termsAccepted) {
-			console.error("Terms and conditions must be accepted")
+			logError(new Error("Terms and conditions must be accepted"), { source: "Onboarding", data: { action: "submit" } })
 			// Scroll to terms section
 			const termsElement = document.querySelector('[data-terms-checkbox]')
 			termsElement?.scrollIntoView({ behavior: "smooth", block: "center" })
@@ -635,14 +723,17 @@ export default function OnboardingPage() {
 			// Clear draft data on successful submission
 			localStorage.removeItem("onboarding-draft")
 			localStorage.removeItem("onboarding-draft-timestamp")
-			console.log("[Onboarding] ✅ Draft cleared after successful submission")
+			logInfo("Draft cleared after successful submission", { source: "Onboarding" })
 
 			router.push("/onboarding/pending")
 		} catch (error: unknown) {
-			console.error("Onboarding submission error:", error)
-			// Show error to user
+			logError(error, { source: "Onboarding", data: { action: "submitOnboarding" } })
+			// Show error to user using toast (industry standard)
 			const errorMessage = error instanceof Error ? error.message : "Failed to submit application. Please try again."
-			alert(errorMessage)
+			toast.error("Submission Failed", {
+				description: errorMessage,
+				duration: 5000,
+			})
 			// Don't redirect on error - let user fix and retry
 		} finally {
 			setIsLoading(false)
@@ -651,14 +742,23 @@ export default function OnboardingPage() {
 
 	// Clear draft function (for UX)
 	const handleClearDraft = () => {
-		if (confirm("Are you sure you want to clear your draft? This cannot be undone.")) {
-			localStorage.removeItem("onboarding-draft")
-			localStorage.removeItem("onboarding-draft-timestamp")
-			reset()
-			setOrganizationId(null)
-			setDraftRestored(false)
-			console.log("[Onboarding] Draft cleared by user")
-		}
+		// Use toast confirmation instead of browser confirm (industry standard)
+		toast.error("Clear Draft", {
+			description: "Are you sure you want to clear your draft? This cannot be undone.",
+			action: {
+				label: "Clear",
+				onClick: () => {
+					localStorage.removeItem("onboarding-draft")
+					localStorage.removeItem("onboarding-draft-timestamp")
+					reset()
+					setOrganizationId(null)
+					setDraftRestored(false)
+					logInfo("Draft cleared by user", { source: "Onboarding" })
+					toast.success("Draft cleared")
+				},
+			},
+			duration: 10000,
+		})
 	}
 
 	// Show loading while session is pending or org check is in progress
@@ -751,9 +851,8 @@ export default function OnboardingPage() {
 							getValues={getValues}
 							gstDetails={gstDetails}
 							onVerifyGst={handleVerifyGst}
-							onVerifyPan={handleVerifyPan}
+							// ❌ REMOVED: PAN verification props
 							isVerifyingGst={isVerifyingGst}
-							isVerifyingPan={isVerifyingPan}
 						/>
 					)}
 					{currentStep === 4 && (
@@ -798,7 +897,7 @@ export default function OnboardingPage() {
 								<Button.Root
 									type="submit"
 									variant="primary"
-									disabled={isLoading || !termsAccepted}
+									disabled={isLoading || !termsAccepted || !watch("verification.gstVerified")}
 									className="flex-1 sm:flex-initial"
 								>
 									{isLoading ? "Submitting..." : "Submit for Approval"}
@@ -1018,9 +1117,8 @@ interface Step3Props {
 	getValues: ReturnType<typeof useForm<OnboardingFormInput>>["getValues"]
 	gstDetails: { legalName: string; tradeName: string; status: string; address: string } | null
 	onVerifyGst: () => void
-	onVerifyPan: () => void
+	// ❌ REMOVED: PAN verification props - PAN is only for shoppers
 	isVerifyingGst: boolean
-	isVerifyingPan: boolean
 }
 
 function Step3Verification({
@@ -1032,14 +1130,12 @@ function Step3Verification({
 	getValues,
 	gstDetails,
 	onVerifyGst,
-	onVerifyPan,
+	// ❌ REMOVED: PAN verification props
 	isVerifyingGst,
-	isVerifyingPan,
 }: Step3Props) {
 	const gstNumber = watch("verification.gstNumber")
 	const gstVerified = watch("verification.gstVerified")
-	const panNumber = watch("verification.panNumber")
-	const panVerified = watch("verification.panVerified")
+	// ❌ REMOVED: PAN fields - PAN is only for shoppers
 	const businessType = watch("businessDetails.businessType")
 
 	return (
@@ -1126,55 +1222,7 @@ function Step3Verification({
 				)}
 			</div>
 
-			{/* PAN Verification */}
-			<div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
-				<h3 className="text-label-xs sm:text-label-sm text-text-strong-950 mb-3 sm:mb-4 flex items-center gap-2">
-					<FileText className="size-4" weight="duotone" />
-					PAN VERIFICATION (Recommended)
-				</h3>
-
-				<FormField
-					label="PAN Number"
-					error={errors.verification?.panNumber?.message}
-					hint="10-character PAN format"
-				>
-					<div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-start">
-						<div className="flex-1 min-w-0">
-							<Input.Root>
-								<Input.Wrapper>
-									<Input.El
-										{...register("verification.panNumber", {
-											onChange: (e) => {
-												setValue("verification.panNumber", e.target.value.toUpperCase(), {
-													shouldValidate: true,
-												})
-											},
-										})}
-										placeholder="AABCU9603R"
-										disabled={panVerified}
-									/>
-								</Input.Wrapper>
-							</Input.Root>
-						</div>
-						<Button.Root
-							type="button"
-							variant={panVerified ? "neutral" : "primary"}
-							onClick={onVerifyPan}
-							disabled={isVerifyingPan || !panNumber || panVerified}
-							className="w-full sm:w-auto shrink-0"
-						>
-							{isVerifyingPan ? "Verifying..." : panVerified ? "Verified" : "Verify PAN"}
-						</Button.Root>
-					</div>
-				</FormField>
-
-				{panVerified && (
-					<div className="mt-3 flex items-center gap-2 text-success-base text-label-sm">
-						<SealCheck className="size-4" weight="duotone" />
-						PAN Verified
-					</div>
-				)}
-			</div>
+			{/* ❌ REMOVED: PAN Verification - PAN is only for shoppers, not organizations */}
 
 			{/* CIN Number (Optional) */}
 			{(businessType === "private_limited" || businessType === "llp") && (
@@ -1309,23 +1357,7 @@ function Step4Review({ watch, onEdit, termsAccepted, onTermsChange }: Step4Props
 							)}
 						</div>
 					</div>
-					<div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-						<span className="text-text-sub-600 font-medium min-w-[120px]">PAN</span>
-						<div className="flex items-center gap-2 flex-wrap">
-							<span className="text-text-strong-950 font-mono text-label-xs sm:text-paragraph-sm">
-								{formData.verification?.panNumber || "-"}
-							</span>
-							{formData.verification?.panVerified ? (
-								<span className="flex items-center gap-1 text-success-base text-label-xs font-medium">
-									<SealCheck className="size-3.5" weight="duotone" /> Verified
-								</span>
-							) : (
-								<span className="flex items-center gap-1 text-text-soft-400 text-label-xs">
-									○ Not Provided
-								</span>
-							)}
-						</div>
-					</div>
+					{/* ❌ REMOVED: PAN display - PAN is only for shoppers, not organizations */}
 				</div>
 			</div>
 

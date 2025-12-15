@@ -286,7 +286,7 @@ export const authHandlers = [
 			db.organizationSettings.create({
 				organizationId: newOrgId,
 				name: body.name,
-				logo: body.logo || null,
+				logo: body.logo || undefined,
 				email: `${body.name.toLowerCase().replace(/\s+/g, "")}@example.com`,
 				approvalStatus: "draft", // New orgs start as draft
 			})

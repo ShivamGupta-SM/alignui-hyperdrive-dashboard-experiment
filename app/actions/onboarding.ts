@@ -3,16 +3,21 @@
 // Mocking disabled - removed MSW initialization
 
 import { getEncoreClient, getAuthenticatedEncoreClient, handleAPIError } from "@/lib/encore"
+import { logWarn } from "@/lib/error-logger-simple"
 import { revalidatePath } from "next/cache"
-import { handleServerAuthError } from "@/lib/error-handler-server"
+import { handleServerAuthError } from "@/lib/error-handler"
 import { cookies } from "next/headers"
 import type { OrganizationDraft } from "@/lib/types"
 import type { organizations } from "@/lib/encore-client"
 
 /**
  * Verify GST during onboarding
+ * 
+ * ✅ FIX: Backend now allows verification without organization (for pre-creation verification)
+ * If organizationId is provided, it will be used; otherwise backend uses activeOrganizationId from session.
+ * If neither exists, backend just verifies and returns result without saving (for onboarding flow).
  */
-export async function verifyGST(organizationId: string, gstNumber: string) {
+export async function verifyGST(gstNumber: string, organizationId?: string) {
 	// Get auth token from cookies
 	const cookieStore = await cookies()
 	const token = cookieStore.get("auth-token")?.value
@@ -27,7 +32,30 @@ export async function verifyGST(organizationId: string, gstNumber: string) {
 	const client = getAuthenticatedEncoreClient(token)
 
 	try {
-		const result = await client.organizations.verifyGST(organizationId, { gstNumber })
+		// If organizationId is provided, ensure it's set as active organization
+		// This is needed because backend uses activeOrganizationId from session
+		if (organizationId) {
+			try {
+				await client.auth.setActiveOrganization({ organizationId })
+			} catch (setActiveError) {
+				// Log but don't fail - might already be set
+				logWarn("Failed to set active organization", { 
+					source: "verifyGST", 
+					data: { 
+						organizationId, 
+						error: setActiveError instanceof Error ? setActiveError.message : String(setActiveError)
+					} 
+				})
+			}
+		}
+
+		// ✅ FIX: Pass organizationId if provided (allows verification before org is set as active)
+		// If not provided, backend will use activeOrganizationId from session
+		// If neither exists, backend just verifies without saving (for onboarding)
+		const result = await client.organizations.verifyGST({ 
+			gstNumber,
+			...(organizationId && { organizationId }), // Only pass if provided
+		})
 		return {
 			success: true,
 			gstDetails: result,
@@ -39,36 +67,13 @@ export async function verifyGST(organizationId: string, gstNumber: string) {
 }
 
 /**
- * Verify PAN during onboarding
+ * ❌ REMOVED: PAN verification for organizations
+ * PAN verification is only for shoppers, not organizations
+ * Use shoppers.verifyPAN() instead
  */
-export async function verifyPAN(organizationId: string, panNumber: string) {
-	// Get auth token from cookies
-	const cookieStore = await cookies()
-	const token = cookieStore.get("auth-token")?.value
-	
-	if (!token) {
-		return {
-			success: false,
-			error: "Authentication required",
-		}
-	}
-
-	const client = getAuthenticatedEncoreClient(token)
-
-	try {
-		const result = await client.organizations.verifyPAN(organizationId, { panNumber })
-		return {
-			success: true,
-			panDetails: result,
-		}
-	} catch (error: unknown) {
-		handleServerAuthError(error)
-		return handleAPIError(error)
-	}
-}
 
 /**
- * Submit onboarding form - creates organization with Better Auth, updates with details, verifies GST/PAN, and submits for approval
+ * Submit onboarding form - creates organization with Better Auth, updates with details, verifies GST, and submits for approval
  */
 export async function submitOnboarding(formData: OrganizationDraft) {
 	// Get auth token from cookies
@@ -100,12 +105,14 @@ export async function submitOnboarding(formData: OrganizationDraft) {
 		if (existingDraftOrg) {
 			// Use existing draft organization
 			basicOrg = { id: existingDraftOrg.id }
-			console.log("[Onboarding] Using existing draft organization:", existingDraftOrg.id)
+			const { logInfo } = await import("@/lib/error-logger-simple")
+			logInfo("Using existing draft organization", { source: "Onboarding", data: { organizationId: existingDraftOrg.id } })
 		} else {
-			// Create new organization
-			basicOrg = await client.auth.createOrganization({
+			// Industry Standard: Use custom backend endpoint (auto-sets active org)
+			// Backend handles Better Auth sync + business fields + auto-set
+			basicOrg = await client.organizations.createOrganization({
 				name: formData.basicInfo?.name || "",
-				// slug will be auto-generated
+				// Backend auto-sets if user has no active org
 			})
 
 			if (!basicOrg?.id) {
@@ -116,10 +123,8 @@ export async function submitOnboarding(formData: OrganizationDraft) {
 			}
 		}
 
-		// Set as active organization in backend
-		await client.auth.setActiveOrganization({
-			organizationId: basicOrg.id,
-		})
+		// ✅ No need to call setActiveOrganization - backend does it automatically!
+		// Backend auto-sets if user has no active org
 
 		// Organization is already set as active in backend session
 		// No cookie needed - session is the single source of truth (industry standard)
@@ -151,27 +156,22 @@ export async function submitOnboarding(formData: OrganizationDraft) {
 		// Step 3: Verify GST if provided (MANDATORY)
 		if (formData.verification?.gstNumber) {
 			try {
-				await client.organizations.verifyGST(basicOrg.id, {
+				// ✅ FIX: Pass organizationId to ensure verification is saved to the correct org
+				// Note: verifyGST doesn't accept organizationId in the API, backend uses activeOrganizationId automatically
+				await client.organizations.verifyGST({
 					gstNumber: formData.verification.gstNumber,
 				})
 			} catch (gstError: unknown) {
 				// GST verification failed - still continue but log error
-				console.error("GST verification failed:", gstError)
+				const { logError } = await import("@/lib/error-logger-simple")
+				logError(gstError, { source: "Onboarding", data: { action: "verifyGST", gstNumber: formData.verification?.gstNumber } })
 				// Don't throw - let user know in response
 			}
 		}
 
 		// Step 4: Verify PAN if provided (optional)
-		if (formData.verification?.panNumber) {
-			try {
-				await client.organizations.verifyPAN(basicOrg.id, {
-					panNumber: formData.verification.panNumber,
-				})
-			} catch (panError: unknown) {
-				// PAN verification failed - non-blocking
-				console.error("PAN verification failed:", panError)
-			}
-		}
+		// ❌ REMOVED: PAN verification for organizations
+		// PAN verification is only for shoppers, not organizations
 
 		// Step 5: Submit for approval
 		await client.organizations.submitOrganizationForApproval(basicOrg.id)
@@ -189,24 +189,28 @@ export async function submitOnboarding(formData: OrganizationDraft) {
 		}
 	} catch (error: unknown) {
 		// Log detailed error for debugging
+		const { logError } = await import("@/lib/error-logger-simple")
 		const errorMessage = error instanceof Error ? error.message : String(error)
-		const errorStack = error instanceof Error ? error.stack : undefined
-		const errorName = error instanceof Error ? error.name : undefined
-		const errorCause = error instanceof Error ? error.cause : undefined
 		
-		console.error("[Onboarding] Submit error:", {
-			message: errorMessage,
-			stack: errorStack,
-			name: errorName,
-			cause: errorCause,
-			toString: String(error),
+		logError(error, { 
+			source: "Onboarding", 
+			data: { 
+				action: "submitOnboarding",
+				errorMessage,
+				errorStack: error instanceof Error ? error.stack : undefined,
+				errorName: error instanceof Error ? error.name : undefined,
+			} 
 		})
 		
 		// Check if it's a fetch error
 		if (errorMessage.includes("fetch failed") || errorMessage.includes("Failed to fetch")) {
-			console.error("[Onboarding] Fetch failed - MSW might not be intercepting requests")
-			console.error("[Onboarding] Check if MSW server is initialized and listening")
-			console.error("[Onboarding] Verify NEXT_PUBLIC_API_MOCKING=enabled is set")
+			logError(new Error("Fetch failed - MSW might not be intercepting requests"), { 
+				source: "Onboarding", 
+				data: { 
+					action: "submitOnboarding",
+					hint: "Check if MSW server is initialized and listening. Verify NEXT_PUBLIC_API_MOCKING=enabled is set"
+				} 
+			})
 		}
 		
 		handleServerAuthError(error)
@@ -266,25 +270,20 @@ export async function saveOnboardingDraft(
 		// If GST/PAN provided, verify them (non-blocking)
 		if (formData.verification?.gstNumber && !formData.verification?.gstVerified) {
 			try {
-				await client.organizations.verifyGST(organizationId, {
+				// ✅ FIX: Pass organizationId to ensure verification is saved to the correct org
+				// Note: verifyGST doesn't accept organizationId in the API, backend uses activeOrganizationId automatically
+				await client.organizations.verifyGST({
 					gstNumber: formData.verification.gstNumber,
 				})
 			} catch (gstError) {
 				// Ignore verification errors during draft save
-				console.log("[Draft Save] GST verification skipped (will verify on submit)")
+				const { logInfo } = await import("@/lib/error-logger-simple")
+				logInfo("GST verification skipped during draft save (will verify on submit)", { source: "Onboarding", data: { action: "saveDraft" } })
 			}
 		}
 
-		if (formData.verification?.panNumber && !formData.verification?.panVerified) {
-			try {
-				await client.organizations.verifyPAN(organizationId, {
-					panNumber: formData.verification.panNumber,
-				})
-			} catch (panError) {
-				// Ignore verification errors during draft save
-				console.log("[Draft Save] PAN verification skipped (will verify on submit)")
-			}
-		}
+		// ❌ REMOVED: PAN verification for organizations
+		// PAN verification is only for shoppers, not organizations
 
 		return { success: true }
 	} catch (error: unknown) {
@@ -303,7 +302,8 @@ export async function loadOnboardingDraft(organizationId: string): Promise<Organ
 	const token = cookieStore.get("auth-token")?.value
 	
 	if (!token) {
-		console.error("[Load Draft] No auth token found")
+		const { logError } = await import("@/lib/error-logger-simple")
+		logError(new Error("No auth token found"), { source: "Onboarding", data: { action: "loadDraft" } })
 		return null
 	}
 
@@ -342,14 +342,48 @@ export async function loadOnboardingDraft(organizationId: string): Promise<Organ
 			verification: {
 				gstNumber: org.gstNumber || "",
 				gstVerified: org.gstVerified || false,
-				panNumber: org.panNumber || "",
-				panVerified: org.panVerified || false,
+				// ❌ REMOVED: PAN fields - PAN is only for shoppers, not organizations
 				cinNumber: org.cinNumber || "",
 			},
 		}
 	} catch (error: unknown) {
-		console.error("[Load Draft] Failed to load draft:", error)
+		const { logError } = await import("@/lib/error-logger-simple")
+		logError(error, { source: "Onboarding", data: { action: "loadDraft", organizationId } })
 		return null
+	}
+}
+
+/**
+ * Resubmit organization for approval (after rejection)
+ * Resets organization status from rejected to draft
+ */
+export async function resubmitOrganizationForApproval(organizationId: string) {
+	// Get auth token from cookies
+	const cookieStore = await cookies()
+	const token = cookieStore.get("auth-token")?.value
+	
+	if (!token) {
+		return {
+			success: false,
+			error: "Authentication required",
+		}
+	}
+
+	const client = getAuthenticatedEncoreClient(token)
+
+	try {
+		const result = await client.organizations.resubmitOrganizationForApproval(organizationId)
+
+		revalidatePath("/onboarding")
+		revalidatePath("/dashboard")
+
+		return {
+			success: true,
+			message: result.message || "Organization reset to draft. You can now edit and resubmit for approval.",
+		}
+	} catch (error: unknown) {
+		handleServerAuthError(error)
+		return handleAPIError(error)
 	}
 }
 

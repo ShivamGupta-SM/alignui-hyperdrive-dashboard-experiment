@@ -56,3 +56,6 @@ You can now manually sync the client whenever needed by:
 2. Copying `generated-client.ts` to frontend's `lib/encore-client.ts`
 
 **No automation, full manual control.** ✅
+
+
+

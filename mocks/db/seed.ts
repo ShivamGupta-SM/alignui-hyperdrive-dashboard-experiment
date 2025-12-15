@@ -217,7 +217,7 @@ async function seedCampaignDeliverables(orgId: string, campaigns: Campaign[]) {
 	// Check first campaign only to avoid checking all
 	if (campaigns.length > 0) {
 		const existing = db.campaignDeliverables.findMany((q) =>
-			q.where({ campaignId: { equals: campaigns[0].id } })
+			q.where({ campaignId: campaigns[0].id })
 		)
 		if (existing.length > 0) return existing
 	}
@@ -416,8 +416,8 @@ async function seedActiveHolds(orgId: string, enrollments: Enrollment[]) {
 			campaignId: campaign.id,
 			campaignTitle: campaign.title, // Encore format
 			amount: enrollment.lockedBillRate || 200, // Encore format
-			createdAt: new Date().toISOString(), // Encore format
-			expiresAt: enrollment.expiresAt, // Encore format
+			createdAt: new Date(), // Encore format
+			expiresAt: enrollment.expiresAt ? new Date(enrollment.expiresAt) : undefined, // Encore format
 		}
 		await db.activeHolds.create(hold)
 		holdsData.push(hold)
@@ -426,7 +426,7 @@ async function seedActiveHolds(orgId: string, enrollments: Enrollment[]) {
 	return holdsData
 }
 
-async function seedInvoices(orgId: string, count: number = 12) {
+async function seedInvoices(orgId: string, enrollments?: unknown[], count: number = 12) {
 	const existingInvoices = db.invoices.findMany((q) => q.where({ organizationId: orgId }))
 	if (existingInvoices.length > 0) return existingInvoices
 
@@ -436,8 +436,9 @@ async function seedInvoices(orgId: string, count: number = 12) {
 	for (let i = 0; i < count; i++) {
 		const status = statuses[i % statuses.length]
 		const totalAmount = faker.number.int({ min: 5000, max: 100000 })
+		const invoiceId = generateId("inv")
 		const invoice: Invoice = {
-			id: generateId("inv"),
+			id: invoiceId,
 			organizationId: orgId,
 			invoiceNumber: `INV-${faker.date.recent().getFullYear()}-${String(i + 1).padStart(4, "0")}`,
 			status,
@@ -453,6 +454,7 @@ async function seedInvoices(orgId: string, count: number = 12) {
 			lineItems: [
 				{
 					id: generateId("item"),
+					invoiceId: invoiceId,
 					description: "Campaign management fee",
 					quantity: faker.number.int({ min: 1, max: 10 }),
 					unitPrice: faker.number.int({ min: 500, max: 5000 }),
@@ -519,7 +521,7 @@ async function seedTeamMembers(orgId: string) {
 			email: `viewer@${emailDomain}`,
 			role: "viewer",
 			avatar: faker.image.avatar(),
-			joinedAt: faker.date.past({ months: 3 }),
+			joinedAt: faker.date.past({ years: 0.25 }),
 			lastActive: faker.date.recent({ days: 5 }),
 		},
 	]
@@ -671,7 +673,7 @@ async function seedOrganizationSettings(orgId: string, orgIndex: number = 0) {
 		description: template.description,
 		gstVerified: orgIndex < 3, // First 3 orgs verified
 		panVerified: orgIndex < 3, // First 3 orgs verified
-		approvalStatus: (orgIndex < 3 ? "approved" : orgIndex === 3 ? "pending" : "draft") as const,
+		approvalStatus: (orgIndex < 3 ? "approved" : orgIndex === 3 ? "pending" : "draft") as "approved" | "pending" | "draft",
 	}
 
 	await db.organizationSettings.create(settings)
@@ -1036,7 +1038,7 @@ export async function seedDatabase(
 		await seedWalletBalance(orgId)
 		await seedOrganizationSettings(orgId, parseInt(orgId) - 1)
 		await seedTeamMembers(orgId)
-		await seedInvoices(orgId, enrollments, 2) // Seed invoices with enrollment relationships
+		await seedInvoices(orgId, enrollments) // Seed invoices with enrollment relationships
 		console.log("[MSW DB] Minimal scenario complete")
 		return
 	}

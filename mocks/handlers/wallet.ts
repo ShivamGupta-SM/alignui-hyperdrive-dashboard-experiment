@@ -12,6 +12,7 @@ import {
 	encoreResponse,
 	encoreListResponse,
 	encoreErrorResponse,
+	encoreNotFoundResponse,
 } from "./utils"
 import { delay, DELAY } from "@/mocks/utils/delay"
 
@@ -88,7 +89,7 @@ export const walletHandlers = [
 		return encoreListResponse(
 			paginatedTransactions.map((t) => ({
 				...t,
-				createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : t.createdAt,
+				createdAt: typeof t.createdAt === "string" ? t.createdAt : new Date(t.createdAt as Date).toISOString(),
 			})),
 			total,
 			skip,
@@ -111,7 +112,7 @@ export const walletHandlers = [
 		return encoreListResponse(
 			paginatedTransactions.map((t) => ({
 				...t,
-				createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : t.createdAt,
+				createdAt: typeof t.createdAt === "string" ? t.createdAt : new Date(t.createdAt as Date).toISOString(),
 			})),
 			total,
 			skip,
@@ -122,12 +123,12 @@ export const walletHandlers = [
 	// GET /organizations/:orgId/wallet/holds
 	http.get(encoreUrl("/organizations/:orgId/wallet/holds"), async ({ params }) => {
 		const { orgId } = params as { orgId: string }
-		const holds = db.activeHolds.findMany((q) => q.where({ walletId: `wallet-${orgId}` }))
+		const holds = db.activeHolds.findMany((q) => q.where({ organizationId: orgId }))
 
 		return encoreResponse({
 			holds: holds.map((h) => ({
 				...h,
-				createdAt: h.createdAt instanceof Date ? h.createdAt.toISOString() : h.createdAt,
+				createdAt: typeof h.createdAt === "string" ? h.createdAt : new Date(h.createdAt as Date).toISOString(),
 			})),
 		})
 	}),
@@ -238,14 +239,10 @@ export const walletHandlers = [
 			return encoreErrorResponse("Only pending withdrawals can be cancelled", 400)
 		}
 
-		// Update withdrawal status
-		const updated = db.withdrawals.update({
-			where: { id: id as string },
-			data: {
-				status: "cancelled",
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update withdrawal status - use findFirst + manual update pattern
+		const updated = { ...withdrawal, status: "cancelled" as const, updatedAt: new Date().toISOString() }
+		db.withdrawals.delete((q) => q.where({ id: id as string }))
+		db.withdrawals.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -302,15 +299,14 @@ export const walletHandlers = [
 		// Save to database
 		db.withdrawals.create(newWithdrawal)
 
-		// Update wallet balance (hold the amount)
-		db.walletBalances.update({
-			where: { organizationId: orgId },
-			data: {
-				availableBalance: wallet.availableBalance - body.amount,
-				heldAmount: wallet.heldAmount + body.amount,
-				updatedAt: now,
-			},
-		})
+		// Update wallet balance (hold the amount) - use findFirst + manual update pattern
+		const updatedWallet = {
+			...wallet,
+			availableBalance: wallet.availableBalance - body.amount,
+			heldAmount: wallet.heldAmount + body.amount,
+		}
+		db.walletBalances.delete((q) => q.where({ organizationId: orgId }))
+		db.walletBalances.create(updatedWallet)
 
 		return encoreResponse(newWithdrawal)
 	}),
@@ -328,14 +324,10 @@ export const walletHandlers = [
 			return encoreNotFoundResponse("Withdrawal")
 		}
 
-		// Update withdrawal in database
-		const updated = db.withdrawals.update({
-			where: { id: id as string },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update withdrawal in database - use findFirst + manual update pattern
+		const updated = { ...withdrawal, ...body, updatedAt: new Date().toISOString() }
+		db.withdrawals.delete((q) => q.where({ id: id as string }))
+		db.withdrawals.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -350,14 +342,10 @@ export const walletHandlers = [
 			return encoreNotFoundResponse("Withdrawal")
 		}
 
-		// Update withdrawal in database
-		const updated = db.withdrawals.update({
-			where: { id: id as string },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update withdrawal in database - use findFirst + manual update pattern
+		const updated = { ...withdrawal, ...body, updatedAt: new Date().toISOString() }
+		db.withdrawals.delete((q) => q.where({ id: id as string }))
+		db.withdrawals.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -400,7 +388,7 @@ export const walletHandlers = [
 		return encoreListResponse(
 			paginatedTransactions.map((t) => ({
 				...t,
-				createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : t.createdAt,
+				createdAt: typeof t.createdAt === "string" ? t.createdAt : new Date(t.createdAt as Date).toISOString(),
 			})),
 			total,
 			skip,

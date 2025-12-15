@@ -613,7 +613,7 @@ interface BankAccount {
 	id: string
 	bankName: string
 	accountNumber: string
-	accountHolder: string
+	accountHolderName: string
 	isDefault: boolean
 }
 
@@ -711,7 +711,7 @@ export function WithdrawalModal({
 												)}
 											</div>
 											<div className="text-paragraph-xs text-text-sub-600 mt-0.5">
-												{account.accountHolder}
+												{account.accountHolderName}
 											</div>
 										</div>
 									</label>

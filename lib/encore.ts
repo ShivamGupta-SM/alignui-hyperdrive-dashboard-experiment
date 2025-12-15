@@ -2,21 +2,9 @@
 // This file can only be imported on the server-side
 import "server-only"
 
-import Client, { Local, Environment } from "./encore-client"
+import Client from "./encore-client"
 import type { ClientOptions } from "./encore-client"
-
-// Determine the base URL based on environment
-function getEncoreBaseUrl() {
-	// In production, use the environment-specific URL
-	if (process.env.NODE_ENV === "production") {
-		const envName = process.env.ENCORE_ENVIRONMENT || "production"
-		return Environment(envName)
-	}
-
-	// In development, use NEXT_PUBLIC_ENCORE_URL or ENCORE_API_URL or Local
-	const baseUrl = process.env.NEXT_PUBLIC_ENCORE_URL || process.env.ENCORE_API_URL || Local
-	return baseUrl
-}
+import { getEncoreBaseUrl } from "./encore-shared"
 
 // Create a singleton client instance for server-side use
 let clientInstance: Client | null = null
@@ -27,8 +15,9 @@ let clientInstance: Client | null = null
  */
 export function getEncoreClient(options?: ClientOptions): Client {
 	// Use singleton pattern
+	const baseUrl = getEncoreBaseUrl()
 	if (!clientInstance) {
-		clientInstance = new Client(getEncoreBaseUrl(), options)
+		clientInstance = new Client(baseUrl, options)
 	}
 
 	// If options are provided, return a new client with those options

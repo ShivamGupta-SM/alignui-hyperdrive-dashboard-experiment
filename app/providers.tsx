@@ -20,6 +20,7 @@ import { PostHogProvider } from "@/lib/posthog"
 import { NuqsAdapter } from "nuqs/adapters/next/app"
 // import { MSWInit } from "@/components/msw-init" // Mocking disabled
 import { NovuProvider } from "@/components/dashboard/novu-provider"
+import { OrganizationProvider } from "@/contexts/organization-context"
 
 function makeQueryClient() {
 	return new QueryClient({
@@ -49,25 +50,27 @@ export function Providers({ children }: { children: ReactNode }) {
 
 	return (
 		<QueryClientProvider client={queryClient}>
-			<NovuProvider>
-				<PostHogProvider>
-					<NuqsAdapter>
-						<ThemeProvider
-							attribute="class"
-							defaultTheme="system"
-							enableSystem
-							disableTransitionOnChange
-						>
-							<TooltipProvider>
-								{children}
-							</TooltipProvider>
+			<OrganizationProvider>
+				<NovuProvider>
+					<PostHogProvider>
+						<NuqsAdapter>
+							<ThemeProvider
+								attribute="class"
+								defaultTheme="system"
+								enableSystem
+								disableTransitionOnChange
+							>
+								<TooltipProvider>
+									{children}
+								</TooltipProvider>
 
-							<NotificationProvider />
-							<Toaster />
-						</ThemeProvider>
-					</NuqsAdapter>
-				</PostHogProvider>
-			</NovuProvider>
+								<NotificationProvider />
+								<Toaster />
+							</ThemeProvider>
+						</NuqsAdapter>
+					</PostHogProvider>
+				</NovuProvider>
+			</OrganizationProvider>
 		</QueryClientProvider>
 	)
 }

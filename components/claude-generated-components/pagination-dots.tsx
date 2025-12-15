@@ -98,7 +98,7 @@ const PaginationDotsRoot = React.forwardRef<HTMLDivElement, PaginationDotsRootPr
 			if (children) return children
 
 			return Array.from({ length: count }, (_, index) => (
-				<PaginationDot key={index} index={index} />
+				<PaginationDot key={`pagination-dot-${index}-${count}`} index={index} />
 			))
 		}
 

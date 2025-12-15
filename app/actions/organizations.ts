@@ -23,11 +23,11 @@ export async function createBasicOrganization(name: string) {
 	const client = getAuthenticatedEncoreClient(token)
 
 	try {
-		// Use Better Auth's createOrganization - only needs name
-		const result = await client.auth.createOrganization({
+		// Industry Standard: Use custom backend endpoint (auto-sets active org)
+		// Backend handles Better Auth sync + business fields + auto-set
+		const result = await client.organizations.createOrganization({
 			name,
-			// slug will be auto-generated
-			// logo can be added later
+			// Backend auto-sets if user has no active org
 		})
 
 		if (!result?.id) {
@@ -37,13 +37,7 @@ export async function createBasicOrganization(name: string) {
 			}
 		}
 
-		// Better Auth's createOrganization does NOT auto-set as active by default.
-		// Our backend endpoint (organizations/organizations.ts:createOrganization) does auto-set,
-		// but we're calling Better Auth directly here, so we need to set it manually.
-		// This ensures the organization is immediately available for use.
-		await client.auth.setActiveOrganization({
-			organizationId: result.id,
-		})
+		// ✅ No need to call setActiveOrganization - backend does it automatically!
 
 		// Revalidate paths to refresh server components with new org context
 		revalidatePath("/dashboard")
@@ -79,13 +73,13 @@ export async function switchOrganization(organizationId: string) {
 
 	try {
 		// Update backend (Better Auth session) - single source of truth
-		// Backend updates session.activeOrganizationId automatically
-		// No cookie needed - session is the source of truth (industry standard)
+		// Better Auth updates session.activeOrganizationId synchronously in database
 		await client.auth.setActiveOrganization({
 			organizationId,
 		})
 
-		// Revalidate all paths to refresh server components with new org context
+		// Revalidate paths to refresh server components with new org context
+		// Better Auth's setActiveOrganization completes synchronously, so no delay needed
 		revalidatePath("/", "layout")
 		revalidatePath("/dashboard")
 

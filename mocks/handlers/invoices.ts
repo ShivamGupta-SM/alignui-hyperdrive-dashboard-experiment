@@ -65,9 +65,13 @@ export const invoicesHandlers = [
 	http.get(encoreUrl("/invoices/:id"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const invoiceId = Array.isArray(id) ? id[0] : id
+		if (!invoiceId) {
+			return encoreNotFoundResponse("Invoice")
+		}
 
 		const invoice = db.invoices.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId || "1" })
+			q.where({ id: invoiceId as string, organizationId: auth.organizationId || "1" })
 		)
 		if (!invoice) return encoreNotFoundResponse("Invoice")
 
@@ -196,6 +200,10 @@ export const invoicesHandlers = [
 	http.put(encoreUrl("/invoices/:id"), async ({ params, request }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const invoiceId = Array.isArray(id) ? id[0] : id
+		if (!invoiceId) {
+			return encoreNotFoundResponse("Invoice")
+		}
 		const body = (await request.json()) as {
 			totalAmount?: number
 			paidAmount?: number
@@ -205,20 +213,16 @@ export const invoicesHandlers = [
 		}
 
 		const invoice = db.invoices.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId || "1" })
+			q.where({ id: invoiceId as string, organizationId: auth.organizationId || "1" })
 		)
 		if (!invoice) {
 			return encoreNotFoundResponse("Invoice")
 		}
 
-		// Update invoice in database
-		const updated = db.invoices.update({
-			where: { id },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update invoice in database - use findFirst + manual update pattern
+		const updated = { ...invoice, ...body, updatedAt: new Date().toISOString() }
+		db.invoices.delete((q) => q.where({ id: invoiceId as string }))
+		db.invoices.create(updated)
 
 		return encoreResponse({
 			id: updated.id,
@@ -246,23 +250,23 @@ export const invoicesHandlers = [
 	http.patch(encoreUrl("/invoices/:id"), async ({ params, request }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const invoiceId = Array.isArray(id) ? id[0] : id
+		if (!invoiceId) {
+			return encoreNotFoundResponse("Invoice")
+		}
 		const body = (await request.json()) as Record<string, unknown>
 
 		const invoice = db.invoices.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId || "1" })
+			q.where({ id: invoiceId as string, organizationId: auth.organizationId || "1" })
 		)
 		if (!invoice) {
 			return encoreNotFoundResponse("Invoice")
 		}
 
-		// Update invoice in database
-		const updated = db.invoices.update({
-			where: { id },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update invoice in database - use findFirst + manual update pattern
+		const updated = { ...invoice, ...body, updatedAt: new Date().toISOString() }
+		db.invoices.delete((q) => q.where({ id: invoiceId as string }))
+		db.invoices.create(updated)
 
 		return encoreResponse({
 			id: updated.id,
@@ -290,9 +294,13 @@ export const invoicesHandlers = [
 	http.delete(encoreUrl("/invoices/:id"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const invoiceId = Array.isArray(id) ? id[0] : id
+		if (!invoiceId) {
+			return encoreNotFoundResponse("Invoice")
+		}
 
 		const invoice = db.invoices.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId || "1" })
+			q.where({ id: invoiceId as string, organizationId: auth.organizationId || "1" })
 		)
 		if (!invoice) {
 			return encoreNotFoundResponse("Invoice")
@@ -304,7 +312,7 @@ export const invoicesHandlers = [
 		}
 
 		// Delete invoice from database
-		db.invoices.delete({ where: { id } })
+		db.invoices.delete((q) => q.where({ id: invoiceId as string }))
 
 		return encoreResponse({ deleted: true })
 	}),

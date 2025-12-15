@@ -43,10 +43,10 @@ export const productsHandlers = [
 		let products = db.products.findMany((q) => q.where({ organizationId: orgId }))
 
 		if (categoryId) {
-			products = products.filter((p) => p.category === categoryId)
+			products = products.filter((p) => p.categoryId === categoryId)
 		}
 		if (platformId) {
-			products = products.filter((p) => p.platform === platformId)
+			products = products.filter((p) => p.platformId === platformId)
 		}
 		if (search) {
 			const searchLower = search.toLowerCase()
@@ -69,9 +69,13 @@ export const productsHandlers = [
 	http.get(encoreUrl("/products/:id"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const productId = Array.isArray(id) ? id[0] : id
+		if (!productId) {
+			return encoreNotFoundResponse("Product")
+		}
 
 		const product = db.products.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: productId as string, organizationId: auth.organizationId })
 		)
 		if (!product) {
 			return encoreNotFoundResponse("Product")
@@ -117,23 +121,23 @@ export const productsHandlers = [
 
 		const auth = getAuthContext()
 		const { id } = params
+		const productId = Array.isArray(id) ? id[0] : id
+		if (!productId) {
+			return encoreNotFoundResponse("Product")
+		}
 		const body = (await request.json()) as { name?: string; description?: string }
 
 		const product = db.products.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: productId as string, organizationId: auth.organizationId })
 		)
 		if (!product) {
 			return encoreNotFoundResponse("Product")
 		}
 
-		// Update product in database
-		const updated = db.products.update({
-			where: { id },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update product in database - use findFirst + manual update pattern
+		const updated = { ...product, ...body, updatedAt: new Date().toISOString() }
+		db.products.delete((q) => q.where({ id: productId as string }))
+		db.products.create(updated)
 		return encoreResponse(toProductWithStats(updated))
 	}),
 
@@ -141,32 +145,38 @@ export const productsHandlers = [
 	http.delete(encoreUrl("/products/:id"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const productId = Array.isArray(id) ? id[0] : id
+		if (!productId) {
+			return encoreNotFoundResponse("Product")
+		}
 
 		const product = db.products.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: productId as string, organizationId: auth.organizationId })
 		)
 		if (!product) {
 			return encoreNotFoundResponse("Product")
 		}
 
-		const campaigns = db.campaigns.findMany((q) => q.where({ productId: id }))
+		const campaigns = db.campaigns.findMany((q) => q.where({ productId: productId as string }))
 		if (campaigns.length > 0) {
 			return encoreErrorResponse("Cannot delete product with active campaigns", 400)
 		}
 
 		// Delete product from database
-		db.products.delete({ where: { id } })
+		db.products.delete((q) => q.where({ id: productId as string }))
 		return encoreResponse({ deleted: true })
 	}),
 
 	// GET /products/categories - List categories
 	http.get(encoreUrl("/products/categories"), async () => {
-		return encoreListResponse(mockCategories, mockCategories.length, 0, 50)
+		const categories = db.categories.findMany()
+		return encoreListResponse(categories, categories.length, 0, 50)
 	}),
 
 	// GET /products/platforms - List platforms
 	http.get(encoreUrl("/products/platforms"), async () => {
-		return encoreListResponse(mockPlatforms, mockPlatforms.length, 0, 50)
+		const platforms = db.platforms.findMany()
+		return encoreListResponse(platforms, platforms.length, 0, 50)
 	}),
 
 	// POST /products/batch/import - Encore uses this URL

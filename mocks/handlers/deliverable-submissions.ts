@@ -152,15 +152,15 @@ export const deliverableSubmissionsHandlers = [
 			return encoreNotFoundResponse("DeliverableSubmission")
 		}
 
-		// Update submission with proof
-		const updated = db.deliverableSubmissions.update({
-			where: { id: submissionId as string },
-			data: {
-				proofLink: body.proofLink ?? submission.proofLink,
-				proofScreenshot: body.proofScreenshot ?? submission.proofScreenshot,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update submission with proof - use findFirst + manual update pattern
+		const updated = {
+			...submission,
+			proofLink: body.proofLink ?? submission.proofLink,
+			proofScreenshot: body.proofScreenshot ?? submission.proofScreenshot,
+			updatedAt: new Date().toISOString(),
+		}
+		db.deliverableSubmissions.delete((q) => q.where({ id: submissionId as string }))
+		db.deliverableSubmissions.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -189,13 +189,14 @@ export const deliverableSubmissionsHandlers = [
 			return encoreNotFoundResponse("DeliverableSubmission")
 		}
 
-		const updated = db.deliverableSubmissions.update({
-			where: { id: submissionId as string },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update submission - use findFirst + manual update pattern
+		const updated = {
+			...submission,
+			...body,
+			updatedAt: new Date().toISOString(),
+		}
+		db.deliverableSubmissions.delete((q) => q.where({ id: submissionId as string }))
+		db.deliverableSubmissions.create(updated)
 
 		return encoreResponse(updated)
 	}),

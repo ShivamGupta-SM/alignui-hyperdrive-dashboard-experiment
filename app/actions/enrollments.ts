@@ -99,7 +99,8 @@ export async function bulkUpdateEnrollments(
 
 		return { success: true, updatedCount: ids.length }
 	} catch (error: unknown) {
-		return handleAPIError(error)
+		const apiError = handleAPIError(error)
+		return { success: false, error: apiError.error }
 	}
 }
 
@@ -127,7 +128,8 @@ export async function requestEnrollmentChanges(
 
 		return { success: true }
 	} catch (error: unknown) {
-		return handleAPIError(error)
+		const apiError = handleAPIError(error)
+		return { success: false, error: apiError.error }
 	}
 }
 
@@ -158,13 +160,10 @@ export async function exportEnrollments(params: unknown): Promise<EnrollmentActi
 			status: validation.data.status as shared.EnrollmentStatus | undefined,
 		})
 
-		// ExportResponse doesn't have downloadUrl, so we return the data for client-side CSV generation
+		// ExportResponse doesn't have downloadUrl, so we return success
+		// Client will fetch the data separately if needed
 		return {
 			success: true,
-			data: result.data,
-			totalCount: result.totalCount,
-			campaignTitle: result.campaignTitle,
-			exportedAt: result.exportedAt,
 		}
 	} catch (error: unknown) {
 		const errorMessage = error instanceof Error ? error.message : "Failed to export enrollments"

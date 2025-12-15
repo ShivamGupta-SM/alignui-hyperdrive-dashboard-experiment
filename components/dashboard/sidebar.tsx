@@ -40,12 +40,18 @@ import {
 import { useActiveOrganization } from "@/hooks/use-active-organization"
 import { useSignOut } from "@/hooks/use-sign-out"
 import { ORGANIZATION_STATUS_CONFIG } from "@/lib/constants"
+import { useRouter } from "next/navigation"
+import type { organizations } from "@/lib/encore-client"
+import type { OrganizationStatus } from "@/lib/types"
+
+type Organization = organizations.Organization
 
 interface SidebarProps {
 	collapsed?: boolean
 	onCollapsedChange?: (collapsed: boolean) => void
 	pendingEnrollments?: number
 	onMobileClose?: () => void
+	onSettingsClick?: () => void
 }
 
 const navigation = [
@@ -100,6 +106,7 @@ const footerNavigation = [
 		label: "Settings",
 		href: "/dashboard/settings",
 		icon: Gear,
+		// Will open SettingsPanel instead of navigating
 	},
 	{
 		id: "help",
@@ -111,12 +118,13 @@ const footerNavigation = [
 
 // NavItem extracted outside Sidebar to prevent recreation on every render
 interface NavItemProps {
-	item: (typeof navigation)[0]
+	item: (typeof navigation)[0] | (typeof footerNavigation)[0]
 	isActive: boolean
 	collapsed: boolean
 	pendingEnrollments: number
 	isDarkMode?: boolean
 	onMobileClose?: () => void
+	onSettingsClick?: () => void
 }
 
 const NavItem = React.memo(function NavItem({
@@ -126,14 +134,27 @@ const NavItem = React.memo(function NavItem({
 	pendingEnrollments,
 	isDarkMode,
 	onMobileClose,
+	onSettingsClick,
 }: NavItemProps) {
 	const Icon = item.icon
-	const showBadge = item.hasBadge && pendingEnrollments > 0
+	const showBadge = "hasBadge" in item && item.hasBadge && pendingEnrollments > 0
+	
+	// Settings link opens SettingsPanel instead of navigating
+	const isSettings = item.id === "settings"
+	const handleClick = (e: React.MouseEvent) => {
+		if (isSettings && onSettingsClick) {
+			e.preventDefault()
+			onSettingsClick()
+			onMobileClose?.()
+		} else {
+			onMobileClose?.()
+		}
+	}
 
 	const content = (
 		<Link
 			href={item.href}
-			onClick={onMobileClose}
+			onClick={handleClick}
 			className={cn(
 				"group relative flex items-center rounded-xl",
 				"text-label-sm transition-colors duration-200 ease-out",
@@ -189,13 +210,16 @@ export function Sidebar({
 	collapsed = false,
 	pendingEnrollments = 0,
 	onMobileClose,
+	onSettingsClick,
 }: SidebarProps) {
+	const router = useRouter()
 	const pathname = usePathname()
 	const { theme, setTheme, resolvedTheme } = useTheme()
 	const { data: session } = useSession()
 	const user = session?.user
-	const { data: organizations = [], isLoading: isLoadingOrgs } = useOrganizations()
-	const currentOrganization = useActiveOrganization(organizations)
+	const { data: organizationsData, isLoading: isLoadingOrgs } = useOrganizations()
+	const organizations = organizationsData?.organizations || []
+	const currentOrganization = useActiveOrganization()
 	const switchOrganization = useSwitchOrganization()
 	const { signOut: handleSignOut } = useSignOut()
 
@@ -204,12 +228,23 @@ export function Sidebar({
 	const onSignOut = handleSignOut
 
 	const handleOrganizationChange = (org: Organization) => {
+		// Don't switch if already the active organization
+		if (currentOrganization?.id === org.id) {
+			return
+		}
+		
+		// Don't switch if mutation is already in progress
+		if (switchOrganization.isPending) {
+			return
+		}
+		
+		// Call mutation - all success/error handling is in the hook
 		switchOrganization.mutate(org.id)
 	}
 
 	const handleCreateOrganization = () => {
 		// Navigate to onboarding or create org page
-		window.location.href = "/onboarding"
+		router.push("/onboarding")
 	}
 
 	const isActiveHref = (href: string) => {
@@ -249,13 +284,13 @@ export function Sidebar({
 			{/* Organization Switcher */}
 			<div className="px-3 py-3">
 				<OrganizationSwitcher
-					organizations={organizations}
-					currentOrganization={currentOrganization}
+					organizations={organizations as Organization[]}
+					currentOrganization={currentOrganization as Organization | null}
 					onOrganizationChange={handleOrganizationChange}
 					onCreateOrganization={handleCreateOrganization}
 					collapsed={collapsed}
 					isDarkMode={isDarkMode}
-					isLoading={isLoadingOrgs}
+					isLoading={isLoadingOrgs || switchOrganization.isPending}
 				/>
 			</div>
 
@@ -307,6 +342,7 @@ export function Sidebar({
 								pendingEnrollments={pendingEnrollments}
 								isDarkMode={isDarkMode}
 								onMobileClose={onMobileClose}
+								onSettingsClick={onSettingsClick}
 							/>
 						</li>
 					))}
@@ -319,6 +355,7 @@ export function Sidebar({
 						isDarkMode={isDarkMode}
 						onToggleDarkMode={onToggleDarkMode}
 						onSignOut={onSignOut}
+						onSettingsClick={onSettingsClick}
 					/>
 				)}
 			</div>
@@ -332,6 +369,7 @@ interface UserProfileMenuProps {
 	isDarkMode?: boolean
 	onToggleDarkMode?: () => void
 	onSignOut?: () => void
+	onSettingsClick?: () => void
 }
 
 function UserProfileMenu({
@@ -339,6 +377,7 @@ function UserProfileMenu({
 	isDarkMode,
 	onToggleDarkMode,
 	onSignOut,
+	onSettingsClick,
 }: UserProfileMenuProps) {
 	const { data: session } = useSession()
 	const user = session?.user
@@ -351,17 +390,17 @@ function UserProfileMenu({
 				collapsed ? "justify-center size-11" : "w-full gap-3 p-2"
 			)}
 		>
-			<AvatarWithFallback
-				src={user.avatar}
-				name={user.name || user.email}
-				size={collapsed ? "32" : "40"}
-				color="blue"
-			/>
+		<AvatarWithFallback
+			src={user?.image ?? undefined}
+			name={user?.name || user?.email || ""}
+			size={collapsed ? "32" : "40"}
+			color="blue"
+		/>
 			{!collapsed && (
 				<>
 					<div className="flex-1 min-w-0 text-left">
-						<div className="text-label-sm truncate text-text-strong-950">{user.name || "User"}</div>
-						<div className="text-paragraph-xs truncate text-text-sub-600">{user.email}</div>
+						<div className="text-label-sm truncate text-text-strong-950">{user?.name || "User"}</div>
+						<div className="text-paragraph-xs truncate text-text-sub-600">{user?.email || ""}</div>
 					</div>
 					<DotsThree weight="bold" className="size-5 text-text-sub-600 shrink-0" />
 				</>
@@ -379,32 +418,28 @@ function UserProfileMenu({
 			{/* User Info Header */}
 			<div className="px-3 py-3 border-b border-stroke-soft-200">
 				<div className="flex items-center gap-3">
-					<AvatarWithFallback
-						src={user.avatar}
-						name={user.name || user.email}
-						size="48"
-						color="blue"
-					/>
+				<AvatarWithFallback
+					src={user?.image ?? undefined}
+					name={user?.name || user?.email || ""}
+					size="48"
+					color="blue"
+				/>
 					<div className="flex-1 min-w-0">
-						<div className="text-label-sm text-text-strong-950 truncate">{user.name || "User"}</div>
-						<div className="text-paragraph-xs text-text-sub-600 truncate">{user.email}</div>
+						<div className="text-label-sm text-text-strong-950 truncate">{user?.name || "User"}</div>
+						<div className="text-paragraph-xs text-text-sub-600 truncate">{user?.email || ""}</div>
 					</div>
 				</div>
 			</div>
 
 			{/* Account Section */}
 			<Dropdown.Group>
-				<Dropdown.Item asChild>
-					<Link href="/dashboard/profile">
-						<Dropdown.ItemIcon as={User} />
-						My Profile
-					</Link>
+				<Dropdown.Item onClick={onSettingsClick}>
+					<Dropdown.ItemIcon as={User} />
+					My Profile
 				</Dropdown.Item>
-				<Dropdown.Item asChild>
-					<Link href="/dashboard/security">
-						<Dropdown.ItemIcon as={Lock} />
-						Change Password
-					</Link>
+				<Dropdown.Item onClick={onSettingsClick}>
+					<Dropdown.ItemIcon as={Lock} />
+					Change Password
 				</Dropdown.Item>
 				<Dropdown.Item onClick={onToggleDarkMode}>
 					<Dropdown.ItemIcon as={isDarkMode ? Sun : Moon} />
@@ -429,7 +464,7 @@ function UserProfileMenu({
 					<Tooltip.Trigger asChild>
 						<Dropdown.Trigger asChild>{trigger}</Dropdown.Trigger>
 					</Tooltip.Trigger>
-					<Tooltip.Content side="right">{user.name || user.email}</Tooltip.Content>
+					<Tooltip.Content side="right">{user?.name || user?.email || "User"}</Tooltip.Content>
 				</Tooltip.Root>
 				{menuContent}
 			</Dropdown.Root>
@@ -565,7 +600,11 @@ function OrganizationSwitcher({
 				<Dropdown.Label>Switch organization</Dropdown.Label>
 				<div className="flex flex-col gap-0.5 px-1.5">
 					{organizations.map((org) => {
-						const statusConfig = ORGANIZATION_STATUS_CONFIG[org.status]
+						// Map approvalStatus to OrganizationStatus for config lookup
+						const orgStatus = org.approvalStatus === "approved" ? "approved" : 
+						                  org.approvalStatus === "pending" ? "pending" :
+						                  org.approvalStatus === "rejected" ? "rejected" : "suspended"
+						const statusConfig = ORGANIZATION_STATUS_CONFIG[orgStatus]
 						const isSelected = org.id === currentOrganization?.id
 
 						return (
@@ -592,9 +631,9 @@ function OrganizationSwitcher({
 									</span>
 									<div className="flex items-center gap-1 text-paragraph-xs text-text-sub-600">
 										<span className="truncate">{org.slug}</span>
-										{org.status === "approved" && org.campaignCount !== undefined && (
+										{org.approvalStatus === "approved" && (org as any).campaignCount !== undefined && (
 											<span className="shrink-0 whitespace-nowrap">
-												· {org.campaignCount} campaigns
+												· {(org as any).campaignCount} campaigns
 											</span>
 										)}
 									</div>

@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -23,13 +23,17 @@ import {
 	CheckCircle,
 	X,
 	Lightbulb,
+	Warning,
 } from "@phosphor-icons/react"
 import { cn } from "@/utils/cn"
+import { useLocalStorage } from "@/hooks/use-local-storage"
+import { CalloutWithActions } from "@/components/ui/callout"
+import { useOrganizationContext } from "@/contexts/organization-context"
+import { nanoid } from "nanoid"
 import { createProduct } from "@/app/actions/products"
 import { toast } from "sonner"
 import { productFormSchema, type ProductFormInput } from "@/lib/validations"
 import type { products } from "@/lib/encore-browser"
-import { useTransition } from "react"
 
 type ProductCategory = products.ProductCategory
 
@@ -37,10 +41,102 @@ interface NewProductClientProps {
 	categories: ProductCategory[]
 }
 
+// Industry Standard: Use context instead of props
 export function NewProductClient({ categories }: NewProductClientProps) {
 	const router = useRouter()
+	
+	// Industry Standard: Always use context, never props
+	const { hasOrganization, isLoading: isOrgLoading } = useOrganizationContext()
+	
+	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
+		"new-product-onboarding-alert-dismissed",
+		false
+	)
+
+	// Industry Standard: Check loading state first
+	if (isOrgLoading) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				<div className="animate-pulse">
+					<div className="h-8 w-48 bg-bg-soft-200 rounded mb-4" />
+					<div className="h-40 bg-bg-soft-200 rounded-xl" />
+				</div>
+			</div>
+		)
+	}
+
+	// Show onboarding alert if no organization
+	const showOnboardingAlert = !hasOrganization && !dismissedOnboardingAlert
+
+	// If no organization, show alert
+	if (!hasOrganization) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				{/* ONBOARDING ALERT */}
+				{showOnboardingAlert && (
+					<CalloutWithActions
+						variant="warning"
+						title="Complete Your Organization Setup"
+						dismissible
+						onDismiss={() => setDismissedOnboardingAlert(true)}
+						actions={
+							<>
+								<Button.Root
+									variant="primary"
+									size="small"
+									onClick={() => router.push("/onboarding")}
+								>
+									<Button.Icon as={ArrowRight} />
+									Start Onboarding
+								</Button.Root>
+								<Button.Root
+									variant="ghost"
+									size="small"
+									onClick={() => setDismissedOnboardingAlert(true)}
+								>
+									Maybe Later
+								</Button.Root>
+							</>
+						}
+					>
+						To add products, you need to complete your organization setup. This will only take a few minutes.
+					</CalloutWithActions>
+				)}
+
+				{/* HEADER */}
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+					<div className="min-w-0">
+						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Add Product</h1>
+					</div>
+				</div>
+
+				{/* EMPTY STATE */}
+				{dismissedOnboardingAlert && (
+					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
+						<div className="max-w-md mx-auto space-y-4">
+							<div className="flex justify-center">
+								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
+									<Warning weight="duotone" className="size-8 text-warning-base" />
+								</div>
+							</div>
+							<div>
+								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
+								<p className="text-paragraph-sm text-text-sub-600 mt-2">
+									Complete your organization setup to add products.
+								</p>
+							</div>
+							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
+								<Button.Icon as={ArrowRight} />
+								Start Onboarding
+							</Button.Root>
+						</div>
+					</div>
+				)}
+			</div>
+		)
+	}
 	const [isPending, startTransition] = useTransition()
-	const [uploadedImage, setUploadedImage] = React.useState<string | null>(null)
+	const [uploadedImage, setUploadedImage] = useState<string | null>(null)
 
 	const {
 		register,
@@ -82,7 +178,7 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 				const result = await createProduct({
 					name: data.name,
 					description: data.description || undefined,
-					sku: data.sku || `SKU-${Date.now()}`,
+					sku: data.sku || `SKU-${nanoid(8)}`,
 					categoryId: data.categoryId || undefined,
 					platformId: data.platformId || "amazon",
 					price: data.price || 0,
@@ -94,10 +190,40 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 					toast.success("Product created successfully")
 					router.push("/dashboard/products")
 				} else {
-					toast.error(result.error || "Failed to create product")
+					const errorMessage = result.error || "Failed to create product"
+					// Check if error is related to approval status
+					if (errorMessage?.toLowerCase().includes("not yet approved") || 
+					    errorMessage?.toLowerCase().includes("not approved") ||
+					    errorMessage?.toLowerCase().includes("approval")) {
+						toast.error("Organization Not Approved", {
+							description: "Please complete onboarding and wait for admin approval before adding products.",
+							action: {
+								label: "Go to Onboarding",
+								onClick: () => router.push("/onboarding")
+							},
+							duration: 8000
+						})
+					} else {
+						toast.error(errorMessage)
+					}
 				}
 			} catch (error) {
-				toast.error(error instanceof Error ? error.message : "Failed to create product")
+				const errorMessage = error instanceof Error ? error.message : "Failed to create product"
+				// Check if error is related to approval status
+				if (errorMessage?.toLowerCase().includes("not yet approved") || 
+				    errorMessage?.toLowerCase().includes("not approved") ||
+				    errorMessage?.toLowerCase().includes("approval")) {
+					toast.error("Organization Not Approved", {
+						description: "Please complete onboarding and wait for admin approval before adding products.",
+						action: {
+							label: "Go to Onboarding",
+							onClick: () => router.push("/onboarding")
+						},
+						duration: 8000
+					})
+				} else {
+					toast.error(errorMessage)
+				}
 			}
 		})
 	}

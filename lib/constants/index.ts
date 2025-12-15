@@ -143,11 +143,6 @@ export const ENROLLMENT_STATUS_CONFIG: Record<
 		description: string
 	}
 > = {
-	enrolled: {
-		label: "Enrolled",
-		color: "blue",
-		description: "Just enrolled",
-	},
 	awaiting_submission: {
 		label: "Awaiting Submission",
 		color: "yellow",
@@ -167,11 +162,6 @@ export const ENROLLMENT_STATUS_CONFIG: Record<
 		label: "Approved",
 		color: "green",
 		description: "Approved for payout",
-	},
-	rejected: {
-		label: "Rejected",
-		color: "red",
-		description: "Submission rejected",
 	},
 	permanently_rejected: {
 		label: "Permanently Rejected",
@@ -461,3 +451,29 @@ export const DEFAULT_SUBMISSION_DEADLINE_DAYS = 45
 export const DEFAULT_PAGE_SIZE = 10
 export const MIN_WALLET_BALANCE_WARNING = 10000 // ₹10,000
 export const INVITATION_EXPIRY_DAYS = 7
+
+// ============================================================================
+// TIMEOUTS & DELAYS
+// ============================================================================
+
+export const TIMEOUTS = {
+	// Debounce delays
+	DEBOUNCE: 300,
+	SEARCH_DEBOUNCE: 300,
+	
+	// Toast durations
+	TOAST_SUCCESS: 5000,
+	TOAST_ERROR: 7000,
+	TOAST_INFO: 5000,
+	
+	// Polling intervals
+	POLLING: 30000,
+	
+	// File operations
+	FILE_DOWNLOAD_CLEANUP: 100, // Delay before revoking object URL
+	FILE_UPLOAD_TIMEOUT: 30000,
+	
+	// Auto-save intervals
+	AUTO_SAVE_LOCAL: 1000,
+	AUTO_SAVE_BACKEND: 3000,
+} as const

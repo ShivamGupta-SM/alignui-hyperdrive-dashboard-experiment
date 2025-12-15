@@ -9,12 +9,7 @@ interface UIState {
 	setSidebarCollapsed: (collapsed: boolean) => void
 	toggleSidebar: () => void
 
-	// Mobile menu state
-	mobileMenuOpen: boolean
-	setMobileMenuOpen: (open: boolean) => void
-	toggleMobileMenu: () => void
-
-	// Drawers/Panels (global UI state)
+	// Drawers/Panels (global UI state - these are truly global)
 	notificationsDrawerOpen: boolean
 	setNotificationsDrawerOpen: (open: boolean) => void
 	toggleNotificationsDrawer: () => void
@@ -26,28 +21,6 @@ interface UIState {
 	settingsPanelOpen: boolean
 	setSettingsPanelOpen: (open: boolean) => void
 	toggleSettingsPanel: () => void
-
-	// Modals/Dialogs
-	modals: Record<string, boolean>
-	openModal: (modalId: string) => void
-	closeModal: (modalId: string) => void
-	closeAllModals: () => void
-
-	// Notifications (client-side toast notifications)
-	notifications: Array<{
-		id: string
-		message: string
-		type: "success" | "error" | "info" | "warning"
-		timestamp: number
-	}>
-	addNotification: (notification: Omit<UIState["notifications"][0], "id" | "timestamp">) => void
-	removeNotification: (id: string) => void
-	clearNotifications: () => void
-
-	// Loading states
-	loadingStates: Record<string, boolean>
-	setLoading: (key: string, loading: boolean) => void
-	clearLoading: () => void
 
 	// View preferences (persisted)
 	viewPreferences: {
@@ -64,7 +37,13 @@ interface UIState {
 
 /**
  * UI store using Zustand with persistence
- * Manages UI state globally (modals, sidebars, notifications, view preferences, etc.)
+ * Simplified: Only manages truly global, persisted UI state
+ * 
+ * Removed:
+ * - Modals (use local component state)
+ * - Notifications (use Sonner for toasts)
+ * - Loading states (use React Query or local state)
+ * - Mobile menu (use local component state)
  *
  * Benefits of Zustand here:
  * - Global UI state accessible anywhere
@@ -80,12 +59,7 @@ export const useUIStore = create<UIState>()(
 			setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
 			toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
-			// Mobile menu
-			mobileMenuOpen: false,
-			setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
-			toggleMobileMenu: () => set((state) => ({ mobileMenuOpen: !state.mobileMenuOpen })),
-
-			// Drawers/Panels
+			// Drawers/Panels (global UI state)
 			notificationsDrawerOpen: false,
 			setNotificationsDrawerOpen: (open) => set({ notificationsDrawerOpen: open }),
 			toggleNotificationsDrawer: () =>
@@ -98,47 +72,6 @@ export const useUIStore = create<UIState>()(
 			settingsPanelOpen: false,
 			setSettingsPanelOpen: (open) => set({ settingsPanelOpen: open }),
 			toggleSettingsPanel: () => set((state) => ({ settingsPanelOpen: !state.settingsPanelOpen })),
-
-			// Modals
-			modals: {},
-			openModal: (modalId) =>
-				set((state) => ({
-					modals: { ...state.modals, [modalId]: true },
-				})),
-			closeModal: (modalId) =>
-				set((state) => {
-					const newModals = { ...state.modals }
-					delete newModals[modalId]
-					return { modals: newModals }
-				}),
-			closeAllModals: () => set({ modals: {} }),
-
-			// Notifications (client-side toast notifications)
-			notifications: [],
-			addNotification: (notification) =>
-				set((state) => ({
-					notifications: [
-						...state.notifications,
-						{
-							...notification,
-							id: `${Date.now()}-${Math.random()}`,
-							timestamp: Date.now(),
-						},
-					],
-				})),
-			removeNotification: (id) =>
-				set((state) => ({
-					notifications: state.notifications.filter((n) => n.id !== id),
-				})),
-			clearNotifications: () => set({ notifications: [] }),
-
-			// Loading states
-			loadingStates: {},
-			setLoading: (key, loading) =>
-				set((state) => ({
-					loadingStates: { ...state.loadingStates, [key]: loading },
-				})),
-			clearLoading: () => set({ loadingStates: {} }),
 
 			// View preferences (persisted)
 			viewPreferences: {

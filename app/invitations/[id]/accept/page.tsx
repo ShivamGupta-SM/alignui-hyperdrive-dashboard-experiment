@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import * as Button from "@/components/ui/button"
@@ -19,14 +19,15 @@ import { toast } from "sonner"
 export default function AcceptInvitationPage() {
 	const params = useParams()
 	const router = useRouter()
-	const invitationId = params?.id as string
+	// useParams() returns a synchronous object in client components, not a Promise
+	const invitationId = (params?.id as string) || ""
 
-	const [status, setStatus] = React.useState<"loading" | "checking" | "success" | "error" | "needs-auth">("checking")
-	const [errorMessage, setErrorMessage] = React.useState<string>("")
-	const [isAccepting, setIsAccepting] = React.useState(false)
+	const [status, setStatus] = useState<"loading" | "checking" | "success" | "error" | "needs-auth">("checking")
+	const [errorMessage, setErrorMessage] = useState<string>("")
+	const [isAccepting, setIsAccepting] = useState(false)
 
 	// Check if user is authenticated and invitation is valid
-	React.useEffect(() => {
+	useEffect(() => {
 		async function checkInvitation() {
 			if (!invitationId) {
 				setStatus("error")
@@ -245,4 +246,6 @@ export default function AcceptInvitationPage() {
 		</div>
 	)
 }
+
+
 

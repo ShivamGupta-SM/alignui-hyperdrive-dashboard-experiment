@@ -130,17 +130,21 @@ function FadeGroup({
 
 	return (
 		<div className={className}>
-			{items.map((child, index) => (
-				<Fade
-					key={index}
-					show={show}
-					direction={direction}
-					duration={duration}
-					delay={index * staggerDelay}
-				>
-					{child}
-				</Fade>
-			))}
+			{items.map((child, index) => {
+				// Use child's key if available, otherwise use index with stable identifier
+				const childKey = React.isValidElement(child) && child.key ? child.key : `fade-item-${index}`
+				return (
+					<Fade
+						key={childKey}
+						show={show}
+						direction={direction}
+						duration={duration}
+						delay={index * staggerDelay}
+					>
+						{child}
+					</Fade>
+				)
+			})}
 		</div>
 	)
 }

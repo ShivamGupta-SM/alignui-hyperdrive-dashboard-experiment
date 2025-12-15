@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState, useEffect, useMemo, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -27,9 +27,16 @@ import {
 	Megaphone,
 	Tag,
 	ChartBar,
+	ArrowRight,
+	Warning,
 } from "@phosphor-icons/react/dist/ssr"
 import { cn } from "@/utils/cn"
+import { formatDateShort } from "@/lib/format"
 import { toast } from "sonner"
+import { useLocalStorage } from "@/hooks/use-local-storage"
+import { CalloutWithActions } from "@/components/ui/callout"
+import { useOrganizationContext } from "@/contexts/organization-context"
+import * as Tooltip from "@/components/ui/tooltip"
 import type { products } from "@/lib/encore-browser"
 import {
 	createProduct,
@@ -38,7 +45,8 @@ import {
 	bulkImportProducts,
 } from "@/app/actions/products"
 import { productFormSchema, type ProductFormInput } from "@/lib/validations"
-import { formatDateShort } from "@/lib/format"
+import { nanoid } from "nanoid"
+import { FILE_SIZES } from "@/lib/types/constants"
 
 type Product = products.ProductWithStats
 
@@ -61,25 +69,122 @@ interface ProductsClientProps {
 	}
 }
 
-export function ProductsClient({ initialData }: ProductsClientProps = {}) {
+// Industry Standard: Use context instead of props
+export function ProductsClient({ initialData = { data: [] } }: ProductsClientProps) {
 	const router = useRouter()
+	
+	// Industry Standard: Always use context, never props
+	const { hasOrganization, isLoading: isOrgLoading, organization } = useOrganizationContext()
+	const isApproved = (organization as any)?.approvalStatus === "approved"
+	
+	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
+		"products-onboarding-alert-dismissed",
+		false
+	)
+
+	// Industry Standard: Check loading state first
+	if (isOrgLoading) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				<div className="animate-pulse">
+					<div className="h-8 w-48 bg-bg-soft-200 rounded mb-4" />
+					<div className="h-40 bg-bg-soft-200 rounded-xl" />
+				</div>
+			</div>
+		)
+	}
+
+	// Show onboarding alert if no organization
+	const showOnboardingAlert = !hasOrganization && !dismissedOnboardingAlert
+
 	// Use server data directly
 	const products = (initialData?.data ?? []) as Product[]
 	const categories = initialData?.categories ?? []
 	const platforms = initialData?.platforms ?? []
 
-	const [search, setSearch] = React.useState("")
-	const [categoryFilter, setCategoryFilter] = React.useState("all")
-	const [platformFilter, setPlatformFilter] = React.useState("all")
-	const [isAddModalOpen, setIsAddModalOpen] = React.useState(false)
-	const [isBulkImportModalOpen, setIsBulkImportModalOpen] = React.useState(false)
-	const [editingProduct, setEditingProduct] = React.useState<Product | null>(null)
-	const [deletingProductId, setDeletingProductId] = React.useState<string | null>(null)
-	const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
+	// If no organization, show alert
+	if (!hasOrganization) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				{/* ONBOARDING ALERT */}
+				{showOnboardingAlert && (
+					<CalloutWithActions
+						variant="warning"
+						title="Complete Your Organization Setup"
+						dismissible
+						onDismiss={() => setDismissedOnboardingAlert(true)}
+						actions={
+							<>
+								<Button.Root
+									variant="primary"
+									size="small"
+									onClick={() => router.push("/onboarding")}
+								>
+									<Button.Icon as={ArrowRight} />
+									Start Onboarding
+								</Button.Root>
+								<Button.Root
+									variant="ghost"
+									size="small"
+									onClick={() => setDismissedOnboardingAlert(true)}
+								>
+									Maybe Later
+								</Button.Root>
+							</>
+						}
+					>
+						To add and manage products, you need to complete your organization setup. This will only take a few minutes.
+					</CalloutWithActions>
+				)}
 
-	const [isPending, startTransition] = React.useTransition()
+				{/* HEADER */}
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+					<div className="min-w-0">
+						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Products</h1>
+						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
+							Manage your product catalog
+						</p>
+					</div>
+				</div>
 
-	const filteredProducts = React.useMemo(() => {
+				{/* EMPTY STATE */}
+				{dismissedOnboardingAlert && (
+					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
+						<div className="max-w-md mx-auto space-y-4">
+							<div className="flex justify-center">
+								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
+									<Warning weight="duotone" className="size-8 text-warning-base" />
+								</div>
+							</div>
+							<div>
+								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
+								<p className="text-paragraph-sm text-text-sub-600 mt-2">
+									Complete your organization setup to add and manage products.
+								</p>
+							</div>
+							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
+								<Button.Icon as={ArrowRight} />
+								Start Onboarding
+							</Button.Root>
+						</div>
+					</div>
+				)}
+			</div>
+		)
+	}
+
+	const [search, setSearch] = useState("")
+	const [categoryFilter, setCategoryFilter] = useState("all")
+	const [platformFilter, setPlatformFilter] = useState("all")
+	const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+	const [isBulkImportModalOpen, setIsBulkImportModalOpen] = useState(false)
+	const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+	const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
+	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+
+	const [isPending, startTransition] = useTransition()
+
+	const filteredProducts = useMemo(() => {
 		let result = products
 
 		if (search) {
@@ -102,7 +207,7 @@ export function ProductsClient({ initialData }: ProductsClientProps = {}) {
 		return result
 	}, [products, search, categoryFilter, platformFilter])
 
-	const stats = React.useMemo(() => getStats(products), [products])
+	const stats = useMemo(() => getStats(products), [products])
 
 	const handleDeleteProduct = (productId: string) => {
 		setDeletingProductId(productId)
@@ -150,15 +255,37 @@ export function ProductsClient({ initialData }: ProductsClientProps = {}) {
 						<Button.Icon as={CloudArrowUp} />
 						<span className="hidden sm:inline">Import</span>
 					</Button.Root>
-					<Button.Root variant="primary" size="small" onClick={() => setIsAddModalOpen(true)}>
-						<Button.Icon as={Plus} />
-						<span className="hidden sm:inline">Add Product</span>
-					</Button.Root>
+					<Tooltip.Provider>
+						<Tooltip.Root>
+							<Tooltip.Trigger asChild>
+								<div>
+									<Button.Root 
+										variant="primary" 
+										size="small" 
+										disabled={!isApproved}
+										onClick={() => setIsAddModalOpen(true)}
+									>
+										<Button.Icon as={Plus} />
+										<span className="hidden sm:inline">Add Product</span>
+									</Button.Root>
+								</div>
+							</Tooltip.Trigger>
+							{!isApproved && (
+								<Tooltip.Content>
+									{(organization as any)?.approvalStatus === "draft" 
+										? "Complete onboarding and wait for admin approval"
+										: (organization as any)?.approvalStatus === "pending"
+										? "Your application is under review"
+										: "Organization approval required"}
+								</Tooltip.Content>
+							)}
+						</Tooltip.Root>
+					</Tooltip.Provider>
 				</div>
 			</div>
 
 			{/* Stats - Horizontal scroll on mobile */}
-			<div className="flex gap-2 sm:gap-3 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 sm:overflow-visible">
+			<div className="flex gap-2.5 sm:gap-3 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 sm:overflow-visible">
 				{[
 					{ label: "Total", shortLabel: "Total", value: stats.total, icon: ShoppingBag },
 					{
@@ -177,13 +304,13 @@ export function ProductsClient({ initialData }: ProductsClientProps = {}) {
 				].map((stat) => (
 					<div
 						key={stat.label}
-						className="shrink-0 w-[110px] sm:w-auto flex items-center gap-2 sm:gap-3 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-2.5 sm:p-4"
+						className="shrink-0 w-[105px] sm:w-auto flex items-center gap-2 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-2.5 sm:p-3 transition-all duration-200 hover:ring-stroke-sub-300 hover:shadow-sm"
 					>
-						<div className="flex size-8 sm:size-10 items-center justify-center rounded-full bg-bg-weak-50 shrink-0">
-							<stat.icon weight="duotone" className="size-4 sm:size-5 text-text-sub-600" />
+						<div className="flex size-8 items-center justify-center rounded-lg bg-bg-weak-50 shrink-0">
+							<stat.icon weight="duotone" className="size-3.5 sm:size-4 text-text-sub-600" />
 						</div>
 						<div className="min-w-0">
-							<div className="text-label-md sm:text-title-h5 text-text-strong-950 font-semibold">
+							<div className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">
 								{stat.value}
 							</div>
 							<div className="text-[10px] sm:text-paragraph-xs text-text-soft-400 truncate">
@@ -196,7 +323,7 @@ export function ProductsClient({ initialData }: ProductsClientProps = {}) {
 			</div>
 
 			{/* Search & Filters - Compact layout */}
-			<div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-3 sm:p-4">
+			<div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-3">
 				<div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center lg:justify-between">
 					{/* Left: Search */}
 					<div className="flex-1 lg:max-w-sm">
@@ -260,7 +387,7 @@ export function ProductsClient({ initialData }: ProductsClientProps = {}) {
 			{/* Products Grid or Empty State */}
 			<div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
 				{/* Header with count */}
-				<div className="flex items-center justify-between px-4 py-3 border-b border-stroke-soft-200">
+				<div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b border-stroke-soft-200">
 					<span className="text-label-sm text-text-sub-600">
 						{filteredProducts.length} {filteredProducts.length === 1 ? "product" : "products"}
 					</span>
@@ -369,6 +496,7 @@ interface ProductCardProps {
 }
 
 function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
+	const [imageError, setImageError] = useState(false)
 	const platformColors: Record<string, string> = {
 		Amazon: "bg-orange-100 text-orange-700",
 		Flipkart: "bg-yellow-100 text-yellow-700",
@@ -376,13 +504,16 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
 		"Any Platform": "bg-gray-100 text-gray-600",
 	}
 
+	// Use centralized formatting from lib/format.ts
 	const formatDate = (date: Date | string): string => formatDateShort(date)
+
+	const hasImage = product.productImages?.[0] && !imageError
 
 	return (
 		<div className="group rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden hover:ring-primary-base/50 hover:shadow-lg transition-all duration-200">
 			{/* Image Container - 4:3 on mobile, square on desktop */}
 			<div className="aspect-4/3 sm:aspect-square bg-bg-weak-50 relative overflow-hidden">
-				{product.productImages?.[0] ? (
+				{hasImage ? (
 					<>
 						<Image
 							src={product.productImages[0]}
@@ -390,6 +521,7 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
 							fill
 							sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
 							className="object-contain p-2 group-hover:scale-105 transition-transform duration-500"
+							onError={() => setImageError(true)}
 						/>
 						{/* Gradient overlay on hover */}
 						<div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
@@ -444,7 +576,7 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
 								asChild
 								className="bg-white/95 backdrop-blur-sm shadow-sm"
 							>
-								<a href={product.productLink} target="_blank" rel="noopener noreferrer">
+								<a href={product.productLink} target="_blank" rel="noopener noreferrer" aria-label="Open product link in new tab">
 									<Button.Icon as={ArrowSquareOut} />
 								</a>
 							</Button.Root>
@@ -454,6 +586,7 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
 							size="xsmall"
 							onClick={onDelete}
 							className="bg-white/95 backdrop-blur-sm shadow-sm"
+							aria-label="Delete product"
 						>
 							<Button.Icon as={Trash} />
 						</Button.Root>
@@ -513,7 +646,7 @@ interface ProductModalProps {
 }
 
 function ProductModal({ open, onOpenChange, product, categories, platforms }: ProductModalProps) {
-	const [isPending, startTransition] = React.useTransition()
+	const [isPending, startTransition] = useTransition()
 
 	const {
 		register,
@@ -538,7 +671,7 @@ function ProductModal({ open, onOpenChange, product, categories, platforms }: Pr
 	const description = watch("description")
 
 	// Reset form when product changes
-	React.useEffect(() => {
+	useEffect(() => {
 		if (product) {
 			reset({
 				name: product.name,
@@ -572,7 +705,7 @@ function ProductModal({ open, onOpenChange, product, categories, platforms }: Pr
 					platformId: data.platformId || undefined,
 					productLink: data.productLink || "",
 					price: data.price || 0,
-					sku: data.sku || `SKU-${Date.now()}`,
+					sku: data.sku || `SKU-${nanoid(8)}`,
 				}
 
 				if (product) {
@@ -794,14 +927,30 @@ interface BulkImportModalProps {
 	platforms: Array<{ id: string; name: string }>
 }
 
+// Industry Standard: Proper TypeScript types instead of any
+interface ImportRow {
+	name: string
+	description?: string
+	categoryId?: string
+	platformId?: string
+	productLink?: string
+	sku: string
+	price: number
+}
+
+// Match actual return type from bulkImportProducts action
+type ImportResult = 
+	| { success: true; message: string; imported: number; errors?: string[] }
+	| { success: false; error: string }
+
 function BulkImportModal({ open, onOpenChange, categories, platforms }: BulkImportModalProps) {
-	const [importData, setImportData] = React.useState<any[]>([])
-	const [result, setResult] = React.useState<any | null>(null)
-	const [step, setStep] = React.useState<"upload" | "preview" | "result">("upload")
-	const [isPending, startTransition] = React.useTransition()
+	const [importData, setImportData] = useState<ImportRow[]>([])
+	const [result, setResult] = useState<ImportResult | null>(null)
+	const [step, setStep] = useState<"upload" | "preview" | "result">("upload")
+	const [isPending, startTransition] = useTransition()
 
 	// Reset state when modal closes
-	React.useEffect(() => {
+	useEffect(() => {
 		if (!open) {
 			setImportData([])
 			setResult(null)
@@ -838,7 +987,16 @@ function BulkImportModal({ open, onOpenChange, categories, platforms }: BulkImpo
 			}
 
 			// Parse data rows
-			const products: Partial<products.CreateProductRequest>[] = []
+			// Industry Standard: Use proper types instead of Partial
+			const products: Array<{
+				name: string
+				description?: string
+				categoryId?: string
+				platformId?: string
+				productLink?: string
+				sku: string
+				price: number
+			}> = []
 			for (let i = 1; i < lines.length; i++) {
 				const values = lines[i].split(",").map((v) => v.trim().replace(/^"|"$/g, ""))
 				if (values[nameIdx]) {
@@ -854,7 +1012,7 @@ function BulkImportModal({ open, onOpenChange, categories, platforms }: BulkImpo
 								? values[platformIdx]
 								: platforms[0]?.id || undefined,
 						productLink: urlIdx >= 0 ? values[urlIdx] || "" : "",
-						sku: `SKU-${Date.now()}-${i}`,
+						sku: `SKU-${nanoid(8)}-${i}`,
 						price: 0, // Default price, can be updated later
 					})
 				}
@@ -875,13 +1033,35 @@ function BulkImportModal({ open, onOpenChange, categories, platforms }: BulkImpo
 	const handleImport = () => {
 		startTransition(async () => {
 			try {
-				const response = await bulkImportProducts(importData)
-				if (response.success) {
-					setResult(response)
-					setStep("result")
-					toast.success(`Successfully imported ${response.imported} products`)
+				// Industry Standard: Type-safe conversion
+				const productsToImport: Array<Partial<products.CreateProductRequest>> = importData.map((row) => ({
+					name: row.name,
+					description: row.description,
+					categoryId: row.categoryId,
+					platformId: row.platformId,
+					productLink: row.productLink,
+					sku: row.sku,
+					price: row.price,
+				}))
+				const response = await bulkImportProducts(productsToImport)
+				// Industry Standard: Type-safe handling with discriminated union
+				// Type assertion needed because response.success is boolean, not literal type
+				const typedResponse: ImportResult = response.success
+					? { 
+						success: true, 
+						message: response.message ?? "Import completed", 
+						imported: response.imported ?? 0, 
+						errors: response.errors 
+					}
+					: { success: false, error: response.error ?? "Import failed" }
+				
+				setResult(typedResponse)
+				setStep("result")
+				
+				if (typedResponse.success) {
+					toast.success(`Successfully imported ${typedResponse.imported} products`)
 				} else {
-					toast.error(response.error || "Failed to import products")
+					toast.error(typedResponse.error || "Failed to import products")
 				}
 			} catch (e) {
 				toast.error("An error occurred")
@@ -910,7 +1090,7 @@ function BulkImportModal({ open, onOpenChange, categories, platforms }: BulkImpo
 								onFilesSelected={handleFileUpload}
 								accept={{ "text/csv": [".csv"] }}
 								maxFiles={1}
-								maxSize={10 * 1024 * 1024}
+								maxSize={FILE_SIZES.MAX_PRODUCT_IMAGE_SIZE}
 							/>
 							<div className="rounded-lg bg-bg-weak-50 p-3">
 								<p className="text-label-xs text-text-strong-950 mb-2">CSV Format Example:</p>
@@ -930,7 +1110,7 @@ Adidas Tee,Cotton t-shirt,Apparel,Flipkart,https://...`}
 							</p>
 							<div className="max-h-64 overflow-y-auto rounded-lg border border-stroke-soft-200 divide-y divide-stroke-soft-200">
 								{importData.slice(0, 10).map((product, idx) => (
-									<div key={`${product.name}-${idx}`} className="p-3 text-paragraph-sm">
+									<div key={product.sku || `product-${product.name}-${product.price}-${idx}`} className="p-3 text-paragraph-sm">
 										<div className="font-medium text-text-strong-950">{product.name}</div>
 										<div className="text-paragraph-xs text-text-sub-600 mt-0.5">
 											{product.categoryId || "N/A"} • {product.platformId || "N/A"}
@@ -948,23 +1128,32 @@ Adidas Tee,Cotton t-shirt,Apparel,Flipkart,https://...`}
 
 					{step === "result" && result && (
 						<div className="space-y-4">
-							<div className="rounded-lg bg-success-lighter p-4 text-center">
-								<div className="mx-auto size-12 rounded-full bg-success-base flex items-center justify-center mb-3">
-									<CloudArrowUp className="size-6 text-white" />
-								</div>
-								<h3 className="text-label-lg font-semibold text-text-strong-950">
-									Import Successful
-								</h3>
-								<p className="text-paragraph-sm text-text-sub-600 mt-1">{result.message}</p>
-							</div>
-							{result.errors && result.errors.length > 0 && (
-								<div className="rounded-lg bg-error-lighter p-4">
-									<h4 className="text-label-sm font-medium text-error-base mb-2">Errors</h4>
-									<ul className="list-disc list-inside text-paragraph-xs text-text-sub-600">
-										{result.errors.map((e: string, i: number) => (
-											<li key={i}>{e}</li>
-										))}
-									</ul>
+							{result.success ? (
+								<>
+									<div className="rounded-lg bg-success-lighter p-4 text-center">
+										<div className="mx-auto size-12 rounded-full bg-success-base flex items-center justify-center mb-3">
+											<CloudArrowUp className="size-6 text-white" />
+										</div>
+										<h3 className="text-label-lg font-semibold text-text-strong-950">
+											Import Successful
+										</h3>
+										<p className="text-paragraph-sm text-text-sub-600 mt-1">{result.message}</p>
+									</div>
+									{result.errors && result.errors.length > 0 && (
+										<div className="rounded-lg bg-error-lighter p-4">
+											<h4 className="text-label-sm font-medium text-error-base mb-2">Errors</h4>
+											<ul className="list-disc list-inside text-paragraph-xs text-text-sub-600">
+												{result.errors.map((error: string, i: number) => (
+													<li key={`error-${error}-${i}`}>{error}</li>
+												))}
+											</ul>
+										</div>
+									)}
+								</>
+							) : (
+								<div className="rounded-lg bg-error-lighter p-4 text-center">
+									<h3 className="text-label-lg font-semibold text-error-base">Import Failed</h3>
+									<p className="text-paragraph-sm text-text-sub-600 mt-1">{result.error}</p>
 								</div>
 							)}
 						</div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/utils/cn"
@@ -20,22 +20,21 @@ import {
 	Check,
 	Lightning,
 	CaretRight,
+	Building,
+	Sparkle,
+	CheckCircle,
+	WarningCircle,
 } from "@phosphor-icons/react"
 import { Skeleton } from "@/components/ui/skeleton"
-import { THRESHOLDS } from "@/lib/types/constants"
+import { THRESHOLDS, ANIMATION } from "@/lib/types/constants"
 import type { organizations } from "@/lib/encore-client"
 import { SimpleStatCard } from "@/components/dashboard/stat-card"
-import { CalloutWithActions } from "@/components/ui/callout"
+import { CalloutWithActions, Callout } from "@/components/ui/callout"
+import * as Tooltip from "@/components/ui/tooltip"
 import { useRouter } from "next/navigation"
 import { useLocalStorage } from "@/hooks/use-local-storage"
-
-// Helper to format currency in compact form (₹1.5L, ₹2.3Cr)
-const formatWalletAmount = (amount: number): string => {
-	if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(1)}Cr`
-	if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`
-	if (amount >= 1000) return `₹${(amount / 1000).toFixed(0)}K`
-	return `₹${amount.toLocaleString("en-IN")}`
-}
+import { useOrganizationContext } from "@/contexts/organization-context"
+import { formatCurrency, formatCurrencyCompact } from "@/lib/format"
 
 // Calculate hours ago from a date - now takes currentTime to avoid hydration mismatch
 const getHoursAgo = (date: Date | string, currentTime: number): number => {
@@ -57,7 +56,7 @@ function useHydratedTime() {
 	useEffect(() => {
 		setCurrentTime(Date.now())
 		// Update every minute for "time ago" displays
-		const interval = setInterval(() => setCurrentTime(Date.now()), 60000)
+		const interval = setInterval(() => setCurrentTime(Date.now()), ANIMATION.TIME_UPDATE_INTERVAL)
 		return () => clearInterval(interval)
 	}, [])
 
@@ -115,29 +114,37 @@ function DashboardSkeleton() {
 
 interface DashboardClientProps {
 	initialData: organizations.DashboardOverviewResponse | null
-	hasOrganization?: boolean
 }
 
-export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: DashboardClientProps) {
+// Industry Standard: Use context instead of props
+export function DashboardClient({ initialData }: DashboardClientProps) {
 	const router = useRouter()
 	const currentTime = useHydratedTime()
 	const formattedDate = useFormattedDate()
+	const [isResubmitting, setIsResubmitting] = useState(false)
+	
+	// Industry Standard: Always use context, never props
+	const { hasOrganization, isLoading: isOrgLoading, organization } = useOrganizationContext()
 
 	// Use server data directly - type-safe with Encore types
 	const data = initialData
-
-	// Check if organization exists (use prop if provided, otherwise check data)
-	const hasOrganization = hasOrgProp !== undefined 
-		? hasOrgProp 
-		: useMemo(() => {
-			return !!(data?.stats && data?.enrollmentDistribution)
-		}, [data])
+	
+	// Industry Standard: Check loading state first
+	if (isOrgLoading) {
+		return <DashboardSkeleton />
+	}
 
 	// Dismiss onboarding alert state (persisted in localStorage)
 	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
 		"dashboard-onboarding-alert-dismissed",
 		false
 	)
+
+	// Store setter in ref for stable reference
+	const setDismissedRef = useRef(setDismissedOnboardingAlert)
+	useEffect(() => {
+		setDismissedRef.current = setDismissedOnboardingAlert
+	}, [setDismissedOnboardingAlert])
 
 	// Map pending enrollments with hours ago calculation (only after hydration)
 	// NOTE: This useMemo must be called before any early returns to maintain hooks order
@@ -150,21 +157,128 @@ export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: Da
 		}))
 	}, [data, currentTime])
 
+	// Memoized event handlers - MUST be defined before early returns
+	// Use ref to avoid dependency on unstable setter
+	const handleDismissAlert = useCallback(() => {
+		setDismissedRef.current(true)
+	}, [])
+
+	const handleStartOnboarding = useCallback(() => {
+		router.push("/onboarding")
+	}, [router])
+
 	// Show onboarding alert if no organization
 	const showOnboardingAlert = !hasOrganization && !dismissedOnboardingAlert
 
-	// Simple loading check - but allow render if no org (will show alert)
-	if (!hasOrganization && !showOnboardingAlert) {
-		// If alert dismissed, show skeleton
-		return <DashboardSkeleton />
+	// If no organization, show onboarding alert/empty state (don't wait for data)
+	if (!hasOrganization) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				{/* ONBOARDING ALERT */}
+				{showOnboardingAlert && (
+					<CalloutWithActions
+						variant="warning"
+						title="Complete Your Organization Setup"
+						dismissible
+						onDismiss={handleDismissAlert}
+						actions={
+							<>
+								<Button.Root
+									variant="primary"
+									size="small"
+									onClick={handleStartOnboarding}
+								>
+									<Button.Icon as={ArrowRight} />
+									Start Onboarding
+								</Button.Root>
+								<Button.Root
+									variant="ghost"
+									size="small"
+									onClick={handleDismissAlert}
+								>
+									Maybe Later
+								</Button.Root>
+							</>
+						}
+					>
+						To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
+					</CalloutWithActions>
+				)}
+
+				{/* HEADER */}
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+					<div className="min-w-0">
+						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Dashboard</h1>
+						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5 min-h-5">
+							{formattedDate || <span className="invisible">Loading...</span>}
+						</p>
+					</div>
+				</div>
+
+				{/* EMPTY STATE */}
+				{dismissedOnboardingAlert && (
+					<div className="relative overflow-hidden rounded-xl border border-stroke-soft-200 bg-gradient-to-br from-bg-weak-50 via-bg-weak-50 to-primary-alpha-5 p-8 sm:p-12 text-center">
+						{/* Decorative background */}
+						<div className="absolute -right-12 -top-12 size-40 rounded-full bg-primary-base/5 blur-3xl" />
+						<div className="absolute -bottom-8 -left-8 size-32 rounded-full bg-primary-base/5 blur-2xl" />
+						
+						<div className="relative max-w-md mx-auto space-y-6">
+							{/* Icon with animated gradient */}
+							<div className="flex justify-center">
+								<div className="relative">
+									<div className="absolute inset-0 animate-pulse rounded-full bg-primary-base/20 blur-xl" />
+									<div className="relative flex size-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-base via-primary-base/90 to-primary-base/80 shadow-xl shadow-primary-base/30">
+										<Building weight="duotone" className="size-10 text-white" />
+									</div>
+									{/* Sparkle decoration */}
+									<div className="absolute -right-2 -top-2">
+										<Sparkle weight="fill" className="size-5 animate-pulse text-primary-base" />
+									</div>
+								</div>
+							</div>
+							
+							<div className="space-y-2">
+								<h3 className="text-title-h5 font-semibold text-text-strong-950">
+									Organization Setup Required
+								</h3>
+								<p className="text-paragraph-sm text-text-sub-600">
+									Complete your organization setup to access dashboard features, create campaigns, and manage enrollments.
+								</p>
+							</div>
+							
+							{/* Feature highlights */}
+							<div className="flex flex-wrap justify-center gap-4 text-left">
+								<div className="flex items-center gap-2 rounded-lg bg-bg-weak-50 px-3 py-2">
+									<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
+									<span className="text-paragraph-xs text-text-sub-600">Create Campaigns</span>
+								</div>
+								<div className="flex items-center gap-2 rounded-lg bg-bg-weak-50 px-3 py-2">
+									<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
+									<span className="text-paragraph-xs text-text-sub-600">Manage Products</span>
+								</div>
+								<div className="flex items-center gap-2 rounded-lg bg-bg-weak-50 px-3 py-2">
+									<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
+									<span className="text-paragraph-xs text-text-sub-600">Track Enrollments</span>
+								</div>
+							</div>
+							
+							<Button.Root 
+								variant="primary" 
+								size="medium" 
+								onClick={handleStartOnboarding}
+								className="mx-auto shadow-lg shadow-primary-base/20"
+							>
+								<Button.Icon as={ArrowRight} />
+								Complete Onboarding
+							</Button.Root>
+						</div>
+					</div>
+				)}
+			</div>
+		)
 	}
 
-	// If no data but has org, show skeleton
-	if (hasOrganization && (!data || !data.stats || !data.enrollmentDistribution)) {
-		return <DashboardSkeleton />
-	}
-
-	// Ensure data exists before using it (TypeScript guard)
+	// If has organization but no data yet, show skeleton
 	if (!data || !data.stats || !data.enrollmentDistribution) {
 		return <DashboardSkeleton />
 	}
@@ -248,48 +362,70 @@ export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: Da
 		[]
 	)
 
-	// Memoized event handlers
-	const handleDismissAlert = useCallback(() => {
-		setDismissedOnboardingAlert(true)
-	}, [])
-
-	const handleStartOnboarding = useCallback(() => {
-		router.push("/onboarding")
-	}, [router])
-
 	// If no organization, show minimal dashboard with alert
 	if (!hasOrganization) {
 		return (
 			<div className="space-y-5 sm:space-y-6">
 				{/* ONBOARDING ALERT */}
 				{showOnboardingAlert && (
-					<CalloutWithActions
-						variant="warning"
-						title="Complete Your Organization Setup"
-						dismissible
-						onDismiss={handleDismissAlert}
-						actions={
-							<>
-								<Button.Root
-									variant="primary"
-									size="small"
-									onClick={handleStartOnboarding}
-								>
-									<Button.Icon as={ArrowRight} />
-									Start Onboarding
-								</Button.Root>
-								<Button.Root
-									variant="ghost"
-									size="small"
+					<div className="relative overflow-hidden rounded-xl border border-primary-base/20 bg-gradient-to-br from-primary-alpha-10 via-primary-alpha-5 to-bg-weak-50 p-6 sm:p-8">
+						{/* Decorative background elements */}
+						<div className="absolute -right-8 -top-8 size-32 rounded-full bg-primary-base/5 blur-2xl" />
+						<div className="absolute -bottom-4 -left-4 size-24 rounded-full bg-primary-base/5 blur-xl" />
+						
+						<div className="relative">
+							<div className="flex items-start gap-4">
+								{/* Icon with gradient background */}
+								<div className="flex shrink-0">
+									<div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary-base to-primary-base/80 shadow-lg shadow-primary-base/20">
+										<Building weight="duotone" className="size-6 text-white" />
+									</div>
+								</div>
+								
+								<div className="flex-1 space-y-3">
+									<div>
+										<h3 className="flex items-center gap-2 text-title-h6 font-semibold text-text-strong-950">
+											<Sparkle weight="fill" className="size-5 text-primary-base" />
+											Complete Your Organization Setup
+										</h3>
+										<p className="mt-2 text-paragraph-sm text-text-sub-600">
+											To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
+										</p>
+									</div>
+									
+									<div className="flex flex-wrap items-center gap-3">
+										<Button.Root
+											variant="primary"
+											size="small"
+											onClick={handleStartOnboarding}
+											className="shadow-md shadow-primary-base/20"
+										>
+											<Button.Icon as={ArrowRight} />
+											Start Onboarding
+										</Button.Root>
+										<Button.Root
+											variant="ghost"
+											size="small"
+											onClick={handleDismissAlert}
+										>
+											Maybe Later
+										</Button.Root>
+									</div>
+								</div>
+								
+								{/* Dismiss button */}
+								<button
 									onClick={handleDismissAlert}
+									className="shrink-0 rounded-lg p-1.5 text-text-sub-500 transition-colors hover:bg-bg-soft-200 hover:text-text-strong-950"
+									aria-label="Dismiss"
 								>
-									Maybe Later
-								</Button.Root>
-							</>
-						}
-					>
-						To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
-					</CalloutWithActions>
+									<svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+									</svg>
+								</button>
+							</div>
+						</div>
+					</div>
 				)}
 
 				{/* HEADER */}
@@ -304,22 +440,59 @@ export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: Da
 
 				{/* EMPTY STATE */}
 				{dismissedOnboardingAlert && (
-					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
-						<div className="max-w-md mx-auto space-y-4">
+					<div className="relative overflow-hidden rounded-xl border border-stroke-soft-200 bg-gradient-to-br from-bg-weak-50 via-bg-weak-50 to-primary-alpha-5 p-8 sm:p-12 text-center">
+						{/* Decorative background */}
+						<div className="absolute -right-12 -top-12 size-40 rounded-full bg-primary-base/5 blur-3xl" />
+						<div className="absolute -bottom-8 -left-8 size-32 rounded-full bg-primary-base/5 blur-2xl" />
+						
+						<div className="relative max-w-md mx-auto space-y-6">
+							{/* Icon with animated gradient */}
 							<div className="flex justify-center">
-								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
-									<Warning weight="duotone" className="size-8 text-warning-base" />
+								<div className="relative">
+									<div className="absolute inset-0 animate-pulse rounded-full bg-primary-base/20 blur-xl" />
+									<div className="relative flex size-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-base via-primary-base/90 to-primary-base/80 shadow-xl shadow-primary-base/30">
+										<Building weight="duotone" className="size-10 text-white" />
+									</div>
+									{/* Sparkle decoration */}
+									<div className="absolute -right-2 -top-2">
+										<Sparkle weight="fill" className="size-5 animate-pulse text-primary-base" />
+									</div>
 								</div>
 							</div>
-							<div>
-								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
-								<p className="text-paragraph-sm text-text-sub-600 mt-2">
+							
+							<div className="space-y-2">
+								<h3 className="text-title-h5 font-semibold text-text-strong-950">
+									Organization Setup Required
+								</h3>
+								<p className="text-paragraph-sm text-text-sub-600">
 									Complete your organization setup to access dashboard features, create campaigns, and manage enrollments.
 								</p>
 							</div>
-							<Button.Root variant="primary" size="medium" onClick={handleStartOnboarding}>
+							
+							{/* Feature highlights */}
+							<div className="flex flex-wrap justify-center gap-4 text-left">
+								<div className="flex items-center gap-2 rounded-lg bg-bg-weak-50 px-3 py-2">
+									<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
+									<span className="text-paragraph-xs text-text-sub-600">Create Campaigns</span>
+								</div>
+								<div className="flex items-center gap-2 rounded-lg bg-bg-weak-50 px-3 py-2">
+									<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
+									<span className="text-paragraph-xs text-text-sub-600">Manage Products</span>
+								</div>
+								<div className="flex items-center gap-2 rounded-lg bg-bg-weak-50 px-3 py-2">
+									<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
+									<span className="text-paragraph-xs text-text-sub-600">Track Enrollments</span>
+								</div>
+							</div>
+							
+							<Button.Root 
+								variant="primary" 
+								size="medium" 
+								onClick={handleStartOnboarding}
+								className="mx-auto shadow-lg shadow-primary-base/20"
+							>
 								<Button.Icon as={ArrowRight} />
-								Start Onboarding
+								Complete Onboarding
 							</Button.Root>
 						</div>
 					</div>
@@ -332,33 +505,64 @@ export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: Da
 		<div className="space-y-5 sm:space-y-6">
 			{/* ONBOARDING ALERT - Show if no organization */}
 			{showOnboardingAlert && (
-				<CalloutWithActions
-					variant="warning"
-					title="Complete Your Organization Setup"
-					dismissible
-					onDismiss={handleDismissAlert}
-					actions={
-						<>
-							<Button.Root
-								variant="primary"
-								size="small"
-								onClick={handleStartOnboarding}
-							>
-								<Button.Icon as={ArrowRight} />
-								Start Onboarding
-							</Button.Root>
-							<Button.Root
-								variant="ghost"
-								size="small"
+				<div className="relative overflow-hidden rounded-xl border border-primary-base/20 bg-gradient-to-br from-primary-alpha-10 via-primary-alpha-5 to-bg-weak-50 p-6 sm:p-8">
+					{/* Decorative background elements */}
+					<div className="absolute -right-8 -top-8 size-32 rounded-full bg-primary-base/5 blur-2xl" />
+					<div className="absolute -bottom-4 -left-4 size-24 rounded-full bg-primary-base/5 blur-xl" />
+					
+					<div className="relative">
+						<div className="flex items-start gap-4">
+							{/* Icon with gradient background */}
+							<div className="flex shrink-0">
+								<div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary-base to-primary-base/80 shadow-lg shadow-primary-base/20">
+									<Building weight="duotone" className="size-6 text-white" />
+								</div>
+							</div>
+							
+							<div className="flex-1 space-y-3">
+								<div>
+									<h3 className="flex items-center gap-2 text-title-h6 font-semibold text-text-strong-950">
+										<Sparkle weight="fill" className="size-5 text-primary-base" />
+										Complete Your Organization Setup
+									</h3>
+									<p className="mt-2 text-paragraph-sm text-text-sub-600">
+										To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
+									</p>
+								</div>
+								
+								<div className="flex flex-wrap items-center gap-3">
+									<Button.Root
+										variant="primary"
+										size="small"
+										onClick={handleStartOnboarding}
+										className="shadow-md shadow-primary-base/20"
+									>
+										<Button.Icon as={ArrowRight} />
+										Start Onboarding
+									</Button.Root>
+									<Button.Root
+										variant="ghost"
+										size="small"
+										onClick={handleDismissAlert}
+									>
+										Maybe Later
+									</Button.Root>
+								</div>
+							</div>
+							
+							{/* Dismiss button */}
+							<button
 								onClick={handleDismissAlert}
+								className="shrink-0 rounded-lg p-1.5 text-text-sub-500 transition-colors hover:bg-bg-soft-200 hover:text-text-strong-950"
+								aria-label="Dismiss"
 							>
-								Maybe Later
-							</Button.Root>
-						</>
-					}
-				>
-					To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
-				</CalloutWithActions>
+								<svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							</button>
+						</div>
+					</div>
+				</div>
 			)}
 
 			{/* HEADER */}
@@ -370,14 +574,142 @@ export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: Da
 					</p>
 				</div>
 				{hasOrganization && (
-				<Button.Root variant="primary" size="small" asChild className="shrink-0">
-					<Link href="/dashboard/campaigns/create">
-						<Button.Icon as={Plus} />
-						<span className="hidden sm:inline">New Campaign</span>
-					</Link>
-				</Button.Root>
+					<Tooltip.Provider>
+						<Tooltip.Root>
+							<Tooltip.Trigger asChild>
+								<div>
+									<Button.Root 
+										variant="primary" 
+										size="small" 
+										asChild 
+										className="shrink-0"
+										disabled={(organization as any)?.approvalStatus !== "approved"}
+									>
+										<Link href="/dashboard/campaigns/create">
+											<Button.Icon as={Plus} />
+											<span className="hidden sm:inline">New Campaign</span>
+										</Link>
+									</Button.Root>
+								</div>
+							</Tooltip.Trigger>
+							{(organization as any)?.approvalStatus !== "approved" && (
+								<Tooltip.Content>
+									{(organization as any)?.approvalStatus === "draft" 
+										? "Complete onboarding and wait for admin approval"
+										: (organization as any)?.approvalStatus === "pending"
+										? "Your application is under review"
+										: "Organization approval required"}
+								</Tooltip.Content>
+							)}
+						</Tooltip.Root>
+					</Tooltip.Provider>
 				)}
 			</div>
+
+			{/* APPROVAL STATUS BANNER */}
+			{hasOrganization && organization && (organization as any)?.approvalStatus && (organization as any)?.approvalStatus !== "approved" && (
+				<>
+					{(organization as any)?.approvalStatus === "draft" && (
+						<CalloutWithActions
+							variant="warning"
+							size="md"
+							title="Complete Your Organization Setup"
+							dismissible
+							actions={
+								<>
+									<Button.Root
+										variant="primary"
+										size="small"
+										onClick={() => router.push("/onboarding")}
+									>
+										<Button.Icon as={ArrowRight} />
+										Continue Setup
+									</Button.Root>
+								</>
+							}
+						>
+							<div className="space-y-2">
+								<p>Finish your organization profile to start creating campaigns. Complete GST verification and submit for approval.</p>
+								{!(organization as any)?.gstVerified && (
+									<div className="flex items-center gap-2 text-paragraph-xs text-warning-base">
+										<WarningCircle className="size-4" />
+										<span>GST verification is required before submitting for approval</span>
+									</div>
+								)}
+							</div>
+						</CalloutWithActions>
+					)}
+					{(organization as any)?.approvalStatus === "pending" && (
+						<Callout
+							variant="info"
+							size="md"
+							title="Application Under Review"
+						>
+							<div className="space-y-2">
+								<p>
+									Your organization application is being reviewed. 
+									You'll be notified via email once approved.
+								</p>
+								<div className="flex items-center gap-2 text-paragraph-xs">
+									<Clock className="size-4" />
+									<span>Typically takes 1-2 business days</span>
+								</div>
+								{(organization as any)?.gstVerified && (
+									<div className="flex items-center gap-2 text-paragraph-xs text-success-base">
+										<CheckCircle className="size-4" />
+										<span>GST verification completed</span>
+									</div>
+								)}
+							</div>
+						</Callout>
+					)}
+					{(organization as any)?.approvalStatus === "rejected" && (
+						<CalloutWithActions
+							variant="error"
+							size="md"
+							title="Application Rejected"
+							actions={
+								<>
+									<Button.Root
+										variant="primary"
+										size="small"
+										disabled={isResubmitting}
+										onClick={async () => {
+											if (!organization?.id) return
+											
+											setIsResubmitting(true)
+											try {
+												const { resubmitOrganizationForApproval } = await import("@/app/actions/onboarding")
+												const result = await resubmitOrganizationForApproval(organization.id)
+												
+												if (result.success) {
+													// Redirect to onboarding to edit and resubmit
+													router.push("/onboarding")
+												} else {
+													// Show error - user can still navigate manually
+													console.error("Resubmit failed:", result.error)
+													router.push("/onboarding")
+												}
+											} catch (error) {
+												console.error("Resubmit error:", error)
+												// Still redirect - user can manually resubmit
+												router.push("/onboarding")
+											} finally {
+												setIsResubmitting(false)
+											}
+										}}
+									>
+										<Button.Icon as={ArrowRight} />
+										{isResubmitting ? "Processing..." : "Edit & Resubmit"}
+									</Button.Root>
+								</>
+							}
+						>
+							Your organization application was rejected. Please review the feedback and resubmit.
+						</CalloutWithActions>
+					)}
+				</>
+			)}
 
 			{/* ALERT BAR - Only show if has organization and data */}
 			{hasOrganization && safeData && (hasOverdue || isLowBalance) && (
@@ -430,11 +762,11 @@ export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: Da
 			)}
 
 			{/* METRICS */}
-			<div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+			<div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
 				{/* WALLET */}
 				<SimpleStatCard
 					icon={<Wallet weight="duotone" className="size-5" />}
-					value={formatWalletAmount(wallet.available)}
+					value={formatCurrency(wallet.available)}
 					label="Available"
 					href="/dashboard/wallet"
 					iconColor={isLowBalance ? "warning" : "success"}
@@ -461,7 +793,7 @@ export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: Da
 			</div>
 
 			{/* MAIN GRID */}
-			<div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+			<div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
 				{/* CAMPAIGNS */}
 				<div className="lg:col-span-5 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
 					<div className="flex items-center justify-between p-4 border-b border-stroke-soft-200">
@@ -478,7 +810,7 @@ export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: Da
 					</div>
 
 					<div className="grid grid-cols-3 border-b border-stroke-soft-200 divide-x divide-stroke-soft-200">
-						<div className="p-4 text-center">
+						<div className="p-3 sm:p-4 text-center">
 							<div className="text-title-h4 text-success-base font-semibold">
 								{metrics.activeCampaigns}
 							</div>
@@ -503,7 +835,7 @@ export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: Da
 							<Link
 								key={campaign.id}
 								href={`/dashboard/campaigns/${campaign.id}`}
-								className="flex items-center gap-3 p-3 hover:bg-bg-weak-50 transition-colors group"
+								className="flex items-center gap-2.5 p-2.5 sm:p-3 hover:bg-bg-weak-50 transition-colors group"
 							>
 								<div className="relative size-10 rounded-lg overflow-hidden shrink-0 ring-1 ring-inset ring-stroke-soft-200 bg-bg-weak-50">
 									{campaign.image ? (
@@ -672,7 +1004,7 @@ export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: Da
 											<span>{enrollment.shopper?.name}</span>
 											<span>•</span>
 											<span className="font-medium text-text-strong-950">
-												₹{(enrollment.orderValue || 0).toLocaleString("en-IN")}
+												{formatCurrency(enrollment.orderValue || 0)}
 											</span>
 										</div>
 										<div className="flex items-center justify-between mt-2">
@@ -727,7 +1059,7 @@ export function DashboardClient({ initialData, hasOrganization: hasOrgProp }: Da
 
 									<div className="text-right shrink-0">
 										<div className="text-label-sm text-text-strong-950 font-medium">
-											₹{(enrollment.orderValue || 0).toLocaleString("en-IN")}
+											{formatCurrency(enrollment.orderValue || 0)}
 										</div>
 										<div className="text-label-xs text-text-soft-400 font-mono">
 											{enrollment.orderId}

@@ -36,7 +36,11 @@ export const platformsHandlers = [
 	http.get(encoreUrl("/platforms/:id"), async ({ params }) => {
 		await delay(DELAY.FAST)
 		const { id } = params
-		const platform = db.platforms.findFirst((q) => q.where({ id: id }))
+		const platformId = Array.isArray(id) ? id[0] : id
+		if (!platformId) {
+			return encoreNotFoundResponse("Platform")
+		}
+		const platform = db.platforms.findFirst((q) => q.where({ id: platformId as string }))
 		if (!platform) return encoreNotFoundResponse("Platform")
 		return encoreResponse(platform)
 	}),
@@ -75,6 +79,10 @@ export const platformsHandlers = [
 	// PUT /platforms/:id - Update platform
 	http.put(encoreUrl("/platforms/:id"), async ({ params, request }) => {
 		const { id } = params
+		const platformId = Array.isArray(id) ? id[0] : id
+		if (!platformId) {
+			return encoreNotFoundResponse("Platform")
+		}
 		const body = (await request.json()) as {
 			name?: string
 			slug?: string
@@ -83,19 +91,15 @@ export const platformsHandlers = [
 			isActive?: boolean
 		}
 
-		const platform = db.platforms.findFirst((q) => q.where({ id: id }))
+		const platform = db.platforms.findFirst((q) => q.where({ id: platformId as string }))
 		if (!platform) {
 			return encoreNotFoundResponse("Platform")
 		}
 
-		// Update platform in database
-		const updated = db.platforms.update({
-			where: { id },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update platform in database - use findFirst + manual update pattern
+		const updated = { ...platform, ...body, updatedAt: new Date().toISOString() }
+		db.platforms.delete((q) => q.where({ id: platformId as string }))
+		db.platforms.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -103,21 +107,21 @@ export const platformsHandlers = [
 	// PATCH /platforms/:id - Partial update platform
 	http.patch(encoreUrl("/platforms/:id"), async ({ params, request }) => {
 		const { id } = params
+		const platformId = Array.isArray(id) ? id[0] : id
+		if (!platformId) {
+			return encoreNotFoundResponse("Platform")
+		}
 		const body = (await request.json()) as Record<string, unknown>
 
-		const platform = db.platforms.findFirst((q) => q.where({ id: id }))
+		const platform = db.platforms.findFirst((q) => q.where({ id: platformId as string }))
 		if (!platform) {
 			return encoreNotFoundResponse("Platform")
 		}
 
-		// Update platform in database
-		const updated = db.platforms.update({
-			where: { id },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update platform in database - use findFirst + manual update pattern
+		const updated = { ...platform, ...body, updatedAt: new Date().toISOString() }
+		db.platforms.delete((q) => q.where({ id: platformId as string }))
+		db.platforms.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -125,20 +129,24 @@ export const platformsHandlers = [
 	// DELETE /platforms/:id - Delete platform
 	http.delete(encoreUrl("/platforms/:id"), async ({ params }) => {
 		const { id } = params
+		const platformId = Array.isArray(id) ? id[0] : id
+		if (!platformId) {
+			return encoreNotFoundResponse("Platform")
+		}
 
-		const platform = db.platforms.findFirst((q) => q.where({ id: id }))
+		const platform = db.platforms.findFirst((q) => q.where({ id: platformId as string }))
 		if (!platform) {
 			return encoreNotFoundResponse("Platform")
 		}
 
 		// Check if platform is used in any products or campaigns
-		const products = db.products.findMany((q) => q.where({ platform: id }))
+		const products = db.products.findMany((q) => q.where({ platformId: platformId as string }))
 		if (products.length > 0) {
 			return encoreErrorResponse("Cannot delete platform used in products", 400)
 		}
 
 		// Delete platform from database
-		db.platforms.delete({ where: { id } })
+		db.platforms.delete((q) => q.where({ id: platformId as string }))
 
 		return encoreResponse({ deleted: true })
 	}),

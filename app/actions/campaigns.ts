@@ -1,8 +1,8 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidatePath, updateTag } from "next/cache"
 import { getEncoreClient, handleAPIError } from "@/lib/encore"
-import { handleServerAuthError } from "@/lib/error-handler-server"
+import { handleServerAuthError } from "@/lib/error-handler"
 import type { campaigns, shared } from "@/lib/encore-client"
 
 // ===========================================
@@ -14,6 +14,10 @@ export async function createCampaign(data: Partial<campaigns.CreateCampaignReque
 
 	try {
 		const response = await client.campaigns.createCampaign(data as campaigns.CreateCampaignRequest)
+		// Immediate invalidation (Next.js 16)
+		updateTag("campaigns")
+		updateTag("dashboard")
+		// Also revalidate paths for compatibility
 		revalidatePath("/dashboard/campaigns")
 		return { success: true, campaign: response }
 	} catch (error: unknown) {
@@ -43,6 +47,11 @@ export async function deleteCampaign(id: string) {
 
 	try {
 		await client.campaigns.deleteCampaign(id)
+		// Immediate invalidation (Next.js 16)
+		updateTag("campaigns")
+		updateTag(`campaign-${id}`)
+		updateTag("dashboard")
+		// Also revalidate paths for compatibility
 		revalidatePath("/dashboard/campaigns")
 		return { success: true, message: "Campaign deleted" }
 	} catch (error: unknown) {

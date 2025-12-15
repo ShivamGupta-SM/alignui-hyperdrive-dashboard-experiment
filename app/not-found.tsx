@@ -1,7 +1,13 @@
-"use client"
-
+import type { Metadata } from "next"
 import Link from "next/link"
 import * as Button from "@/components/ui/button"
+
+export const metadata: Metadata = {
+  title: "404 - Page Not Found | Hypedrive",
+  description: "The page you're looking for doesn't exist or has been moved.",
+}
+
+// Note: dynamic export removed - incompatible with cacheComponents
 import {
 	House,
 	ArrowRight,

@@ -346,3 +346,6 @@ interface CorrectType {
 5. **No Hiding** - Never hide errors with try-catch that returns null/empty
 6. **Production Grade** - Write code that works correctly, not code that fails gracefully
 
+
+
+

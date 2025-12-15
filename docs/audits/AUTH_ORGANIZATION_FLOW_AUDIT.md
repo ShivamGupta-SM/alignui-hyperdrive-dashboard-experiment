@@ -386,3 +386,6 @@ export async function switchOrganization(organizationId: string) {
 
 **Status:** ✅ **All Critical Issues Fixed** - Auth flow is solid!
 
+
+
+

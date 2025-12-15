@@ -37,25 +37,24 @@ export const organizationsHandlers = [
 			name: org.name,
 			slug: org.name.toLowerCase().replace(/\s+/g, "-"),
 			logo: org.logo,
-			description: org.description || null,
-			website: org.website || null,
-			businessType: org.businessType || null,
-			industryCategory: org.industryCategory || null,
-			contactPerson: org.contactPerson || null,
-			phoneNumber: org.phoneNumber || null,
-			address: org.address || null,
-			city: org.city || null,
-			state: org.state || null,
-			postalCode: org.postalCode || null,
+			description: org.description || undefined,
+			website: org.website || undefined,
+			businessType: org.businessType || undefined,
+			industryCategory: org.industryCategory || undefined,
+			contactPerson: org.contactPerson || undefined,
+			phoneNumber: org.phone || undefined,
+			address: org.address || undefined,
+			city: org.city || undefined,
+			state: org.state || undefined,
+			postalCode: org.postalCode || undefined,
 			country: org.country || "IN",
-			cinNumber: org.cinNumber || null,
-			gstNumber: org.gstNumber || null,
+			cinNumber: org.cinNumber || undefined,
+			gstNumber: org.gstNumber || undefined,
 			gstVerified: org.gstVerified || false,
-			panNumber: org.panNumber || null,
-			panVerified: org.panVerified || false,
+			// ❌ REMOVED: PAN fields - PAN is only for shoppers, not organizations
 			approvalStatus: org.approvalStatus || "draft",
-			createdAt: org.createdAt instanceof Date ? org.createdAt.toISOString() : org.createdAt,
-			updatedAt: org.updatedAt instanceof Date ? org.updatedAt.toISOString() : org.updatedAt,
+			createdAt: new Date().toISOString(), // Not in schema, use current time
+			updatedAt: new Date().toISOString(), // Not in schema, use current time
 		})
 	}),
 
@@ -94,7 +93,8 @@ export const organizationsHandlers = [
 			db.organizationSettings.create({
 				organizationId: id,
 				name: (body.name as string) || "New Organization",
-				logo: (body.logo as string) || null,
+				email: (body.email as string) || "",
+				logo: (body.logo as string) || undefined,
 			})
 			org = db.organizationSettings.findFirst((q) => q.where({ organizationId: id }))
 		}
@@ -103,12 +103,10 @@ export const organizationsHandlers = [
 			return encoreNotFoundResponse("Organization")
 		}
 
-		// Update organization in database
+		// Update organization in database - use findFirst + manual update pattern
 		const updated = { ...org, ...body }
-		db.organizationSettings.update({
-			where: { organizationId: id },
-			data: updated,
-		})
+		db.organizationSettings.delete((q) => q.where({ organizationId: id }))
+		db.organizationSettings.create(updated)
 
 		return encoreResponse({
 			id: updated.organizationId,
@@ -144,7 +142,8 @@ export const organizationsHandlers = [
 			db.organizationSettings.create({
 				organizationId: id,
 				name: (body.name as string) || "New Organization",
-				logo: (body.logo as string) || null,
+				email: (body.email as string) || "",
+				logo: (body.logo as string) || undefined,
 			})
 			org = db.organizationSettings.findFirst((q) => q.where({ organizationId: id }))
 		}
@@ -154,10 +153,9 @@ export const organizationsHandlers = [
 		}
 
 		const updated = { ...org, ...body }
-		db.organizationSettings.update({
-			where: { organizationId: id },
-			data: updated,
-		})
+		// Update organization in database - use findFirst + manual update pattern
+		db.organizationSettings.delete((q) => q.where({ organizationId: id }))
+		db.organizationSettings.create(updated)
 
 		return encoreResponse({
 			id: updated.organizationId,
@@ -178,11 +176,9 @@ export const organizationsHandlers = [
 		db.organizationSettings.create({
 			organizationId: newOrgId,
 			name: body.name,
-			logo: body.logo || null,
+			logo: body.logo || undefined,
 			email: "", // Will be updated later
 			approvalStatus: "draft", // Start as draft for resumable forms
-			createdAt: now,
-			updatedAt: now,
 		})
 
 		const newOrg = db.organizationSettings.findFirst((q) => q.where({ organizationId: newOrgId }))
@@ -191,7 +187,7 @@ export const organizationsHandlers = [
 			id: newOrgId,
 			name: body.name,
 			slug: body.name.toLowerCase().replace(/\s+/g, "-"),
-			logo: body.logo || null,
+			logo: body.logo || undefined,
 			approvalStatus: "draft",
 		})
 	}),
@@ -218,50 +214,16 @@ export const organizationsHandlers = [
 		// Update organization with GST details
 		const org = db.organizationSettings.findFirst((q) => q.where({ organizationId: id }))
 		if (org) {
-			db.organizationSettings.update({
-				where: { organizationId: id },
-				data: {
-					...org,
-					gstNumber: body.gstNumber,
-					gstVerified: true,
-				},
-			})
+			// Update organization - use findFirst + manual update pattern
+			const updated = { ...org, gstNumber: body.gstNumber, gstVerified: true }
+			db.organizationSettings.delete((q) => q.where({ organizationId: id }))
+			db.organizationSettings.create(updated)
 		}
 
 		return encoreResponse(gstDetails)
 	}),
 
-	// POST /organizations/:id/verify-pan - Verify PAN number
-	http.post(encoreUrl("/organizations/:id/verify-pan"), async ({ params, request }) => {
-		const { id } = params as { id: string }
-		const body = (await request.json()) as { panNumber: string }
-
-		if (!body.panNumber || body.panNumber.length !== 10) {
-			return encoreErrorResponse("Invalid PAN number format", 400)
-		}
-
-		// Mock PAN verification response
-		const panDetails = {
-			panNumber: body.panNumber,
-			name: body.panNumber.substring(0, 5).toUpperCase() + " NAME",
-			verifiedAt: new Date().toISOString(),
-		}
-
-		// Update organization with PAN details
-		const org = db.organizationSettings.findFirst((q) => q.where({ organizationId: id }))
-		if (org) {
-			db.organizationSettings.update({
-				where: { organizationId: id },
-				data: {
-					...org,
-					panNumber: body.panNumber,
-					panVerified: true,
-				},
-			})
-		}
-
-		return encoreResponse(panDetails)
-	}),
+	// ❌ REMOVED: PAN verification endpoint - PAN is only for shoppers, not organizations
 
 	// POST /organizations/:id/submit-for-approval - Submit organization for approval
 	http.post(encoreUrl("/organizations/:id/submit-for-approval"), async ({ params }) => {
@@ -273,13 +235,10 @@ export const organizationsHandlers = [
 		}
 
 		// Update organization status to pending
-		db.organizationSettings.update({
-			where: { organizationId: id },
-			data: {
-				...org,
-				approvalStatus: "pending",
-			},
-		})
+		// Update organization - use findFirst + manual update pattern
+		const updated = { ...org, approvalStatus: "pending" as const }
+		db.organizationSettings.delete((q) => q.where({ organizationId: id }))
+		db.organizationSettings.create(updated)
 
 		return encoreResponse({
 			success: true,

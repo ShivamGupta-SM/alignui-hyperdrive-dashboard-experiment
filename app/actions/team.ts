@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache"
 import { getEncoreClient, handleAPIError } from "@/lib/encore"
 import { getOrganizationIdOrNull } from "@/lib/ssr-data"
 
-// Original function (kept for backward compatibility)
 export async function inviteMember(email: string, role: string) {
 	const client = getEncoreClient()
 	const orgId = await getOrganizationIdOrNull()

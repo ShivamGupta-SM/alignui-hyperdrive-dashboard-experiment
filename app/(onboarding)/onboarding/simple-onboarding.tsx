@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -24,7 +24,7 @@ type SimpleOrgFormData = z.infer<typeof simpleOrgSchema>
 
 export function SimpleOnboarding() {
 	const router = useRouter()
-	const [isLoading, setIsLoading] = React.useState(false)
+	const [isLoading, setIsLoading] = useState(false)
 
 	const {
 		register,

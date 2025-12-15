@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState, useTransition } from "react"
 import * as Button from "@/components/ui/button"
 import * as Input from "@/components/ui/input"
 import * as Textarea from "@/components/ui/textarea"
@@ -15,12 +15,12 @@ interface SettingsTabProps {
 
 export function SettingsTab({ campaign }: SettingsTabProps) {
 	// State for form fields
-	const [title, setTitle] = React.useState(campaign.title)
-	const [description, setDescription] = React.useState(campaign.description)
-	// const [maxEnrollments, setMaxEnrollments] = React.useState(campaign.maxEnrollments?.toString() || '')
-	// const [submissionDeadline, setSubmissionDeadline] = React.useState(campaign.submissionDeadlineDays?.toString() || '')
+	const [title, setTitle] = useState(campaign.title)
+	const [description, setDescription] = useState(campaign.description)
+	// const [maxEnrollments, setMaxEnrollments] = useState(campaign.maxEnrollments?.toString() || '')
+	// const [submissionDeadline, setSubmissionDeadline] = useState(campaign.submissionDeadlineDays?.toString() || '')
 
-	const [isPending, startTransition] = React.useTransition()
+	const [isPending, startTransition] = useTransition()
 
 	const handleSave = () => {
 		startTransition(async () => {
@@ -34,7 +34,7 @@ export function SettingsTab({ campaign }: SettingsTabProps) {
 				if (res.success) {
 					toast.success("Campaign settings updated")
 				} else {
-					toast.error(res.error || "Failed to update settings")
+					toast.error("error" in res ? res.error : "Failed to update settings")
 				}
 			} catch (e) {
 				toast.error("An error occurred")

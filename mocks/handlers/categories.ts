@@ -28,7 +28,11 @@ export const categoriesHandlers = [
 	// GET /categories/:id
 	http.get(encoreUrl("/categories/:id"), async ({ params }) => {
 		const { id } = params
-		const category = mockCategories.find((c) => c.id === id)
+		const categoryId = Array.isArray(id) ? id[0] : id
+		if (!categoryId) {
+			return encoreNotFoundResponse("Category")
+		}
+		const category = db.categories.findFirst((q) => q.where({ id: categoryId as string }))
 		if (!category) return encoreNotFoundResponse("Category")
 		return encoreResponse(category)
 	}),
@@ -36,11 +40,15 @@ export const categoriesHandlers = [
 	// GET /categories/:id/products
 	http.get(encoreUrl("/categories/:id/products"), async ({ params, request }) => {
 		const { id } = params
+		const categoryId = Array.isArray(id) ? id[0] : id
+		if (!categoryId) {
+			return encoreNotFoundResponse("Category")
+		}
 		const url = new URL(request.url)
 		const skip = Number.parseInt(url.searchParams.get("skip") || "0", 10)
 		const take = Number.parseInt(url.searchParams.get("take") || "20", 10)
 
-		const category = db.categories.findFirst((q) => q.where({ id: id }))
+		const category = db.categories.findFirst((q) => q.where({ id: categoryId as string }))
 		if (!category) return encoreNotFoundResponse("Category")
 
 		const products = db.products.findMany((q) => q.where({ categoryId: category.id }))
@@ -63,6 +71,7 @@ export const categoriesHandlers = [
 		const newCategory = {
 			id: `cat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
 			name: body.name,
+			slug: body.name.toLowerCase().replace(/\s+/g, "-"),
 			description: body.description || "",
 			icon: body.icon || "📦",
 			createdAt: now,
@@ -78,25 +87,25 @@ export const categoriesHandlers = [
 	// PUT /categories/:id - Update category
 	http.put(encoreUrl("/categories/:id"), async ({ params, request }) => {
 		const { id } = params
+		const categoryId = Array.isArray(id) ? id[0] : id
+		if (!categoryId) {
+			return encoreNotFoundResponse("Category")
+		}
 		const body = (await request.json()) as {
 			name?: string
 			description?: string
 			icon?: string
 		}
 
-		const category = db.categories.findFirst((q) => q.where({ id: id }))
+		const category = db.categories.findFirst((q) => q.where({ id: categoryId as string }))
 		if (!category) {
 			return encoreNotFoundResponse("Category")
 		}
 
-		// Update category in database
-		const updated = db.categories.update({
-			where: { id },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update category in database - use findFirst + manual update pattern
+		const updated = { ...category, ...body, updatedAt: new Date().toISOString() }
+		db.categories.delete((q) => q.where({ id: categoryId as string }))
+		db.categories.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -104,21 +113,21 @@ export const categoriesHandlers = [
 	// PATCH /categories/:id - Partial update category
 	http.patch(encoreUrl("/categories/:id"), async ({ params, request }) => {
 		const { id } = params
+		const categoryId = Array.isArray(id) ? id[0] : id
+		if (!categoryId) {
+			return encoreNotFoundResponse("Category")
+		}
 		const body = (await request.json()) as Record<string, unknown>
 
-		const category = db.categories.findFirst((q) => q.where({ id: id }))
+		const category = db.categories.findFirst((q) => q.where({ id: categoryId as string }))
 		if (!category) {
 			return encoreNotFoundResponse("Category")
 		}
 
-		// Update category in database
-		const updated = db.categories.update({
-			where: { id },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update category in database - use findFirst + manual update pattern
+		const updated = { ...category, ...body, updatedAt: new Date().toISOString() }
+		db.categories.delete((q) => q.where({ id: categoryId as string }))
+		db.categories.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -126,20 +135,24 @@ export const categoriesHandlers = [
 	// DELETE /categories/:id - Delete category
 	http.delete(encoreUrl("/categories/:id"), async ({ params }) => {
 		const { id } = params
+		const categoryId = Array.isArray(id) ? id[0] : id
+		if (!categoryId) {
+			return encoreNotFoundResponse("Category")
+		}
 
-		const category = db.categories.findFirst((q) => q.where({ id: id }))
+		const category = db.categories.findFirst((q) => q.where({ id: categoryId as string }))
 		if (!category) {
 			return encoreNotFoundResponse("Category")
 		}
 
 		// Check if category is used in any products
-		const products = db.products.findMany((q) => q.where({ category: id }))
+		const products = db.products.findMany((q) => q.where({ categoryId: categoryId as string }))
 		if (products.length > 0) {
 			return encoreErrorResponse("Cannot delete category used in products", 400)
 		}
 
 		// Delete category from database
-		db.categories.delete({ where: { id } })
+		db.categories.delete((q) => q.where({ id: categoryId as string }))
 
 		return encoreResponse({ deleted: true })
 	}),

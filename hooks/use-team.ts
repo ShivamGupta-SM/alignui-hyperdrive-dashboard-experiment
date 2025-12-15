@@ -6,8 +6,8 @@ import type { organizations, auth } from "@/lib/encore-browser"
 // Types - Re-export from Encore client for convenience
 // ============================================
 
-export type Member = organizations.Member
-export type Invitation = auth.Invitation
+export type Member = auth.MemberResponse
+export type Invitation = auth.InvitationResponse
 
 // ============================================
 // Types

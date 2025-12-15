@@ -1,8 +1,12 @@
-"use client"
-
+import type { Metadata } from "next"
 import Link from "next/link"
 import * as Button from "@/components/ui/button"
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr"
+
+export const metadata: Metadata = {
+	title: "Privacy Policy",
+	description: "Hypedrive Privacy Policy - How we collect, use, and protect your information",
+}
 
 export default function PrivacyPage() {
 	return (

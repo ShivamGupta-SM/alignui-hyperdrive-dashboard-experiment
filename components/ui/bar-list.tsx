@@ -124,10 +124,12 @@ function BarList({
 					</>
 				)
 
+				const itemKey = dataItem.name || `bar-item-${index}-${dataItem.value}`
+				
 				if (dataItem.href) {
 					return (
 						<a
-							key={index}
+							key={itemKey}
 							href={dataItem.href}
 							className={cn(
 								item(),
@@ -141,7 +143,7 @@ function BarList({
 				}
 
 				return (
-					<div key={index} className={item()} role="listitem">
+					<div key={itemKey} className={item()} role="listitem">
 						{content}
 					</div>
 				)

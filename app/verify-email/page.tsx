@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import * as Button from "@/components/ui/button"
@@ -13,12 +13,12 @@ export default function VerifyEmailPage() {
 	const searchParams = useSearchParams()
 	const token = searchParams.get("token")
 	const callbackURL = searchParams.get("callbackURL")
-	const [isVerifying, setIsVerifying] = React.useState(!!token)
-	const [isVerified, setIsVerified] = React.useState(false)
-	const [error, setError] = React.useState("")
-	const [isLoading, setIsLoading] = React.useState(false)
+	const [isVerifying, setIsVerifying] = useState(!!token)
+	const [isVerified, setIsVerified] = useState(false)
+	const [error, setError] = useState("")
+	const [isLoading, setIsLoading] = useState(false)
 
-	React.useEffect(() => {
+	useEffect(() => {
 		async function verifyEmail() {
 			if (!token) {
 				setIsVerifying(false)
@@ -31,7 +31,7 @@ export default function VerifyEmailPage() {
 				const { verifyEmail } = await import("@/app/actions/auth")
 				// Validate callbackURL if provided
 				const validatedCallbackURL = callbackURL 
-					? getSafeRedirectUrl(callbackURL, null) 
+					? getSafeRedirectUrl(callbackURL, "/") 
 					: undefined
 				const result = await verifyEmail(token, validatedCallbackURL || undefined)
 

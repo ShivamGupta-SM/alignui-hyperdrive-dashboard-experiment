@@ -182,3 +182,6 @@ catch (error) {
 **Key Principle:**
 > Use Next.js built-in error handlers + simple logging utility. No need for complex systems!
 
+
+
+

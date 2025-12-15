@@ -1,12 +1,7 @@
-"use client"
-
-import * as React from "react"
+import type { Metadata } from "next"
 import Link from "next/link"
 import * as Button from "@/components/ui/button"
-import * as Input from "@/components/ui/input"
-import * as Accordion from "@/components/ui/accordion"
 import {
-	MagnifyingGlass,
 	BookOpen,
 	VideoCamera,
 	Code,
@@ -18,7 +13,12 @@ import {
 	ArrowRight,
 	ArrowSquareOut,
 } from "@phosphor-icons/react/dist/ssr"
-import { cn } from "@/utils/cn"
+import { HelpFAQs } from "@/components/help/help-faqs"
+
+export const metadata: Metadata = {
+	title: "Help & Support",
+	description: "Get help with using Hypedrive - FAQs, tutorials, and support",
+}
 
 const quickLinks = [
 	{
@@ -158,44 +158,12 @@ Most rejections can be resolved by updating the campaign details.`,
 ]
 
 export default function HelpPage() {
-	const [searchQuery, setSearchQuery] = React.useState("")
-	const [filteredFaqs, setFilteredFaqs] = React.useState(faqs)
-
-	React.useEffect(() => {
-		if (!searchQuery.trim()) {
-			setFilteredFaqs(faqs)
-			return
-		}
-
-		const query = searchQuery.toLowerCase()
-		setFilteredFaqs(
-			faqs.filter(
-				(faq) =>
-					faq.question.toLowerCase().includes(query) || faq.answer.toLowerCase().includes(query)
-			)
-		)
-	}, [searchQuery])
-
 	return (
 		<div className="space-y-8">
 			{/* Page Header */}
 			<div className="text-center max-w-2xl mx-auto">
 				<h1 className="text-title-h3 text-text-strong-950">Help & Support</h1>
 				<p className="text-paragraph-md text-text-sub-600 mt-2">Get help with using Hypedrive</p>
-			</div>
-
-			{/* Search */}
-			<div className="max-w-xl mx-auto">
-				<Input.Root>
-					<Input.Wrapper>
-						<Input.Icon as={MagnifyingGlass} />
-						<Input.El
-							placeholder="Search for help..."
-							value={searchQuery}
-							onChange={(e) => setSearchQuery(e.target.value)}
-						/>
-					</Input.Wrapper>
-				</Input.Root>
 			</div>
 
 			{/* Quick Links */}
@@ -248,53 +216,8 @@ export default function HelpPage() {
 				</div>
 			</div>
 
-			{/* FAQs */}
-			<div
-				id="faqs"
-				className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6"
-			>
-				<h2 className="text-label-md text-text-strong-950 mb-4">Frequently Asked Questions</h2>
-
-				{filteredFaqs.length === 0 ? (
-					<div className="text-center py-8">
-						<MagnifyingGlass weight="duotone" className="size-12 text-text-soft-400 mx-auto mb-4" />
-						<p className="text-paragraph-sm text-text-sub-600">
-							No results found for "{searchQuery}"
-						</p>
-						<Button.Root
-							variant="neutral"
-							size="small"
-							className="mt-4"
-							onClick={() => setSearchQuery("")}
-						>
-							Clear Search
-						</Button.Root>
-					</div>
-				) : (
-					<Accordion.Root type="single" collapsible className="space-y-3">
-						{filteredFaqs.map((faq) => (
-							<Accordion.Item key={faq.id} value={faq.id}>
-								<Accordion.Trigger>
-									<Accordion.Icon as={Question} />
-									{faq.question}
-									<Accordion.Arrow />
-								</Accordion.Trigger>
-								<Accordion.Content className="pl-[30px]">
-									<div className="whitespace-pre-line">{faq.answer}</div>
-								</Accordion.Content>
-							</Accordion.Item>
-						))}
-					</Accordion.Root>
-				)}
-
-				{filteredFaqs.length > 0 && filteredFaqs.length < faqs.length && (
-					<div className="text-center mt-4">
-						<Button.Root variant="ghost" onClick={() => setSearchQuery("")}>
-							View All FAQs
-						</Button.Root>
-					</div>
-				)}
-			</div>
+			{/* FAQs - Client Component for Search */}
+			<HelpFAQs faqs={faqs} />
 
 			{/* Contact Support */}
 			<div

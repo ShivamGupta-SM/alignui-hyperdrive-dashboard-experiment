@@ -4,7 +4,7 @@
 
 import { http } from "msw"
 import { db } from "@/mocks/db"
-import { encoreUrl, encoreResponse, encoreNotFoundResponse } from "./utils"
+import { encoreUrl, encoreResponse, encoreNotFoundResponse, encoreErrorResponse } from "./utils"
 
 // Static deliverable types
 const deliverableTypes = [
@@ -110,6 +110,10 @@ export const deliverablesHandlers = [
 	// PUT /deliverables/:id - Update deliverable
 	http.put(encoreUrl("/deliverables/:id"), async ({ params, request }) => {
 		const { id } = params
+		const deliverableId = Array.isArray(id) ? id[0] : id
+		if (!deliverableId) {
+			return encoreNotFoundResponse("Deliverable")
+		}
 		const body = (await request.json()) as {
 			name?: string
 			description?: string
@@ -120,19 +124,15 @@ export const deliverablesHandlers = [
 			status?: "active" | "inactive" | "archived"
 		}
 
-		const deliverable = db.deliverables.findFirst((q) => q.where({ id: id }))
+		const deliverable = db.deliverables.findFirst((q) => q.where({ id: deliverableId as string }))
 		if (!deliverable) {
 			return encoreNotFoundResponse("Deliverable")
 		}
 
-		// Update deliverable in database
-		const updated = db.deliverables.update({
-			where: { id },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update deliverable in database - use findFirst + manual update pattern
+		const updated = { ...deliverable, ...body, updatedAt: new Date().toISOString() }
+		db.deliverables.delete((q) => q.where({ id: deliverableId as string }))
+		db.deliverables.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -140,21 +140,21 @@ export const deliverablesHandlers = [
 	// PATCH /deliverables/:id - Partial update deliverable
 	http.patch(encoreUrl("/deliverables/:id"), async ({ params, request }) => {
 		const { id } = params
+		const deliverableId = Array.isArray(id) ? id[0] : id
+		if (!deliverableId) {
+			return encoreNotFoundResponse("Deliverable")
+		}
 		const body = (await request.json()) as Record<string, unknown>
 
-		const deliverable = db.deliverables.findFirst((q) => q.where({ id: id }))
+		const deliverable = db.deliverables.findFirst((q) => q.where({ id: deliverableId as string }))
 		if (!deliverable) {
 			return encoreNotFoundResponse("Deliverable")
 		}
 
-		// Update deliverable in database
-		const updated = db.deliverables.update({
-			where: { id },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update deliverable in database - use findFirst + manual update pattern
+		const updated = { ...deliverable, ...body, updatedAt: new Date().toISOString() }
+		db.deliverables.delete((q) => q.where({ id: deliverableId as string }))
+		db.deliverables.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -162,22 +162,26 @@ export const deliverablesHandlers = [
 	// DELETE /deliverables/:id - Delete deliverable
 	http.delete(encoreUrl("/deliverables/:id"), async ({ params }) => {
 		const { id } = params
+		const deliverableId = Array.isArray(id) ? id[0] : id
+		if (!deliverableId) {
+			return encoreNotFoundResponse("Deliverable")
+		}
 
-		const deliverable = db.deliverables.findFirst((q) => q.where({ id: id }))
+		const deliverable = db.deliverables.findFirst((q) => q.where({ id: deliverableId as string }))
 		if (!deliverable) {
 			return encoreNotFoundResponse("Deliverable")
 		}
 
 		// Check if deliverable is used in any campaign deliverables
 		const campaignDeliverables = db.campaignDeliverables.findMany((q) =>
-			q.where({ type: id })
+			q.where({ type: deliverableId as "order_screenshot" | "delivery_photo" | "product_review" | "social_media_post" | "unboxing_video" | "custom" })
 		)
 		if (campaignDeliverables.length > 0) {
 			return encoreErrorResponse("Cannot delete deliverable used in campaigns", 400)
 		}
 
 		// Delete deliverable from database
-		db.deliverables.delete({ where: { id } })
+		db.deliverables.delete((q) => q.where({ id: deliverableId as string }))
 
 		return encoreResponse({ deleted: true })
 	}),

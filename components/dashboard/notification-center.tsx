@@ -42,13 +42,23 @@ import { cn } from "@/utils/cn"
 
 let audioContext: AudioContext | null = null
 
+// Type guard for webkitAudioContext (Safari compatibility)
+function hasWebkitAudioContext(window: Window): window is Window & { webkitAudioContext: typeof AudioContext } {
+	return "webkitAudioContext" in window
+}
+
 function getAudioContext() {
 	if (typeof window === "undefined") return null
 	if (!audioContext) {
-		audioContext = new (
-			window.AudioContext ||
-			(window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-		)()
+		// Use type guard for Safari compatibility
+		const AudioContextClass = window.AudioContext || 
+			(hasWebkitAudioContext(window) ? window.webkitAudioContext : null)
+		
+		if (!AudioContextClass) {
+			return null
+		}
+		
+		audioContext = new AudioContextClass()
 	}
 	return audioContext
 }
@@ -102,6 +112,45 @@ function vibrateDevice() {
 // ============================================
 // Types
 // ============================================
+
+// Extended notification type for Novu notifications with additional properties
+interface NovuNotificationExtended {
+	snoozedUntil?: string | null
+	primaryAction?: { label: string; redirect?: { url: string }; isCompleted?: boolean }
+	secondaryAction?: { label: string; redirect?: { url: string }; isCompleted?: boolean }
+}
+
+// Type guard for checking if notification has snoozedUntil property
+function hasSnoozedUntil(n: unknown): n is { snoozedUntil?: string | null } {
+	return typeof n === "object" && n !== null && "snoozedUntil" in n
+}
+
+// Type guard for checking if notification has action properties
+function hasActionProperties(n: unknown): n is NovuNotificationExtended {
+	return typeof n === "object" && n !== null && (
+		"primaryAction" in n || "secondaryAction" in n || "snoozedUntil" in n
+	)
+}
+
+// Helper to safely get snoozedUntil from notification
+function getSnoozedUntil(n: unknown): string | null {
+	if (hasSnoozedUntil(n)) {
+		return n.snoozedUntil ?? null
+	}
+	return null
+}
+
+// Helper to safely get action properties from notification
+function getActionProperties(n: unknown): NovuNotificationExtended {
+	if (hasActionProperties(n)) {
+		return {
+			snoozedUntil: n.snoozedUntil ?? null,
+			primaryAction: n.primaryAction,
+			secondaryAction: n.secondaryAction,
+		}
+	}
+	return {}
+}
 
 interface NotificationItemProps {
 	notification: {
@@ -778,7 +827,7 @@ function NotificationPanelEmpty({ onOpenChange }: { onOpenChange: (open: boolean
 			{/* Footer */}
 			<div
 				className="border-t border-stroke-soft-200 dark:border-neutral-800 px-4 py-3"
-				style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
+				style={{ "--safe-bottom": "env(safe-area-inset-bottom, 0px)", paddingBottom: "calc(0.75rem + var(--safe-bottom))" } as React.CSSProperties}
 			>
 				<button
 					type="button"
@@ -820,7 +869,7 @@ function NotificationPanelWithNovu({
 		if (filter === "snoozed") {
 			// Filter for snoozed notifications
 			return notifications.filter((n) => {
-				const snoozedUntil = (n as unknown as { snoozedUntil?: string }).snoozedUntil
+				const snoozedUntil = getSnoozedUntil(n)
 				return !!snoozedUntil && new Date(snoozedUntil) > new Date() && !n.isArchived
 			})
 		}
@@ -830,7 +879,7 @@ function NotificationPanelWithNovu({
 		}
 		// For 'all', exclude snoozed and archived notifications
 		return notifications.filter((n) => {
-			const snoozedUntil = (n as unknown as { snoozedUntil?: string }).snoozedUntil
+			const snoozedUntil = getSnoozedUntil(n)
 			const isSnoozed = !!snoozedUntil && new Date(snoozedUntil) > new Date()
 			return !isSnoozed && !n.isArchived
 		})
@@ -840,7 +889,7 @@ function NotificationPanelWithNovu({
 	const snoozedCount = React.useMemo(() => {
 		if (!notifications) return 0
 		return notifications.filter((n) => {
-			const snoozedUntil = (n as unknown as { snoozedUntil?: string }).snoozedUntil
+			const snoozedUntil = getSnoozedUntil(n)
 			return !!snoozedUntil && new Date(snoozedUntil) > new Date() && !n.isArchived
 		}).length
 	}, [notifications])
@@ -851,14 +900,11 @@ function NotificationPanelWithNovu({
 		return notifications.filter((n) => n.isArchived).length
 	}, [notifications])
 
-	const groupedNotifications = React.useMemo(() => {
+		const groupedNotifications = React.useMemo(() => {
 		return groupNotificationsByDate(
 			filteredNotifications.map((n) => {
-				// Extract action completion status from Novu notification
-				const nWithActions = n as unknown as {
-					primaryAction?: { label: string; redirect?: { url: string }; isCompleted?: boolean }
-					secondaryAction?: { label: string; redirect?: { url: string }; isCompleted?: boolean }
-				}
+				// Extract action completion status from Novu notification using type guards
+				const actionProps = getActionProperties(n)
 				return {
 					id: n.id,
 					subject: n.subject,
@@ -866,21 +912,21 @@ function NotificationPanelWithNovu({
 					avatar: n.avatar,
 					read: n.isRead,
 					archived: n.isArchived,
-					// Novu stores snooze info - check for snoozedUntil on notification object
-					snoozedUntil: (n as unknown as { snoozedUntil?: string }).snoozedUntil ?? null,
+					// Novu stores snooze info - safely extract using type guard
+					snoozedUntil: getSnoozedUntil(n),
 					createdAt: n.createdAt,
-					primaryAction: nWithActions.primaryAction
+					primaryAction: actionProps.primaryAction
 						? {
-								label: nWithActions.primaryAction.label,
-								url: nWithActions.primaryAction.redirect?.url,
-								isCompleted: nWithActions.primaryAction.isCompleted,
+								label: actionProps.primaryAction.label,
+								url: actionProps.primaryAction.redirect?.url,
+								isCompleted: actionProps.primaryAction.isCompleted,
 							}
 						: undefined,
-					secondaryAction: nWithActions.secondaryAction
+					secondaryAction: actionProps.secondaryAction
 						? {
-								label: nWithActions.secondaryAction.label,
-								url: nWithActions.secondaryAction.redirect?.url,
-								isCompleted: nWithActions.secondaryAction.isCompleted,
+								label: actionProps.secondaryAction.label,
+								url: actionProps.secondaryAction.redirect?.url,
+								isCompleted: actionProps.secondaryAction.isCompleted,
 							}
 						: undefined,
 					data: n.data,
@@ -1078,6 +1124,7 @@ function NotificationPanelWithNovu({
 						<button
 							type="button"
 							className="size-8 rounded-lg flex items-center justify-center text-text-sub-600 hover:bg-bg-weak-50 dark:text-neutral-400 dark:hover:bg-neutral-800 transition-colors"
+							aria-label="Open notification settings menu"
 						>
 							<DotsThree className="size-5" weight="bold" />
 						</button>
@@ -1314,7 +1361,7 @@ function NotificationPanelWithNovu({
 			{/* Footer */}
 			<div
 				className="border-t border-stroke-soft-200 dark:border-neutral-800 px-4 py-3"
-				style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
+				style={{ "--safe-bottom": "env(safe-area-inset-bottom, 0px)", paddingBottom: "calc(0.75rem + var(--safe-bottom))" } as React.CSSProperties}
 			>
 				<button
 					type="button"

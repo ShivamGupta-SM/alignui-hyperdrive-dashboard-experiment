@@ -404,7 +404,7 @@ export const DeliverableSchema = z.object({
 	requireLink: z.boolean(),
 	requireScreenshot: z.boolean(),
 	status: z.enum(["active", "inactive", "archived"]),
-	metadata: z.record(z.any()).optional(),
+	metadata: z.record(z.string(), z.any()).optional(),
 	createdAt: z.string(), // ISO string
 	updatedAt: z.string(), // ISO string
 })
@@ -456,7 +456,7 @@ export const WithdrawalMethodSchema = z.object({
 	isVerified: z.boolean(),
 	verificationMethod: z.string().optional(),
 	verifiedAt: z.string().optional(), // ISO string
-	verificationDetails: z.record(z.any()).optional(),
+	verificationDetails: z.record(z.string(), z.any()).optional(),
 	isDefault: z.boolean(),
 	createdAt: z.string(), // ISO string
 	updatedAt: z.string(), // ISO string

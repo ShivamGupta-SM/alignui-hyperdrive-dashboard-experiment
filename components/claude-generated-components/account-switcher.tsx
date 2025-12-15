@@ -270,7 +270,7 @@ const AccountSwitcher = React.forwardRef<HTMLDivElement, AccountSwitcherProps>(
 							<DropdownMenuPrimitive.Group className={styles.menuSection()}>
 								{menuItems.map((item, index) => (
 									<DropdownMenuPrimitive.Item
-										key={index}
+										key={item.label || `menu-item-${index}`}
 										className={styles.menuItem()}
 										onSelect={item.onClick}
 									>

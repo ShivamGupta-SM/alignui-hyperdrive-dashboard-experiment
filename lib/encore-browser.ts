@@ -5,19 +5,9 @@
  * For server-only usage, use lib/encore.ts instead.
  */
 
-import Client, { Local, Environment } from "./encore-client"
+import Client from "./encore-client"
 import type { ClientOptions } from "./encore-client"
-
-// Get base URL based on environment
-function getBaseUrl(): string {
-	// Server-side rendering - use env variable or local
-	if (typeof window === "undefined") {
-		return process.env.ENCORE_API_URL || Local
-	}
-
-	// Client-side - use public env variable or local
-	return process.env.NEXT_PUBLIC_ENCORE_URL || Local
-}
+import { getEncoreBaseUrl, Local, Environment } from "./encore-shared"
 
 // Singleton client instance
 let clientInstance: Client | null = null
@@ -27,7 +17,7 @@ let clientInstance: Client | null = null
  * Uses a singleton pattern to reuse the client instance.
  */
 export function getEncoreBrowserClient(options?: ClientOptions): Client {
-	const baseUrl = getBaseUrl()
+	const baseUrl = getEncoreBaseUrl()
 	
 	if (!clientInstance) {
 		clientInstance = new Client(baseUrl, {
@@ -73,7 +63,7 @@ export function resetEncoreBrowserClient(): void {
 }
 
 // Re-export everything from encore-client for convenience
-export { Local, Environment } from "./encore-client"
+export { Local, Environment } from "./encore-shared"
 export type { ClientOptions } from "./encore-client"
 
 // Re-export all service namespaces for type access

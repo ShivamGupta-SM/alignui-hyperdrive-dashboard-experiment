@@ -6,7 +6,7 @@
  */
 
 import { HttpResponse } from "msw"
-import type { products, organizations, campaigns, enrollments, invoices } from "@/lib/encore-client"
+import type { products, organizations, campaigns, enrollments, invoices, auth } from "@/lib/encore-client"
 
 // =============================================================================
 // ENCORE API RESPONSE TYPES
@@ -108,7 +108,7 @@ export function productListResponse(
 // ORGANIZATION TYPED HELPERS
 // =============================================================================
 
-export type Member = organizations.Member
+export type Member = auth.MemberResponse
 export type Organization = organizations.Organization
 
 /**

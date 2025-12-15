@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState, useMemo, useRef, useEffect, Fragment } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useForm, Controller, useFieldArray, type ControllerRenderProps } from "react-hook-form"
@@ -34,8 +34,13 @@ import {
 	Globe,
 	Lock,
 	Info,
+	Warning,
 } from "@phosphor-icons/react/dist/ssr"
 import { cn } from "@/utils/cn"
+import { formatDateShort, formatDateMedium, formatDateWithWeekday } from "@/lib/format"
+import { useLocalStorage } from "@/hooks/use-local-storage"
+import { CalloutWithActions } from "@/components/ui/callout"
+import { useOrganizationContext } from "@/contexts/organization-context"
 import {
 	CAMPAIGN_TYPE_OPTIONS,
 	DELIVERABLE_TYPE_OPTIONS,
@@ -46,7 +51,6 @@ import { campaignFormSchema, type CampaignFormInput } from "@/lib/validations"
 import type { DeliverableType } from "@/lib/types"
 import type { CampaignType } from "@/hooks/use-campaigns"
 import type { ProductWithStats } from "@/hooks/use-products"
-import { formatDateMedium, formatDateWithWeekday } from "@/lib/format"
 
 type Product = ProductWithStats
 
@@ -61,10 +65,108 @@ interface CreateCampaignClientProps {
 	products: Product[]
 }
 
+// Industry Standard: Use context instead of props
 export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 	const router = useRouter()
-	const [currentStep, setCurrentStep] = React.useState(1)
-	const [isLoading, setIsLoading] = React.useState(false)
+	
+	// Industry Standard: Always use context, never props
+	const { hasOrganization, isLoading: isOrgLoading } = useOrganizationContext()
+	
+	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
+		"create-campaign-onboarding-alert-dismissed",
+		false
+	)
+	
+	// Ref map for form fields to avoid direct DOM manipulation
+	const fieldRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>>(new Map())
+	
+	// Stable reference for today's date to avoid re-renders
+	const today = useMemo(() => new Date(), [])
+
+	// Industry Standard: Check loading state first
+	if (isOrgLoading) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				<div className="animate-pulse">
+					<div className="h-8 w-48 bg-bg-soft-200 rounded mb-4" />
+					<div className="h-40 bg-bg-soft-200 rounded-xl" />
+				</div>
+			</div>
+		)
+	}
+
+	// Show onboarding alert if no organization
+	const showOnboardingAlert = !hasOrganization && !dismissedOnboardingAlert
+
+	// If no organization, show alert
+	if (!hasOrganization) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				{/* ONBOARDING ALERT */}
+				{showOnboardingAlert && (
+					<CalloutWithActions
+						variant="warning"
+						title="Complete Your Organization Setup"
+						dismissible
+						onDismiss={() => setDismissedOnboardingAlert(true)}
+						actions={
+							<>
+								<Button.Root
+									variant="primary"
+									size="small"
+									onClick={() => router.push("/onboarding")}
+								>
+									<Button.Icon as={ArrowRight} />
+									Start Onboarding
+								</Button.Root>
+								<Button.Root
+									variant="ghost"
+									size="small"
+									onClick={() => setDismissedOnboardingAlert(true)}
+								>
+									Maybe Later
+								</Button.Root>
+							</>
+						}
+					>
+						To create campaigns, you need to complete your organization setup. This will only take a few minutes.
+					</CalloutWithActions>
+				)}
+
+				{/* HEADER */}
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+					<div className="min-w-0">
+						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Create Campaign</h1>
+					</div>
+				</div>
+
+				{/* EMPTY STATE */}
+				{dismissedOnboardingAlert && (
+					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
+						<div className="max-w-md mx-auto space-y-4">
+							<div className="flex justify-center">
+								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
+									<Warning weight="duotone" className="size-8 text-warning-base" />
+								</div>
+							</div>
+							<div>
+								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
+								<p className="text-paragraph-sm text-text-sub-600 mt-2">
+									Complete your organization setup to create campaigns.
+								</p>
+							</div>
+							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
+								<Button.Icon as={ArrowRight} />
+								Start Onboarding
+							</Button.Root>
+						</div>
+					</div>
+				)}
+			</div>
+		)
+	}
+	const [currentStep, setCurrentStep] = useState(1)
+	const [isLoading, setIsLoading] = useState(false)
 
 	// RHF form setup
 	const {
@@ -131,14 +233,8 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 		if (isValid && currentStep < 4) {
 			setCurrentStep(currentStep + 1)
 			window.scrollTo({ top: 0, behavior: "smooth" })
-		} else if (!isValid) {
-			// Scroll to first error
-			const firstErrorField = Object.keys(errors)[0]
-			if (firstErrorField) {
-				const element = document.querySelector(`[name="${firstErrorField}"]`)
-				element?.scrollIntoView({ behavior: "smooth", block: "center" })
-			}
 		}
+		// Error scrolling is now handled by useEffect watching errors
 	}
 
 	const handleBack = () => {
@@ -200,7 +296,22 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 			const createResult = await createCampaign(campaignData)
 
 			if (!createResult.success) {
-				toast.error(("error" in createResult ? createResult.error : "Failed to create campaign") || "Failed to create campaign")
+				const errorMessage = "error" in createResult ? createResult.error : "Failed to create campaign"
+				// Check if error is related to approval status
+				if (errorMessage?.toLowerCase().includes("not yet approved") || 
+				    errorMessage?.toLowerCase().includes("not approved") ||
+				    errorMessage?.toLowerCase().includes("approval")) {
+					toast.error("Organization Not Approved", {
+						description: "Please complete onboarding and wait for admin approval before creating campaigns.",
+						action: {
+							label: "Go to Onboarding",
+							onClick: () => router.push("/onboarding")
+						},
+						duration: 8000
+					})
+				} else {
+					toast.error(errorMessage || "Failed to create campaign")
+				}
 				return
 			}
 
@@ -275,7 +386,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 				<div className="h-1.5 bg-bg-weak-50 rounded-full overflow-hidden">
 					<div
 						className="h-full bg-primary-base rounded-full transition-all duration-300"
-						style={{ width: `${(currentStep / 4) * 100}%` }}
+						style={{ width: `${(currentStep / 4) * 100}%` } as React.CSSProperties}
 					/>
 				</div>
 			</div>
@@ -307,7 +418,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 								const isActive = currentStep === step.value
 
 								return (
-									<React.Fragment key={step.value}>
+									<Fragment key={step.value}>
 										<button
 											onClick={() => isCompleted && setCurrentStep(step.value)}
 											disabled={!isCompleted}
@@ -360,7 +471,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 												)}
 											/>
 										)}
-									</React.Fragment>
+									</Fragment>
 								)
 							})}
 						</div>
@@ -638,8 +749,8 @@ interface Step2Props {
 }
 
 function Step2Schedule({ register, control, errors, watch, setValue }: Step2Props) {
-	const [startDateOpen, setStartDateOpen] = React.useState(false)
-	const [endDateOpen, setEndDateOpen] = React.useState(false)
+	const [startDateOpen, setStartDateOpen] = useState(false)
+	const [endDateOpen, setEndDateOpen] = useState(false)
 	const startDate = watch("startDate")
 	const endDate = watch("endDate")
 
@@ -694,7 +805,11 @@ function Step2Schedule({ register, control, errors, watch, setValue }: Step2Prop
 										setStartDateOpen(false)
 									}
 								}}
-								disabled={(date: Date) => date < new Date()}
+								disabled={(date: Date) => {
+									const today = new Date()
+									today.setHours(0, 0, 0, 0)
+									return date < today
+								}}
 							/>
 						</Popover.Content>
 					</Popover.Root>
@@ -726,7 +841,11 @@ function Step2Schedule({ register, control, errors, watch, setValue }: Step2Prop
 										setEndDateOpen(false)
 									}
 								}}
-								disabled={(date: Date) => (startDate ? date < startDate : date < new Date())}
+								disabled={(date: Date) => {
+									const today = new Date()
+									today.setHours(0, 0, 0, 0)
+									return startDate ? date < startDate : date < today
+								}}
 							/>
 						</Popover.Content>
 					</Popover.Root>
@@ -959,7 +1078,7 @@ interface Step4Props {
 }
 
 function Step4Review({ watch, onEdit, products }: Step4Props) {
-	const [termsAccepted, setTermsAccepted] = React.useState(false)
+	const [termsAccepted, setTermsAccepted] = useState(false)
 	const formData = watch()
 	const product = products.find((p) => p.id === formData.productId)
 

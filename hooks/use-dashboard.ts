@@ -5,6 +5,7 @@ import { getEncoreBrowserClient } from "@/lib/encore-browser"
 import { dashboardKeys } from "@/lib/query-keys"
 import type { organizations, auth } from "@/lib/encore-browser"
 import { useSession } from "./use-session"
+import { logWarn, logError } from "@/lib/error-logger-simple"
 
 // ============================================
 // Types
@@ -28,43 +29,38 @@ export function useDashboard(options?: {
 	const { organizationId, days = 7, enabled = true } = options ?? {}
 	const { data: sessionData } = useSession()
 
+	// Get active organization ID for query key and API call
+	const meUser = sessionData?.user as auth.MeResponse | undefined
+	const activeOrgId = organizationId || meUser?.activeOrganizationId
+
 	return useQuery<DashboardData | null>({
-		queryKey: dashboardKeys.stats(),
+		queryKey: [...dashboardKeys.stats(), activeOrgId || "no-org", days],
 		queryFn: async () => {
 			try {
 				const client = getEncoreBrowserClient()
 
-				// If organizationId is provided, use it; otherwise get from active org
-				let activeOrgId = organizationId
-				
 				if (!activeOrgId) {
-					// Get active organization from session hook (already fetched)
-					// sessionData.user is MeResponse which has activeOrganizationId
-					const meUser = sessionData?.user as auth.MeResponse | undefined
-					activeOrgId = meUser?.activeOrganizationId || undefined
-
-					if (!activeOrgId) {
-						// Return null instead of throwing to prevent hook order issues
-						console.warn("No active organization found for dashboard")
-						return null
-					}
+					// Return null instead of throwing to prevent hook order issues
+					logWarn("No active organization found for dashboard", { source: "useDashboard" })
+					return null
 				}
 
-				const response = await client.organizations.getDashboardOverview(activeOrgId, { days })
+				const response = await client.organizations.getDashboardOverview({ days })
 				return response
 			} catch (error: unknown) {
-				// Log error with more details
-				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				const errorCode = error && typeof error === 'object' && 'code' in error ? String(error.code) : "UNKNOWN"
-				console.error("Failed to fetch dashboard data:", {
-					message: errorMessage,
-					code: errorCode,
-					error: error
+				// Log error with proper logging utility
+				logError(error, { 
+					source: "useDashboard", 
+					data: { 
+						activeOrgId, 
+						days,
+						action: "getDashboardOverview"
+					} 
 				})
 				return null
 			}
 		},
-		enabled: enabled && !!sessionData, // Only fetch when session is loaded
+		enabled: enabled && !!sessionData && !!activeOrgId, // Only fetch when session is loaded AND has active org
 		staleTime: 60 * 1000, // 1 minute (increased from 30s for better performance)
 		gcTime: 5 * 60 * 1000, // 5 minutes
 		retry: false, // Don't retry to prevent hook order issues

@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { memo, useCallback, useState, useEffect, useTransition, useMemo } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { cn } from "@/utils/cn"
@@ -19,23 +19,21 @@ import {
 	DownloadSimple,
 	MagnifyingGlass,
 	X,
-	ArrowRight,
-	Warning,
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 import { updateCampaignStatus, deleteCampaign, duplicateCampaign } from "@/app/actions"
 import { useQueryClient } from "@tanstack/react-query"
-import { useLocalStorage } from "@/hooks/use-local-storage"
 import { useCampaignSearchParams } from "@/hooks"
 import { useSearchCampaigns } from "@/hooks/use-campaigns"
 import { exportCampaigns } from "@/lib/excel"
 import type { CampaignStatus } from "@/hooks/use-campaigns"
 import type { campaigns } from "@/lib/encore-client"
+import { useOrganizationContext } from "@/contexts/organization-context"
 
 type CampaignWithStats = campaigns.CampaignWithStats
 
 // Memoized wrapper component to prevent unnecessary re-renders
-const CampaignCardWrapper = React.memo(function CampaignCardWrapper({
+const CampaignCardWrapper = memo(function CampaignCardWrapper({
 	campaign,
 	onStatusChange,
 	onDelete,
@@ -48,51 +46,51 @@ const CampaignCardWrapper = React.memo(function CampaignCardWrapper({
 	onDuplicate: (campaignId: string) => void
 	router: ReturnType<typeof useRouter>
 }) {
-	const handleView = React.useCallback(() => {
+	const handleView = useCallback(() => {
 		router.push(`/dashboard/campaigns/${campaign.id}`)
 	}, [campaign.id, router])
 	
-	const handleManage = React.useCallback(() => {
+	const handleManage = useCallback(() => {
 		router.push(`/dashboard/campaigns/${campaign.id}`)
 	}, [campaign.id, router])
 	
-	const handlePause = React.useCallback(() => {
+	const handlePause = useCallback(() => {
 		onStatusChange(campaign.id, "paused")
 	}, [campaign.id, onStatusChange])
 	
-	const handleResume = React.useCallback(() => {
+	const handleResume = useCallback(() => {
 		onStatusChange(campaign.id, "active")
 	}, [campaign.id, onStatusChange])
 	
-	const handleEnd = React.useCallback(() => {
+	const handleEnd = useCallback(() => {
 		onStatusChange(campaign.id, "ended")
 	}, [campaign.id, onStatusChange])
 	
-	const handleComplete = React.useCallback(() => {
+	const handleComplete = useCallback(() => {
 		onStatusChange(campaign.id, "completed")
 	}, [campaign.id, onStatusChange])
 	
-	const handleArchive = React.useCallback(() => {
+	const handleArchive = useCallback(() => {
 		onStatusChange(campaign.id, "archived")
 	}, [campaign.id, onStatusChange])
 	
-	const handleCancel = React.useCallback(() => {
+	const handleCancel = useCallback(() => {
 		onStatusChange(campaign.id, "cancelled")
 	}, [campaign.id, onStatusChange])
 	
-	const handleDuplicate = React.useCallback(() => {
+	const handleDuplicate = useCallback(() => {
 		onDuplicate(campaign.id)
 	}, [campaign.id, onDuplicate])
 	
-	const handleEdit = React.useCallback(() => {
+	const handleEdit = useCallback(() => {
 		router.push(`/dashboard/campaigns/${campaign.id}/edit`)
 	}, [campaign.id, router])
 	
-	const handleDelete = React.useCallback(() => {
+	const handleDelete = useCallback(() => {
 		onDelete(campaign.id)
 	}, [campaign.id, onDelete])
 	
-	const handleSubmitForApproval = React.useCallback(() => {
+	const handleSubmitForApproval = useCallback(() => {
 		onStatusChange(campaign.id, "pending_approval")
 	}, [campaign.id, onStatusChange])
 
@@ -123,115 +121,53 @@ const statusTabs = [
 	{ value: "completed", label: "Completed" },
 ]
 
-interface CampaignsClientProps {
+/**
+ * Props for the CampaignsClient component
+ */
+export interface CampaignsClientProps {
+	/** Initial status filter to apply */
 	initialStatus?: string
+	/** Initial campaign data to display */
 	initialData?: {
 		campaigns?: CampaignWithStats[]
 		data?: CampaignWithStats[]
 		total?: number
 	}
-	hasOrganization?: boolean
 }
 
+/**
+ * CampaignsClient Component
+ * 
+ * Displays and manages campaigns with filtering, searching, and status management.
+ * Supports status filtering, search, export, and campaign actions (create, edit, delete, duplicate).
+ * 
+ * @param props - Component props
+ * @param props.initialStatus - Initial status filter (default: "all")
+ * @param props.initialData - Initial campaign data to display
+ * @returns Campaigns management interface
+ */
 export function CampaignsClient({
 	initialStatus = "all",
 	initialData,
-	hasOrganization = true,
 }: CampaignsClientProps) {
 	const router = useRouter()
 	const queryClient = useQueryClient()
-	const [isPending, startTransition] = React.useTransition()
-	const [searchQuery, setSearchQuery] = React.useState("")
-	const [debouncedQuery, setDebouncedQuery] = React.useState("")
-	const [deletingCampaignId, setDeletingCampaignId] = React.useState<string | null>(null)
-	const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false)
-
-	// Dismiss onboarding alert state (persisted in localStorage)
-	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
-		"campaigns-onboarding-alert-dismissed",
-		false
-	)
+	const [isPending, startTransition] = useTransition()
+	const [searchQuery, setSearchQuery] = useState("")
+	const [debouncedQuery, setDebouncedQuery] = useState("")
+	const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null)
+	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+	
+	// Industry Standard: Always use context, never props
+	const { organization } = useOrganizationContext()
+	const isApproved = (organization as any)?.approvalStatus === "approved"
 
 	// nuqs: URL state management for filters
 	const [searchParams, setSearchParams] = useCampaignSearchParams()
 	const statusFilter = searchParams.status || initialStatus
 
-	// Show onboarding alert if no organization
-	const showOnboardingAlert = !hasOrganization && !dismissedOnboardingAlert
-
-	// If no organization, show alert
-	if (!hasOrganization) {
-		return (
-			<div className="space-y-5 sm:space-y-6">
-				{/* ONBOARDING ALERT */}
-				{showOnboardingAlert && (
-					<CalloutWithActions
-						variant="warning"
-						title="Complete Your Organization Setup"
-						dismissible
-						onDismiss={() => setDismissedOnboardingAlert(true)}
-						actions={
-							<>
-								<Button.Root
-									variant="primary"
-									size="small"
-									onClick={() => router.push("/onboarding")}
-								>
-									<Button.Icon as={ArrowRight} />
-									Start Onboarding
-								</Button.Root>
-								<Button.Root
-									variant="ghost"
-									size="small"
-									onClick={() => setDismissedOnboardingAlert(true)}
-								>
-									Maybe Later
-								</Button.Root>
-							</>
-						}
-					>
-						To create and manage campaigns, you need to complete your organization setup. This will only take a few minutes.
-					</CalloutWithActions>
-				)}
-
-				{/* HEADER */}
-				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-					<div className="min-w-0">
-						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Campaigns</h1>
-						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
-							Manage your marketing campaigns
-						</p>
-					</div>
-				</div>
-
-				{/* EMPTY STATE */}
-				{dismissedOnboardingAlert && (
-					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
-						<div className="max-w-md mx-auto space-y-4">
-							<div className="flex justify-center">
-								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
-									<Warning weight="duotone" className="size-8 text-warning-base" />
-								</div>
-							</div>
-							<div>
-								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
-								<p className="text-paragraph-sm text-text-sub-600 mt-2">
-									Complete your organization setup to create and manage campaigns.
-								</p>
-							</div>
-							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
-								<Button.Icon as={ArrowRight} />
-								Start Onboarding
-							</Button.Root>
-						</div>
-					</div>
-				)}
-			</div>
-		)
-	}
-
 	// Debounce search query
-	React.useEffect(() => {
+	useEffect(() => {
 		const timer = setTimeout(() => {
 			setDebouncedQuery(searchQuery)
 		}, 300)
@@ -253,6 +189,9 @@ export function CampaignsClient({
 		? (searchResults?.data ?? []) as CampaignWithStats[]
 		: campaignsData
 
+	// Stable reference time to avoid re-renders
+	const referenceTime = useMemo(() => Date.now(), [])
+
 	// Calculate stats from campaigns
 	const stats = {
 		total: campaigns.length,
@@ -260,7 +199,7 @@ export function CampaignsClient({
 		endingSoon: campaigns.filter((c) => {
 			if (c.status !== "active" || !c.endDate) return false
 			const daysUntilEnd = Math.ceil(
-				(new Date(c.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+				(new Date(c.endDate).getTime() - referenceTime) / (1000 * 60 * 60 * 24)
 			)
 			return daysUntilEnd <= 7 && daysUntilEnd > 0
 		}).length,
@@ -271,7 +210,7 @@ export function CampaignsClient({
 		totalPayout: campaigns.reduce((sum, c) => sum + (c.totalPayout || 0), 0),
 	}
 
-	const handleStatusChange = React.useCallback((campaignId: string, status: CampaignStatus) => {
+	const handleStatusChange = useCallback((campaignId: string, status: CampaignStatus) => {
 		startTransition(async () => {
 			// Map CampaignStatus to action type
 			let action: "submit" | "activate" | "cancel" | "end" | "complete" | "archive" | "unarchive"
@@ -294,12 +233,12 @@ export function CampaignsClient({
 		})
 	}, [queryClient, router])
 
-	const handleDelete = React.useCallback((campaignId: string) => {
+	const handleDelete = useCallback((campaignId: string) => {
 		setDeletingCampaignId(campaignId)
 		setIsDeleteModalOpen(true)
 	}, [])
 
-	const confirmDeleteCampaign = React.useCallback(async () => {
+	const confirmDeleteCampaign = useCallback(async () => {
 		if (!deletingCampaignId) return
 		
 		startTransition(async () => {
@@ -323,7 +262,7 @@ export function CampaignsClient({
 		})
 	}, [deletingCampaignId, queryClient, router])
 
-	const handleDuplicate = React.useCallback((campaignId: string) => {
+	const handleDuplicate = useCallback((campaignId: string) => {
 		startTransition(async () => {
 			const result = await duplicateCampaign(campaignId)
 			if (result.success && result.campaign?.id) {
@@ -345,12 +284,12 @@ export function CampaignsClient({
 	}
 
 	// nuqs: Update URL when tab changes
-	const handleTabChange = React.useCallback((value: string) => {
+	const handleTabChange = useCallback((value: string) => {
 		setSearchParams({ status: value as typeof statusFilter, page: 1 })
 	}, [setSearchParams, statusFilter])
 
 	// Excel export handler
-	const handleExport = React.useCallback(() => {
+	const handleExport = useCallback(() => {
 		try {
 			exportCampaigns(campaigns as CampaignWithStats[])
 			toast.success("Campaigns exported to Excel")
@@ -373,52 +312,68 @@ export function CampaignsClient({
 					<div className="flex items-center gap-2 shrink-0">
 						<Tooltip.Root>
 							<Tooltip.Trigger asChild>
-								<Button.Root variant="neutral" size="small" onClick={handleExport}>
+								<Button.Root variant="neutral" size="small" onClick={handleExport} aria-label="Export campaigns to Excel">
 									<Button.Icon as={DownloadSimple} />
 									<span className="hidden sm:inline">Export</span>
 								</Button.Root>
 							</Tooltip.Trigger>
 							<Tooltip.Content>Export campaigns to Excel</Tooltip.Content>
 						</Tooltip.Root>
-						<Button.Root
-							variant="primary"
-							size="small"
-							onClick={() => router.push("/dashboard/campaigns/create")}
-						>
-							<Button.Icon as={Plus} />
-							<span className="hidden sm:inline">Create Campaign</span>
-							<span className="sm:hidden">Create</span>
-						</Button.Root>
+						<Tooltip.Root>
+							<Tooltip.Trigger asChild>
+								<div>
+									<Button.Root
+										variant="primary"
+										size="small"
+										disabled={!isApproved}
+										onClick={() => router.push("/dashboard/campaigns/create")}
+									>
+										<Button.Icon as={Plus} />
+										<span className="hidden sm:inline">Create Campaign</span>
+										<span className="sm:hidden">Create</span>
+									</Button.Root>
+								</div>
+							</Tooltip.Trigger>
+							{!isApproved && (
+								<Tooltip.Content>
+									{(organization as any)?.approvalStatus === "draft" 
+										? "Complete onboarding and wait for admin approval"
+										: (organization as any)?.approvalStatus === "pending"
+										? "Your application is under review"
+										: "Organization approval required"}
+								</Tooltip.Content>
+							)}
+						</Tooltip.Root>
 					</div>
 				</div>
 
 				{/* Stats Overview */}
-				<div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-4">
-					<div className="flex items-center gap-3 rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200 transition-all duration-200 hover:ring-stroke-sub-300 hover:shadow-sm">
-						<div className="flex size-9 items-center justify-center rounded-lg bg-bg-weak-50 text-text-sub-600 transition-colors">
-							<Megaphone weight="duotone" className="size-4" />
+				<div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-4">
+					<div className="flex items-center gap-2.5 rounded-xl bg-bg-white-0 p-2.5 sm:p-3 ring-1 ring-inset ring-stroke-soft-200 transition-all duration-200 hover:ring-stroke-sub-300 hover:shadow-sm">
+						<div className="flex size-8 sm:size-9 items-center justify-center rounded-lg bg-bg-weak-50 text-text-sub-600 transition-colors shrink-0">
+							<Megaphone weight="duotone" className="size-3.5 sm:size-4" />
 						</div>
-						<div>
-							<span className="block text-paragraph-xs text-text-soft-400">Total</span>
-							<span className="text-label-lg sm:text-title-h5 text-text-strong-950 font-semibold">
+						<div className="min-w-0">
+							<span className="block text-paragraph-xs text-text-soft-400 truncate">Total</span>
+							<span className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">
 								{stats.total}
 							</span>
 						</div>
 					</div>
-					<div className="flex items-center gap-3 rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200 transition-all duration-200 hover:ring-stroke-sub-300 hover:shadow-sm">
-						<div className="flex size-9 items-center justify-center rounded-lg bg-success-lighter text-success-base transition-colors">
-							<Play weight="fill" className="size-4" />
+					<div className="flex items-center gap-2.5 rounded-xl bg-bg-white-0 p-2.5 sm:p-3 ring-1 ring-inset ring-stroke-soft-200 transition-all duration-200 hover:ring-stroke-sub-300 hover:shadow-sm">
+						<div className="flex size-8 sm:size-9 items-center justify-center rounded-lg bg-success-lighter text-success-base transition-colors shrink-0">
+							<Play weight="fill" className="size-3.5 sm:size-4" />
 						</div>
-						<div>
-							<span className="block text-paragraph-xs text-text-soft-400">Active</span>
-							<span className="text-label-lg sm:text-title-h5 text-success-base font-semibold">
+						<div className="min-w-0">
+							<span className="block text-paragraph-xs text-text-soft-400 truncate">Active</span>
+							<span className="text-label-md sm:text-label-lg text-success-base font-semibold">
 								{stats.active}
 							</span>
 						</div>
 					</div>
 					<div
 						className={cn(
-							"flex items-center gap-3 rounded-xl p-3 sm:p-4 ring-1 ring-inset transition-all duration-200 hover:shadow-sm",
+							"flex items-center gap-2.5 rounded-xl p-2.5 sm:p-3 ring-1 ring-inset transition-all duration-200 hover:shadow-sm",
 							stats.endingSoon > 0
 								? "bg-warning-lighter/50 ring-warning-base/20 hover:ring-warning-base/40"
 								: "bg-bg-white-0 ring-stroke-soft-200 hover:ring-stroke-sub-300"
@@ -426,19 +381,19 @@ export function CampaignsClient({
 					>
 						<div
 							className={cn(
-								"flex size-9 items-center justify-center rounded-lg",
+								"flex size-8 sm:size-9 items-center justify-center rounded-lg shrink-0",
 								stats.endingSoon > 0
 									? "bg-warning-base text-white"
 									: "bg-bg-weak-50 text-text-sub-600"
 							)}
 						>
-							<Clock weight="fill" className="size-4" />
+							<Clock weight="fill" className="size-3.5 sm:size-4" />
 						</div>
-						<div>
-							<span className="block text-paragraph-xs text-text-soft-400">Ending Soon</span>
+						<div className="min-w-0">
+							<span className="block text-paragraph-xs text-text-soft-400 truncate">Ending Soon</span>
 							<span
 								className={cn(
-									"text-label-lg sm:text-title-h5 font-semibold",
+									"text-label-md sm:text-label-lg font-semibold",
 									stats.endingSoon > 0 ? "text-warning-base" : "text-text-soft-400"
 								)}
 							>
@@ -446,13 +401,13 @@ export function CampaignsClient({
 							</span>
 						</div>
 					</div>
-					<div className="flex items-center gap-3 rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200 transition-all duration-200 hover:ring-stroke-sub-300 hover:shadow-sm">
-						<div className="flex size-9 items-center justify-center rounded-lg bg-information-lighter text-information-base transition-colors">
-							<User weight="fill" className="size-4" />
+					<div className="flex items-center gap-2.5 rounded-xl bg-bg-white-0 p-2.5 sm:p-3 ring-1 ring-inset ring-stroke-soft-200 transition-all duration-200 hover:ring-stroke-sub-300 hover:shadow-sm">
+						<div className="flex size-8 sm:size-9 items-center justify-center rounded-lg bg-information-lighter text-information-base transition-colors shrink-0">
+							<User weight="fill" className="size-3.5 sm:size-4" />
 						</div>
-						<div>
-							<span className="block text-paragraph-xs text-text-soft-400">Enrollments</span>
-							<span className="text-label-lg sm:text-title-h5 text-text-strong-950 font-semibold">
+						<div className="min-w-0">
+							<span className="block text-paragraph-xs text-text-soft-400 truncate">Enrollments</span>
+							<span className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">
 								{stats.totalEnrollments.toLocaleString()}
 							</span>
 						</div>
@@ -556,7 +511,7 @@ export function CampaignsClient({
 						</div>
 					)
 				) : (
-					<div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3 items-stretch">
+					<div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 items-stretch">
 						{campaigns.map((campaign: CampaignWithStats) => (
 							<CampaignCardWrapper
 								key={campaign.id}

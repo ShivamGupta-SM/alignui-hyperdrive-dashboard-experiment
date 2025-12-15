@@ -33,7 +33,7 @@ export const dashboardHandlers = [
 		const stats = {
 			walletBalance: wallet?.availableBalance || 0,
 			heldAmount: wallet?.heldAmount || 0,
-			avgDailySpend: dashboardStats?.avgDailySpend || 15000,
+			avgDailySpend: 15000, // Not in schema, use default
 			lowBalanceThreshold: 50000,
 			totalCampaigns: orgCampaigns.length,
 			activeCampaigns: orgCampaigns.filter((c) => c.status === "active").length,
@@ -52,8 +52,8 @@ export const dashboardHandlers = [
 			highValuePending: orgEnrollments.filter(
 				(e) => e.status === "awaiting_review" && (e.orderValue || 0) >= 25000
 			).length,
-			enrollmentTrend: dashboardStats?.enrollmentTrend || 12.5,
-			approvalRateTrend: dashboardStats?.approvalRateTrend || 3.2,
+			enrollmentTrend: 12.5, // Not in schema, use default
+			approvalRateTrend: 3.2, // Not in schema, use default
 		}
 
 		// EnrollmentChartDataPoint[] - generate from recent enrollments

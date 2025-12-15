@@ -14,11 +14,10 @@ The codebase now uses a fully type-safe approach for:
 
 ```
 lib/
-├── encore-client.ts          # Generated Encore client (DO NOT EDIT)
+├── encore-client.ts          # Generated Encore client (DO NOT EDIT) - Direct type imports
 ├── encore.ts                  # Server-side client wrapper
 ├── encore-browser.ts          # Browser-side client wrapper
-├── encore-error-handler.ts    # Type-safe error handling utilities
-└── encore-types.ts            # Type exports for convenience
+└── encore-error-handler.ts    # Type-safe error handling utilities
 ```
 
 ## Usage
@@ -140,7 +139,7 @@ Checks if error is a 400/invalid_argument error.
 
 ## Type Exports
 
-All types are available from `@/lib/encore-types`:
+All types are available directly from `@/lib/encore-client`:
 
 ```typescript
 import type {
@@ -148,7 +147,7 @@ import type {
   organizations,
   campaigns,
   // ... all other namespaces
-} from "@/lib/encore-types"
+} from "@/lib/encore-client"
 ```
 
 ## Regenerating Client
@@ -240,4 +239,7 @@ try {
 3. **Maintainability** - Centralized error handling logic
 4. **Developer Experience** - Autocomplete and type checking
 5. **Error Details** - Proper error codes and status codes preserved
+
+
+
 

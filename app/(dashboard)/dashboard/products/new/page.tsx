@@ -1,15 +1,28 @@
-"use cache: private"
-
-import { getCategoriesData, requireOrganization } from "@/lib/ssr-data"
+import type { Metadata } from "next"
+import { getCategoriesData } from "@/lib/ssr-data"
 import { NewProductClient } from "./new-product-client"
+import type { products } from "@/lib/encore-client"
+import { logSSRError } from "@/lib/error-logger-simple"
+
+export const metadata: Metadata = {
+	title: "New Product",
+	description: "Create a new product for your campaigns",
+	openGraph: {
+		title: "New Product | Hypedrive",
+		description: "Create a new product for your campaigns",
+	},
+}
 
 export default async function NewProductPage() {
-	// Industry Standard: Session-based active organization (single source of truth)
-	// Check if user has organization (server-side check)
-	await requireOrganization()
+	// Industry Standard: Fetch data, let context handle organization state
+	let categories: products.ProductCategory[] = []
+	try {
+		categories = await getCategoriesData()
+	} catch (error) {
+		logSSRError(error, "getCategoriesData", "categories-data", {})
+		categories = []
+	}
 
-	// Fetch categories server-side
-	const categories = await getCategoriesData()
-
+	// Industry Standard: Don't pass hasOrganization prop - use context instead
 	return <NewProductClient categories={categories} />
 }

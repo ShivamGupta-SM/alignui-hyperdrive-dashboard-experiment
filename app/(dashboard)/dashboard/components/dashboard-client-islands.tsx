@@ -6,7 +6,7 @@ import Image from "next/image"
 import { cn } from "@/utils/cn"
 import * as Button from "@/components/ui/button"
 import { Plus } from "@phosphor-icons/react"
-import { THRESHOLDS } from "@/lib/types/constants"
+import { THRESHOLDS, ANIMATION } from "@/lib/types/constants"
 
 // ============================================
 // Dashboard Header (needs client for date formatting)
@@ -75,7 +75,7 @@ export function PriorityEnrollmentItem({ enrollment }: { enrollment: PendingEnro
 
 	useEffect(() => {
 		setCurrentTime(Date.now())
-		const interval = setInterval(() => setCurrentTime(Date.now()), 60000)
+		const interval = setInterval(() => setCurrentTime(Date.now()), ANIMATION.TIME_UPDATE_INTERVAL)
 		return () => clearInterval(interval)
 	}, [])
 

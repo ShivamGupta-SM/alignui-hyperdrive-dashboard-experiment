@@ -40,8 +40,8 @@ export const campaignDeliverablesHandlers = [
 			q.where({ campaignId: campaignId as string })
 		)
 
-		// Sort by createdAt descending
-		deliverables.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+		// Sort by sortOrder ascending
+		deliverables.sort((a, b) => a.sortOrder - b.sortOrder)
 
 		const total = deliverables.length
 		const paginatedDeliverables = deliverables.slice(skip, skip + take)
@@ -114,15 +114,24 @@ export const campaignDeliverablesHandlers = [
 		}
 
 		const now = new Date().toISOString()
+		// Get max sortOrder for this campaign to append new deliverable
+		const existingDeliverables = db.campaignDeliverables.findMany((q) =>
+			q.where({ campaignId: campaignId as string })
+		)
+		const maxSortOrder = existingDeliverables.length > 0 
+			? Math.max(...existingDeliverables.map(d => d.sortOrder || 0))
+			: 0
+		
 		const newDeliverable = {
 			id: `cd-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
 			campaignId: campaignId as string,
-			type: body.type,
+			type: body.type as "order_screenshot" | "delivery_photo" | "product_review" | "social_media_post" | "unboxing_video" | "custom",
 			title: body.title,
 			description: body.description || "",
 			quantity: body.quantity || 1,
 			isRequired: body.isRequired ?? true,
 			instructions: body.instructions || "",
+			sortOrder: maxSortOrder + 1,
 			createdAt: now,
 			updatedAt: now,
 		}
@@ -169,14 +178,16 @@ export const campaignDeliverablesHandlers = [
 			return encoreNotFoundResponse("Campaign")
 		}
 
-		// Update deliverable in database
-		const updated = db.campaignDeliverables.update({
-			where: { id: deliverableId as string },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update deliverable in database - use findFirst + manual update pattern
+		const existing = db.campaignDeliverables.findFirst((q) =>
+			q.where({ id: deliverableId as string })
+		)
+		if (!existing) {
+			return encoreNotFoundResponse("CampaignDeliverable")
+		}
+		const updated = { ...existing, ...body }
+		db.campaignDeliverables.delete((q) => q.where({ id: deliverableId as string }))
+		db.campaignDeliverables.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -211,14 +222,16 @@ export const campaignDeliverablesHandlers = [
 			return encoreNotFoundResponse("Campaign")
 		}
 
-		// Update deliverable in database
-		const updated = db.campaignDeliverables.update({
-			where: { id: deliverableId as string },
-			data: {
-				...body,
-				updatedAt: new Date().toISOString(),
-			},
-		})
+		// Update deliverable in database - use findFirst + manual update pattern
+		const existing = db.campaignDeliverables.findFirst((q) =>
+			q.where({ id: deliverableId as string })
+		)
+		if (!existing) {
+			return encoreNotFoundResponse("CampaignDeliverable")
+		}
+		const updated = { ...existing, ...body }
+		db.campaignDeliverables.delete((q) => q.where({ id: deliverableId as string }))
+		db.campaignDeliverables.create(updated)
 
 		return encoreResponse(updated)
 	}),
@@ -260,7 +273,7 @@ export const campaignDeliverablesHandlers = [
 		}
 
 		// Delete deliverable from database
-		db.campaignDeliverables.delete({ where: { id: deliverableId as string } })
+		db.campaignDeliverables.delete((q) => q.where({ id: deliverableId as string }))
 
 		return encoreResponse({ deleted: true })
 	}),

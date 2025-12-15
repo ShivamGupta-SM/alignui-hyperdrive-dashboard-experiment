@@ -15,11 +15,11 @@ export const worker = setupWorker(...handlers)
 export const startOptions = {
 	// Don't warn about unhandled requests in development
 	// since we only mock API routes, not all requests
-	onUnhandledRequest: (req) => {
+	onUnhandledRequest: (req: { url: string; method?: string }) => {
 		// Log ALL unhandled requests to help debug
 		if (req.url.includes("localhost:4000") || req.url.includes("encore.dev")) {
 			console.warn(
-				`[MSW] ⚠️ Unhandled request: ${req.method} ${req.url}`,
+				`[MSW] ⚠️ Unhandled request: ${req.method || "GET"} ${req.url}`,
 				"\n  → This request is not mocked. Check if handler exists in mocks/handlers/"
 			)
 		}

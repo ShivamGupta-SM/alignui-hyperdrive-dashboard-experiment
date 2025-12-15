@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+
 import { toast } from "sonner"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -15,7 +15,7 @@ import { FormField } from "@/components/ui/form-field"
 import { cn } from "@/utils/cn"
 import { useSettingsSearchParams } from "@/hooks"
 import { useQueryClient } from "@tanstack/react-query"
-import { useRouter } from "next/navigation"
+
 import { updateOrganization } from "@/app/actions"
 import { verifyBankAccount, addBankAccount, removeBankAccount, setDefaultBankAccount } from "@/app/actions/settings"
 import type { organizations } from "@/lib/encore-client"
@@ -645,8 +645,8 @@ function SettingsCard({ title, action, badge, variant = "default", children }: S
 	return (
 		<div
 			className={cn(
-				"rounded-2xl border bg-bg-white-0 p-5 transition-all duration-200",
-				variant === "danger" ? "border-error-base/30" : "border-stroke-soft-200"
+				"rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 transition-all duration-200 shadow-sm",
+				variant === "danger" && "ring-error-base/30 bg-error-lighter/5"
 			)}
 		>
 			{(title || action || badge) && (

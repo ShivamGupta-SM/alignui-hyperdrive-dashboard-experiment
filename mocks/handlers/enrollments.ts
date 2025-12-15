@@ -154,9 +154,13 @@ export const enrollmentsHandlers = [
   http.post(encoreUrl("/enrollments/:id/approve"), async ({ params }) => {
     const auth = getAuthContext()
     const { id } = params
+    const enrollmentId = Array.isArray(id) ? id[0] : id
+    if (!enrollmentId) {
+      return encoreNotFoundResponse("Enrollment")
+    }
 
     const enrollment = db.enrollments.findFirst((q) =>
-      q.where({ id: id, organizationId: auth.organizationId })
+      q.where({ id: enrollmentId as string, organizationId: auth.organizationId })
     )
     if (!enrollment) {
       return encoreNotFoundResponse("Enrollment")
@@ -166,16 +170,16 @@ export const enrollmentsHandlers = [
       return encoreErrorResponse("Only enrollments awaiting review can be approved", 400)
     }
 
-    // Update enrollment in database
-    const updated = db.enrollments.update({
-      where: { id },
-      data: {
-        status: "approved",
-        approvedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        payoutAmount: enrollment.lockedBillRate || 0, // Set payout amount
-      },
-    })
+    // Update enrollment in database - use findFirst + manual update pattern
+    const updated = {
+      ...enrollment,
+      status: "approved" as const,
+      approvedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      payoutAmount: enrollment.lockedBillRate || 0, // Set payout amount
+    }
+    db.enrollments.delete((q) => q.where({ id: enrollmentId as string }))
+    db.enrollments.create(updated)
 
     // Update campaign stats
     const campaign = db.campaigns.findFirst((q) => q.where({ id: enrollment.campaignId }))
@@ -184,14 +188,15 @@ export const enrollmentsHandlers = [
         .findMany((q) => q.where({ campaignId: campaign.id }))
         .filter((e) => e.status === "approved").length
 
-      db.campaigns.update({
-        where: { id: campaign.id },
-        data: {
-          approvedCount,
-          currentEnrollments: campaign.currentEnrollments || 0,
-          updatedAt: new Date().toISOString(),
-        },
-      })
+      // Update campaign stats - use findFirst + manual update pattern
+      const updatedCampaign = {
+        ...campaign,
+        approvedCount,
+        currentEnrollments: campaign.currentEnrollments || 0,
+        updatedAt: new Date().toISOString(),
+      }
+      db.campaigns.delete((q) => q.where({ id: campaign.id }))
+      db.campaigns.create(updatedCampaign)
     }
 
     return encoreResponse(toEnrollmentWithRelations(updated))
@@ -201,10 +206,14 @@ export const enrollmentsHandlers = [
   http.post(encoreUrl("/enrollments/:id/reject"), async ({ params, request }) => {
     const auth = getAuthContext()
     const { id } = params
+    const enrollmentId = Array.isArray(id) ? id[0] : id
+    if (!enrollmentId) {
+      return encoreNotFoundResponse("Enrollment")
+    }
     await request.json().catch(() => ({}))
 
     const enrollment = db.enrollments.findFirst((q) =>
-      q.where({ id: id, organizationId: auth.organizationId })
+      q.where({ id: enrollmentId as string, organizationId: auth.organizationId })
     )
     if (!enrollment) {
       return encoreNotFoundResponse("Enrollment")
@@ -224,23 +233,27 @@ export const enrollmentsHandlers = [
   http.post(encoreUrl("/enrollments/:id/request-changes"), async ({ params }) => {
     const auth = getAuthContext()
     const { id } = params
+    const enrollmentId = Array.isArray(id) ? id[0] : id
+    if (!enrollmentId) {
+      return encoreNotFoundResponse("Enrollment")
+    }
 
     const enrollment = db.enrollments.findFirst((q) =>
-      q.where({ id: id, organizationId: auth.organizationId })
+      q.where({ id: enrollmentId as string, organizationId: auth.organizationId })
     )
     if (!enrollment) {
       return encoreNotFoundResponse("Enrollment")
     }
 
-    // Update enrollment in database
-    const updated = db.enrollments.update({
-      where: { id },
-      data: {
-        status: "changes_requested",
-        canResubmit: true,
-        updatedAt: new Date().toISOString(),
-      },
-    })
+    // Update enrollment in database - use findFirst + manual update pattern
+    const updated = {
+      ...enrollment,
+      status: "changes_requested" as const,
+      canResubmit: true,
+      updatedAt: new Date().toISOString(),
+    }
+    db.enrollments.delete((q) => q.where({ id: enrollmentId as string }))
+    db.enrollments.create(updated)
 
     return encoreResponse(toEnrollmentWithRelations(updated))
   }),
@@ -266,16 +279,16 @@ export const enrollmentsHandlers = [
       } else if (enrollment.status !== "awaiting_review") {
         errors[enrollmentId] = "Not awaiting review"
       } else {
-        // Update enrollment in database
-        db.enrollments.update({
-          where: { id: enrollmentId },
-          data: {
-            status: "approved",
-            approvedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            payoutAmount: enrollment.lockedBillRate || 0,
-          },
-        })
+        // Update enrollment in database - use findFirst + manual update pattern
+        const updated = {
+          ...enrollment,
+          status: "approved" as const,
+          approvedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          payoutAmount: enrollment.lockedBillRate || 0,
+        }
+        db.enrollments.delete((q) => q.where({ id: enrollmentId }))
+        db.enrollments.create(updated)
         approved++
       }
     }
@@ -304,14 +317,14 @@ export const enrollmentsHandlers = [
       } else if (enrollment.status !== "awaiting_review") {
         errors[enrollmentId] = "Not awaiting review"
       } else {
-        // Update enrollment in database
-        db.enrollments.update({
-          where: { id: enrollmentId },
-          data: {
-            status: "rejected",
-            updatedAt: new Date().toISOString(),
-          },
-        })
+        // Update enrollment in database - use findFirst + manual update pattern
+        const updated = {
+          ...enrollment,
+          status: "rejected" as const,
+          updatedAt: new Date().toISOString(),
+        }
+        db.enrollments.delete((q) => q.where({ id: enrollmentId }))
+        db.enrollments.create(updated)
         rejected++
       }
     }
@@ -323,6 +336,10 @@ export const enrollmentsHandlers = [
   http.get(encoreUrl("/campaigns/:campaignId/enrollments"), async ({ params, request }) => {
     const auth = getAuthContext()
     const { campaignId } = params
+    const campaignIdStr = Array.isArray(campaignId) ? campaignId[0] : campaignId
+    if (!campaignIdStr) {
+      return encoreNotFoundResponse("Campaign")
+    }
     const url = new URL(request.url)
 
     const skip = Number.parseInt(url.searchParams.get("skip") || "0", 10)
@@ -330,13 +347,13 @@ export const enrollmentsHandlers = [
     const status = url.searchParams.get("status")
 
     const campaign = db.campaigns.findFirst((q) =>
-      q.where({ id: campaignId, organizationId: auth.organizationId })
+      q.where({ id: campaignIdStr as string, organizationId: auth.organizationId })
     )
     if (!campaign) {
       return encoreNotFoundResponse("Campaign")
     }
 
-    let enrollments = db.enrollments.findMany((q) => q.where({ campaignId: campaignId }))
+    let enrollments = db.enrollments.findMany((q) => q.where({ campaignId: campaignIdStr as string }))
 
     if (status && status !== "all") {
       enrollments = enrollments.filter((e) => e.status === status)
@@ -359,15 +376,19 @@ export const enrollmentsHandlers = [
 
     const auth = getAuthContext()
     const { campaignId } = params
+    const campaignIdStr = Array.isArray(campaignId) ? campaignId[0] : campaignId
+    if (!campaignIdStr) {
+      return encoreNotFoundResponse("Campaign")
+    }
 
     const campaign = db.campaigns.findFirst((q) =>
-      q.where({ id: campaignId, organizationId: auth.organizationId })
+      q.where({ id: campaignIdStr as string, organizationId: auth.organizationId })
     )
     if (!campaign) {
       return encoreNotFoundResponse("Campaign")
     }
 
-    const enrollments = db.enrollments.findMany((q) => q.where({ campaignId: campaignId }))
+    const enrollments = db.enrollments.findMany((q) => q.where({ campaignId: campaignIdStr as string }))
 
     return encoreResponse({
       total: enrollments.length,
@@ -446,14 +467,14 @@ export const enrollmentsHandlers = [
     // Save to database
     db.enrollments.create(newEnrollment)
 
-    // Update campaign enrollment count
-    db.campaigns.update({
-      where: { id: campaign.id },
-      data: {
-        currentEnrollments: (campaign.currentEnrollments || 0) + 1,
-        updatedAt: now,
-      },
-    })
+    // Update campaign enrollment count - use findFirst + manual update pattern
+    const updatedCampaign = {
+      ...campaign,
+      currentEnrollments: (campaign.currentEnrollments || 0) + 1,
+      updatedAt: now,
+    }
+    db.campaigns.delete((q) => q.where({ id: campaign.id }))
+    db.campaigns.create(updatedCampaign)
 
     return encoreResponse(toEnrollmentWithRelations(newEnrollment))
   }),
@@ -462,6 +483,10 @@ export const enrollmentsHandlers = [
   http.put(encoreUrl("/enrollments/:id"), async ({ params, request }) => {
     const auth = getAuthContext()
     const { id } = params
+    const enrollmentId = Array.isArray(id) ? id[0] : id
+    if (!enrollmentId) {
+      return encoreNotFoundResponse("Enrollment")
+    }
     const body = (await request.json()) as {
       orderValue?: number
       orderId?: string
@@ -469,20 +494,21 @@ export const enrollmentsHandlers = [
     }
 
     const enrollment = db.enrollments.findFirst((q) =>
-      q.where({ id: id, organizationId: auth.organizationId })
+      q.where({ id: enrollmentId as string, organizationId: auth.organizationId })
     )
     if (!enrollment) {
       return encoreNotFoundResponse("Enrollment")
     }
 
-    // Update enrollment in database
-    const updated = db.enrollments.update({
-      where: { id },
-      data: {
-        ...body,
-        updatedAt: new Date().toISOString(),
-      },
-    })
+    // Update enrollment in database - use findFirst + manual update pattern
+    const updated = {
+      ...enrollment,
+      ...body,
+      status: body.status ? (body.status as "rejected" | "approved" | "expired" | "enrolled" | "awaiting_submission" | "awaiting_review" | "changes_requested" | "withdrawn") : enrollment.status,
+      updatedAt: new Date().toISOString(),
+    }
+    db.enrollments.delete((q) => q.where({ id: enrollmentId as string }))
+    db.enrollments.create(updated)
 
     return encoreResponse(toEnrollmentWithRelations(updated))
   }),
@@ -491,23 +517,28 @@ export const enrollmentsHandlers = [
   http.patch(encoreUrl("/enrollments/:id"), async ({ params, request }) => {
     const auth = getAuthContext()
     const { id } = params
+    const enrollmentId = Array.isArray(id) ? id[0] : id
+    if (!enrollmentId) {
+      return encoreNotFoundResponse("Enrollment")
+    }
     const body = (await request.json()) as Record<string, unknown>
 
     const enrollment = db.enrollments.findFirst((q) =>
-      q.where({ id: id, organizationId: auth.organizationId })
+      q.where({ id: enrollmentId as string, organizationId: auth.organizationId })
     )
     if (!enrollment) {
       return encoreNotFoundResponse("Enrollment")
     }
 
-    // Update enrollment in database
-    const updated = db.enrollments.update({
-      where: { id },
-      data: {
-        ...body,
-        updatedAt: new Date().toISOString(),
-      },
-    })
+    // Update enrollment in database - use findFirst + manual update pattern
+    const updated = {
+      ...enrollment,
+      ...body,
+      status: body.status ? (body.status as "rejected" | "approved" | "expired" | "enrolled" | "awaiting_submission" | "awaiting_review" | "changes_requested" | "withdrawn") : enrollment.status,
+      updatedAt: new Date().toISOString(),
+    }
+    db.enrollments.delete((q) => q.where({ id: enrollmentId as string }))
+    db.enrollments.create(updated)
 
     return encoreResponse(toEnrollmentWithRelations(updated))
   }),
@@ -516,9 +547,13 @@ export const enrollmentsHandlers = [
   http.delete(encoreUrl("/enrollments/:id"), async ({ params }) => {
     const auth = getAuthContext()
     const { id } = params
+    const enrollmentId = Array.isArray(id) ? id[0] : id
+    if (!enrollmentId) {
+      return encoreNotFoundResponse("Enrollment")
+    }
 
     const enrollment = db.enrollments.findFirst((q) =>
-      q.where({ id: id, organizationId: auth.organizationId })
+      q.where({ id: enrollmentId as string, organizationId: auth.organizationId })
     )
     if (!enrollment) {
       return encoreNotFoundResponse("Enrollment")
@@ -530,18 +565,18 @@ export const enrollmentsHandlers = [
     }
 
     // Delete enrollment from database
-    db.enrollments.delete({ where: { id } })
+    db.enrollments.delete((q) => q.where({ id: enrollmentId as string }))
 
-    // Update campaign enrollment count
+    // Update campaign enrollment count - use findFirst + manual update pattern
     const campaign = db.campaigns.findFirst((q) => q.where({ id: enrollment.campaignId }))
     if (campaign) {
-      db.campaigns.update({
-        where: { id: campaign.id },
-        data: {
-          currentEnrollments: Math.max(0, (campaign.currentEnrollments || 0) - 1),
-          updatedAt: new Date().toISOString(),
-        },
-      })
+      const updatedCampaign = {
+        ...campaign,
+        currentEnrollments: Math.max(0, (campaign.currentEnrollments || 0) - 1),
+        updatedAt: new Date().toISOString(),
+      }
+      db.campaigns.delete((q) => q.where({ id: campaign.id }))
+      db.campaigns.create(updatedCampaign)
     }
 
     return encoreResponse({ deleted: true })

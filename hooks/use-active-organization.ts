@@ -1,44 +1,23 @@
 "use client"
 
-import { useMemo } from "react"
-import { useSession } from "./use-session"
-import type { Organization } from "./use-organizations"
-import type { auth } from "@/lib/encore-client"
+import { useOrganizationContext } from "@/contexts/organization-context"
 
 /**
- * Modern hook to get active organization
- * Uses React Query session as single source of truth
- *
- * @param organizations - List of user organizations (OrganizationResponse from auth.listOrganizations)
+ * Hook to get active organization
+ * Simplified: Uses organization context directly instead of taking organizations as param
+ * 
  * @returns Current active organization or null
- *
- * Features:
- * - Derives from session.activeOrganizationId
- * - Automatically updates when session changes
- * - No redundant state management
  */
-export function useActiveOrganization(
-	organizations: (Organization | auth.OrganizationResponse)[]
-): (Organization | auth.OrganizationResponse) | null {
-	const { data: sessionData } = useSession()
-	const activeOrgId = sessionData?.user?.activeOrganizationId
-
-	return useMemo(() => {
-		if (activeOrgId) {
-			return organizations.find((org) => org.id === activeOrgId) ?? null
-		}
-		// Display fallback: Show first org in UI if no active org in session
-		// NOTE: This is for UI display only - actual data fetching uses session (getOrganizationIdOrNull)
-		// If session has no active org, data fetching will return null and pages will redirect
-		return organizations[0] ?? null
-	}, [organizations, activeOrgId])
+export function useActiveOrganization() {
+	const { organization } = useOrganizationContext()
+	return organization
 }
 
 /**
  * Hook to get active organization ID
- * Convenience hook for when you only need the ID
+ * Simplified: Uses organization context directly
  */
 export function useActiveOrganizationId(): string | null {
-	const { data: sessionData } = useSession()
-	return sessionData?.user?.activeOrganizationId ?? null
+	const { organizationId } = useOrganizationContext()
+	return organizationId
 }

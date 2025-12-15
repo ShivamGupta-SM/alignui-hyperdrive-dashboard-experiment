@@ -29,7 +29,6 @@ import {
 	Plus,
 } from "@phosphor-icons/react"
 import { useSession } from "@/hooks/use-session"
-import { useOrganizations } from "@/hooks/use-organizations"
 import { useActiveOrganization } from "@/hooks/use-active-organization"
 import { useSignOut } from "@/hooks/use-sign-out"
 
@@ -53,8 +52,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 	const { theme, setTheme, resolvedTheme } = useTheme()
 	const { data: session } = useSession()
 	const user = session?.user
-	const { data: organizations = [] } = useOrganizations()
-	const currentOrganization = useActiveOrganization(organizations)
+	const currentOrganization = useActiveOrganization()
 	const { signOut: handleSignOut } = useSignOut()
 
 	const isDarkMode = resolvedTheme === "dark"
@@ -142,8 +140,7 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 	const { theme, setTheme, resolvedTheme } = useTheme()
 	const { data: session } = useSession()
 	const user = session?.user
-	const { data: organizations = [] } = useOrganizations()
-	const currentOrganization = useActiveOrganization(organizations)
+	const currentOrganization = useActiveOrganization()
 	const { signOut: handleSignOut } = useSignOut()
 
 	const isDarkMode = resolvedTheme === "dark"
@@ -213,19 +210,19 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 						<MenuItem
 							icon={User}
 							label="My Profile"
-							href="/dashboard/settings?section=profile"
+							href="/dashboard/profile"
 							onClick={onClose}
 						/>
 						<MenuItem
 							icon={Lock}
 							label="Change Password"
-							href="/dashboard/settings?section=security"
+							href="/dashboard/profile#security"
 							onClick={onClose}
 						/>
 						<MenuItem
 							icon={Bell}
 							label="Notifications"
-							href="/dashboard/settings?section=notifications"
+							href="/dashboard/profile#notifications"
 							onClick={onClose}
 						/>
 						<div className="flex items-center justify-between rounded-10 px-3 py-2.5">
@@ -250,11 +247,16 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 					<div className="space-y-1">
 						<MenuItem
 							icon={Buildings}
-							label="Org Settings"
-							href="/dashboard/settings?section=organization"
+							label="Organization Settings"
+							href="/dashboard/settings"
 							onClick={onClose}
 						/>
-						<MenuItem icon={UsersThree} label="Team Members" onClick={() => onMenuClick("team")} />
+						<MenuItem
+							icon={UsersThree}
+							label="Team Members"
+							href="/dashboard/team"
+							onClick={onClose}
+						/>
 					</div>
 				</div>
 
@@ -283,7 +285,7 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 			{/* Footer - Sign Out */}
 			<div
 				className="border-t border-stroke-soft-200 px-5 py-3"
-				style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
+				className="pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]"
 			>
 				<button
 					type="button"

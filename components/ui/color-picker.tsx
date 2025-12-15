@@ -122,15 +122,22 @@ function ColorSwatch({ className, style, ...props }: AriaColorSwatchProps) {
 	)
 }
 
+// Type guard for EyeDropper API
+function isEyeDropperSupported(): boolean {
+	return typeof window !== "undefined" && "EyeDropper" in window
+}
+
+interface EyeDropperResult {
+	sRGBHex: string
+}
+
 const EyeDropperButton = React.forwardRef<
 	HTMLButtonElement,
 	React.HTMLAttributes<HTMLButtonElement>
 >(({ ...rest }, forwardedRef) => {
 	const state = React.useContext(ColorPickerStateContext)!
 
-	// eslint-disable-next-line
-	// @ts-ignore
-	if (typeof EyeDropper === "undefined") {
+	if (!isEyeDropperSupported()) {
 		return null
 	}
 
@@ -139,11 +146,11 @@ const EyeDropperButton = React.forwardRef<
 			ref={forwardedRef}
 			aria-label="Eye dropper"
 			onClick={() => {
-				// eslint-disable-next-line
-				// @ts-ignore
-				new EyeDropper()
+				// EyeDropper is available in modern browsers
+				const EyeDropperClass = (window as typeof window & { EyeDropper: new () => { open: () => Promise<EyeDropperResult> } }).EyeDropper
+				new EyeDropperClass()
 					.open()
-					.then((result: { sRGBHex: string }) => state.setColor(parseColor(result.sRGBHex)))
+					.then((result: EyeDropperResult) => state.setColor(parseColor(result.sRGBHex)))
 			}}
 			{...rest}
 		/>

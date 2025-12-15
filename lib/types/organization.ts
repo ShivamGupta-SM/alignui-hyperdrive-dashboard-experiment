@@ -41,8 +41,7 @@ export interface Organization {
 	// Verification
 	gstNumber?: string
 	gstVerified: boolean
-	panNumber?: string
-	panVerified: boolean
+	// ❌ REMOVED: PAN fields - PAN is only for shoppers, not organizations
 	cinNumber?: string
 
 	// Billing
@@ -78,8 +77,7 @@ export interface OrganizationDraft {
 	verification?: {
 		gstNumber: string
 		gstVerified: boolean
-		panNumber?: string
-		panVerified?: boolean
+		// ❌ REMOVED: PAN fields - PAN is only for shoppers, not organizations
 		cinNumber?: string
 	}
 }

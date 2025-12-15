@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { switchOrganization as switchOrganizationAction } from "@/app/actions/organizations"
 import { useSession } from "./use-session"
 import { getEncoreBrowserClient } from "@/lib/encore-browser"
+import { toast } from "sonner"
 import type { organizations, shared } from "@/lib/encore-browser"
 
 // Re-export types from Encore for convenience
@@ -29,7 +30,9 @@ export function useOrganizations() {
 		queryFn: async () => {
 			const client = getEncoreBrowserClient()
 			const result = await client.auth.listOrganizations()
-			return result.organizations || []
+			return {
+				organizations: result.organizations || [],
+			}
 		},
 		staleTime: 5 * 60 * 1000, // 5 minutes
 		retry: false,
@@ -92,26 +95,32 @@ export function useSwitchOrganization() {
 
 			return { previousSession }
 		},
-		// On error, rollback
+		// On error, rollback and show error
 		onError: (err, organizationId, context) => {
 			if (context?.previousSession) {
 				queryClient.setQueryData(["session"], context.previousSession)
 			}
+			// Show error toast
+			toast.error("Failed to switch organization", {
+				description: err instanceof Error ? err.message : "An unexpected error occurred",
+			})
 		},
 		// On success, refetch and invalidate
-		onSuccess: () => {
-			// Invalidate session to refetch with new activeOrganizationId
-			queryClient.invalidateQueries({ queryKey: ["session"] })
-
+		onSuccess: async () => {
+			// CRITICAL: Invalidate and WAIT for session refetch to complete
+			// This ensures the session has the new activeOrganizationId before router.refresh()
+			await queryClient.invalidateQueries({ queryKey: ["session"] })
+			await queryClient.refetchQueries({ queryKey: ["session"] })
+			
 			// Invalidate all other queries to refetch with new organization context
 			queryClient.invalidateQueries()
 
 			// Refresh router to update server components
+			// This happens AFTER session is refetched, so server components get new org
 			router.refresh()
-		},
-		// Always refetch on settle
-		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: ["session"] })
+			
+			// Show success toast
+			toast.success("Organization switched successfully")
 		},
 	})
 }

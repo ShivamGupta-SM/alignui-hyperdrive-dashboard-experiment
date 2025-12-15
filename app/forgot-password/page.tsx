@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -12,9 +12,9 @@ import { forgotPasswordSchema, type ForgotPasswordFormData } from "@/lib/validat
 import { validateCallbackUrlServer } from "@/lib/url-validation"
 
 export default function ForgotPasswordPage() {
-	const [isLoading, setIsLoading] = React.useState(false)
-	const [success, setSuccess] = React.useState(false)
-	const [error, setError] = React.useState("")
+	const [isLoading, setIsLoading] = useState(false)
+	const [success, setSuccess] = useState(false)
+	const [error, setError] = useState("")
 
 	const {
 		register,
@@ -35,8 +35,10 @@ export default function ForgotPasswordPage() {
 			const { forgotPassword } = await import("@/app/actions/auth")
 			// Point to frontend reset-password page (full URL)
 			// Validate the URL to prevent open redirects
-			const resetUrl = `${window.location.origin}/reset-password`
-			const validatedUrl = validateCallbackUrlServer(resetUrl, window.location.origin)
+			// Use typeof window check for SSR safety
+			const origin = typeof window !== "undefined" ? window.location.origin : ""
+			const resetUrl = `${origin}/reset-password`
+			const validatedUrl = validateCallbackUrlServer(resetUrl, origin)
 			if (!validatedUrl) {
 				setError("Invalid redirect URL configuration")
 				return

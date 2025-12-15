@@ -11,6 +11,7 @@ import * as Checkbox from "@/components/ui/checkbox"
 import * as Divider from "@/components/ui/divider"
 import { Callout } from "@/components/ui/callout"
 import { signInSchema, type SignInFormData } from "@/lib/validations"
+import { logInfo, logError } from "@/lib/error-logger-simple"
 import {
 	GoogleLogo,
 	Eye,
@@ -18,7 +19,6 @@ import {
 	Envelope,
 	Lock,
 	WarningCircle,
-	ShieldCheck,
 } from "@phosphor-icons/react"
 
 export default function SignInPage() {
@@ -41,14 +41,14 @@ export default function SignInPage() {
 	})
 
 	const onSubmit = async (data: SignInFormData) => {
-		console.log("[SignIn Page] Form submitted")
+		logInfo("Form submitted", { source: "SignInPage" })
 		setFormError("")
 		setIsLoading(true)
 
 		try {
 			const { signInEmail } = await import("@/app/actions")
 			const result = await signInEmail(data.email, data.password, data.rememberMe)
-			console.log("[SignIn Page] Result:", result)
+			logInfo("Sign-in result received", { source: "SignInPage", hasSuccess: result.success })
 
 			if (!result.success) {
 				const errorMessage = "error" in result ? result.error : "Invalid email or password"
@@ -61,40 +61,41 @@ export default function SignInPage() {
 				return
 			}
 
-			// MANUAL REDIRECT LOGIC
-			// We use window.location.href to force a full page reload.
-			// This ensures the new session cookie is sent to the server and Middleware runs correctly.
-
 			// Check for redirect query param (from middleware)
 			const redirectParam = new URLSearchParams(window.location.search).get("redirect")
 
 			if (redirectParam) {
-				console.log("[SignIn Page] Redirecting to param:", redirectParam)
-				window.location.href = redirectParam
+				logInfo("Redirecting to query param", { source: "SignInPage", url: redirectParam })
+				// Use router.replace for query param redirects to maintain history
+				router.replace(redirectParam)
+				router.refresh()
 				return
 			}
 
 			if ("redirect" in result && result.redirect && "url" in result) {
 				const url = result.url
 				if (url && typeof url === "string") {
-					console.log("[SignIn Page] Redirecting to result.url:", url)
-					window.location.href = url
+					logInfo("Redirecting to result URL", { source: "SignInPage", url })
+					router.replace(url)
+					router.refresh()
 					return
 				}
 			}
 
 			// Smart redirect based on organization status
 			const hasOrg = "hasOrganization" in result ? result.hasOrganization : false
-			console.log("[SignIn Page] Redirecting based on org status. Has org:", hasOrg)
+			logInfo("Redirecting based on org status", { source: "SignInPage", hasOrg })
 
 			if (hasOrg) {
-				window.location.href = "/dashboard"
+				router.replace("/dashboard")
+				router.refresh()
 			} else {
-				window.location.href = "/onboarding"
+				router.replace("/onboarding")
+				router.refresh()
 			}
 
 		} catch (error) {
-			console.error("[SignIn Page] Error:", error)
+			logError(error, { source: "SignInPage", data: { email: data.email } })
 			setFormError(
 				error instanceof Error ? error.message : "Invalid email or password. Please try again."
 			)
@@ -115,13 +116,9 @@ export default function SignInPage() {
 
 			// If redirect is needed, it will be handled by the server action
 			if (!("redirect" in result) || !result.redirect) {
-				// Smart redirect based on organization status
-				const hasOrg = "hasOrganization" in result ? result.hasOrganization : false
-				if (hasOrg) {
-					router.push("/dashboard")
-				} else {
-					router.push("/onboarding")
-				}
+				// Always go to dashboard - onboarding alert will show if needed
+				// Don't force onboarding redirect
+				router.push("/dashboard")
 				router.refresh()
 			}
 		} catch (error) {
@@ -134,34 +131,31 @@ export default function SignInPage() {
 	}
 
 	return (
-		<div className="w-full">
-			<div className="w-full max-w-md mx-auto rounded-2xl bg-bg-white-0/95 backdrop-blur-xl p-6 sm:p-8 lg:p-10 ring-1 ring-inset ring-stroke-soft-200/50 shadow-xl shadow-primary-base/5">
-				{/* Header */}
-				<div className="mb-6 sm:mb-8 text-center">
-					<div className="flex size-16 sm:size-20 items-center justify-center rounded-2xl bg-linear-to-br from-primary-base via-primary-darker to-primary-darkest mx-auto mb-5 shadow-lg shadow-primary-base/20">
-						<ShieldCheck weight="duotone" className="size-8 sm:size-10 text-white" />
-					</div>
-					<h1 className="text-title-h4 sm:text-title-h3 text-text-strong-950 mb-2 font-semibold">Welcome back</h1>
-					<p className="text-paragraph-sm sm:text-paragraph-base text-text-sub-600">
-						Sign in to your Hypedrive account
-					</p>
-				</div>
+		<div className="w-full space-y-8" suppressHydrationWarning>
+			{/* Header */}
+			<div className="text-center space-y-3">
+				<h1 className="text-title-h3 sm:text-title-h2 text-text-strong-950 font-bold">Welcome back</h1>
+				<p className="text-paragraph-base text-text-sub-600">
+					Sign in to your account to continue
+				</p>
+			</div>
 
-				{/* Error Message */}
-				{formError && (
-					<Callout variant="error" size="sm" className="mb-6" role="alert">
-						{formError}
-					</Callout>
-				)}
+			{/* Error Message */}
+			{formError && (
+				<Callout variant="error" size="sm" role="alert">
+					{formError}
+				</Callout>
+			)}
 
-				{/* Form */}
-				<form onSubmit={handleSubmit(onSubmit, (errors) => console.log("[SignIn Page] Form validation errors:", errors))} className="space-y-5 sm:space-y-6" noValidate>
-					<div>
-						<label htmlFor="email" className="block text-label-sm text-text-strong-950 mb-2">
+			{/* Form */}
+			<div className="space-y-6">
+				<form onSubmit={handleSubmit(onSubmit, (errors) => logInfo("Form validation errors", { source: "SignInPage", errors }))} className="space-y-5" noValidate suppressHydrationWarning>
+					<div suppressHydrationWarning>
+						<label htmlFor="email" className="block text-label-sm text-text-strong-950 mb-2" suppressHydrationWarning>
 							Email address
 						</label>
 						<Input.Root hasError={!!errors.email}>
-							<Input.Wrapper>
+							<Input.Wrapper suppressHydrationWarning>
 								<Input.Icon as={Envelope} />
 								<Input.El
 									id="email"
@@ -171,6 +165,7 @@ export default function SignInPage() {
 									autoComplete="email"
 									aria-invalid={!!errors.email}
 									aria-describedby={errors.email ? "email-error" : undefined}
+									suppressHydrationWarning
 								/>
 							</Input.Wrapper>
 						</Input.Root>
@@ -186,12 +181,12 @@ export default function SignInPage() {
 						)}
 					</div>
 
-					<div>
-						<label htmlFor="password" className="block text-label-sm text-text-strong-950 mb-2">
+					<div suppressHydrationWarning>
+						<label htmlFor="password" className="block text-label-sm text-text-strong-950 mb-2" suppressHydrationWarning>
 							Password
 						</label>
 						<Input.Root hasError={!!errors.password}>
-							<Input.Wrapper>
+							<Input.Wrapper suppressHydrationWarning>
 								<Input.Icon as={Lock} />
 								<Input.El
 									id="password"
@@ -201,12 +196,14 @@ export default function SignInPage() {
 									autoComplete="current-password"
 									aria-invalid={!!errors.password}
 									aria-describedby={errors.password ? "password-error" : undefined}
+									suppressHydrationWarning
 								/>
 								<button
 									type="button"
 									onClick={() => setShowPassword(!showPassword)}
 									className="text-text-soft-400 hover:text-text-sub-600 transition-colors p-1 -mr-1"
 									aria-label={showPassword ? "Hide password" : "Show password"}
+									suppressHydrationWarning
 								>
 									{showPassword ? <EyeSlash className="size-5" /> : <Eye className="size-5" />}
 								</button>
@@ -224,8 +221,8 @@ export default function SignInPage() {
 						)}
 					</div>
 
-					<div className="flex items-center justify-between pt-1">
-						<label className="flex items-center gap-2.5 cursor-pointer group">
+					<div className="flex items-center justify-between pt-1" suppressHydrationWarning>
+						<label className="flex items-center gap-2.5 cursor-pointer group" suppressHydrationWarning>
 							<Checkbox.Root {...register("rememberMe")} aria-label="Remember me on this device" />
 							<span className="text-paragraph-sm text-text-sub-600 group-hover:text-text-strong-950 transition-colors">
 								Remember me
@@ -234,21 +231,25 @@ export default function SignInPage() {
 						<Link
 							href="/forgot-password"
 							className="text-paragraph-sm text-primary-base font-medium hover:text-primary-darker hover:underline transition-colors"
+							suppressHydrationWarning
 						>
 							Forgot password?
 						</Link>
 					</div>
 
-					<Button.Root type="submit" variant="primary" className="w-full h-11" disabled={isLoading}>
+					<Button.Root type="submit" variant="primary" className="w-full h-12 font-medium" disabled={isLoading} suppressHydrationWarning>
 						{isLoading ? "Signing in..." : "Sign In"}
 					</Button.Root>
 				</form>
 
 				{/* Divider */}
-				<div className="my-6 sm:my-7">
-					<Divider.Root variant="content">
-						<span className="text-paragraph-xs text-text-soft-400 px-3 bg-bg-white-0/95">or continue with</span>
-					</Divider.Root>
+				<div className="relative" suppressHydrationWarning>
+					<div className="absolute inset-0 flex items-center">
+						<div className="w-full border-t border-stroke-soft-200" />
+					</div>
+					<div className="relative flex justify-center text-paragraph-xs">
+						<span className="bg-bg-white-0 px-4 text-text-soft-400">or continue with</span>
+					</div>
 				</div>
 
 				{/* Google Sign In */}
@@ -258,17 +259,19 @@ export default function SignInPage() {
 					className="w-full h-12 font-medium border border-stroke-soft-200 hover:border-stroke-soft-300 hover:bg-bg-weak-50 transition-all"
 					onClick={handleGoogleSignIn}
 					disabled={isLoading}
+					suppressHydrationWarning
 				>
 					<Button.Icon as={GoogleLogo} />
 					Continue with Google
 				</Button.Root>
 
 				{/* Sign Up Link */}
-				<p className="mt-6 sm:mt-8 text-center text-paragraph-sm text-text-sub-600">
+				<p className="text-center text-paragraph-sm text-text-sub-600" suppressHydrationWarning>
 					Don&apos;t have an account?{" "}
 					<Link
 						href="/sign-up"
 						className="text-primary-base font-semibold hover:text-primary-darker hover:underline transition-colors"
+						suppressHydrationWarning
 					>
 						Sign up
 					</Link>

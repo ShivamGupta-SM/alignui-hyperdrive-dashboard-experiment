@@ -7,6 +7,7 @@
 import { http } from "msw"
 import { db } from "@/mocks/db"
 import {
+	getAuthContext,
 	encoreUrl,
 	encoreResponse,
 	encoreListResponse,
@@ -112,6 +113,7 @@ export const teamHandlers = [
 	http.post(encoreUrl("/organizations/:orgId/invitations"), async ({ params, request }) => {
 		await delay(DELAY.MEDIUM)
 
+		const auth = getAuthContext()
 		const { orgId } = params as { orgId: string }
 		const body = (await request.json()) as { email: string; role?: string }
 
@@ -123,14 +125,16 @@ export const teamHandlers = [
 			id: `inv-${Date.now()}`,
 			organizationId: orgId,
 			email: body.email,
-			role: body.role || "member",
+			role: (body.role || "viewer") as "owner" | "admin" | "manager" | "viewer",
 			status: "pending" as const,
 			expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
 		}
 
 		db.invitations.create({
 			...invitation,
-			expiresAt: invitation.expiresAt.toISOString(),
+			invitedBy: auth.userId || "system",
+			sentAt: new Date(),
+			expiresAt: invitation.expiresAt,
 		})
 
 		return encoreResponse({
@@ -168,7 +172,7 @@ export const teamHandlers = [
 			return encoreNotFoundResponse("Invitation")
 		}
 
-		db.invitations.delete({ where: { id: invitationId } })
+		db.invitations.delete((q) => q.where({ id: invitationId }))
 		return encoreResponse({ deleted: true })
 	}),
 ]

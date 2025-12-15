@@ -51,7 +51,7 @@ function Tracker({ data, size, className, ...rest }: TrackerProps) {
 		<div className={cn(root(), className)} role="figure" aria-label="Status tracker" {...rest}>
 			{data.map((item, index) => (
 				<div
-					key={index}
+					key={`tracker-${item.status}-${index}-${item.tooltip || ""}`}
 					className={cn(block(), statusColors[item.status])}
 					title={item.tooltip}
 					role="status"

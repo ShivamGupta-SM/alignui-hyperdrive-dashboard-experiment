@@ -320,20 +320,24 @@ function AvatarGroup({
 
 	return (
 		<div className={cn("flex items-center", className)} role="group" {...rest}>
-			{visibleChildren.map((child, index) => (
-				<div
-					key={index}
-					className="relative ring-2 ring-bg-white-0 rounded-full"
-					style={{
-						marginLeft: index === 0 ? 0 : offset,
-						zIndex: visibleChildren.length - index,
-					}}
-				>
+			{visibleChildren.map((child, index) => {
+				// Use child's key if available, otherwise use index with stable identifier
+				const childKey = React.isValidElement(child) && child.key ? child.key : `avatar-${index}`
+				return (
+					<div
+						key={childKey}
+						className="relative ring-2 ring-bg-white-0 rounded-full"
+						style={{
+							marginLeft: index === 0 ? 0 : offset,
+							zIndex: visibleChildren.length - index,
+						}}
+					>
 					{React.isValidElement<AvatarRootProps>(child)
 						? React.cloneElement(child, { size })
 						: child}
-				</div>
-			))}
+					</div>
+				)
+			})}
 			{overflowCount > 0 && (
 				<div
 					className="relative ring-2 ring-bg-white-0 rounded-full"

@@ -53,3 +53,6 @@
 - ✅ User profile & security
 
 **No subscription/billing code remains in the frontend.** 🎉
+
+
+

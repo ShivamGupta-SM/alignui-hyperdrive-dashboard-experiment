@@ -507,10 +507,12 @@ const InlineCalendar = React.forwardRef<HTMLDivElement, InlineCalendarProps>(
 						{calendarDays.map((day, index) => {
 							const cellState = getCellState(day)
 							const { cell } = inlineCalendarVariants({ cellState })
+							// Use date as key for stable identification
+							const dayKey = day.date.toISOString()
 
 							return (
 								<button
-									key={index}
+									key={dayKey}
 									type="button"
 									className={cn(cell(), day.isFocused && "ring-2 ring-primary-base ring-inset")}
 									onClick={() => !day.isDisabled && handleDateSelect(day.date)}

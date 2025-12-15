@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState, useEffect } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import * as Button from "@/components/ui/button"
 import { Callout } from "@/components/ui/callout"
@@ -20,19 +20,27 @@ export default function OAuthCallbackPage() {
 	const params = useParams()
 	const router = useRouter()
 	const searchParams = useSearchParams()
-	const provider = params?.provider as string
+	// useParams() returns a synchronous object in client components, not a Promise
+	const provider = (params?.provider as string) || ""
 	const error = searchParams.get("error")
 	const code = searchParams.get("code")
 	const state = searchParams.get("state")
 
-	const [status, setStatus] = React.useState<"loading" | "success" | "error">("loading")
-	const [errorMessage, setErrorMessage] = React.useState<string>("")
+	const [status, setStatus] = useState<"loading" | "success" | "error">("loading")
+	const [errorMessage, setErrorMessage] = useState<string>("")
 
-	React.useEffect(() => {
+	useEffect(() => {
+		const abortController = new AbortController()
+		let timeoutId1: NodeJS.Timeout | null = null
+		let timeoutId2: NodeJS.Timeout | null = null
+		let timeoutId3: NodeJS.Timeout | null = null
+
 		async function handleCallback() {
 			if (error) {
-				setStatus("error")
-				setErrorMessage(error || "OAuth authentication failed")
+				if (!abortController.signal.aborted) {
+					setStatus("error")
+					setErrorMessage(error || "OAuth authentication failed")
+				}
 				return
 			}
 
@@ -41,36 +49,84 @@ export default function OAuthCallbackPage() {
 			if (code || state) {
 				try {
 					// Wait a moment for backend to process
-					await new Promise((resolve) => setTimeout(resolve, 1000))
+					await new Promise<void>((resolve) => {
+						if (abortController.signal.aborted) return
+						timeoutId1 = setTimeout(() => resolve(), 1000)
+					})
+
+					if (abortController.signal.aborted) return
 
 					// Check if we have a session
-					const { getSession } = await import("@/app/actions/auth")
+					const { getSession, ensureActiveOrgAfterOAuth } = await import("@/app/actions/auth")
 					const sessionResult = await getSession()
 
+					if (abortController.signal.aborted) return
+
 					if (sessionResult.success && sessionResult.session) {
-						setStatus("success")
-						// Redirect to dashboard after 2 seconds
-						setTimeout(() => {
-							router.push("/dashboard")
-						}, 2000)
+						// ✅ FIX: Ensure active organization is set after OAuth login
+						// This fixes the race condition and ensures active org is set before redirect
+						try {
+							const orgResult = await ensureActiveOrgAfterOAuth()
+							if (abortController.signal.aborted) return
+
+							if (orgResult.success && orgResult.activeOrgSet) {
+								// Wait a bit more for session to refresh with active org
+								await new Promise<void>((resolve) => {
+									if (abortController.signal.aborted) return
+									timeoutId2 = setTimeout(() => resolve(), 500)
+								})
+							}
+
+							if (abortController.signal.aborted) return
+
+							if (!abortController.signal.aborted) {
+								setStatus("success")
+								// Redirect to dashboard after ensuring active org is set
+								timeoutId3 = setTimeout(() => {
+									if (!abortController.signal.aborted) {
+										router.push("/dashboard")
+										router.refresh()
+									}
+								}, 1500)
+							}
+						} catch (orgError) {
+							if (!abortController.signal.aborted) {
+								const { logWarn } = await import("@/lib/error-logger-simple")
+								logWarn("Failed to set active organization", { source: "OAuthCallback", data: { error: orgError } })
+								// Log but don't fail - user can set manually later
+							}
+						}
 					} else {
-						setStatus("error")
-						setErrorMessage("Failed to complete authentication")
+						if (!abortController.signal.aborted) {
+							setStatus("error")
+							setErrorMessage("Failed to complete authentication")
+						}
 					}
 				} catch (err) {
-					setStatus("error")
-					setErrorMessage(
-						err instanceof Error ? err.message : "Failed to complete authentication"
-					)
+					if (!abortController.signal.aborted) {
+						setStatus("error")
+						setErrorMessage(
+							err instanceof Error ? err.message : "Failed to complete authentication"
+						)
+					}
 				}
 			} else {
 				// No code or error - might be a direct visit
-				setStatus("error")
-				setErrorMessage("Invalid callback parameters")
+				if (!abortController.signal.aborted) {
+					setStatus("error")
+					setErrorMessage("Invalid callback parameters")
+				}
 			}
 		}
 
 		handleCallback()
+
+		return () => {
+			abortController.abort()
+			if (timeoutId1) clearTimeout(timeoutId1)
+			if (timeoutId2) clearTimeout(timeoutId2)
+			if (timeoutId3) clearTimeout(timeoutId3)
+		}
 	}, [code, state, error, router])
 
 	if (status === "loading") {
@@ -183,4 +239,6 @@ export default function OAuthCallbackPage() {
 		</div>
 	)
 }
+
+
 

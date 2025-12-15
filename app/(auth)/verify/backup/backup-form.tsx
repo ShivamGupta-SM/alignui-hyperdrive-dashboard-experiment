@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as Button from "@/components/ui/button"
@@ -10,9 +10,9 @@ import { Key, ArrowLeft, ShieldWarning, Info } from "@phosphor-icons/react"
 
 export function BackupForm() {
 	const router = useRouter()
-	const [code, setCode] = React.useState("")
-	const [isLoading, setIsLoading] = React.useState(false)
-	const [error, setError] = React.useState("")
+	const [code, setCode] = useState("")
+	const [isLoading, setIsLoading] = useState(false)
+	const [error, setError] = useState("")
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
@@ -28,6 +28,7 @@ export function BackupForm() {
 
 		try {
 			// TODO: Implement actual backup code verification
+			// See: Feature ticket - Add backup code verification logic
 			// const { verify2FABackupCode } = await import('@/app/actions/auth')
 			// const result = await verify2FABackupCode(code)
 			// if (!result.success) {

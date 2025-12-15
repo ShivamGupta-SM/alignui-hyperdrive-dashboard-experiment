@@ -9,3 +9,6 @@ find app/actions -name "*.ts" -type f -exec grep -l "catch.*error.*any" {} \;
 
 echo "Done. Review files and update manually."
 
+
+
+

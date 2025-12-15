@@ -68,9 +68,13 @@ export const campaignsHandlers = [
 	http.get(encoreUrl("/campaigns/:id"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const campaignId = Array.isArray(id) ? id[0] : id
+		if (!campaignId) {
+			return encoreNotFoundResponse("Campaign")
+		}
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: campaignId as string, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -129,10 +133,14 @@ export const campaignsHandlers = [
 	http.put(encoreUrl("/campaigns/:id"), async ({ params, request }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const campaignId = Array.isArray(id) ? id[0] : id
+		if (!campaignId) {
+			return encoreNotFoundResponse("Campaign")
+		}
 		const body = await request.json()
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: campaignId as string, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -144,8 +152,9 @@ export const campaignsHandlers = [
 			updatedAt: new Date().toISOString(), // Encore format
 		}
 
-		// Update in database
-		db.campaigns.update({ where: { id }, data: updated })
+		// Update in database - use findFirst + manual update pattern
+		db.campaigns.delete((q) => q.where({ id: campaignId as string }))
+		db.campaigns.create(updated)
 
 		return encoreResponse(toCampaignWithStats(updated))
 	}),
@@ -154,9 +163,13 @@ export const campaignsHandlers = [
 	http.delete(encoreUrl("/campaigns/:id"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const campaignId = Array.isArray(id) ? id[0] : id
+		if (!campaignId) {
+			return encoreNotFoundResponse("Campaign")
+		}
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: campaignId as string, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -166,6 +179,9 @@ export const campaignsHandlers = [
 			return encoreErrorResponse("Cannot delete active campaign", 400)
 		}
 
+		// Delete campaign from database
+		db.campaigns.delete((q) => q.where({ id: campaignId as string }))
+
 		return encoreResponse({ deleted: true })
 	}),
 
@@ -173,9 +189,13 @@ export const campaignsHandlers = [
 	http.post(encoreUrl("/campaigns/:id/activate"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const campaignId = Array.isArray(id) ? id[0] : id
+		if (!campaignId) {
+			return encoreNotFoundResponse("Campaign")
+		}
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: campaignId as string, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -188,9 +208,13 @@ export const campaignsHandlers = [
 	http.post(encoreUrl("/campaigns/:id/pause"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const campaignId = Array.isArray(id) ? id[0] : id
+		if (!campaignId) {
+			return encoreNotFoundResponse("Campaign")
+		}
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: campaignId as string, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -203,19 +227,23 @@ export const campaignsHandlers = [
 	http.get(encoreUrl("/campaigns/:id/enrollments"), async ({ params, request }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const campaignId = Array.isArray(id) ? id[0] : id
+		if (!campaignId) {
+			return encoreNotFoundResponse("Campaign")
+		}
 		const url = new URL(request.url)
 
 		const skip = Number.parseInt(url.searchParams.get("skip") || "0", 10)
 		const take = Number.parseInt(url.searchParams.get("take") || "20", 10)
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: campaignId as string, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
 		}
 
-		const enrollments = db.enrollments.findMany((q) => q.where({ campaignId: id }))
+		const enrollments = db.enrollments.findMany((q) => q.where({ campaignId: campaignId as string }))
 		const total = enrollments.length
 		const paginatedEnrollments = enrollments.slice(skip, skip + take)
 
@@ -226,15 +254,19 @@ export const campaignsHandlers = [
 	http.get(encoreUrl("/campaigns/:id/stats"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const campaignId = Array.isArray(id) ? id[0] : id
+		if (!campaignId) {
+			return encoreNotFoundResponse("Campaign")
+		}
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: campaignId as string, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
 		}
 
-		const enrollments = db.enrollments.findMany((q) => q.where({ campaignId: id }))
+		const enrollments = db.enrollments.findMany((q) => q.where({ campaignId: campaignId as string }))
 
 		return encoreResponse({
 			totalEnrollments: enrollments.length,
@@ -243,7 +275,7 @@ export const campaignsHandlers = [
 			rejectedEnrollments: enrollments.filter((e) => e.status === "rejected").length,
 			totalPayout: enrollments
 				.filter((e) => e.status === "approved")
-				.reduce((sum, e) => sum + (e.billAmount || 0), 0),
+				.reduce((sum, e) => sum + (e.lockedBillRate || 0), 0),
 		})
 	}),
 
@@ -251,9 +283,13 @@ export const campaignsHandlers = [
 	http.post(encoreUrl("/campaigns/:id/resume"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const campaignId = Array.isArray(id) ? id[0] : id
+		if (!campaignId) {
+			return encoreNotFoundResponse("Campaign")
+		}
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: campaignId as string, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -266,9 +302,13 @@ export const campaignsHandlers = [
 	http.get(encoreUrl("/campaigns/:id/performance"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const campaignId = Array.isArray(id) ? id[0] : id
+		if (!campaignId) {
+			return encoreNotFoundResponse("Campaign")
+		}
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: campaignId as string, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -288,21 +328,25 @@ export const campaignsHandlers = [
 	http.get(encoreUrl("/campaigns/:id/pricing"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const campaignId = Array.isArray(id) ? id[0] : id
+		if (!campaignId) {
+			return encoreNotFoundResponse("Campaign")
+		}
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: campaignId as string, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
 		}
 
 		return encoreResponse({
-			billRate: campaign.billRate,
+			billRate: campaign.billRate || 0,
 			platformFee: 20,
-			estimatedPayout: campaign.billRate - 20,
-			totalBudget: campaign.budget,
-			spentBudget: campaign.approvedCount * campaign.billRate,
-			remainingBudget: campaign.budget - campaign.approvedCount * campaign.billRate,
+			estimatedPayout: (campaign.billRate || 0) - 20,
+			totalBudget: 0, // Budget not in schema
+			spentBudget: campaign.approvedCount * (campaign.billRate || 0),
+			remainingBudget: 0, // Budget not in schema
 		})
 	}),
 
@@ -310,9 +354,13 @@ export const campaignsHandlers = [
 	http.post(encoreUrl("/campaigns/:id/archive"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const campaignId = Array.isArray(id) ? id[0] : id
+		if (!campaignId) {
+			return encoreNotFoundResponse("Campaign")
+		}
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: campaignId as string, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
@@ -325,9 +373,13 @@ export const campaignsHandlers = [
 	http.post(encoreUrl("/campaigns/:id/duplicate"), async ({ params }) => {
 		const auth = getAuthContext()
 		const { id } = params
+		const campaignId = Array.isArray(id) ? id[0] : id
+		if (!campaignId) {
+			return encoreNotFoundResponse("Campaign")
+		}
 
 		const campaign = db.campaigns.findFirst((q) =>
-			q.where({ id: id, organizationId: auth.organizationId })
+			q.where({ id: campaignId as string, organizationId: auth.organizationId })
 		)
 		if (!campaign) {
 			return encoreNotFoundResponse("Campaign")
