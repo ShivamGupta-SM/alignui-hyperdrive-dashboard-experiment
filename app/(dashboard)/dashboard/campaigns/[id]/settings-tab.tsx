@@ -6,8 +6,7 @@ import * as Input from "@/components/ui/input"
 import * as Textarea from "@/components/ui/textarea"
 import * as Switch from "@/components/ui/switch"
 import { toast } from "sonner"
-import { updateCampaign } from "@/app/actions/campaigns"
-import type { CampaignWithStats } from "@/hooks/use-campaigns"
+import { updateCampaign, type CampaignWithStats } from "@/features/campaigns"
 
 interface SettingsTabProps {
 	campaign: CampaignWithStats
@@ -34,7 +33,7 @@ export function SettingsTab({ campaign }: SettingsTabProps) {
 				if (res.success) {
 					toast.success("Campaign settings updated")
 				} else {
-					toast.error("error" in res ? res.error : "Failed to update settings")
+					toast.error(res.error instanceof Error ? res.error.message : "Failed to update settings")
 				}
 			} catch (e) {
 				toast.error("An error occurred")

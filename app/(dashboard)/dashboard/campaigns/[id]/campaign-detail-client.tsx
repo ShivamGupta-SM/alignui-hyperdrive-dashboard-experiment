@@ -60,13 +60,11 @@ import {
 	resumeCampaign,
 	endCampaign,
 	exportCampaignEnrollments,
-} from "@/app/actions/campaigns"
-import type {
-	CampaignWithStats,
-	CampaignStats,
-	CampaignPricing,
-	CampaignStatus,
-} from "@/hooks/use-campaigns"
+	type CampaignWithStats,
+	type CampaignStats,
+	type CampaignPricing,
+	type CampaignStatus,
+} from "@/features/campaigns"
 import type { campaigns, enrollments } from "@/lib/encore-client"
 import type { integrations } from "@/lib/encore-client"
 import { toast } from "sonner"

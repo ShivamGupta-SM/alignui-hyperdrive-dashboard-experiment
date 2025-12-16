@@ -46,10 +46,9 @@ import {
 	DELIVERABLE_TYPE_OPTIONS,
 	DEFAULT_SUBMISSION_DEADLINE_DAYS,
 } from "@/lib/constants"
-import { createCampaign, updateCampaignStatus } from "@/app/actions"
-import { campaignFormSchema, type CampaignFormInput } from "@/lib/validations"
+import { createCampaign, updateCampaignStatus, type CampaignType } from "@/features/campaigns"
+import { campaignFormSchema, type CampaignFormInput } from "@/features/campaigns/lib/validation"
 import type { DeliverableType } from "@/lib/types"
-import type { CampaignType } from "@/hooks/use-campaigns"
 import type { ProductWithStats } from "@/hooks/use-products"
 
 type Product = ProductWithStats
@@ -267,7 +266,8 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 				toast.success("Campaign saved as draft")
 				router.push("/dashboard/campaigns")
 			} else {
-				toast.error(("error" in result ? result.error : "Failed to save campaign") || "Failed to save campaign")
+				const errorMessage = result.error instanceof Error ? result.error.message : "Failed to save campaign"
+				toast.error(errorMessage)
 			}
 		} catch {
 			toast.error("Something went wrong. Please try again.")
@@ -296,7 +296,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 			const createResult = await createCampaign(campaignData)
 
 			if (!createResult.success) {
-				const errorMessage = "error" in createResult ? createResult.error : "Failed to create campaign"
+				const errorMessage = createResult.error instanceof Error ? createResult.error.message : "Failed to create campaign"
 				// Check if error is related to approval status
 				if (errorMessage?.toLowerCase().includes("not yet approved") || 
 				    errorMessage?.toLowerCase().includes("not approved") ||
@@ -316,8 +316,8 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 			}
 
 			// Then submit for approval
-			if (createResult.campaign?.id) {
-				const statusResult = await updateCampaignStatus(createResult.campaign.id, "submit")
+			if (createResult.data?.id) {
+				const statusResult = await updateCampaignStatus(createResult.data.id, "submit")
 				if (!statusResult.success) {
 					toast.error("Campaign created but failed to submit for approval")
 					router.push("/dashboard/campaigns")

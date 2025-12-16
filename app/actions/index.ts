@@ -1,5 +1,5 @@
 // Re-export all server actions
-export * from "./campaigns"
+// Note: Campaign actions are now in features/campaigns/actions/campaigns.ts
 export * from "./enrollments"
 export * from "./wallet"
 export * from "./products"

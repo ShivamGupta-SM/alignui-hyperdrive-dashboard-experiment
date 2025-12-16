@@ -21,16 +21,18 @@ import {
 	X,
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
-import { updateCampaignStatus, deleteCampaign, duplicateCampaign } from "@/app/actions"
 import { useQueryClient } from "@tanstack/react-query"
 import { useCampaignSearchParams } from "@/hooks"
-import { useSearchCampaigns } from "@/hooks/use-campaigns"
 import { exportCampaigns } from "@/lib/excel"
-import type { CampaignStatus } from "@/hooks/use-campaigns"
-import type { campaigns } from "@/lib/encore-client"
 import { useOrganizationContext } from "@/contexts/organization-context"
-
-type CampaignWithStats = campaigns.CampaignWithStats
+import {
+	useSearchCampaigns,
+	updateCampaignStatus,
+	deleteCampaign,
+	duplicateCampaign,
+	type CampaignStatus,
+	type CampaignWithStats,
+} from "@/features/campaigns"
 
 // Memoized wrapper component to prevent unnecessary re-renders
 const CampaignCardWrapper = memo(function CampaignCardWrapper({
@@ -262,13 +264,13 @@ export function CampaignsClient({
 		})
 	}, [deletingCampaignId, queryClient, router])
 
-	const handleDuplicate = useCallback((campaignId: string) => {
+		const handleDuplicate = useCallback((campaignId: string) => {
 		startTransition(async () => {
 			const result = await duplicateCampaign(campaignId)
-			if (result.success && result.campaign?.id) {
+			if (result.success && result.data?.id) {
 				// Invalidate campaigns queries to show new campaign
 				queryClient.invalidateQueries({ queryKey: ["campaigns"] })
-				router.push(`/dashboard/campaigns/${result.campaign.id}`)
+				router.push(`/dashboard/campaigns/${result.data.id}`)
 			}
 			router.refresh()
 		})

@@ -38,3 +38,4 @@ export default function DashboardError({ error, reset }: ErrorProps) {
 	return <PageError error={error} reset={reset} />
 }
 
+

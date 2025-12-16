@@ -172,3 +172,4 @@ Do you need any of these?
 - "Is this just layout or static content?" → Server Component
 
 
+

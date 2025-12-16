@@ -37,3 +37,4 @@ export default function WalletError({ error, reset }: ErrorProps) {
 	return <PageError error={error} reset={reset} />
 }
 
+

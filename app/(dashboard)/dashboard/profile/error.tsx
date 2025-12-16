@@ -40,3 +40,4 @@ export default function ProfileError({ error, reset }: ErrorProps) {
 	return <PageError error={error} reset={reset} />
 }
 
+

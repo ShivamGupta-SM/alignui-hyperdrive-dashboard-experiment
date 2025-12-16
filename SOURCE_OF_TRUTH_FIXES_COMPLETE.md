@@ -174,3 +174,4 @@ getSession() (app/actions/auth.ts)
 **Status:** ✅ All source of truth issues fixed. Codebase now has single, consistent source of truth for session and organization data.
 
 
+

@@ -37,3 +37,4 @@ export default function CampaignsError({ error, reset }: ErrorProps) {
 	return <PageError error={error} reset={reset} />
 }
 
+

@@ -37,3 +37,4 @@ export default function TeamError({ error, reset }: ErrorProps) {
 	return <PageError error={error} reset={reset} />
 }
 
+

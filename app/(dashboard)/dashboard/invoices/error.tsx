@@ -37,3 +37,4 @@ export default function InvoicesError({ error, reset }: ErrorProps) {
 	return <PageError error={error} reset={reset} />
 }
 
+
