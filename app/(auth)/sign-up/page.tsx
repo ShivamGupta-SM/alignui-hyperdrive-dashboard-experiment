@@ -5,11 +5,11 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as Button from "@/components/ui/button"
-import * as Input from "@/components/ui/input"
-import * as ProgressBar from "@/components/ui/progress-bar"
-import * as Divider from "@/components/ui/divider"
-import { Callout } from "@/components/ui/callout"
+import * as Button from "@/components/ui/primitives/button"
+import * as Input from "@/components/ui/forms/input"
+import * as ProgressBar from "@/components/ui/primitives/progress-bar"
+import * as Divider from "@/components/ui/layout/divider"
+import { Callout } from "@/components/ui/feedback/callout"
 import {
 	GoogleLogo,
 	Eye,
@@ -19,9 +19,9 @@ import {
 	UserPlus,
 	Check,
 	X,
-} from "@phosphor-icons/react/dist/ssr"
+} from "@phosphor-icons/react"
 import { cn } from "@/utils/cn"
-import { signUpSchema, VALIDATION_CONSTANTS, type SignUpFormData } from "@/lib/validations"
+import { signUpSchema, VALIDATION_CONSTANTS, type SignUpFormData } from "@/lib/utils/validations"
 
 export default function SignUpPage() {
 	const router = useRouter()
@@ -352,7 +352,7 @@ export default function SignUpPage() {
 					onClick={handleGoogleSignUp}
 					disabled={isLoading}
 				>
-					<Button.Icon as={GoogleLogo} />
+					<Button.Icon><GoogleLogo className="size-5" /></Button.Icon>
 					Continue with Google
 				</Button.Root>
 

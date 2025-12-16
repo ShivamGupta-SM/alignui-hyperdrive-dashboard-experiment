@@ -3,11 +3,11 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useOrganizationContext } from "@/contexts/organization-context"
-import { useLocalStorage } from "@/hooks/use-local-storage"
-import { CalloutWithActions } from "@/components/ui/callout"
-import * as Button from "@/components/ui/button"
+import { useLocalStorage } from "@/hooks/state"
+import { CalloutWithActions } from "@/components/ui/feedback/callout"
+import * as Button from "@/components/ui/primitives/button"
 import { ArrowRight, Warning, Building, Sparkle, CheckCircle, Circle, Dot, Plus, Megaphone, DownloadSimple, MagnifyingGlass } from "@phosphor-icons/react"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Skeleton } from "@/components/ui/primitives/skeleton"
 
 interface OrganizationGuardProps {
 	children: React.ReactNode
@@ -76,10 +76,10 @@ export function OrganizationGuard({
 	const showOnboardingAlert = showAlert && !dismissedAlert
 
 	// Render page skeleton wireframe based on page type
-	const renderPageSkeleton = () => {
-		switch (pageType) {
-			case "campaigns":
-				return (
+	let pageSkeleton: React.ReactNode
+	switch (pageType) {
+		case "campaigns":
+			pageSkeleton = (
 					<div className="space-y-5 sm:space-y-6 opacity-30 blur-sm pointer-events-none">
 						{/* Header */}
 						<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -108,7 +108,7 @@ export function OrganizationGuard({
 						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 							<div className="flex gap-2">
 								{Array.from({ length: 5 }).map((_, i) => (
-									<Skeleton key={i} className="h-9 w-20" />
+									<Skeleton key={`filter-skeleton-${i}`} className="h-9 w-20" />
 								))}
 							</div>
 							<div className="flex items-center gap-2">
@@ -133,9 +133,10 @@ export function OrganizationGuard({
 							))}
 						</div>
 					</div>
-				)
-			case "products":
-				return (
+			)
+			break
+		case "products":
+			pageSkeleton = (
 					<div className="space-y-5 sm:space-y-6 opacity-30 blur-sm pointer-events-none">
 						{/* Header */}
 						<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -157,9 +158,10 @@ export function OrganizationGuard({
 							))}
 						</div>
 					</div>
-				)
-			case "enrollments":
-				return (
+			)
+			break
+		case "enrollments":
+			pageSkeleton = (
 					<div className="space-y-5 sm:space-y-6 opacity-30 blur-sm pointer-events-none">
 						{/* Header */}
 						<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -175,7 +177,7 @@ export function OrganizationGuard({
 						{/* Filters */}
 						<div className="flex gap-2">
 							{Array.from({ length: 4 }).map((_, i) => (
-								<Skeleton key={i} className="h-9 w-24" />
+								<Skeleton key={`enrollment-filter-skeleton-${i}`} className="h-9 w-24" />
 							))}
 						</div>
 						
@@ -195,9 +197,10 @@ export function OrganizationGuard({
 							))}
 						</div>
 					</div>
-				)
-			case "dashboard":
-				return (
+			)
+			break
+		case "dashboard":
+			pageSkeleton = (
 					<div className="space-y-5 sm:space-y-6 opacity-30 blur-sm pointer-events-none">
 						{/* Header */}
 						<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -230,9 +233,10 @@ export function OrganizationGuard({
 							</div>
 						</div>
 					</div>
-				)
-			default:
-				return (
+			)
+			break
+		default:
+			pageSkeleton = (
 					<div className="space-y-5 sm:space-y-6 opacity-30 blur-sm pointer-events-none">
 						<Skeleton className="h-8 w-48 mb-4" />
 						<div className="rounded-xl border border-stroke-soft-200 p-6 space-y-4">
@@ -242,14 +246,13 @@ export function OrganizationGuard({
 							<Skeleton className="h-32 w-full" />
 						</div>
 					</div>
-				)
-		}
+			)
 	}
 
 	return (
 		<div className="relative min-h-[600px]">
 			{/* Background: Page Skeleton Wireframe */}
-			{renderPageSkeleton()}
+			{pageSkeleton}
 			
 			{/* Foreground: Organization Overlay - Centered */}
 			<div className="absolute inset-0 flex items-center justify-center z-10 py-8">
@@ -318,8 +321,10 @@ export function OrganizationGuard({
 												onClick={() => router.push("/onboarding")}
 												className="shadow-md shadow-primary-base/20 hover:shadow-lg hover:shadow-primary-base/30 transition-shadow"
 											>
-												<Button.Icon as={ArrowRight} />
-												Start Onboarding
+											<Button.Icon>
+												<ArrowRight className="size-5" />
+											</Button.Icon>
+											Start Onboarding
 											</Button.Root>
 											<Button.Root
 												variant="ghost"
@@ -439,7 +444,9 @@ export function OrganizationGuard({
 								onClick={() => router.push("/onboarding")}
 								className="mx-auto shadow-lg shadow-primary-base/20 hover:shadow-xl hover:shadow-primary-base/30 transition-shadow"
 							>
-								<Button.Icon as={ArrowRight} />
+								<Button.Icon>
+									<ArrowRight className="size-5" />
+								</Button.Icon>
 								Complete Onboarding
 							</Button.Root>
 							</div>
@@ -451,6 +458,7 @@ export function OrganizationGuard({
 		</div>
 	)
 }
+
 
 
 

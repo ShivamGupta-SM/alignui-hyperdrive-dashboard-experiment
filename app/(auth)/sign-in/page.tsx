@@ -1,17 +1,17 @@
 "use client"
 
-import * as React from "react"
+import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as Button from "@/components/ui/button"
-import * as Input from "@/components/ui/input"
-import * as Checkbox from "@/components/ui/checkbox"
-import * as Divider from "@/components/ui/divider"
-import { Callout } from "@/components/ui/callout"
-import { signInSchema, type SignInFormData } from "@/lib/validations"
-import { logInfo, logError } from "@/lib/error-logger-simple"
+import * as Button from "@/components/ui/primitives/button"
+import * as Input from "@/components/ui/forms/input"
+import * as Checkbox from "@/components/ui/forms/checkbox"
+import * as Divider from "@/components/ui/layout/divider"
+import { Callout } from "@/components/ui/feedback/callout"
+import { signInSchema, type SignInFormData } from "@/lib/utils/validations"
+import { logInfo, logError } from "@/lib/logging/error-logger-simple"
 import {
 	GoogleLogo,
 	Eye,
@@ -23,9 +23,10 @@ import {
 
 export default function SignInPage() {
 	const router = useRouter()
-	const [showPassword, setShowPassword] = React.useState(false)
-	const [isLoading, setIsLoading] = React.useState(false)
-	const [formError, setFormError] = React.useState("")
+	const searchParams = useSearchParams()
+	const [showPassword, setShowPassword] = useState(false)
+	const [isLoading, setIsLoading] = useState(false)
+	const [formError, setFormError] = useState("")
 
 	const {
 		register,
@@ -48,7 +49,7 @@ export default function SignInPage() {
 		try {
 			const { signInEmail } = await import("@/app/actions")
 			const result = await signInEmail(data.email, data.password, data.rememberMe)
-			logInfo("Sign-in result received", { source: "SignInPage", hasSuccess: result.success })
+			logInfo("Sign-in result received", { source: "SignInPage", data: { hasSuccess: result.success } })
 
 			if (!result.success) {
 				const errorMessage = "error" in result ? result.error : "Invalid email or password"
@@ -61,11 +62,11 @@ export default function SignInPage() {
 				return
 			}
 
-			// Check for redirect query param (from middleware)
-			const redirectParam = new URLSearchParams(window.location.search).get("redirect")
+			// Industry Standard: Use Next.js searchParams instead of window.location
+			const redirectParam = searchParams.get("redirect")
 
 			if (redirectParam) {
-				logInfo("Redirecting to query param", { source: "SignInPage", url: redirectParam })
+				logInfo("Redirecting to query param", { source: "SignInPage", data: { url: redirectParam } })
 				// Use router.replace for query param redirects to maintain history
 				router.replace(redirectParam)
 				router.refresh()
@@ -75,7 +76,7 @@ export default function SignInPage() {
 			if ("redirect" in result && result.redirect && "url" in result) {
 				const url = result.url
 				if (url && typeof url === "string") {
-					logInfo("Redirecting to result URL", { source: "SignInPage", url })
+					logInfo("Redirecting to result URL", { source: "SignInPage", data: { url } })
 					router.replace(url)
 					router.refresh()
 					return
@@ -84,7 +85,13 @@ export default function SignInPage() {
 
 			// Smart redirect based on organization status
 			const hasOrg = "hasOrganization" in result ? result.hasOrganization : false
-			logInfo("Redirecting based on org status", { source: "SignInPage", hasOrg })
+			const activeOrgSet = "activeOrgSet" in result ? result.activeOrgSet : false
+			logInfo("Redirecting based on org status", { source: "SignInPage", data: { hasOrg, activeOrgSet } })
+
+			// ✅ FIX: Wait a bit if active org was just set to ensure session is refreshed
+			if (activeOrgSet) {
+				await new Promise((resolve) => setTimeout(resolve, 500))
+			}
 
 			if (hasOrg) {
 				router.replace("/dashboard")
@@ -149,7 +156,7 @@ export default function SignInPage() {
 
 			{/* Form */}
 			<div className="space-y-6">
-				<form onSubmit={handleSubmit(onSubmit, (errors) => logInfo("Form validation errors", { source: "SignInPage", errors }))} className="space-y-5" noValidate suppressHydrationWarning>
+				<form onSubmit={handleSubmit(onSubmit, (errors) => logInfo("Form validation errors", { source: "SignInPage", data: { errors } }))} className="space-y-5" noValidate suppressHydrationWarning>
 					<div suppressHydrationWarning>
 						<label htmlFor="email" className="block text-label-sm text-text-strong-950 mb-2" suppressHydrationWarning>
 							Email address
@@ -261,7 +268,7 @@ export default function SignInPage() {
 					disabled={isLoading}
 					suppressHydrationWarning
 				>
-					<Button.Icon as={GoogleLogo} />
+					<Button.Icon><GoogleLogo className="size-5" /></Button.Icon>
 					Continue with Google
 				</Button.Root>
 

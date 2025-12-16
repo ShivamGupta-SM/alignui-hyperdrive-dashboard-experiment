@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import * as Button from "@/components/ui/button"
-import { Callout } from "@/components/ui/callout"
+import * as Button from "@/components/ui/primitives/button"
+import { Callout } from "@/components/ui/feedback/callout"
 import { Envelope, CheckCircle, WarningCircle, ArrowLeft } from "@phosphor-icons/react"
-import { getSafeRedirectUrl } from "@/lib/url-validation"
+import { getSafeRedirectUrl } from "@/lib/utils/url-validation"
 
 export default function VerifyEmailPage() {
 	const router = useRouter()
@@ -28,7 +28,7 @@ export default function VerifyEmailPage() {
 
 			setIsLoading(true)
 			try {
-				const { verifyEmail } = await import("@/app/actions/auth")
+				const { verifyEmail } = await import("@/app/actions")
 				// Validate callbackURL if provided
 				const validatedCallbackURL = callbackURL 
 					? getSafeRedirectUrl(callbackURL, "/") 
@@ -67,7 +67,7 @@ export default function VerifyEmailPage() {
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 					<Button.Root variant="ghost" size="small" asChild>
 						<Link href="/sign-in">
-							<Button.Icon as={ArrowLeft} />
+							<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 							Back to Sign In
 						</Link>
 					</Button.Root>
@@ -93,7 +93,7 @@ export default function VerifyEmailPage() {
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 					<Button.Root variant="ghost" size="small" asChild>
 						<Link href="/sign-in">
-							<Button.Icon as={ArrowLeft} />
+							<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 							Back to Sign In
 						</Link>
 					</Button.Root>
@@ -127,7 +127,7 @@ export default function VerifyEmailPage() {
 			<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 				<Button.Root variant="ghost" size="small" asChild>
 					<Link href="/sign-in">
-						<Button.Icon as={ArrowLeft} />
+						<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 						Back to Sign In
 					</Link>
 				</Button.Root>

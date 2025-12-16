@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
-import { Suspense } from "react"
+import React from "react"
 import { getCampaignsData, getOrganizationIdOrNull } from "@/lib/ssr-data"
-import { CampaignsClient } from "./campaigns-client"
+import { CampaignsWrapper } from "./campaigns-wrapper"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
-import { logError } from "@/lib/error-logger-simple"
+import { logError } from "@/lib/logging/error-logger-simple"
 
 export const metadata: Metadata = {
 	title: "Campaigns",
@@ -14,46 +14,9 @@ export const metadata: Metadata = {
 	},
 }
 
-// Note: dynamic and revalidate exports removed - incompatible with cacheComponents
+// Prevent prerendering to avoid Button.Icon serialization issues
+export const dynamic = "force-dynamic"
 
-async function CampaignsData({ statusFilter }: { statusFilter: string }) {
-	const orgId = await getOrganizationIdOrNull()
-	
-	if (!orgId) {
-		return (
-			<CampaignsClient
-				initialData={{
-					campaigns: [],
-					data: [],
-					total: 0,
-				}}
-				initialStatus={statusFilter}
-			/>
-		)
-	}
-
-	try {
-		const data = await getCampaignsData(statusFilter)
-		const initialData = {
-			campaigns: data.campaigns || data.data,
-			data: data.data || data.campaigns,
-			total: data.total,
-		}
-		return <CampaignsClient initialData={initialData} initialStatus={statusFilter} />
-	} catch (error) {
-		logError(error, { source: "CampaignsPage", data: { action: "fetch campaigns data", statusFilter } })
-		return (
-			<CampaignsClient
-				initialData={{
-					campaigns: [],
-					data: [],
-					total: 0,
-				}}
-				initialStatus={statusFilter}
-			/>
-		)
-	}
-}
 
 export default async function CampaignsPage({
 	searchParams,
@@ -66,14 +29,45 @@ export default async function CampaignsPage({
 	// Check if organization exists (for conditional data fetching)
 	const orgId = await getOrganizationIdOrNull()
 
+	const guardMessage = "To create and manage campaigns, you need to complete your organization setup. This will only take a few minutes."
+	
+	// Fetch data first, then render
+	let initialData: {
+		campaigns: any[]
+		data: any[]
+		total: number
+	}
+	
+	if (!orgId) {
+		initialData = {
+			campaigns: [],
+			data: [],
+			total: 0,
+		}
+	} else {
+		try {
+			const data = await getCampaignsData(statusFilter)
+			initialData = {
+				campaigns: data.campaigns || data.data,
+				data: data.data || data.campaigns,
+				total: data.total,
+			}
+		} catch (error) {
+			logError(error, { source: "CampaignsPage", data: { action: "fetch campaigns data", statusFilter } })
+			initialData = {
+				campaigns: [],
+				data: [],
+				total: 0,
+			}
+		}
+	}
+	
 	return (
 		<OrganizationGuard 
-			message="To create and manage campaigns, you need to complete your organization setup. This will only take a few minutes."
+			message={guardMessage}
 			pageType="campaigns"
 		>
-			<Suspense fallback={<div className="p-8">Loading campaigns...</div>}>
-				<CampaignsData statusFilter={statusFilter} />
-			</Suspense>
+			<CampaignsWrapper initialData={initialData} initialStatus={statusFilter} />
 		</OrganizationGuard>
 	)
 }

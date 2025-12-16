@@ -5,12 +5,12 @@ import Link from "next/link"
 import { useRouter, useSearchParams, useParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as Button from "@/components/ui/button"
-import * as Input from "@/components/ui/input"
-import { Callout } from "@/components/ui/callout"
+import * as Button from "@/components/ui/primitives/button"
+import * as Input from "@/components/ui/forms/input"
+import { Callout } from "@/components/ui/feedback/callout"
 import { ArrowLeft, Lock, Eye, EyeSlash, WarningCircle } from "@phosphor-icons/react"
-import { resetPasswordSchema, type ResetPasswordFormData } from "@/lib/validations"
-import { getSafeRedirectUrl } from "@/lib/url-validation"
+import { resetPasswordSchema, type ResetPasswordFormData } from "@/lib/utils/validations"
+import { getSafeRedirectUrl } from "@/lib/utils/url-validation"
 
 export default function ResetPasswordPage() {
 	const router = useRouter()
@@ -70,7 +70,7 @@ export default function ResetPasswordPage() {
 		setIsLoading(true)
 
 		try {
-			const { resetPassword } = await import("@/app/actions/auth")
+			const { resetPassword } = await import("@/app/actions")
 			const result = await resetPassword(token, data.password)
 
 			if (result.success) {
@@ -96,7 +96,7 @@ export default function ResetPasswordPage() {
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 					<Button.Root variant="ghost" size="small" asChild>
 						<Link href="/sign-in">
-							<Button.Icon as={ArrowLeft} />
+							<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 							Back to Sign In
 						</Link>
 					</Button.Root>
@@ -119,7 +119,7 @@ export default function ResetPasswordPage() {
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 					<Button.Root variant="ghost" size="small" asChild>
 						<Link href="/sign-in">
-							<Button.Icon as={ArrowLeft} />
+							<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 							Back to Sign In
 						</Link>
 					</Button.Root>
@@ -159,7 +159,7 @@ export default function ResetPasswordPage() {
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 					<Button.Root variant="ghost" size="small" asChild>
 						<Link href="/sign-in">
-							<Button.Icon as={ArrowLeft} />
+							<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 							Back to Sign In
 						</Link>
 					</Button.Root>
@@ -195,7 +195,7 @@ export default function ResetPasswordPage() {
 			<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 				<Button.Root variant="ghost" size="small" asChild>
 					<Link href="/sign-in">
-						<Button.Icon as={ArrowLeft} />
+						<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 						Back to Sign In
 					</Link>
 				</Button.Root>

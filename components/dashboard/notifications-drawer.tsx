@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { cn } from "@/utils/cn"
-import * as Drawer from "@/components/ui/drawer"
+import * as Drawer from "@/components/ui/layout/drawer"
 import {
 	Check,
 	Wallet,
@@ -18,7 +18,7 @@ import {
 	Megaphone,
 } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
-import type { notifications } from "@/lib/encore-browser"
+import type { notifications } from "@/lib/api/encore-browser"
 
 // Use Encore's notification types
 type NotificationType = notifications.NotificationType

@@ -1,27 +1,79 @@
 // Re-export all server actions
-// Note: Campaign actions are now in features/campaigns/actions/campaigns.ts
-export * from "./enrollments"
-export * from "./wallet"
-export * from "./products"
-export * from "./team"
-export * from "./invoices"
-export * from "./onboarding"
-export * from "./auth"
-export * from "./organizations"
+// All actions are now in features/ folders
 
-// Export settings actions (excluding duplicates that are in auth.ts)
-// Note: changeEmail, disable2FA, enable2FA, revokeSession, sendVerificationEmail, updateProfile
-// are already exported from auth.ts, so we don't re-export them from settings.ts
+// Campaign actions
+export * from "@/features/campaigns"
+
+// Organization actions
 export {
+	createBasicOrganization,
+	switchOrganization,
+	resubmitOrganizationForApproval,
+	submitOnboarding,
+	saveOnboardingDraft,
+	loadOnboardingDraft,
+} from "@/features/organizations"
+
+// Enrollments actions
+export {
+	updateEnrollmentStatus,
+	bulkUpdateEnrollments,
+} from "@/features/enrollments"
+
+// Products actions
+export {
+	createProduct,
+	updateProduct,
+	deleteProduct,
+	bulkImportProducts,
+} from "@/features/products"
+
+// Wallet actions
+export {
+	requestWithdrawal,
+	requestCredit,
+} from "@/features/wallet"
+
+// Invoices actions
+export {
+	generateInvoicePDF,
+	downloadInvoicePDF,
+	getInvoiceEnrollmentIds,
+} from "@/features/invoices"
+
+// Team actions
+export {
+	inviteMember,
+	removeMember,
+} from "@/features/team"
+
+// Settings actions
+export {
+	updateProfile,
 	updateOrganization,
 	updatePassword,
+	updateNotifications,
 	addBankAccount,
 	removeBankAccount,
 	setDefaultBankAccount,
 	verifyBankAccount,
-	getUserSessions,
-	updateNotifications,
-	verify2FA,
+	enable2FA,
+	disable2FA,
+	revokeSession,
 	revokeAllSessions,
-	deleteUserAccount,
-} from "./settings"
+} from "@/features/settings"
+
+// Auth actions
+export {
+	signInEmail,
+	signInSocial,
+	signUpEmail,
+	verify2FATotp,
+	send2FAOtp,
+	forgotPassword,
+	resetPassword,
+	resetPasswordCallback,
+	getSession,
+	ensureActiveOrgAfterOAuth,
+	verifyEmail,
+} from "@/features/auth"

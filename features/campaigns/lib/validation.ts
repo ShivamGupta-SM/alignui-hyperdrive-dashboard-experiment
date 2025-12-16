@@ -7,7 +7,7 @@
  */
 
 import { z } from 'zod'
-import { VALIDATION_CONSTANTS } from '@/lib/types/constants'
+import { VALIDATION_CONSTANTS } from '@/lib/utils/validations'
 
 /**
  * Campaign status schema

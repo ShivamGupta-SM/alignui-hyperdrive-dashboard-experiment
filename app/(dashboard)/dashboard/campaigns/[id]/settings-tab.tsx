@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import * as Button from "@/components/ui/button"
-import * as Input from "@/components/ui/input"
-import * as Textarea from "@/components/ui/textarea"
-import * as Switch from "@/components/ui/switch"
+import * as Button from "@/components/ui/primitives/button"
+import * as Input from "@/components/ui/forms/input"
+import * as Textarea from "@/components/ui/forms/textarea"
+import * as Switch from "@/components/ui/forms/switch"
 import { toast } from "sonner"
 import { updateCampaign, type CampaignWithStats } from "@/features/campaigns"
 

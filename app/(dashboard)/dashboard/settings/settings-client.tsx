@@ -1,24 +1,24 @@
 "use client"
 
-import * as React from "react"
-
+import { useState, useEffect, useRef, type ReactNode } from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as Button from "@/components/ui/button"
-import * as Input from "@/components/ui/input"
-import * as Avatar from "@/components/ui/avatar"
-import * as Badge from "@/components/ui/badge"
-import * as Switch from "@/components/ui/switch"
-import * as Select from "@/components/ui/select"
-import { FormField } from "@/components/ui/form-field"
+import * as Button from "@/components/ui/primitives/button"
+import * as Input from "@/components/ui/forms/input"
+import * as Avatar from "@/components/ui/primitives/avatar"
+import * as Badge from "@/components/ui/data-display/badge"
+import * as Switch from "@/components/ui/forms/switch"
+import * as Select from "@/components/ui/forms/select"
+import { FormField } from "@/components/ui/forms/form-field"
 import { cn } from "@/utils/cn"
 import { useSettingsSearchParams } from "@/hooks"
 import { useQueryClient } from "@tanstack/react-query"
-
 import { updateOrganization } from "@/app/actions"
-import { verifyBankAccount, addBankAccount, removeBankAccount, setDefaultBankAccount } from "@/app/actions/settings"
-import type { organizations } from "@/lib/encore-client"
+import { settingsQueryKeys } from "@/features/settings/lib/query-keys"
+import { verifyBankAccount, addBankAccount, removeBankAccount, setDefaultBankAccount } from "@/features/settings"
+import type { organizations } from "@/lib/api/encore-client"
 import {
 	Buildings,
 	Bank,
@@ -45,10 +45,10 @@ import {
 	bankAccountBodySchema,
 	type UpdateOrganizationBody,
 	type BankAccountBody,
-} from "@/lib/validations"
-import * as Modal from "@/components/ui/modal"
-import * as BottomSheet from "@/components/ui/bottom-sheet"
-import * as Radio from "@/components/ui/radio"
+} from "@/lib/utils/validations"
+import * as Modal from "@/components/ui/layout/modal"
+import * as BottomSheet from "@/components/ui/layout/bottom-sheet"
+import * as Radio from "@/components/ui/forms/radio"
 import { useMediaQuery } from "usehooks-ts"
 
 // Settings sections - Organization only (Industry Standard: Settings = Organization, Profile = User)
@@ -98,7 +98,17 @@ interface SettingsClientProps {
 
 export function SettingsClient({ initialData }: SettingsClientProps = {}) {
 	// nuqs: URL state management for settings section (organization-only)
-	const [activeSection, setActiveSection] = useSettingsSearchParams("organization")
+	const [activeSection, setActiveSection] = useSettingsSearchParams()
+	const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+	// Cleanup timeout on unmount
+	useEffect(() => {
+		return () => {
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current)
+			}
+		}
+	}, [])
 
 	// Use server data - must be provided from server
 	if (!initialData) {
@@ -218,10 +228,11 @@ export function SettingsClient({ initialData }: SettingsClientProps = {}) {
 // ORGANIZATION SECTION
 // ===========================================
 function OrganizationSection({ organization }: { organization: SettingsData["organization"] }) {
-	const [saved, setSaved] = React.useState(false)
-	const [isLoading, setIsLoading] = React.useState(false)
+	const [saved, setSaved] = useState(false)
+	const [isLoading, setIsLoading] = useState(false)
 	const router = useRouter()
 	const queryClient = useQueryClient()
+	const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
 	const {
 		register,
@@ -241,15 +252,19 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 
 	const onSubmit = async (data: UpdateOrganizationBody) => {
 		setIsLoading(true)
+		// Clear any existing timeout
+		if (timeoutRef.current) {
+			clearTimeout(timeoutRef.current)
+		}
 		try {
 			const result = await updateOrganization(data)
 			if (result.success) {
 				setSaved(true)
 				toast.success("Organization updated successfully")
-				setTimeout(() => setSaved(false), 3000)
+				timeoutRef.current = setTimeout(() => setSaved(false), 3000)
 				// Invalidate settings and organization queries to refetch updated data
-				queryClient.invalidateQueries({ queryKey: ["settings"] })
-				queryClient.invalidateQueries({ queryKey: ["organization"] })
+				queryClient.invalidateQueries({ queryKey: settingsQueryKeys.all })
+				queryClient.invalidateQueries({ queryKey: settingsQueryKeys.organization(organization.id) })
 				router.refresh()
 			} else {
 				toast.error("error" in result ? result.error || "Failed to update organization" : "Failed to update organization")
@@ -261,7 +276,7 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 		}
 	}
 
-	const [logoError, setLogoError] = React.useState(false)
+	const [logoError, setLogoError] = useState(false)
 
 	return (
 		<div className="space-y-6">
@@ -297,11 +312,11 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 					<div className="flex-1">
 						<div className="flex flex-wrap gap-2">
 							<Button.Root variant="neutral" size="small">
-								<Button.Icon as={CloudArrowUp} />
+								<Button.Icon><CloudArrowUp className="size-5" /></Button.Icon>
 								Upload
 							</Button.Root>
 							<Button.Root variant="ghost" size="small">
-								<Button.Icon as={Trash} />
+								<Button.Icon><Trash className="size-5" /></Button.Icon>
 								Remove
 							</Button.Root>
 						</div>
@@ -514,7 +529,7 @@ function BankAccountsSection({
 	bankAccounts: SettingsData["bankAccounts"]
 	organizationId: string
 }) {
-	const [showAddModal, setShowAddModal] = React.useState(false)
+	const [showAddModal, setShowAddModal] = useState(false)
 	const router = useRouter()
 	const queryClient = useQueryClient()
 
@@ -524,12 +539,11 @@ function BankAccountsSection({
 		}
 
 		try {
-			const { removeBankAccount } = await import("@/app/actions/settings")
+			const { removeBankAccount } = await import("@/features/settings")
 			const result = await removeBankAccount(accountId)
 			if (result.success) {
 				toast.success("Bank account removed successfully")
-				queryClient.invalidateQueries({ queryKey: ["settings", "bankAccounts"] })
-				queryClient.invalidateQueries({ queryKey: ["bankAccounts"] })
+				queryClient.invalidateQueries({ queryKey: settingsQueryKeys.bankAccounts() })
 				router.refresh()
 			} else {
 				toast.error("error" in result ? result.error || "Failed to remove bank account" : "Failed to remove bank account")
@@ -541,12 +555,11 @@ function BankAccountsSection({
 
 	const handleSetDefault = async (accountId: string) => {
 		try {
-			const { setDefaultBankAccount } = await import("@/app/actions/settings")
+			const { setDefaultBankAccount } = await import("@/features/settings")
 			const result = await setDefaultBankAccount(accountId)
 			if (result.success) {
 				toast.success("Default bank account updated")
-				queryClient.invalidateQueries({ queryKey: ["settings", "bankAccounts"] })
-				queryClient.invalidateQueries({ queryKey: ["bankAccounts"] })
+				queryClient.invalidateQueries({ queryKey: settingsQueryKeys.bankAccounts() })
 				router.refresh()
 			} else {
 				toast.error("error" in result ? result.error || "Failed to set default account" : "Failed to set default account")
@@ -563,7 +576,7 @@ function BankAccountsSection({
 				title="Bank Accounts"
 				action={
 					<Button.Root variant="primary" size="small" onClick={() => setShowAddModal(true)}>
-						<Button.Icon as={Plus} />
+						<Button.Icon><Plus className="size-5" /></Button.Icon>
 						Add Account
 					</Button.Root>
 				}
@@ -580,7 +593,7 @@ function BankAccountsSection({
 									Add a bank account to enable withdrawals
 								</p>
 								<Button.Root variant="primary" size="small" onClick={() => setShowAddModal(true)}>
-									<Button.Icon as={Plus} />
+									<Button.Icon><Plus className="size-5" /></Button.Icon>
 									Add Bank Account
 								</Button.Root>
 							</div>
@@ -606,7 +619,7 @@ function BankAccountsSection({
 										className="text-error-base hover:text-error-dark"
 										onClick={() => handleRemove(account.id)}
 									>
-										<Button.Icon as={Trash} />
+										<Button.Icon><Trash className="size-5" /></Button.Icon>
 									</Button.Root>
 								</div>
 							</div>
@@ -635,10 +648,10 @@ function BankAccountsSection({
 
 interface SettingsCardProps {
 	title?: string
-	action?: React.ReactNode
-	badge?: React.ReactNode
+	action?: ReactNode
+	badge?: ReactNode
 	variant?: "default" | "danger"
-	children: React.ReactNode
+	children: ReactNode
 }
 
 function SettingsCard({ title, action, badge, variant = "default", children }: SettingsCardProps) {
@@ -690,7 +703,7 @@ interface ToggleRowProps {
 }
 
 function ToggleRow({ title, description, defaultChecked }: ToggleRowProps) {
-	const [checked, setChecked] = React.useState(defaultChecked)
+	const [checked, setChecked] = useState(defaultChecked)
 
 	return (
 		<div className="flex items-center justify-between gap-4 p-3 rounded-lg hover:bg-bg-weak-50/50 transition-colors duration-150">
@@ -744,7 +757,7 @@ interface BankAccountCardProps {
 }
 
 function BankAccountCard({ account, organizationId }: BankAccountCardProps) {
-	const [isVerifying, setIsVerifying] = React.useState(false)
+	const [isVerifying, setIsVerifying] = useState(false)
 	const queryClient = useQueryClient()
 	const router = useRouter()
 
@@ -755,8 +768,7 @@ function BankAccountCard({ account, organizationId }: BankAccountCardProps) {
 			if (result.success) {
 				toast.success("Verification initiated successfully")
 				// Invalidate bank accounts query to refetch updated status
-				queryClient.invalidateQueries({ queryKey: ["settings", "bankAccounts"] })
-				queryClient.invalidateQueries({ queryKey: ["bankAccounts"] })
+				queryClient.invalidateQueries({ queryKey: settingsQueryKeys.bankAccounts() })
 				router.refresh()
 			} else {
 				toast.error("error" in result ? result.error || "Failed to initiate verification" : "Failed to initiate verification")
@@ -825,7 +837,7 @@ function BankAccountCard({ account, organizationId }: BankAccountCardProps) {
 					</div>
 				</div>
 				<Button.Root variant="ghost" size="xsmall" className="shrink-0">
-					<Button.Icon as={DotsThree} />
+					<Button.Icon><DotsThree className="size-5" /></Button.Icon>
 				</Button.Root>
 			</div>
 		</div>
@@ -843,7 +855,7 @@ interface AddBankAccountModalProps {
 
 function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAccountModalProps) {
 	const isMobile = useMediaQuery("(max-width: 639px)")
-	const [isPending, setIsPending] = React.useState(false)
+	const [isPending, setIsPending] = useState(false)
 	const router = useRouter()
 	const queryClient = useQueryClient()
 
@@ -861,7 +873,7 @@ function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAcco
 		defaultValues: {
 			bankName: "",
 			accountNumber: "",
-			accountHolder: "",
+			accountHolderName: "",
 			ifscCode: "",
 			accountType: "savings",
 			isDefault: false,
@@ -871,14 +883,14 @@ function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAcco
 	const ifscCode = watch("ifscCode")
 
 	// Auto-uppercase IFSC code
-	React.useEffect(() => {
+	useEffect(() => {
 		if (ifscCode) {
 			setValue("ifscCode", ifscCode.toUpperCase(), { shouldValidate: true })
 		}
 	}, [ifscCode, setValue])
 
 	// Reset form when modal closes
-	React.useEffect(() => {
+	useEffect(() => {
 		if (!open) {
 			reset()
 		}
@@ -890,7 +902,7 @@ function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAcco
 			const result = await addBankAccount({
 				bankName: data.bankName,
 				accountNumber: data.accountNumber,
-				accountHolder: data.accountHolder,
+				accountHolderName: data.accountHolderName,
 				ifscCode: data.ifscCode,
 				accountType: data.accountType,
 				isDefault: data.isDefault ?? false,
@@ -909,8 +921,7 @@ function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAcco
 				reset()
 				onOpenChange(false)
 				// Invalidate bank accounts query to refetch updated list
-				queryClient.invalidateQueries({ queryKey: ["settings", "bankAccounts"] })
-				queryClient.invalidateQueries({ queryKey: ["bankAccounts"] })
+				queryClient.invalidateQueries({ queryKey: settingsQueryKeys.bankAccounts() })
 				router.refresh()
 			} else {
 				toast.error("error" in result ? result.error || "Failed to add bank account" : "Failed to add bank account")
@@ -935,11 +946,11 @@ function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAcco
 					</BottomSheet.Header>
 					<BottomSheet.Body>
 						<form id="bank-account-form" onSubmit={onSubmit} className="space-y-4">
-							<FormField label="Account Holder Name" required error={errors.accountHolder?.message}>
-								<Input.Root hasError={!!errors.accountHolder}>
+							<FormField label="Account Holder Name" required error={errors.accountHolderName?.message}>
+								<Input.Root hasError={!!errors.accountHolderName}>
 									<Input.Wrapper>
 										<Input.El
-											{...register("accountHolder")}
+											{...register("accountHolderName")}
 											placeholder="Enter account holder name"
 										/>
 									</Input.Wrapper>
@@ -966,7 +977,7 @@ function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAcco
 											{...register("ifscCode")}
 											placeholder="HDFC0001234"
 											maxLength={11}
-											style={{ textTransform: "uppercase" }}
+											className="uppercase"
 										/>
 									</Input.Wrapper>
 								</Input.Root>
@@ -1047,11 +1058,11 @@ function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAcco
 				</Modal.Header>
 				<Modal.Body>
 					<form id="bank-account-form" onSubmit={onSubmit} className="space-y-4">
-						<FormField label="Account Holder Name" required error={errors.accountHolder?.message}>
-							<Input.Root hasError={!!errors.accountHolder}>
+						<FormField label="Account Holder Name" required error={errors.accountHolderName?.message}>
+							<Input.Root hasError={!!errors.accountHolderName}>
 								<Input.Wrapper>
 									<Input.El
-										{...register("accountHolder")}
+										{...register("accountHolderName")}
 										placeholder="Enter account holder name"
 									/>
 								</Input.Wrapper>

@@ -121,8 +121,8 @@ export const LIMITS = {
 // Validation Boundaries
 // ⚠️ DEPRECATED: Use VALIDATION_CONSTANTS from @/lib/validations instead
 // This is kept for backward compatibility but will be removed in future
-// Import from validations.ts: import { VALIDATION_CONSTANTS } from "@/lib/validations"
-import { VALIDATION_CONSTANTS } from "@/lib/validations"
+// Import from validations.ts: import { VALIDATION_CONSTANTS } from "@/lib/utils/validations"
+import { VALIDATION_CONSTANTS } from "@/lib/utils/validations"
 
 export const VALIDATION = {
 	// Password

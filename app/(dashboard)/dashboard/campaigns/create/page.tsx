@@ -1,8 +1,8 @@
 import type { Metadata } from "next"
 import { getProductsData } from "@/lib/ssr-data"
 import { CreateCampaignClient } from "./create-campaign-client"
-import type { ProductWithStats } from "@/hooks/use-products"
-import { logSSRError } from "@/lib/error-logger-simple"
+import type { ProductWithStats } from "@/features/products"
+import { logSSRError } from "@/lib/logging/error-logger-simple"
 
 export const metadata: Metadata = {
 	title: "Create Campaign",

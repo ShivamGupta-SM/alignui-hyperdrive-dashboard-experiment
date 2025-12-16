@@ -15,5 +15,5 @@ export default async function CampaignDetailPage({
 	// Direct server fetch - pure RSC
 	const data = await getCampaignDetailData(id)
 
-	return <CampaignDetailClient campaignId={id} initialData={data} />
+	return <CampaignDetailClient campaignId={id} initialData={data ? { ...data.campaign, ...data } as any : undefined} />
 }

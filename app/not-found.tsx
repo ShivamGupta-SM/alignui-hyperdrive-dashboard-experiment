@@ -1,13 +1,12 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import * as Button from "@/components/ui/button"
+import * as Button from "@/components/ui/primitives/button"
 
 export const metadata: Metadata = {
   title: "404 - Page Not Found | Hypedrive",
   description: "The page you're looking for doesn't exist or has been moved.",
 }
 
-// Note: dynamic export removed - incompatible with cacheComponents
 import {
 	House,
 	ArrowRight,
@@ -69,14 +68,18 @@ export default function NotFound() {
 						<div className="flex flex-col sm:flex-row gap-3 mb-6 sm:mb-8">
 							<Button.Root variant="primary" size="medium" asChild className="flex-1 h-11">
 								<Link href="/dashboard">
-									<Button.Icon as={House} />
+									<Button.Icon>
+										<House className="size-5" />
+									</Button.Icon>
 									Go to Dashboard
 								</Link>
 							</Button.Root>
 							<Button.Root variant="ghost" size="medium" asChild className="flex-1 h-11">
 								<Link href="/">
 									Back to Home
-									<Button.Icon as={ArrowRight} />
+									<Button.Icon>
+										<ArrowRight className="size-5" />
+									</Button.Icon>
 								</Link>
 							</Button.Root>
 						</div>

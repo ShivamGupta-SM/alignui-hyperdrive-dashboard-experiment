@@ -6,17 +6,17 @@ import { useRouter } from "next/navigation"
 import { useForm, Controller, useFieldArray, type ControllerRenderProps } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
-import * as Button from "@/components/ui/button"
-import * as Input from "@/components/ui/input"
-import * as Select from "@/components/ui/select"
-import * as Textarea from "@/components/ui/textarea"
-import { NumberInput } from "@/components/ui/currency-input"
-import * as Checkbox from "@/components/ui/checkbox"
-import * as Radio from "@/components/ui/radio"
-import * as Breadcrumb from "@/components/ui/breadcrumb"
-import { Calendar } from "@/components/ui/datepicker"
-import * as Popover from "@/components/ui/popover"
-import { FormField } from "@/components/ui/form-field"
+import * as Button from "@/components/ui/primitives/button"
+import * as Input from "@/components/ui/forms/input"
+import * as Select from "@/components/ui/forms/select"
+import * as Textarea from "@/components/ui/forms/textarea"
+import { NumberInput } from "@/components/ui/forms/currency-input"
+import * as Checkbox from "@/components/ui/forms/checkbox"
+import * as Radio from "@/components/ui/forms/radio"
+import * as Breadcrumb from "@/components/ui/navigation/breadcrumb"
+import { Calendar } from "@/components/ui/forms/datepicker"
+import * as Popover from "@/components/ui/layout/popover"
+import { FormField } from "@/components/ui/forms/form-field"
 import {
 	ArrowLeft,
 	ArrowRight,
@@ -35,11 +35,11 @@ import {
 	Lock,
 	Info,
 	Warning,
-} from "@phosphor-icons/react/dist/ssr"
+} from "@phosphor-icons/react"
 import { cn } from "@/utils/cn"
-import { formatDateShort, formatDateMedium, formatDateWithWeekday } from "@/lib/format"
-import { useLocalStorage } from "@/hooks/use-local-storage"
-import { CalloutWithActions } from "@/components/ui/callout"
+import { formatDateShort, formatDateMedium, formatDateWithWeekday } from "@/lib/utils/format"
+import { useLocalStorage } from "@/hooks/state"
+import { CalloutWithActions } from "@/components/ui/feedback/callout"
 import { useOrganizationContext } from "@/contexts/organization-context"
 import {
 	CAMPAIGN_TYPE_OPTIONS,
@@ -49,7 +49,7 @@ import {
 import { createCampaign, updateCampaignStatus, type CampaignType } from "@/features/campaigns"
 import { campaignFormSchema, type CampaignFormInput } from "@/features/campaigns/lib/validation"
 import type { DeliverableType } from "@/lib/types"
-import type { ProductWithStats } from "@/hooks/use-products"
+import type { ProductWithStats } from "@/features/products"
 
 type Product = ProductWithStats
 
@@ -115,7 +115,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 									size="small"
 									onClick={() => router.push("/onboarding")}
 								>
-									<Button.Icon as={ArrowRight} />
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 									Start Onboarding
 								</Button.Root>
 								<Button.Root
@@ -155,7 +155,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 								</p>
 							</div>
 							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
-								<Button.Icon as={ArrowRight} />
+								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 								Start Onboarding
 							</Button.Root>
 						</div>
@@ -527,7 +527,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 					<div>
 						{currentStep > 1 && (
 							<Button.Root variant="ghost" size="small" onClick={handleBack}>
-								<Button.Icon as={ArrowLeft} />
+								<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 								<span className="hidden sm:inline">Back</span>
 							</Button.Root>
 						)}
@@ -548,7 +548,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 							<Button.Root type="button" variant="primary" size="small" onClick={handleNext}>
 								<span className="hidden sm:inline">Continue</span>
 								<span className="sm:hidden">Next</span>
-								<Button.Icon as={ArrowRight} />
+								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 							</Button.Root>
 						) : (
 							<Button.Root
@@ -606,7 +606,7 @@ function Step1BasicInfo({ register, control, errors, watch, setValue, products }
 								</p>
 								<Button.Root variant="primary" size="small" asChild>
 									<Link href="/dashboard/products/new">
-										<Button.Icon as={Plus} />
+										<Button.Icon><Plus className="size-5" /></Button.Icon>
 										Add New Product
 									</Link>
 								</Button.Root>
@@ -991,7 +991,7 @@ function Step3Deliverables({
 											onClick={() => removeDeliverable(index)}
 											className="text-error-base hover:bg-error-lighter -mr-1"
 										>
-											<Button.Icon as={Trash} />
+											<Button.Icon><Trash className="size-5" /></Button.Icon>
 										</Button.Root>
 									)}
 								</div>
@@ -1063,7 +1063,7 @@ function Step3Deliverables({
 				}
 				className="w-full sm:w-auto"
 			>
-				<Button.Icon as={Plus} />
+				<Button.Icon><Plus className="size-5" /></Button.Icon>
 				Add Deliverable
 			</Button.Root>
 		</div>
@@ -1186,7 +1186,7 @@ function BackButton() {
 	const router = useRouter()
 	return (
 		<Button.Root variant="ghost" size="small" onClick={() => router.back()}>
-			<Button.Icon as={ArrowLeft} />
+			<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 		</Button.Root>
 	)
 }

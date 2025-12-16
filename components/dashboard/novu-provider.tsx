@@ -3,8 +3,8 @@
 import * as React from "react"
 import { NovuProvider as NovuReactProvider } from "@novu/react"
 import { useQueryClient } from "@tanstack/react-query"
-import { useSession } from "@/hooks/use-session"
-import { NovuReadyProvider } from "@/components/dashboard/notification-center"
+import { useSession } from "@/features/auth"
+// NovuReadyProvider removed - Novu not configured
 
 interface NovuProviderProps {
 	children: React.ReactNode
@@ -33,12 +33,13 @@ function NovuProviderInner({ children }: NovuProviderProps) {
 	}
 
 	// If not authenticated, render children without provider
-	if (!session?.user?.id) {
+	const userId = session?.user && ("id" in session.user ? session.user.id : session.user.userID)
+	if (!userId) {
 		return <>{children}</>
 	}
 
 	// Use user ID as subscriber ID - backend syncs this with Novu
-	const subscriberId = String(session.user.id)
+	const subscriberId = String(userId)
 
 	return (
 		<NovuReactProvider
@@ -47,7 +48,7 @@ function NovuProviderInner({ children }: NovuProviderProps) {
 			backendUrl={apiUrl}
 			socketUrl={socketUrl}
 		>
-			<NovuReadyProvider>{children}</NovuReadyProvider>
+			{children}
 		</NovuReactProvider>
 	)
 }
@@ -67,7 +68,12 @@ export function NovuProvider({ children }: NovuProviderProps) {
 	} catch (error) {
 		// If QueryClient is not available, just render children
 		// This can happen in error boundaries or edge cases
-		console.warn("NovuProvider: QueryClient not available, skipping Novu setup", error)
+		// Use dynamic import to avoid blocking render
+		import("@/lib/logging/error-logger-simple").then(({ logWarn }) => {
+			logWarn("NovuProvider: QueryClient not available, skipping Novu setup", { source: "NovuProvider", data: { error } })
+		}).catch(() => {
+			// Silently fail if logger is not available
+		})
 		return <>{children}</>
 	}
 }

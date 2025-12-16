@@ -1,4 +1,11 @@
 import type { Metadata } from "next"
+
+// Force dynamic rendering globally for all pages
+// This prevents prerendering issues with Button.Icon, function components, and useContext
+export const dynamic = "force-dynamic"
+export const fetchCache = "force-no-store"
+export const revalidate = 0
+
 import { Inter as FontSans } from "next/font/google"
 import localFont from "next/font/local"
 import "./globals.css"

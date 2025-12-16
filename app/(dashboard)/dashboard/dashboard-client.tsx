@@ -4,10 +4,10 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/utils/cn"
-import * as Button from "@/components/ui/button"
-import * as Badge from "@/components/ui/badge"
-import { Tracker } from "@/components/ui/tracker"
-import { SparkChart } from "@/components/ui/spark-chart"
+import * as Button from "@/components/ui/primitives/button"
+import * as Badge from "@/components/ui/data-display/badge"
+import { Tracker } from "@/components/ui/data-display/tracker"
+import { SparkChart } from "@/components/ui/data-display/spark-chart"
 import {
 	Wallet,
 	Megaphone,
@@ -25,16 +25,16 @@ import {
 	CheckCircle,
 	WarningCircle,
 } from "@phosphor-icons/react"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Skeleton } from "@/components/ui/primitives/skeleton"
 import { THRESHOLDS, ANIMATION } from "@/lib/types/constants"
-import type { organizations } from "@/lib/encore-client"
+import type { organizations } from "@/lib/api/encore-client"
 import { SimpleStatCard } from "@/components/dashboard/stat-card"
-import { CalloutWithActions, Callout } from "@/components/ui/callout"
-import * as Tooltip from "@/components/ui/tooltip"
+import { CalloutWithActions, Callout } from "@/components/ui/feedback/callout"
+import * as Tooltip from "@/components/ui/layout/tooltip"
 import { useRouter } from "next/navigation"
-import { useLocalStorage } from "@/hooks/use-local-storage"
+import { useLocalStorage } from "@/hooks/state"
 import { useOrganizationContext } from "@/contexts/organization-context"
-import { formatCurrency, formatCurrencyCompact } from "@/lib/format"
+import { formatCurrency, formatCurrencyCompact } from "@/lib/utils/format"
 
 // Calculate hours ago from a date - now takes currentTime to avoid hydration mismatch
 const getHoursAgo = (date: Date | string, currentTime: number): number => {
@@ -188,7 +188,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 									size="small"
 									onClick={handleStartOnboarding}
 								>
-									<Button.Icon as={ArrowRight} />
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 									Start Onboarding
 								</Button.Root>
 								<Button.Root
@@ -268,7 +268,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 								onClick={handleStartOnboarding}
 								className="mx-auto shadow-lg shadow-primary-base/20"
 							>
-								<Button.Icon as={ArrowRight} />
+								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 								Complete Onboarding
 							</Button.Root>
 						</div>
@@ -400,7 +400,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 											onClick={handleStartOnboarding}
 											className="shadow-md shadow-primary-base/20"
 										>
-											<Button.Icon as={ArrowRight} />
+											<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 											Start Onboarding
 										</Button.Root>
 										<Button.Root
@@ -491,7 +491,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 								onClick={handleStartOnboarding}
 								className="mx-auto shadow-lg shadow-primary-base/20"
 							>
-								<Button.Icon as={ArrowRight} />
+								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 								Complete Onboarding
 							</Button.Root>
 						</div>
@@ -537,7 +537,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 										onClick={handleStartOnboarding}
 										className="shadow-md shadow-primary-base/20"
 									>
-										<Button.Icon as={ArrowRight} />
+										<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 										Start Onboarding
 									</Button.Root>
 									<Button.Root
@@ -583,20 +583,20 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 										size="small" 
 										asChild 
 										className="shrink-0"
-										disabled={(organization as any)?.approvalStatus !== "approved"}
+										disabled={organization?.approvalStatus !== "approved"}
 									>
 										<Link href="/dashboard/campaigns/create">
-											<Button.Icon as={Plus} />
+											<Button.Icon><Plus className="size-5" /></Button.Icon>
 											<span className="hidden sm:inline">New Campaign</span>
 										</Link>
 									</Button.Root>
 								</div>
 							</Tooltip.Trigger>
-							{(organization as any)?.approvalStatus !== "approved" && (
+							{organization?.approvalStatus !== "approved" && (
 								<Tooltip.Content>
-									{(organization as any)?.approvalStatus === "draft" 
+									{organization?.approvalStatus === "draft" 
 										? "Complete onboarding and wait for admin approval"
-										: (organization as any)?.approvalStatus === "pending"
+										: organization?.approvalStatus === "pending"
 										? "Your application is under review"
 										: "Organization approval required"}
 								</Tooltip.Content>
@@ -607,9 +607,9 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 			</div>
 
 			{/* APPROVAL STATUS BANNER */}
-			{hasOrganization && organization && (organization as any)?.approvalStatus && (organization as any)?.approvalStatus !== "approved" && (
+			{hasOrganization && organization && organization.approvalStatus && organization.approvalStatus !== "approved" && (
 				<>
-					{(organization as any)?.approvalStatus === "draft" && (
+					{organization.approvalStatus === "draft" && (
 						<CalloutWithActions
 							variant="warning"
 							size="md"
@@ -622,7 +622,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 										size="small"
 										onClick={() => router.push("/onboarding")}
 									>
-										<Button.Icon as={ArrowRight} />
+										<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 										Continue Setup
 									</Button.Root>
 								</>
@@ -630,7 +630,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 						>
 							<div className="space-y-2">
 								<p>Finish your organization profile to start creating campaigns. Complete GST verification and submit for approval.</p>
-								{!(organization as any)?.gstVerified && (
+								{!organization.gstVerified && (
 									<div className="flex items-center gap-2 text-paragraph-xs text-warning-base">
 										<WarningCircle className="size-4" />
 										<span>GST verification is required before submitting for approval</span>
@@ -639,7 +639,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 							</div>
 						</CalloutWithActions>
 					)}
-					{(organization as any)?.approvalStatus === "pending" && (
+					{organization.approvalStatus === "pending" && (
 						<Callout
 							variant="info"
 							size="md"
@@ -654,7 +654,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 									<Clock className="size-4" />
 									<span>Typically takes 1-2 business days</span>
 								</div>
-								{(organization as any)?.gstVerified && (
+								{organization.gstVerified && (
 									<div className="flex items-center gap-2 text-paragraph-xs text-success-base">
 										<CheckCircle className="size-4" />
 										<span>GST verification completed</span>
@@ -663,7 +663,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 							</div>
 						</Callout>
 					)}
-					{(organization as any)?.approvalStatus === "rejected" && (
+					{organization.approvalStatus === "rejected" && (
 						<CalloutWithActions
 							variant="error"
 							size="md"
@@ -679,7 +679,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 											
 											setIsResubmitting(true)
 											try {
-												const { resubmitOrganizationForApproval } = await import("@/app/actions/onboarding")
+												const { resubmitOrganizationForApproval } = await import("@/app/actions")
 												const result = await resubmitOrganizationForApproval(organization.id)
 												
 												if (result.success) {
@@ -687,7 +687,10 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 													router.push("/onboarding")
 												} else {
 													// Show error - user can still navigate manually
-													console.error("Resubmit failed:", result.error)
+													const errorMsg = !result.success && "error" in result 
+														? (typeof result.error === "string" ? result.error : (result.error as Error)?.message || String(result.error)) 
+														: "Unknown error"
+													console.error("Resubmit failed:", errorMsg)
 													router.push("/onboarding")
 												}
 											} catch (error) {
@@ -699,7 +702,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 											}
 										}}
 									>
-										<Button.Icon as={ArrowRight} />
+										<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 										{isResubmitting ? "Processing..." : "Edit & Resubmit"}
 									</Button.Root>
 								</>
@@ -1103,7 +1106,7 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
 							</p>
 						</div>
 						<Button.Root variant="primary" size="medium" onClick={handleStartOnboarding}>
-							<Button.Icon as={ArrowRight} />
+							<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 							Start Onboarding
 						</Button.Root>
 					</div>

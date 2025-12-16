@@ -3,9 +3,9 @@
 import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/utils/cn"
-import * as Button from "@/components/ui/button"
-import * as Card from "@/components/ui/card"
-import { Logo } from "@/components/ui/logo"
+import * as Button from "@/components/ui/primitives/button"
+import * as Card from "@/components/ui/data-display/card"
+import { Logo } from "@/components/ui/branding/logo"
 import { MetallicLogo } from "@/components/dashboard/metallic-logo"
 import {
 	ArrowRight,
@@ -72,7 +72,7 @@ function Navigation() {
 						<Button.Root variant="primary" size="small" asChild>
 							<Link href="/sign-up">
 								Get Started
-								<Button.Icon as={ArrowRight} />
+								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 							</Link>
 						</Button.Root>
 
@@ -151,12 +151,12 @@ function HeroSection() {
 							<Button.Root variant="primary" size="medium" asChild>
 								<Link href="/sign-up">
 									Start Free Trial
-									<Button.Icon as={ArrowRight} />
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 								</Link>
 							</Button.Root>
 							<Button.Root variant="neutral" size="medium" asChild>
 								<Link href="#demo">
-									<Button.Icon as={Play} />
+									<Button.Icon><Play className="size-5" /></Button.Icon>
 									Watch Demo
 								</Link>
 							</Button.Root>
@@ -585,7 +585,7 @@ function AnalyticsSection() {
 							<Button.Root variant="primary" size="medium" asChild>
 								<Link href="/sign-up">
 									Try Dashboard Free
-									<Button.Icon as={ArrowRight} />
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 								</Link>
 							</Button.Root>
 						</div>
@@ -905,7 +905,7 @@ function CTASection() {
 						>
 							<Link href="/sign-up">
 								Get Started Free
-								<Button.Icon as={ArrowRight} />
+								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 							</Link>
 						</Button.Root>
 						<Button.Root

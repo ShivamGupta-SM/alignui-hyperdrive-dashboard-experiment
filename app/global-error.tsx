@@ -1,8 +1,8 @@
-"use client"
+// Minimal global-error.tsx - completely static, no React hooks, no context
+// This prevents build-time useContext errors
+// Next.js requires this file to exist for error handling
 
-import { useEffect } from "react"
-import { PageError } from "@/components/error-boundary"
-import { handleAuthError, isAuthError } from "@/lib/error-handler"
+"use client"
 
 export default function GlobalError({
 	error,
@@ -11,44 +11,29 @@ export default function GlobalError({
 	error: Error & { digest?: string }
 	reset: () => void
 }) {
-	useEffect(() => {
-		// Enhanced error logging with proper logging utility
-		import("@/lib/error-logger-simple").then(({ logError }) => {
-			logError(error, {
-				source: "GlobalErrorBoundary",
-				data: {
-					name: error.name,
-					message: error.message,
-					stack: error.stack,
-					digest: error.digest,
-					timestamp: new Date().toISOString(),
-				},
-			})
-		})
-
-		// Handle session revoke/auth errors globally
-		if (isAuthError(error)) {
-			handleAuthError(error)
-		}
-	}, [error])
-
-	// If it's an auth error, show loading while redirecting
-	if (isAuthError(error)) {
-		return (
-			<html>
-				<body>
-					<div className="flex min-h-screen flex-col items-center justify-center">
-						<p className="text-paragraph-sm text-text-sub-600">Redirecting to login...</p>
-					</div>
-				</body>
-			</html>
-		)
-	}
-
+	// Return completely static HTML - no React, no hooks, no context, no imports
+	// This prevents Next.js from analyzing React hooks/context during build
 	return (
 		<html>
 			<body>
-				<PageError error={error} reset={reset} />
+				<div style={{ display: "flex", minHeight: "100vh", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem" }}>
+					<h1 style={{ fontSize: "1.5rem", fontWeight: "600", marginBottom: "0.5rem" }}>An error occurred</h1>
+					<p style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "1rem" }}>Please refresh the page or contact support.</p>
+					<button
+						onClick={reset}
+						style={{
+							padding: "0.5rem 1rem",
+							backgroundColor: "#3b82f6",
+							color: "white",
+							border: "none",
+							borderRadius: "0.375rem",
+							cursor: "pointer",
+							fontSize: "0.875rem",
+						}}
+					>
+						Try again
+					</button>
+				</div>
 			</body>
 		</html>
 	)

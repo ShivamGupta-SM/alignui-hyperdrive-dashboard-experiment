@@ -2,9 +2,9 @@
 
 import * as React from "react"
 import Image from "next/image"
-import * as Badge from "@/components/ui/badge"
-import * as ProgressBar from "@/components/ui/progress-bar"
-import * as Dropdown from "@/components/ui/dropdown"
+import * as Badge from "@/components/ui/data-display/badge"
+import * as ProgressBar from "@/components/ui/primitives/progress-bar"
+import * as Dropdown from "@/components/ui/layout/dropdown"
 import {
 	DotsThree,
 	ChartBar,
@@ -19,9 +19,9 @@ import {
 	Image as ImageIcon,
 	User,
 } from "@phosphor-icons/react"
-import type { campaigns } from "@/lib/encore-browser"
+import type { campaigns } from "@/lib/api/encore-browser"
 import { CAMPAIGN_STATUS_CONFIG } from "@/lib/constants"
-import { formatDateShort } from "@/lib/format"
+import { formatDateShort } from "@/lib/utils/format"
 
 // Accept both Campaign and CampaignWithStats
 type CampaignData = campaigns.Campaign | campaigns.CampaignWithStats

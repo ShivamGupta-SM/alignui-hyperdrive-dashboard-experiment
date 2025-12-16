@@ -1,9 +1,8 @@
 import Link from "next/link"
-import ThemeSwitch from "@/components/theme-switch"
-import { Logo } from "@/components/ui/logo"
+import ThemeSwitch from "@/components/shared/theme-switch"
+import { Logo } from "@/components/ui/branding/logo"
 
 // Auth pages require dynamic rendering due to client-side providers
-// Note: dynamic export removed - incompatible with cacheComponents
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
 	return (

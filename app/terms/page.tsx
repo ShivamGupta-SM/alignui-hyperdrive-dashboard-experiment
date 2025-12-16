@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import * as Button from "@/components/ui/button"
+import * as Button from "@/components/ui/primitives/button"
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr"
 
 export const metadata: Metadata = {
@@ -15,7 +15,7 @@ export default function TermsPage() {
 				<div className="container mx-auto max-w-4xl px-6 py-4">
 					<Button.Root variant="ghost" size="small" asChild>
 						<Link href="/">
-							<Button.Icon as={ArrowLeft} />
+							<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 							Back to Home
 						</Link>
 					</Button.Root>

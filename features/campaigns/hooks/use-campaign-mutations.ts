@@ -14,7 +14,7 @@ import * as campaignActions from '../actions/campaigns'
 import type {
   Campaign,
 } from '../types'
-import type { campaigns } from '@/lib/encore-client'
+import type { campaigns } from "@/lib/api/encore-client"
 
 /**
  * Hook: Create campaign mutation

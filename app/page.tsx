@@ -1,9 +1,9 @@
 import type { Metadata } from "next"
 import Link from 'next/link'
 import { cn } from '@/utils/cn'
-import * as Button from '@/components/ui/button'
-import { Logo } from '@/components/ui/logo'
-import { Tracker } from '@/components/ui/tracker'
+import * as Button from "@/components/ui/primitives/button"
+import { Logo } from "@/components/ui/branding/logo"
+import { Tracker } from "@/components/ui/data-display/tracker"
 import { MARKETING_STATS, ANIMATION } from '@/lib/types/constants'
 import { NavigationClient } from '@/components/marketing/navigation-client'
 
@@ -32,7 +32,7 @@ import {
   Target,
   Clock,
   CurrencyInr,
-} from '@phosphor-icons/react'
+} from '@phosphor-icons/react/dist/ssr'
 
 export const metadata: Metadata = {
   title: "Hypedrive - Influencer Marketing Platform",
@@ -53,7 +53,6 @@ export const metadata: Metadata = {
   },
 }
 
-// Note: dynamic and revalidate exports removed - incompatible with cacheComponents
 
 
 // Hero Section
@@ -89,12 +88,16 @@ function HeroSection() {
             <Button.Root variant="primary" size="medium" asChild className="w-full sm:w-auto">
               <Link href="/sign-up">
                 Start Free Trial
-                <Button.Icon as={ArrowRight} />
+                <Button.Icon>
+                  <ArrowRight className="size-5" />
+                </Button.Icon>
               </Link>
             </Button.Root>
             <Button.Root variant="basic" size="medium" asChild className="w-full sm:w-auto">
               <Link href="#demo">
-                <Button.Icon as={Play} />
+                <Button.Icon>
+                  <Play className="size-5" />
+                </Button.Icon>
                 Watch Demo
               </Link>
             </Button.Root>
@@ -441,7 +444,9 @@ function MetricsSection() {
               <Button.Root variant="primary" size="medium" asChild>
                 <Link href="/sign-up">
                   Try Dashboard Free
-                  <Button.Icon as={ArrowRight} />
+                  <Button.Icon>
+                  <ArrowRight className="size-5" />
+                </Button.Icon>
                 </Link>
               </Button.Root>
             </div>
@@ -602,7 +607,9 @@ function PricingSection() {
               >
                 <Link href={plan.name === 'Enterprise' ? '/contact' : '/sign-up'}>
                   {plan.cta}
-                  <Button.Icon as={ArrowRight} />
+                  <Button.Icon>
+                  <ArrowRight className="size-5" />
+                </Button.Icon>
                 </Link>
               </Button.Root>
             </div>
@@ -667,7 +674,9 @@ function CTASection() {
               <Button.Root variant="primary" size="medium" asChild className="w-full sm:w-auto">
                 <Link href="/sign-up">
                   Get Started Free
-                  <Button.Icon as={ArrowRight} />
+                  <Button.Icon>
+                  <ArrowRight className="size-5" />
+                </Button.Icon>
                 </Link>
               </Button.Root>
               <Button.Root variant="basic" size="medium" asChild className="w-full sm:w-auto border-white/20 text-white hover:bg-white/5">

@@ -1,11 +1,9 @@
-"use cache"
-
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { getInvoicesData, getOrganizationIdOrNull } from "@/lib/ssr-data"
 import { InvoicesClient } from "./invoices-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
-import { logError } from "@/lib/error-logger-simple"
+import { logError } from "@/lib/logging/error-logger-simple"
 
 export const metadata: Metadata = {
 	title: "Invoices",
@@ -16,13 +14,12 @@ export const metadata: Metadata = {
 	},
 }
 
-// Note: dynamic and revalidate exports removed - incompatible with cacheComponents
 
 async function InvoicesData() {
 	const orgId = await getOrganizationIdOrNull()
 
 	if (!orgId) {
-		return <InvoicesClient initialData={{ invoices: [], data: [], total: 0 }} />
+		return <InvoicesClient initialData={{ invoices: [] }} />
 	}
 
 	try {
@@ -30,7 +27,7 @@ async function InvoicesData() {
 		return <InvoicesClient initialData={data} />
 	} catch (error) {
 		logError(error, { source: "InvoicesPage", data: { action: "fetch invoices data" } })
-		return <InvoicesClient initialData={{ invoices: [], data: [], total: 0 }} />
+		return <InvoicesClient initialData={{ invoices: [] }} />
 	}
 }
 

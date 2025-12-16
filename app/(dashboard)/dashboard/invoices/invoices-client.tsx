@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import * as Button from '@/components/ui/button'
-import * as Input from '@/components/ui/input'
-import * as Modal from '@/components/ui/modal'
-import * as BottomSheet from '@/components/ui/bottom-sheet'
-import * as Tooltip from '@/components/ui/tooltip'
-import * as EmptyState from '@/components/claude-generated-components/empty-state'
-import { Logo } from '@/components/ui/logo'
+import * as Button from "@/components/ui/primitives/button"
+import * as Input from "@/components/ui/forms/input"
+import * as Modal from "@/components/ui/layout/modal"
+import * as BottomSheet from "@/components/ui/layout/bottom-sheet"
+import * as Tooltip from "@/components/ui/layout/tooltip"
+import * as EmptyState from "@/components/ui/feedback/empty-state"
+import { Logo } from "@/components/ui/branding/logo"
 import {
   DownloadSimple,
   Printer,
@@ -18,15 +18,15 @@ import {
   Check,
   X,
   SpinnerGap,
-} from '@phosphor-icons/react/dist/ssr'
+} from '@phosphor-icons/react'
 import { cn } from '@/utils/cn'
 import { useInvoiceSearchParams } from '@/hooks'
 import { useDebounceValue, useMediaQuery } from 'usehooks-ts'
-import { exportInvoices } from '@/lib/excel'
+import { exportInvoices } from '@/lib/utils/excel'
 import { toast } from 'sonner'
-import type { invoices } from '@/lib/encore-browser'
-import { formatCurrency, formatCurrencyCompact, formatDateShort, formatDateMedium } from '@/lib/format'
-import { logError } from '@/lib/error-logger-simple'
+import type { invoices } from "@/lib/api/encore-browser"
+import { formatCurrency, formatCurrencyCompact, formatDateShort, formatDateMedium } from "@/lib/utils/format"
+import { logError } from "@/lib/logging/error-logger-simple"
 import { TIMEOUTS } from '@/lib/constants'
 
 type Invoice = invoices.Invoice
@@ -110,39 +110,45 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
   const handleExportEnrollments = async (invoiceId: string) => {
     setIsExportingEnrollments(true)
     try {
-      const { getInvoiceEnrollmentIds } = await import('@/app/actions/invoices')
+      const { getInvoiceEnrollmentIds } = await import('@/app/actions')
       const result = await getInvoiceEnrollmentIds(invoiceId)
       
-      if (!result.success || !result.enrollmentIds || result.enrollmentIds.length === 0) {
-        toast.error(result.error || 'No enrollments found for this invoice')
+      if (!result.success || !result.data.enrollmentIds || result.data.enrollmentIds.length === 0) {
+        const errorMsg = result.success ? 'No enrollments found for this invoice' : (result.error instanceof Error ? result.error.message : 'No enrollments found for this invoice')
+        toast.error(errorMsg)
         return
       }
 
-      // Fetch enrollments individually (or use existing data if available)
-      const { getEncoreBrowserClient } = await import('@/lib/encore-browser')
-      const client = getEncoreBrowserClient()
+      // Fetch enrollments using server action (batch fetch)
+      const { getEnrollmentsByIds } = await import('@/features/invoices')
+      const enrollmentsResult = await getEnrollmentsByIds(result.data.enrollmentIds)
       
-      // Fetch enrollments by IDs
-      const enrollmentPromises = result.enrollmentIds.map(id => 
-        client.enrollments.getEnrollment(id).catch((error) => {
-          logError(error, { source: "InvoicesClient", data: { action: "getEnrollment", enrollmentId: id } })
-          return null
-        })
-      )
-      const results = await Promise.allSettled(enrollmentPromises)
-      const enrollments = results
-        .map((result) => result.status === "fulfilled" ? result.value : null)
-        .filter((e): e is NonNullable<typeof e> => e !== null)
-      
-      if (enrollments.length === 0) {
-        toast.error('Failed to fetch enrollment data')
+      if (!enrollmentsResult.success || !enrollmentsResult.data || enrollmentsResult.data.length === 0) {
+        const errorMsg = !enrollmentsResult.success && enrollmentsResult.error instanceof Error ? enrollmentsResult.error.message : 'Failed to fetch enrollment data'
+        toast.error(errorMsg)
         return
       }
+
+      const enrollments = enrollmentsResult.data
 
       // Export to CSV
-      const { exportToCSV } = await import('@/lib/excel')
+      const { exportToCSV } = await import('@/lib/utils/excel')
       exportToCSV(
-        enrollments.map((e) => {
+        enrollmentsResult.data.map((e: {
+          id: string
+          orderId: string | null
+          orderValue: number
+          lockedBillRate: number | null
+          lockedPlatformFee: number | null
+          lockedRebatePercentage: number | null
+          lockedBonusAmount: number | null
+          status: string
+          shopperId: string
+          purchaseDate: string | null
+          submittedAt: string | null
+          approvedAt: string | null
+          createdAt: string
+        }) => {
           const billAmount = e.orderValue * ((e.lockedBillRate ?? 0) / 100)
           const gstAmount = billAmount * 0.18
           const platformFee = e.orderValue * ((e.lockedPlatformFee ?? 0) / 100)
@@ -170,7 +176,7 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
             createdAt: new Date(e.createdAt).toLocaleDateString(),
           }
         }),
-        `invoice-${result.invoiceNumber}-enrollments-${referenceDate ? referenceDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}`,
+        `invoice-${result.data.invoiceNumber}-enrollments-${referenceDate ? referenceDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}`,
         [
           { key: 'enrollmentId', header: 'Enrollment ID' },
           { key: 'orderId', header: 'Order ID' },
@@ -208,14 +214,15 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
       const { generateInvoicePDF } = await import('@/app/actions')
       const result = await generateInvoicePDF(invoice.id)
       
-      if (!result.success || !result.pdfUrl) {
-        throw new Error(result.error || 'Failed to generate PDF')
+      if (!result.success || !result.data.pdfUrl) {
+        const errorMsg = !result.success && result.error instanceof Error ? result.error.message : 'Failed to generate PDF'
+        throw new Error(errorMsg)
       }
 
       // Fetch the PDF from the URL
       // Note: Direct fetch is acceptable for file downloads (blob responses)
       // Could be wrapped in React Query for caching if needed
-      const response = await fetch(result.pdfUrl, {
+      const response = await fetch(result.data.pdfUrl, {
         method: 'GET',
         headers: {
           'Accept': 'application/pdf',
@@ -319,7 +326,7 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button.Root variant="basic" size="small" onClick={handleExport} className="shrink-0">
-              <Button.Icon as={DownloadSimple} />
+              <Button.Icon><DownloadSimple className="size-5" /></Button.Icon>
               <span className="hidden sm:inline">Export</span>
             </Button.Root>
           </Tooltip.Trigger>
@@ -501,7 +508,7 @@ function InvoiceItem({
         </div>
 
         <Button.Root variant="ghost" size="xsmall" onClick={(e) => { e.stopPropagation() }} aria-label="Download invoice">
-          <Button.Icon as={DownloadSimple} />
+          <Button.Icon><DownloadSimple className="size-5" /></Button.Icon>
         </Button.Root>
       </div>
     </>
@@ -622,11 +629,17 @@ function InvoiceContent({
             onClick={() => onDownloadPDF(invoice)}
             disabled={isDownloading}
           >
-            <Button.Icon as={isDownloading ? SpinnerGap : DownloadSimple} className={isDownloading ? 'animate-spin' : ''} />
+            <Button.Icon>
+              {isDownloading ? (
+                <SpinnerGap className="size-5 animate-spin" />
+              ) : (
+                <DownloadSimple className="size-5" />
+              )}
+            </Button.Icon>
             Download PDF
           </Button.Root>
           <Button.Root variant="basic" size="xsmall" onClick={() => window.print()}>
-            <Button.Icon as={Printer} />
+            <Button.Icon><Printer className="size-5" /></Button.Icon>
             Print
           </Button.Root>
           {invoice.enrollmentCount > 0 && (
@@ -636,7 +649,13 @@ function InvoiceContent({
               onClick={() => onExportEnrollments(invoice.id)}
               disabled={isExportingEnrollments}
             >
-              <Button.Icon as={isExportingEnrollments ? SpinnerGap : DownloadSimple} className={isExportingEnrollments ? 'animate-spin' : ''} />
+              <Button.Icon>
+                {isExportingEnrollments ? (
+                  <SpinnerGap className="size-5 animate-spin" />
+                ) : (
+                  <DownloadSimple className="size-5" />
+                )}
+              </Button.Icon>
               Export Enrollments
             </Button.Root>
           )}
@@ -684,7 +703,7 @@ function InvoiceModal({
             <Logo forceTheme="light" width={90} height={22} />
             <BottomSheet.Close asChild>
               <Button.Root variant="ghost" size="xsmall" aria-label="Close invoice preview">
-                <Button.Icon as={X} />
+                <Button.Icon><X className="size-5" /></Button.Icon>
               </Button.Root>
             </BottomSheet.Close>
           </div>
@@ -714,7 +733,7 @@ function InvoiceModal({
           <Logo forceTheme="light" width={90} height={22} />
           <Modal.Close asChild>
             <Button.Root variant="ghost" size="xsmall" aria-label="Close invoice preview">
-              <Button.Icon as={X} />
+              <Button.Icon><X className="size-5" /></Button.Icon>
             </Button.Root>
           </Modal.Close>
         </div>

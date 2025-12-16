@@ -8,10 +8,10 @@
 
 "use server"
 
-import { revalidatePath, updateTag } from "next/cache"
-import { getEncoreClient, handleAPIError } from "@/lib/encore"
-import { handleServerAuthError } from "@/lib/error-handler"
-import type { campaigns } from "@/lib/encore-client"
+import { revalidatePath, revalidateTag } from "next/cache"
+import { getEncoreClient, handleAPIError } from "@/lib/api/encore"
+import { handleServerAuthError } from "@/lib/errors/error-handler"
+import type { campaigns } from "@/lib/api/encore-client"
 import type { Result } from "@/shared/lib/errors/types"
 import type { Campaign } from "../types"
 
@@ -42,8 +42,8 @@ export async function createCampaign(
   try {
     const response = await client.campaigns.createCampaign(data as campaigns.CreateCampaignRequest)
     // Immediate invalidation (Next.js 16)
-    updateTag("campaigns")
-    updateTag("dashboard")
+    revalidateTag("campaigns")
+    revalidateTag("dashboard")
     // Also revalidate paths for compatibility
     revalidatePath("/dashboard/campaigns")
     return { success: true, data: response }
@@ -51,7 +51,8 @@ export async function createCampaign(
     // Handle auth errors (session revoked) - redirects to login if 401/403
     handleServerAuthError(error)
     // If not auth error, return error response
-    return { success: false, error: handleAPIError(error) }
+    const apiError = handleAPIError(error)
+    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
   }
 }
 
@@ -78,7 +79,8 @@ export async function updateCampaign(
     return { success: true, data: undefined }
   } catch (error: unknown) {
     handleServerAuthError(error)
-    return { success: false, error: handleAPIError(error) }
+    const apiError = handleAPIError(error)
+    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
   }
 }
 
@@ -97,15 +99,16 @@ export async function deleteCampaign(id: string): Promise<Result<void>> {
   try {
     await client.campaigns.deleteCampaign(id)
     // Immediate invalidation (Next.js 16)
-    updateTag("campaigns")
-    updateTag(`campaign-${id}`)
-    updateTag("dashboard")
+    revalidateTag("campaigns")
+    revalidateTag(`campaign-${id}`)
+    revalidateTag("dashboard")
     // Also revalidate paths for compatibility
     revalidatePath("/dashboard/campaigns")
     return { success: true, data: undefined }
   } catch (error: unknown) {
     handleServerAuthError(error)
-    return { success: false, error: handleAPIError(error) }
+    const apiError = handleAPIError(error)
+    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
   }
 }
 
@@ -140,7 +143,8 @@ export async function duplicateCampaign(id: string): Promise<Result<Campaign>> {
     return { success: true, data: newCampaign }
   } catch (error: unknown) {
     handleServerAuthError(error)
-    return { success: false, error: handleAPIError(error) }
+    const apiError = handleAPIError(error)
+    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
   }
 }
 
@@ -224,7 +228,8 @@ export async function pauseCampaign(
     return { success: true, data: undefined }
   } catch (error: unknown) {
     handleServerAuthError(error)
-    return { success: false, error: handleAPIError(error) }
+    const apiError = handleAPIError(error)
+    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
   }
 }
 
@@ -247,7 +252,8 @@ export async function resumeCampaign(id: string): Promise<Result<void>> {
     return { success: true, data: undefined }
   } catch (error: unknown) {
     handleServerAuthError(error)
-    return { success: false, error: handleAPIError(error) }
+    const apiError = handleAPIError(error)
+    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
   }
 }
 
@@ -270,7 +276,8 @@ export async function endCampaign(id: string): Promise<Result<void>> {
     return { success: true, data: undefined }
   } catch (error: unknown) {
     handleServerAuthError(error)
-    return { success: false, error: handleAPIError(error) }
+    const apiError = handleAPIError(error)
+    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
   }
 }
 
@@ -306,7 +313,8 @@ export async function exportCampaignEnrollments(
     }
   } catch (error: unknown) {
     handleServerAuthError(error)
-    return { success: false, error: handleAPIError(error) }
+    const apiError = handleAPIError(error)
+    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
   }
 }
 

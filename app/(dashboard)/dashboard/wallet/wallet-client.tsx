@@ -1,16 +1,16 @@
 "use client"
 
-import * as React from "react"
-import * as Button from "@/components/ui/button"
-import * as StatusBadge from "@/components/ui/status-badge"
-import * as Select from "@/components/ui/select"
-import * as Modal from "@/components/ui/modal"
-import * as BottomSheet from "@/components/ui/bottom-sheet"
-import * as Input from "@/components/ui/input"
-import * as Textarea from "@/components/ui/textarea"
-import * as ProgressCircle from "@/components/ui/progress-circle"
-import * as Tooltip from "@/components/ui/tooltip"
-import { Callout, CalloutWithActions } from "@/components/ui/callout"
+import { useState, useEffect, useCallback, useMemo, useRef, useTransition } from "react"
+import * as Button from "@/components/ui/primitives/button"
+import * as StatusBadge from "@/components/ui/data-display/status-badge"
+import * as Select from "@/components/ui/forms/select"
+import * as Modal from "@/components/ui/layout/modal"
+import * as BottomSheet from "@/components/ui/layout/bottom-sheet"
+import * as Input from "@/components/ui/forms/input"
+import * as Textarea from "@/components/ui/forms/textarea"
+import { ProgressCircle } from "@/components/ui/primitives/progress-circle"
+import * as Tooltip from "@/components/ui/layout/tooltip"
+import { Callout, CalloutWithActions } from "@/components/ui/feedback/callout"
 import {
 	Plus,
 	DownloadSimple,
@@ -27,7 +27,7 @@ import {
 	CheckCircle,
 	ArrowRight,
 	Warning,
-} from "@phosphor-icons/react/dist/ssr"
+} from "@phosphor-icons/react"
 import {
 	VisaIcon,
 	MastercardIcon,
@@ -35,27 +35,30 @@ import {
 	DiscoverIcon,
 	PaypalIcon,
 	UnionPayIcon,
-} from "@/components/claude-generated-components/payment-icons"
+} from "@/components/ui/branding/payment-icons"
 import { cn } from "@/utils/cn"
-import { creditRequestSchema, type CreditRequestFormData } from "@/lib/validations"
+import { creditRequestSchema, type CreditRequestFormData } from "@/lib/utils/validations"
 import { useWalletSearchParams, useCopyWithField } from "@/hooks"
 import { useMediaQuery, useLocalStorage } from "usehooks-ts"
 import { useRouter } from "next/navigation"
 import { THRESHOLDS } from "@/lib/types/constants"
-import { exportTransactions } from "@/lib/excel"
+import { exportTransactions } from "@/lib/utils/excel"
 import { TRANSACTION_TYPE_CONFIG } from "@/lib/constants"
+import { formatCurrency, formatCurrencyCompact, formatDateShort } from "@/lib/utils/format"
 import { toast } from "sonner"
-import { requestCreditAction, cancelWithdrawal } from "@/app/actions/wallet"
+import { requestCredit } from "@/features/wallet"
+import { cancelWithdrawal } from "@/features/wallet/lib/api"
+import type { Result } from "@/shared/lib/errors/types"
 import { useActionState } from "react"
 import { useFormStatus } from "react-dom"
-import { formatCurrency, formatCurrencyCompact, formatDateShort } from "@/lib/format"
+import { useOrganizationContext } from "@/contexts/organization-context"
 
 // Types
-import type { wallets } from "@/lib/encore-client"
-import type { WalletTransaction } from "@/hooks/use-wallet"
-import type { Wallet as WalletData } from "@/hooks/use-wallet"
+import type { wallets } from "@/lib/api/encore-client"
+import type { WalletTransaction, Wallet as WalletData } from "@/features/wallet"
 
-const defaultWallet: WalletData = {
+// Default wallet - createdAt will be set when used
+const getDefaultWallet = (): WalletData => ({
 	id: "",
 	holderId: "",
 	holderType: "organization",
@@ -66,27 +69,31 @@ const defaultWallet: WalletData = {
 	createdAt: new Date().toISOString(),
 	creditLimit: 0,
 	creditUtilized: 0,
-}
+})
 
 interface WalletClientProps {
 	initialData?: {
-		balance: wallets.Wallet
+		balance: wallets.Wallet | null
 		withdrawals: wallets.Withdrawal[]
 		transactions: wallets.WalletTransaction[]
 		activeHolds: wallets.ActiveHold[]
-		stats?: wallets.WithdrawalStats
-	} | null
-	hasOrganization?: boolean
+		stats?: wallets.WithdrawalStats | null
+	} | null | undefined
 }
 
-export function WalletClient({ initialData, hasOrganization = true }: WalletClientProps) {
+// Industry Standard: Use context instead of props
+export function WalletClient({ initialData }: WalletClientProps) {
 	const router = useRouter()
-	const [isFundModalOpen, setIsFundModalOpen] = React.useState(false)
-	const [isCreditRequestModalOpen, setIsCreditRequestModalOpen] = React.useState(false)
-	const [activeSection, setActiveSection] = React.useState<"transactions" | "withdrawals">(
+	
+	// Industry Standard: Always use context, never props
+	const { hasOrganization, isLoading: isOrgLoading } = useOrganizationContext()
+	
+	const [isFundModalOpen, setIsFundModalOpen] = useState(false)
+	const [isCreditRequestModalOpen, setIsCreditRequestModalOpen] = useState(false)
+	const [activeSection, setActiveSection] = useState<"transactions" | "withdrawals">(
 		"transactions"
 	)
-	const [isPending, startTransition] = React.useTransition()
+	const [isPending, startTransition] = useTransition()
 
 	// Dismiss onboarding alert state (persisted in localStorage)
 	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
@@ -98,15 +105,27 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 	const [searchParams, setSearchParams] = useWalletSearchParams()
 	const transactionFilter = searchParams.type
 
+	// Industry Standard: Check loading state first
+	if (isOrgLoading) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				<div className="animate-pulse">
+					<div className="h-8 w-48 bg-bg-soft-200 rounded mb-4" />
+					<div className="h-40 bg-bg-soft-200 rounded-xl" />
+				</div>
+			</div>
+		)
+	}
+
 	// Show onboarding alert if no organization
 	const showOnboardingAlert = !hasOrganization && !dismissedOnboardingAlert
 
 	// Use server data directly
-	const wallet: WalletData = initialData
+	const wallet: WalletData = initialData?.balance
 		? {
 				...initialData.balance,
 			}
-		: defaultWallet
+		: getDefaultWallet()
 
 	const transactions = initialData?.transactions ?? []
 	const activeHolds = initialData?.activeHolds ?? []
@@ -131,7 +150,7 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 									size="small"
 									onClick={() => router.push("/onboarding")}
 								>
-									<Button.Icon as={ArrowRight} />
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 									Start Onboarding
 								</Button.Root>
 								<Button.Root
@@ -174,7 +193,7 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 								</p>
 							</div>
 							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
-								<Button.Icon as={ArrowRight} />
+								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 								Start Onboarding
 							</Button.Root>
 						</div>
@@ -185,12 +204,12 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 	}
 
 	// nuqs: Update URL when filter changes
-	const handleFilterChange = React.useCallback((value: string) => {
-		setSearchParams({ type: value as typeof transactionFilter, page: 1 })
-	}, [setSearchParams, transactionFilter])
+	const handleFilterChange = useCallback((value: string) => {
+		setSearchParams({ type: value as "all" | "credit" | "hold_created" | "hold_committed" | "hold_voided" | "withdrawal" | "refund", page: 1 })
+	}, [setSearchParams])
 
 	// Excel export handler
-	const handleExport = React.useCallback(() => {
+	const handleExport = useCallback(() => {
 		try {
 			exportTransactions(transactions)
 			toast.success("Transactions exported to Excel")
@@ -199,14 +218,10 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 		}
 	}, [transactions])
 
-	// Use centralized formatting functions from lib/format.ts
-	const formatCurrencyLocal = (amount: number | undefined | null): string => formatCurrency(amount ?? 0)
+	// Use centralized formatting functions from lib/format.ts directly
+	// Use formatCurrency directly from lib/format
 	const formatCurrencyShort = (amount: number | undefined | null): string => formatCurrencyCompact(amount ?? 0)
-	const formatDateLocal = (date: Date | string): string => formatDateShort(date)
-	
-	// Alias for backward compatibility
-	const formatCurrency = formatCurrencyLocal
-	const formatDate = formatDateLocal
+	const formatDate = (date: Date | string): string => formatDateShort(date)
 
 	const formatTime = (date: Date | string) => {
 		return new Date(date).toLocaleTimeString("en-IN", {
@@ -216,14 +231,15 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 		})
 	}
 
-	const creditUtilization = React.useMemo(() => {
+	const creditUtilization = useMemo(() => {
 		if (!wallet.creditLimit || wallet.creditLimit <= 0) return 0
 		// Clamp to 100% max to prevent showing >100% when credit utilized exceeds limit
 		const percentage = ((wallet.creditUtilized ?? 0) / wallet.creditLimit) * 100
 		return Math.min(Math.round(percentage), 100)
 	}, [wallet.creditLimit, wallet.creditUtilized])
 
-	const filteredTransactions = React.useMemo(() => {
+	const filteredTransactions = useMemo(() => {
+		if (!transactions || !Array.isArray(transactions)) return []
 		if (transactionFilter === "all") return transactions
 		return transactions.filter((t) => t.type === transactionFilter)
 	}, [transactions, transactionFilter])
@@ -243,39 +259,43 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 		}
 	}
 
-	const totalHeld = activeHolds.reduce((acc, h) => acc + h.amount, 0)
+	const totalHeld = useMemo(() => {
+		if (!activeHolds || !Array.isArray(activeHolds)) return 0
+		return activeHolds.reduce((acc, h) => acc + (h.amount || 0), 0)
+	}, [activeHolds])
 
-	const handleCancelWithdrawal = React.useCallback((id: string) => {
+	const handleCancelWithdrawal = useCallback((id: string) => {
 		startTransition(async () => {
 			try {
-				const result = await cancelWithdrawal(id)
-				if (result.success) {
-					toast.success("Withdrawal cancelled successfully")
-					router.refresh()
-				} else {
-					toast.error("Failed to cancel withdrawal")
-				}
+				await cancelWithdrawal(id)
+				toast.success("Withdrawal cancelled successfully")
+				router.refresh()
 			} catch (e) {
-				toast.error("An error occurred")
+				toast.error(e instanceof Error ? e.message : "Failed to cancel withdrawal")
 			}
 		})
-	}, [router])
+	}, [startTransition, router])
 
 	// Stable callbacks for UI interactions
-	const handleOpenCreditRequest = React.useCallback(() => {
+	const handleOpenCreditRequest = useCallback(() => {
 		setIsCreditRequestModalOpen(true)
 	}, [])
 
-	const handleOpenFundModal = React.useCallback(() => {
+	const handleOpenFundModal = useCallback(() => {
 		setIsFundModalOpen(true)
 	}, [])
 
-	const handleSetTransactionsSection = React.useCallback(() => {
+	const handleSetTransactionsSection = useCallback(() => {
 		setActiveSection("transactions")
 	}, [])
 
-	const handleSetWithdrawalsSection = React.useCallback(() => {
+	const handleSetWithdrawalsSection = useCallback(() => {
 		setActiveSection("withdrawals")
+	}, [])
+
+	// Stable callback for closing credit request modal
+	const handleCloseCreditRequestModal = useCallback(() => {
+		setIsCreditRequestModalOpen(false)
 	}, [])
 
 	return (
@@ -296,7 +316,7 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 							onClick={handleOpenCreditRequest}
 							className="flex-1 sm:flex-none"
 						>
-							<Button.Icon as={ArrowUp} />
+							<Button.Icon><ArrowUp className="size-5" /></Button.Icon>
 							<span className="sm:inline">Request Credit</span>
 						</Button.Root>
 						<Button.Root
@@ -305,7 +325,7 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 							onClick={handleOpenFundModal}
 							className="flex-1 sm:flex-none"
 						>
-							<Button.Icon as={Plus} />
+							<Button.Icon><Plus className="size-5" /></Button.Icon>
 							<span className="sm:inline">Fund Wallet</span>
 						</Button.Root>
 					</div>
@@ -321,8 +341,8 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 				)}
 
 				{/* Balance Overview - Hero Section */}
-				<div className="rounded-2xl bg-linear-to-br from-primary-base to-primary-darker p-5 sm:p-8 text-white shadow-lg">
-					<div className="flex items-start justify-between mb-6">
+				<div className="rounded-xl bg-linear-to-br from-primary-base to-primary-darker p-4 sm:p-6 text-white shadow-lg">
+					<div className="flex items-start justify-between mb-4 sm:mb-5">
 						<div>
 							<p className="text-paragraph-sm text-white/80 mb-1.5">Total Balance</p>
 							<h2 className="text-title-h2 sm:text-[42px] font-bold tracking-tight leading-none">
@@ -334,7 +354,7 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 						</div>
 					</div>
 
-					<div className="grid grid-cols-2 gap-6 pt-5 border-t border-white/15">
+					<div className="grid grid-cols-2 gap-4 sm:gap-5 pt-4 sm:pt-5 border-t border-white/15">
 						<div>
 							<p className="text-[11px] text-white/60 uppercase tracking-wider mb-1">Available</p>
 							<p className="text-label-lg sm:text-title-h5 font-semibold">
@@ -351,9 +371,9 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 				</div>
 
 				{/* Credit & Payment Info Row */}
-				<div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
+				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 					{/* Credit Limit Card */}
-					<div className="rounded-xl bg-bg-white-0 p-4 sm:p-5 ring-1 ring-inset ring-stroke-soft-200 flex flex-col transition-all duration-200 hover:ring-stroke-sub-300 hover:shadow-sm">
+					<div className="rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200 flex flex-col transition-all duration-200 hover:ring-stroke-sub-300 hover:shadow-sm">
 						<div className="flex items-start justify-between gap-3 mb-4">
 							<div className="flex-1 min-w-0">
 								<div className="flex items-center gap-2 mb-1">
@@ -366,11 +386,11 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 									{formatCurrency(wallet.creditLimit ?? 0)}
 								</p>
 							</div>
-							<ProgressCircle.Root value={creditUtilization} size="48" className="shrink-0">
+							<ProgressCircle value={creditUtilization} size="large" className="shrink-0">
 								<span className="text-label-xs text-text-strong-950 font-semibold">
 									{creditUtilization}%
 								</span>
-							</ProgressCircle.Root>
+							</ProgressCircle>
 						</div>
 						<div className="flex items-center justify-between pt-3 border-t border-stroke-soft-200 mt-auto">
 							<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">
@@ -387,7 +407,7 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 					</div>
 
 					{/* Payment Methods Card */}
-					<div className="rounded-xl bg-bg-white-0 p-4 sm:p-5 ring-1 ring-inset ring-stroke-soft-200 flex flex-col transition-all duration-200 hover:ring-stroke-sub-300 hover:shadow-sm">
+					<div className="rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200 flex flex-col transition-all duration-200 hover:ring-stroke-sub-300 hover:shadow-sm">
 						<div className="flex items-center gap-2 mb-3 sm:mb-4">
 							<div className="flex size-8 items-center justify-center rounded-full bg-bg-soft-200 text-text-sub-600 shrink-0">
 								<CreditCard weight="duotone" className="size-4" />
@@ -437,7 +457,7 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 								)}
 							>
 								Withdrawals
-								{withdrawals.filter((w) => w.status === "pending").length > 0 && (
+								{withdrawals && Array.isArray(withdrawals) && withdrawals.filter((w) => w.status === "pending").length > 0 && (
 									<span className="ml-1.5 inline-flex items-center justify-center size-5 rounded-full bg-warning-base text-white text-[10px] font-medium">
 										{withdrawals.filter((w) => w.status === "pending").length}
 									</span>
@@ -476,7 +496,7 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 													onClick={handleExport}
 													className="shrink-0"
 												>
-													<Button.Icon as={DownloadSimple} />
+													<Button.Icon><DownloadSimple className="size-5" /></Button.Icon>
 													<span className="hidden sm:inline">Export</span>
 												</Button.Root>
 											</Tooltip.Trigger>
@@ -497,7 +517,7 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 											return (
 												<div
 													key={transaction.id}
-													className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-bg-weak-50 transition-all duration-200 cursor-pointer group"
+													className="flex items-center gap-2.5 sm:gap-3 p-2.5 sm:p-3 hover:bg-bg-weak-50 transition-all duration-200 cursor-pointer group"
 												>
 													{/* Icon */}
 													<div
@@ -561,16 +581,33 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 
 									{filteredTransactions.length === 0 && (
 										<div className="p-12 text-center">
-											<div className="size-12 mx-auto mb-3 rounded-full bg-bg-soft-200 flex items-center justify-center">
-												<CurrencyCircleDollar
-													weight="duotone"
-													className="size-6 text-text-soft-400"
-												/>
+											<div className="max-w-md mx-auto space-y-4">
+												<div className="flex justify-center">
+													<div className="flex size-16 items-center justify-center rounded-full bg-bg-soft-200">
+														<CurrencyCircleDollar
+															weight="duotone"
+															className="size-8 text-text-soft-400"
+														/>
+													</div>
+												</div>
+												<div>
+													<h3 className="text-title-h6 text-text-strong-950">No transactions</h3>
+													<p className="text-paragraph-sm text-text-sub-600 mt-2">
+														{transactionFilter === "all"
+															? "Transactions will appear here once you start using your wallet."
+															: `No ${transactionFilter.replace("_", " ")} transactions found. Try selecting a different filter.`}
+													</p>
+												</div>
+												{transactionFilter !== "all" && (
+													<Button.Root
+														variant="neutral"
+														size="medium"
+														onClick={() => handleFilterChange("all")}
+													>
+														View All Transactions
+													</Button.Root>
+												)}
 											</div>
-											<p className="text-label-sm text-text-strong-950">No transactions</p>
-											<p className="text-paragraph-xs text-text-sub-600 mt-1">
-												Transactions will appear here once you start using your wallet.
-											</p>
 										</div>
 									)}
 								</div>
@@ -593,8 +630,8 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 												: 0
 
 										return (
-											<div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-4 mb-4">
-												<div className="flex items-center gap-3 rounded-xl bg-bg-white-0 p-3 sm:p-4 ring-1 ring-inset ring-stroke-soft-200">
+											<div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-4 mb-3 sm:mb-4">
+												<div className="flex items-center gap-2.5 rounded-xl bg-bg-white-0 p-2.5 sm:p-3 ring-1 ring-inset ring-stroke-soft-200">
 													<div className="flex size-9 items-center justify-center rounded-lg bg-success-lighter text-success-base">
 														<CheckCircle weight="fill" className="size-4" />
 													</div>
@@ -669,7 +706,7 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 											// Inlined WithdrawalItem for now to avoid complexity of props
 											<div
 												key={withdrawal.id}
-												className="p-3 sm:p-4 flex items-center justify-between"
+												className="p-2.5 sm:p-3 flex items-center justify-between"
 											>
 												<div>
 													<p className="text-label-sm font-medium">
@@ -712,13 +749,19 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 
 									{withdrawals.length === 0 && (
 										<div className="p-12 text-center">
-											<div className="size-12 mx-auto mb-3 rounded-full bg-bg-soft-200 flex items-center justify-center">
-												<Bank weight="duotone" className="size-6 text-text-soft-400" />
+											<div className="max-w-md mx-auto space-y-4">
+												<div className="flex justify-center">
+													<div className="flex size-16 items-center justify-center rounded-full bg-bg-soft-200">
+														<Bank weight="duotone" className="size-8 text-text-soft-400" />
+													</div>
+												</div>
+												<div>
+													<h3 className="text-title-h6 text-text-strong-950">No withdrawals yet</h3>
+													<p className="text-paragraph-sm text-text-sub-600 mt-2">
+														Your withdrawal history will appear here once you request a withdrawal.
+													</p>
+												</div>
 											</div>
-											<p className="text-label-sm text-text-strong-950">No withdrawals yet</p>
-											<p className="text-paragraph-xs text-text-sub-600 mt-1">
-												Your withdrawal history will appear here.
-											</p>
 										</div>
 									)}
 								</div>
@@ -739,7 +782,7 @@ export function WalletClient({ initialData, hasOrganization = true }: WalletClie
 						{/* Holds List - matches Transactions card style */}
 						<div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
 							{/* Summary Header */}
-							<div className="flex items-center justify-between p-3 sm:p-4 border-b border-stroke-soft-200 bg-bg-weak-50">
+							<div className="flex items-center justify-between p-2.5 sm:p-3 border-b border-stroke-soft-200 bg-bg-weak-50">
 								<div className="flex items-center gap-3">
 									<div className="size-10 sm:size-11 rounded-full bg-warning-lighter flex items-center justify-center text-warning-base shrink-0">
 										<CurrencyCircleDollar weight="duotone" className="size-5" />
@@ -941,11 +984,11 @@ function FundWalletModal({
 				<BottomSheet.Content showClose={false}>
 					<div className="flex items-center justify-between px-4 pt-4 pb-2">
 						<h2 className="text-label-md text-text-strong-950 font-medium">Fund Wallet</h2>
-						<BottomSheet.Close asChild>
-							<Button.Root variant="ghost" size="xsmall">
-								<Button.Icon as={X} />
-							</Button.Root>
-						</BottomSheet.Close>
+					<BottomSheet.Close asChild>
+						<Button.Root variant="ghost" size="xsmall" aria-label="Close fund wallet dialog">
+							<Button.Icon><X className="size-5" /></Button.Icon>
+						</Button.Root>
+					</BottomSheet.Close>
 					</div>
 					<div className="px-4 pb-4">
 						<FundWalletContent onClose={() => onOpenChange(false)} />
@@ -993,16 +1036,39 @@ function CreditRequestContent({
 	onClose: () => void
 	onSuccess: () => void
 }) {
+	// Wrapper action for useActionState (accepts FormData)
+	const requestCreditAction = async (
+		prevState: Result<{ requestId: string }> | null,
+		formData: FormData
+	): Promise<Result<{ requestId: string }>> => {
+		const amount = Number(formData.get("amount"))
+		const reason = formData.get("reason") as string
+		if (!amount || !reason) {
+			return { success: false, error: new Error("Amount and reason are required") }
+		}
+		return requestCredit({ amount, reason })
+	}
+
 	// React 19 useActionState hook
 	const [state, formAction, pending] = useActionState(requestCreditAction, null)
 
-	// Handle success/error from state
-	React.useEffect(() => {
-		if (state?.success) {
-			toast.success(state.message || "Credit request submitted successfully")
+	// Handle success/error from state - use ref to prevent multiple calls
+	const hasHandledState = useRef<string | null>(null)
+	
+	useEffect(() => {
+		if (!state) return
+		
+		// Create a unique key for this state to prevent duplicate handling
+		const stateKey = state.success ? `success-${state.data?.requestId}` : state.error ? `error-${state.error instanceof Error ? state.error.message : String(state.error)}` : null
+		if (!stateKey || hasHandledState.current === stateKey) return
+		
+		hasHandledState.current = stateKey
+		
+		if (state.success) {
+			toast.success("Credit request submitted successfully")
 			onSuccess()
-		} else if (state?.error) {
-			toast.error(state.error)
+		} else if (state.error) {
+			toast.error(state.error instanceof Error ? state.error.message : String(state.error))
 		}
 	}, [state, onSuccess])
 
@@ -1025,8 +1091,10 @@ function CreditRequestContent({
 								<Input.El name="amount" type="number" placeholder="2,50,000" required min="1" />
 							</Input.Wrapper>
 						</Input.Root>
-						{state?.error && (
-							<p className="mt-1 text-paragraph-xs text-error-base">{state.error}</p>
+						{state && !state.success && state.error && (
+							<p className="mt-1 text-paragraph-xs text-error-base">
+								{state.error instanceof Error ? state.error.message : String(state.error)}
+							</p>
 						)}
 					</div>
 
@@ -1056,6 +1124,11 @@ function CreditRequestModal({
 	onOpenChange,
 }: { open: boolean; onOpenChange: (open: boolean) => void }) {
 	const isMobile = useMediaQuery("(max-width: 639px)")
+	
+	// Memoize callbacks to prevent infinite loops
+	const handleClose = useCallback(() => {
+		onOpenChange(false)
+	}, [onOpenChange])
 
 	if (isMobile) {
 		return (
@@ -1065,16 +1138,16 @@ function CreditRequestModal({
 						<h2 className="text-label-md text-text-strong-950 font-medium">
 							Request Credit Increase
 						</h2>
-						<BottomSheet.Close asChild>
-							<Button.Root variant="ghost" size="xsmall">
-								<Button.Icon as={X} />
-							</Button.Root>
-						</BottomSheet.Close>
+					<BottomSheet.Close asChild>
+						<Button.Root variant="ghost" size="xsmall" aria-label="Close fund wallet dialog">
+							<Button.Icon><X className="size-5" /></Button.Icon>
+						</Button.Root>
+					</BottomSheet.Close>
 					</div>
 					<div className="px-4 pb-4">
 						<CreditRequestContent
-							onClose={() => onOpenChange(false)}
-							onSuccess={() => onOpenChange(false)}
+							onClose={handleClose}
+							onSuccess={handleClose}
 						/>
 					</div>
 				</BottomSheet.Content>
@@ -1090,8 +1163,8 @@ function CreditRequestModal({
 				</Modal.Header>
 				<Modal.Body>
 					<CreditRequestContent
-						onClose={() => onOpenChange(false)}
-						onSuccess={() => onOpenChange(false)}
+						onClose={handleClose}
+						onSuccess={handleClose}
 					/>
 				</Modal.Body>
 			</Modal.Content>

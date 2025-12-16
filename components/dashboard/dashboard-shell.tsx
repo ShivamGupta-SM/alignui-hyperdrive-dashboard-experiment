@@ -8,13 +8,10 @@ import { Header } from "@/components/dashboard/header"
 import { NotificationsDrawer } from "@/components/dashboard/notifications-drawer"
 import { CommandMenu } from "@/components/dashboard/command-menu"
 import { SettingsPanel } from "@/components/dashboard/settings-panel"
-import { useBreadcrumbs } from "@/hooks/use-breadcrumbs"
-import { useSignOut } from "@/hooks/use-sign-out"
-import { useSession } from "@/hooks/use-session"
+import { useBreadcrumbs, useIsDesktop } from "@/hooks/ui"
+import { useSignOut, useSession } from "@/features/auth"
 import { useUIStore } from "@/lib/stores/ui-store"
-import { useNotifications as useBackendNotifications, useUnreadNotificationCount as useBackendUnreadCount, useMarkAllNotificationsRead as useBackendMarkAllRead, useMarkNotificationRead as useBackendMarkRead } from "@/hooks/use-notifications"
-
-import { useDashboard } from "@/hooks/use-dashboard"
+import { useNotifications as useBackendNotifications, useUnreadNotificationCount as useBackendUnreadCount, useMarkAllNotificationsRead as useBackendMarkAllRead, useMarkNotificationRead as useBackendMarkRead, useDashboard } from "@/hooks/shared"
 import { useTheme } from "next-themes"
 import { cn } from "@/utils/cn"
 
@@ -34,8 +31,6 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 	const {
 		sidebarCollapsed,
 		setSidebarCollapsed,
-		mobileMenuOpen,
-		setMobileMenuOpen,
 		notificationsDrawerOpen,
 		setNotificationsDrawerOpen,
 		commandMenuOpen,
@@ -44,7 +39,8 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 		setSettingsPanelOpen,
 	} = useUIStore()
 
-	// Use Zustand mobile menu state
+	// Mobile menu uses local state (as per UIState design)
+	const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
 	const mobileSidebarOpen = mobileMenuOpen
 	const setMobileSidebarOpen = setMobileMenuOpen
 
@@ -91,33 +87,25 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 		setMobileMenuOpen(false)
 	}, [pathname, setMobileMenuOpen])
 
-	// Close mobile sidebar on route change or resize
+	// Use media query hook instead of direct window.innerWidth
+	const isDesktop = useIsDesktop()
+	
+	// Close mobile sidebar when switching to desktop
 	React.useEffect(() => {
-		const handleResize = () => {
-			if (window.innerWidth >= 1024) {
-				setMobileMenuOpen(false)
-			}
+		if (isDesktop) {
+			setMobileMenuOpen(false)
 		}
-		window.addEventListener("resize", handleResize)
-		return () => window.removeEventListener("resize", handleResize)
-	}, [setMobileMenuOpen])
+	}, [isDesktop, setMobileMenuOpen])
 
-	// Command menu keyboard shortcut - stable listener without mobileSidebarOpen dependency
-	React.useEffect(() => {
-		const handleKeyDown = (e: KeyboardEvent) => {
-			if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-				e.preventDefault()
-				setCommandMenuOpen(true)
-			}
-			// Close mobile sidebar on Escape - use functional update to avoid dependency
-			if (e.key === "Escape") {
-				setMobileMenuOpen(false)
-			}
-		}
+	// Command menu keyboard shortcut - TODO: implement useKeyboardShortcut hook
+	// useKeyboardShortcut({ key: "k", modifiers: ["ctrl", "meta"], preventDefault: true }, () => {
+	// 	setCommandMenuOpen(true)
+	// }, { enabled: true })
 
-		document.addEventListener("keydown", handleKeyDown)
-		return () => document.removeEventListener("keydown", handleKeyDown)
-	}, [])
+	// Close mobile sidebar on Escape - TODO: implement useKeyboardShortcut hook
+	// useKeyboardShortcut("Escape", () => {
+	// 	setMobileMenuOpen(false)
+	// }, { enabled: mobileSidebarOpen })
 
 	// Sign out - single source of truth
 	const { signOut: handleSignOut } = useSignOut("/sign-in")
@@ -131,11 +119,10 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 	if (!mounted) {
 		return (
 			<div
-				className="h-dvh lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200"
-				style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+				className="h-dvh lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 pb-[env(safe-area-inset-bottom,0px)]"
 			>
 				{/* Desktop skeleton */}
-				<div className="hidden lg:flex h-full">
+				<div className="hidden lg:flex h-full gap-3">
 					{/* Placeholder sidebar - matches collapsed=false width */}
 					<div className="w-[280px] shrink-0" />
 					{/* Main Content Card */}
@@ -143,11 +130,13 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 						{/* Placeholder header - matches h-14 sm:h-16 */}
 						<div className="h-16 border-b border-stroke-soft-200" />
 						{/* Page Content */}
-						<main className="flex-1 overflow-y-auto">
-							<div className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-								{children}
-							</div>
-						</main>
+							<main className="flex-1 overflow-y-auto">
+								<div 
+									className="container mx-auto max-w-7xl px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
+								>
+									{children}
+								</div>
+							</main>
 					</div>
 				</div>
 
@@ -160,10 +149,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 					{/* Content Area */}
 					<div className="flex-1 relative overflow-hidden p-2 pt-2">
 						<div className="relative z-10 flex flex-col h-full bg-bg-white-0 rounded-2xl border border-stroke-soft-200 shadow-md ring-1 ring-black/3 dark:ring-white/3">
-							<main className="flex-1 overflow-y-auto rounded-2xl">
+							<main className="flex-1 overflow-y-auto">
 								<div
-									className="container mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-8"
-									style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
+									className="container mx-auto max-w-7xl px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
 								>
 									{children}
 								</div>
@@ -183,13 +171,14 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 			{/* ============================================ */}
 			{/* DESKTOP LAYOUT - Traditional Inset Sidebar */}
 			{/* ============================================ */}
-			<div className="hidden lg:flex h-full">
+			<div className="hidden lg:flex h-full gap-3">
 				{/* Sidebar - Desktop: visible in flow */}
 				<div className="shrink-0">
 					<Sidebar
 						collapsed={sidebarCollapsed}
 						onCollapsedChange={setSidebarCollapsed}
 						pendingEnrollments={pendingEnrollmentsCount}
+						onSettingsClick={() => setSettingsPanelOpen(true)}
 					/>
 				</div>
 
@@ -243,8 +232,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 						)}
 						<main className="flex-1 overflow-y-auto overscroll-contain -webkit-overflow-scrolling-touch">
 							<div
-								className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8"
-								style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))" }}
+								className="container mx-auto max-w-7xl px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
 							>
 								{children}
 							</div>
@@ -283,11 +271,15 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 							mobileSidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
 						)}
 					>
-						<Sidebar
-							collapsed={false}
-							pendingEnrollments={pendingEnrollmentsCount}
-							onMobileClose={() => setMobileSidebarOpen(false)}
-						/>
+					<Sidebar
+						collapsed={false}
+						pendingEnrollments={pendingEnrollmentsCount}
+						onMobileClose={() => setMobileSidebarOpen(false)}
+						onSettingsClick={() => {
+							setSettingsPanelOpen(true)
+							setMobileSidebarOpen(false)
+						}}
+					/>
 					</div>
 
 					{/* Content Sheet - Inset floating card, slides down to reveal sidebar */}
@@ -303,10 +295,12 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 					>
 						{/* Page Content */}
 						<main
-							className="flex-1 overflow-y-auto overscroll-contain rounded-2xl"
+							className="flex-1 overflow-y-auto overscroll-contain"
 							style={{ WebkitOverflowScrolling: "touch" }}
 						>
-							<div className="container mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-8 pb-6 sm:pb-8">
+							<div
+								className="container mx-auto max-w-7xl px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
+							>
 								{children}
 							</div>
 						</main>

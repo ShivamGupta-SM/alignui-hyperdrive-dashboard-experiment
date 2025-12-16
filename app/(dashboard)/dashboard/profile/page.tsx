@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { getProfileData } from "@/lib/ssr-data"
 import { ProfileClient } from "./profile-client"
-import { logSSRError } from "@/lib/error-logger-simple"
+import { logSSRError } from "@/lib/logging/error-logger-simple"
 
 export const metadata: Metadata = {
 	title: "Profile",

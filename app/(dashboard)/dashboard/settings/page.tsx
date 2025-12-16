@@ -1,10 +1,9 @@
-"use cache"
-
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { getSettingsData } from "@/lib/ssr-data"
 import { SettingsClient } from "./settings-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
+import { logError } from "@/lib/logging/error-logger-simple"
 
 export const metadata: Metadata = {
 	title: "Settings",
@@ -15,7 +14,6 @@ export const metadata: Metadata = {
 	},
 }
 
-// Note: dynamic and revalidate exports removed - incompatible with cacheComponents
 
 async function SettingsData() {
 	try {
@@ -24,8 +22,8 @@ async function SettingsData() {
 		return <SettingsClient initialData={data} />
 	} catch (error) {
 		logError(error, { source: "SettingsPage", data: { action: "fetch settings data" } })
-		// Industry Standard: Return null, let context handle organization state
-		return <SettingsClient initialData={null} />
+		// Industry Standard: Return undefined, let context handle organization state
+		return <SettingsClient initialData={undefined} />
 	}
 }
 

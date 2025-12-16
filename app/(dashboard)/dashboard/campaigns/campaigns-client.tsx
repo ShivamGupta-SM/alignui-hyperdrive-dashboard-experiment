@@ -4,11 +4,11 @@ import { memo, useCallback, useState, useEffect, useTransition, useMemo } from "
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { cn } from "@/utils/cn"
-import * as Button from "@/components/ui/button"
-import * as Tooltip from "@/components/ui/tooltip"
+import * as Button from "@/components/ui/primitives/button"
+import * as Tooltip from "@/components/ui/layout/tooltip"
 import { CampaignCard } from "@/components/dashboard/campaign-card"
 import { NoCampaignsEmptyState } from "@/components/dashboard/empty-states"
-import { Callout, CalloutWithActions } from "@/components/ui/callout"
+import { Callout, CalloutWithActions } from "@/components/ui/feedback/callout"
 import { ConfirmationModal } from "@/components/dashboard"
 import {
 	Plus,
@@ -23,7 +23,7 @@ import {
 import { toast } from "sonner"
 import { useQueryClient } from "@tanstack/react-query"
 import { useCampaignSearchParams } from "@/hooks"
-import { exportCampaigns } from "@/lib/excel"
+import { exportCampaigns } from "@/lib/utils/excel"
 import { useOrganizationContext } from "@/contexts/organization-context"
 import {
 	useSearchCampaigns,
@@ -162,7 +162,7 @@ export function CampaignsClient({
 	
 	// Industry Standard: Always use context, never props
 	const { organization } = useOrganizationContext()
-	const isApproved = (organization as any)?.approvalStatus === "approved"
+	const isApproved = organization?.approvalStatus === "approved"
 
 	// nuqs: URL state management for filters
 	const [searchParams, setSearchParams] = useCampaignSearchParams()
@@ -254,7 +254,7 @@ export function CampaignsClient({
 					queryClient.invalidateQueries({ queryKey: ["campaign", deletingCampaignId] })
 			router.refresh()
 				} else {
-					toast.error("error" in result ? result.error : "Failed to delete campaign")
+					toast.error("error" in result ? (result.error?.message || String(result.error)) : "Failed to delete campaign")
 				}
 			} catch (error) {
 				toast.error("An error occurred while deleting campaign")
@@ -315,7 +315,9 @@ export function CampaignsClient({
 						<Tooltip.Root>
 							<Tooltip.Trigger asChild>
 								<Button.Root variant="neutral" size="small" onClick={handleExport} aria-label="Export campaigns to Excel">
-									<Button.Icon as={DownloadSimple} />
+									<Button.Icon>
+										<DownloadSimple className="size-5" />
+									</Button.Icon>
 									<span className="hidden sm:inline">Export</span>
 								</Button.Root>
 							</Tooltip.Trigger>
@@ -330,7 +332,9 @@ export function CampaignsClient({
 										disabled={!isApproved}
 										onClick={() => router.push("/dashboard/campaigns/create")}
 									>
-										<Button.Icon as={Plus} />
+										<Button.Icon>
+											<Plus className="size-5" />
+										</Button.Icon>
 										<span className="hidden sm:inline">Create Campaign</span>
 										<span className="sm:hidden">Create</span>
 									</Button.Root>
@@ -338,9 +342,9 @@ export function CampaignsClient({
 							</Tooltip.Trigger>
 							{!isApproved && (
 								<Tooltip.Content>
-									{(organization as any)?.approvalStatus === "draft" 
+									{organization?.approvalStatus === "draft" 
 										? "Complete onboarding and wait for admin approval"
-										: (organization as any)?.approvalStatus === "pending"
+										: organization?.approvalStatus === "pending"
 										? "Your application is under review"
 										: "Organization approval required"}
 								</Tooltip.Content>
@@ -505,7 +509,9 @@ export function CampaignsClient({
 								</p>
 								<Button.Root variant="primary" asChild>
 									<Link href="/dashboard/campaigns/create">
-										<Button.Icon as={Plus} />
+										<Button.Icon>
+											<Plus className="size-5" />
+										</Button.Icon>
 										Create Campaign
 									</Link>
 								</Button.Root>

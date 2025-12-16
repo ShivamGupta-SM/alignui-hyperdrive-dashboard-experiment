@@ -1,10 +1,10 @@
 "use client"
 
 import * as React from "react"
-import * as Input from "@/components/ui/input"
-import * as Button from "@/components/ui/button"
-import * as Accordion from "@/components/ui/accordion"
-import { MagnifyingGlass, Question } from "@phosphor-icons/react/dist/ssr"
+import * as Input from "@/components/ui/forms/input"
+import * as Button from "@/components/ui/primitives/button"
+import * as Accordion from "@/components/ui/layout/accordion"
+import { MagnifyingGlass, Question } from "@phosphor-icons/react"
 
 interface FAQ {
 	id: string

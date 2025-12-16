@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect } from "react"
-import { PageError } from "@/components/error-boundary"
-import { handleAuthError, isAuthError } from "@/lib/error-handler"
-import { logError } from "@/lib/error-logger-simple"
+import { PageError } from "@/components/shared/error-boundary"
+import { handleAuthError } from "@/lib/errors/error-handler"
+import { isAuthenticationError } from "@/lib/errors/encore-error-handler"
+import { logError } from "@/lib/logging/error-logger-simple"
 
 interface ErrorProps {
 	error: Error & { digest?: string }
@@ -22,11 +23,11 @@ export default function WalletError({ error, reset }: ErrorProps) {
 			},
 		})
 
-		if (isAuthError(error)) {
+		if (isAuthenticationError(error)) {
 			handleAuthError(error)
 		}
 	}, [error])
-	if (isAuthError(error)) {
+	if (isAuthenticationError(error)) {
 		return (
 			<div className="flex min-h-[400px] flex-col items-center justify-center">
 				<p className="text-paragraph-sm text-text-sub-600">Redirecting to login...</p>
@@ -36,5 +37,6 @@ export default function WalletError({ error, reset }: ErrorProps) {
 
 	return <PageError error={error} reset={reset} />
 }
+
 
 

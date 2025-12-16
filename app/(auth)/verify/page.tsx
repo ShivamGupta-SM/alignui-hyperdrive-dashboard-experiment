@@ -1,31 +1,31 @@
 "use client"
 
-import * as React from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import * as Button from "@/components/ui/button"
-import * as DigitInput from "@/components/ui/digit-input"
-import { Callout } from "@/components/ui/callout"
+import * as Button from "@/components/ui/primitives/button"
+import * as DigitInput from "@/components/ui/forms/digit-input"
+import { Callout } from "@/components/ui/feedback/callout"
 import { ShieldCheck, ArrowClockwise, Key } from "@phosphor-icons/react"
 
 export default function VerifyPage() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 	const twoFactorToken = searchParams.get("token")
-	const [code, setCode] = React.useState("")
-	const [isLoading, setIsLoading] = React.useState(false)
-	const [error, setError] = React.useState("")
-	const [resendCooldown, setResendCooldown] = React.useState(0)
+	const [code, setCode] = useState("")
+	const [isLoading, setIsLoading] = useState(false)
+	const [error, setError] = useState("")
+	const [resendCooldown, setResendCooldown] = useState(0)
 
 	// Resend cooldown timer
-	React.useEffect(() => {
+	useEffect(() => {
 		if (resendCooldown > 0) {
 			const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000)
 			return () => clearTimeout(timer)
 		}
 	}, [resendCooldown])
 
-	const handleSubmit = React.useCallback(
+	const handleSubmit = useCallback(
 		async (e: React.FormEvent) => {
 			e.preventDefault()
 			setError("")
@@ -43,7 +43,7 @@ export default function VerifyPage() {
 			setIsLoading(true)
 
 			try {
-				const { verify2FATotp } = await import("@/app/actions/auth")
+				const { verify2FATotp } = await import("@/features/auth")
 				const result = await verify2FATotp(twoFactorToken, code)
 
 				if (result.success) {
@@ -66,7 +66,7 @@ export default function VerifyPage() {
 
 		setResendCooldown(30)
 		try {
-			const { send2FAOtp } = await import("@/app/actions/auth")
+			const { send2FAOtp } = await import("@/features/auth")
 			await send2FAOtp(twoFactorToken)
 		} catch {
 			// Silently fail - user can try again
@@ -74,8 +74,8 @@ export default function VerifyPage() {
 	}
 
 	// Auto-submit when code is complete
-	const codeCompleteRef = React.useRef(false)
-	React.useEffect(() => {
+	const codeCompleteRef = useRef(false)
+	useEffect(() => {
 		if (code.length === 6 && !codeCompleteRef.current) {
 			codeCompleteRef.current = true
 			handleSubmit({ preventDefault: () => {} } as React.FormEvent)
@@ -158,7 +158,7 @@ export default function VerifyPage() {
 								Use one of your backup codes to sign in
 							</p>
 							<Link
-								href="/verify/backup"
+								href="/verify/backup-code"
 								className="inline-flex items-center text-paragraph-sm text-primary-base font-medium hover:text-primary-darker hover:underline transition-colors"
 							>
 								Use backup code →

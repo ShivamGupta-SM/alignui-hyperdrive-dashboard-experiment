@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import * as Button from "@/components/ui/button"
+import * as Button from "@/components/ui/primitives/button"
 import {
 	BookOpen,
 	VideoCamera,
@@ -262,7 +262,7 @@ export default function HelpPage() {
 				</div>
 				<div className="mt-6 text-center">
 					<Button.Root variant="primary">
-						<Button.Icon as={ChatCircle} />
+						<Button.Icon><ChatCircle className="size-5" /></Button.Icon>
 						Start Live Chat
 					</Button.Root>
 				</div>

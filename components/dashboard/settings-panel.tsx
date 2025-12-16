@@ -4,12 +4,12 @@ import * as React from "react"
 import Link from "next/link"
 import { useTheme } from "next-themes"
 import { cn } from "@/utils/cn"
-import * as Avatar from "@/components/ui/avatar"
-import * as Switch from "@/components/ui/switch"
-import * as Button from "@/components/ui/button"
-import * as Divider from "@/components/ui/divider"
-import * as Input from "@/components/ui/input"
-import * as Select from "@/components/ui/select"
+import * as Avatar from "@/components/ui/primitives/avatar"
+import * as Switch from "@/components/ui/forms/switch"
+import * as Button from "@/components/ui/primitives/button"
+import * as Divider from "@/components/ui/layout/divider"
+import * as Input from "@/components/ui/forms/input"
+import * as Select from "@/components/ui/forms/select"
 import {
 	X,
 	ArrowLeft,
@@ -28,9 +28,9 @@ import {
 	Check,
 	Plus,
 } from "@phosphor-icons/react"
-import { useSession } from "@/hooks/use-session"
-import { useActiveOrganization } from "@/hooks/use-active-organization"
-import { useSignOut } from "@/hooks/use-sign-out"
+import { useSession } from "@/features/auth"
+import { useActiveOrganization } from "@/features/organizations"
+import { useSignOut } from "@/features/auth"
 
 interface SettingsPanelProps {
 	open: boolean
@@ -284,8 +284,7 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 
 			{/* Footer - Sign Out */}
 			<div
-				className="border-t border-stroke-soft-200 px-5 py-3"
-				className="pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]"
+				className="border-t border-stroke-soft-200 px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]"
 			>
 				<button
 					type="button"
@@ -447,7 +446,7 @@ function NotificationsSubPanel() {
 		return (
 			<div className="space-y-6">
 				{[1, 2, 3].map((i) => (
-					<div key={i} className="h-24 rounded-12 bg-bg-weak-50 animate-pulse" />
+					<div key={`skeleton-${i}`} className="h-24 rounded-12 bg-bg-weak-50 animate-pulse" />
 				))}
 			</div>
 		)

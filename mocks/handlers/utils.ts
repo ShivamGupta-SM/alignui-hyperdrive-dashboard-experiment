@@ -18,7 +18,7 @@ import type {
 	products,
 	invoices,
 	notifications,
-} from "@/lib/encore-browser"
+} from "@/lib/api/encore-browser"
 
 // =============================================================================
 // ENCORE URL HELPER

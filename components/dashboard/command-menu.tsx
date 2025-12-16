@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import * as Command from "@/components/ui/command-menu"
+import * as Command from "@/components/ui/navigation/command-menu"
 import {
 	Plus,
 	ShoppingBag,

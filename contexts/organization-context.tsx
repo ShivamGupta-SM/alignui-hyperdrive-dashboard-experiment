@@ -1,9 +1,7 @@
 "use client"
 
-import { createContext, useContext, useMemo, type ReactNode } from "react"
-import { useSession } from "@/hooks/use-session"
-import { useOrganizations } from "@/hooks/use-organizations"
-import type { auth } from "@/lib/encore-client"
+import React, { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import type { organizations, auth } from "@/lib/api/encore-client"
 
 /**
  * Organization Context
@@ -11,77 +9,93 @@ import type { auth } from "@/lib/encore-client"
  * No separate API call - uses React Query data from useOrganizations hook
  */
 interface OrganizationContextValue {
-	organization: auth.OrganizationResponse | null
+	organization: organizations.Organization | null
 	organizationId: string | null
 	hasOrganization: boolean
 	isLoading: boolean
 	error: Error | null
 }
 
-const OrganizationContext = createContext<OrganizationContextValue | undefined>(undefined)
+// CRITICAL FIX: Use createContext directly to avoid React null issues
+// This prevents "Cannot read properties of null" errors during build/SSR
+export const OrganizationContext = createContext<OrganizationContextValue | undefined>(undefined)
 
 /**
  * Organization Provider
- * Simplified: Uses React Query hooks directly, no redundant fetching
+ * CRITICAL FIX: Hooks must be called unconditionally at top level
+ * Solution: Always call hooks, but conditionally render based on environment
  */
 export function OrganizationProvider({ children }: { children: ReactNode }) {
-	const { data: sessionData, isPending: isSessionPending } = useSession()
-	const { data: organizationsData, isLoading: isLoadingOrgs, error: orgsError } = useOrganizations()
+	// CRITICAL: Hooks must be called unconditionally at the top level
+	// Cannot call hooks after conditional returns (violates Rules of Hooks)
 	
-	const meUser = sessionData?.user as auth.MeResponse | undefined
-	const activeOrgId = meUser?.activeOrganizationId
+	// Always call hooks - React will handle SSR properly
+	const [ClientProvider, setClientProvider] = useState<React.ComponentType<{ children: ReactNode }> | null>(null)
+	const [isClient, setIsClient] = useState(false)
 
-	// Derive organization from organizations list (already fetched by useOrganizations)
-	const organization = useMemo(() => {
-		if (!activeOrgId || !organizationsData?.organizations) return null
-		return organizationsData.organizations.find(org => org.id === activeOrgId) || null
-	}, [activeOrgId, organizationsData])
+	useEffect(() => {
+		// Mark as client-side after mount
+		setIsClient(true)
+		
+		// Dynamically import the client provider only on client-side after mount
+		// This prevents Next.js from analyzing hooks during build
+		import("./organization-context-wrapper").then((mod) => {
+			setClientProvider(() => mod.ClientOrganizationProvider)
+		}).catch((error) => {
+			// Log error but don't crash
+			console.error("[OrganizationProvider] Failed to load client provider:", error)
+		})
+	}, [])
 
-	// Industry Standard: Explicit loading state handling
-	// Wait for session to load before determining hasOrganization
-	const value: OrganizationContextValue = useMemo(
-		() => {
-			// If session is still loading, return loading state
-			// This prevents hasOrganization from being false during initial load
-			if (isSessionPending) {
-				return {
-					organization: null,
-					organizationId: null,
-					hasOrganization: false,
-					isLoading: true,
-					error: null,
-				}
-			}
-			
-			// Session loaded, now safe to determine organization state
-			return {
-				organization: organization || null,
-				organizationId: activeOrgId || null,
-				hasOrganization: !!activeOrgId,
-				isLoading: isLoadingOrgs,
-				error: orgsError as Error | null,
-			}
-		},
-		[organization, activeOrgId, isSessionPending, isLoadingOrgs, orgsError]
-	)
+	// Default context value for SSR/initial render
+	const defaultContextValue: OrganizationContextValue = {
+		organization: null,
+		organizationId: null,
+		hasOrganization: false,
+		isLoading: !isClient || !ClientProvider,
+		error: null,
+	}
 
-	return (
-		<OrganizationContext.Provider value={value}>
-			{children}
-		</OrganizationContext.Provider>
-	)
+	// During SSR or before client provider loads, use default context
+	if (!isClient || !ClientProvider) {
+		return (
+			<OrganizationContext.Provider value={defaultContextValue}>
+				{children}
+			</OrganizationContext.Provider>
+		)
+	}
+
+	// Render the client provider that uses hooks
+	return <ClientProvider>{children}</ClientProvider>
 }
 
 /**
  * Hook to access organization context
+ * CRITICAL FIX: Use React.useContext for consistency and to prevent null errors
  */
 export function useOrganizationContext() {
+	// CRITICAL: Use useContext directly (imported from react)
+	// This ensures we're using the same React instance and prevents null errors
 	const context = useContext(OrganizationContext)
-	
+
+	// CRITICAL: During SSR/build, context might be undefined
+	// Return safe default instead of throwing to prevent build errors
 	if (context === undefined) {
+		// Check if we're in a build/SSR context
+		if (typeof window === "undefined") {
+			// During SSR/build, return safe default
+			return {
+				organization: null,
+				organizationId: null,
+				hasOrganization: false,
+				isLoading: true,
+				error: null,
+			}
+		}
+		// On client-side, throw error if context is missing
 		throw new Error("useOrganizationContext must be used within OrganizationProvider")
 	}
-	
+
 	return context
 }
 
@@ -100,5 +114,3 @@ export function useOrganizationId(): string | null {
 	const { organizationId } = useOrganizationContext()
 	return organizationId
 }
-
-

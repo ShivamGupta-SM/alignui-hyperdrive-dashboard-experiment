@@ -1,10 +1,13 @@
 import type { Metadata } from "next"
+
+// Prevent prerendering to avoid Button.Icon serialization issues
+export const dynamic = "force-dynamic"
 import { Suspense } from "react"
 import { getEnrollmentsData, getCampaignsData } from "@/lib/ssr-data"
 import { EnrollmentsClient } from "./enrollments-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
-import { logSSRError } from "@/lib/error-logger-simple"
-import { logError } from "@/lib/error-logger-simple"
+import { logSSRError } from "@/lib/logging/error-logger-simple"
+import { logError } from "@/lib/logging/error-logger-simple"
 
 export const metadata: Metadata = {
 	title: "Enrollments",
@@ -15,7 +18,6 @@ export const metadata: Metadata = {
 	},
 }
 
-// Note: dynamic and revalidate exports removed - incompatible with cacheComponents
 
 async function EnrollmentsData({ statusFilter, campaignFilter }: { statusFilter: string; campaignFilter: string }) {
 	try {

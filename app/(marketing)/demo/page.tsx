@@ -3,11 +3,11 @@
 import { useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Sparkle, Drop, Cube, Lightning } from "@phosphor-icons/react"
-import * as Button from "@/components/ui/button"
-import { Logo } from "@/components/ui/logo"
-import { LavaLiquidLogo } from "@/components/ui/lava-liquid-logo"
-import { LiquidMetalLogo } from "@/components/ui/liquid-metal-logo"
-import { WebGLLiquidLogo } from "@/components/ui/webgl-liquid-logo"
+import * as Button from "@/components/ui/primitives/button"
+import { Logo } from "@/components/ui/branding/logo"
+import { LavaLiquidLogo } from "@/components/ui/branding/lava-liquid-logo"
+import { LiquidMetalLogo } from "@/components/ui/branding/liquid-metal-logo"
+import { WebGLLiquidLogo } from "@/components/ui/branding/webgl-liquid-logo"
 
 export default function DemoPage() {
 	const [speed, setSpeed] = useState(1)
@@ -22,7 +22,7 @@ export default function DemoPage() {
 						<div className="flex items-center gap-4">
 							<Button.Root variant="ghost" size="small" asChild>
 								<Link href="/v1">
-									<Button.Icon as={ArrowLeft} />
+									<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 									Back
 								</Link>
 							</Button.Root>

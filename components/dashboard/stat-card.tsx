@@ -3,6 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { cn } from "@/utils/cn"
+import { formatCurrencyCompact, formatCurrency } from "@/lib/utils/format"
 
 import { Wallet } from "@phosphor-icons/react"
 
@@ -24,7 +25,7 @@ const iconColorStyles = {
 	neutral: "bg-bg-weak-50 text-text-sub-600",
 }
 
-export function SimpleStatCard({
+export const SimpleStatCard = React.memo(function SimpleStatCard({
 	icon,
 	value,
 	label,
@@ -45,7 +46,9 @@ export function SimpleStatCard({
 			</div>
 
 			{/* Value */}
-			<div className="text-title-h4 text-text-strong-950 font-semibold">{value}</div>
+			<div className="text-title-h4 text-text-strong-950 font-semibold">
+				{typeof value === "number" ? formatCurrencyCompact(value) : value}
+			</div>
 
 			{/* Label */}
 			<div className="text-paragraph-sm text-text-sub-600 mt-0.5">{label}</div>
@@ -69,7 +72,7 @@ export function SimpleStatCard({
 	}
 
 	return <div className={cardClass}>{content}</div>
-}
+})
 
 // Wallet stat card - special styling for wallet balance
 interface WalletCardProps {
@@ -80,21 +83,14 @@ interface WalletCardProps {
 	className?: string
 }
 
-export function WalletCard({
+export const WalletCard = React.memo(function WalletCard({
 	balance,
 	lowBalanceThreshold = 50000,
 	label = "Wallet Balance",
 	onAddFunds,
 	className,
 }: WalletCardProps) {
-	const formatCurrency = (amount: number) => {
-		if (amount >= 100000) {
-			return `₹${(amount / 100000).toFixed(2)}L`
-		} else if (amount >= 1000) {
-			return `₹${(amount / 1000).toFixed(1)}K`
-		}
-		return `₹${amount.toLocaleString("en-IN")}`
-	}
+	// Use centralized formatting from lib/format.ts
 
 	const isLowBalance = balance < lowBalanceThreshold
 
@@ -104,7 +100,7 @@ export function WalletCard({
 				"flex flex-col rounded-20 p-4 h-full",
 				isLowBalance
 					? "bg-warning-lighter ring-1 ring-inset ring-warning-base/20"
-					: "bg-gradient-to-br from-primary-base to-primary-darker",
+					: "bg-linear-to-br from-primary-base to-primary-darker",
 				className
 			)}
 		>
@@ -152,13 +148,10 @@ export function WalletCard({
 			)}
 		</div>
 	)
-}
-
-// ===== LEGACY EXPORTS FOR BACKWARD COMPATIBILITY =====
-// These are kept for any existing uses
+})
 
 import { tv, type VariantProps } from "@/utils/tv"
-import * as Button from "@/components/ui/button"
+import * as Button from "@/components/ui/primitives/button"
 
 const statCardVariants = tv({
 	slots: {
@@ -319,7 +312,7 @@ export function StatCard({
 	)
 }
 
-// Wallet-specific stat card (legacy)
+// Wallet-specific stat card
 interface WalletStatCardProps extends Omit<StatCardProps, "value" | "label" | "secondaryText"> {
 	availableBalance: number
 	heldAmount?: number

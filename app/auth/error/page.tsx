@@ -3,8 +3,8 @@
 import * as React from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import * as Button from "@/components/ui/button"
-import { Callout } from "@/components/ui/callout"
+import * as Button from "@/components/ui/primitives/button"
+import { Callout } from "@/components/ui/feedback/callout"
 import { WarningCircle, ArrowLeft } from "@phosphor-icons/react"
 
 /**
@@ -22,7 +22,7 @@ export default function AuthErrorPage() {
 			<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 				<Button.Root variant="ghost" size="small" asChild>
 					<Link href="/sign-in">
-						<Button.Icon as={ArrowLeft} />
+						<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 						Back to Sign In
 					</Link>
 				</Button.Root>

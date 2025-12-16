@@ -4,12 +4,12 @@ import { useState } from "react"
 import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as Button from "@/components/ui/button"
-import * as Input from "@/components/ui/input"
-import { Callout } from "@/components/ui/callout"
+import * as Button from "@/components/ui/primitives/button"
+import * as Input from "@/components/ui/forms/input"
+import { Callout } from "@/components/ui/feedback/callout"
 import { ArrowLeft, Envelope, WarningCircle } from "@phosphor-icons/react"
-import { forgotPasswordSchema, type ForgotPasswordFormData } from "@/lib/validations"
-import { validateCallbackUrlServer } from "@/lib/url-validation"
+import { forgotPasswordSchema, type ForgotPasswordFormData } from "@/lib/utils/validations"
+import { validateCallbackUrlServer } from "@/lib/utils/url-validation"
 
 export default function ForgotPasswordPage() {
 	const [isLoading, setIsLoading] = useState(false)
@@ -32,7 +32,7 @@ export default function ForgotPasswordPage() {
 		setIsLoading(true)
 
 		try {
-			const { forgotPassword } = await import("@/app/actions/auth")
+			const { forgotPassword } = await import("@/app/actions")
 			// Point to frontend reset-password page (full URL)
 			// Validate the URL to prevent open redirects
 			// Use typeof window check for SSR safety
@@ -62,7 +62,7 @@ export default function ForgotPasswordPage() {
 			<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 				<Button.Root variant="ghost" size="small" asChild>
 					<Link href="/sign-in">
-						<Button.Icon as={ArrowLeft} />
+						<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 						Back to Sign In
 					</Link>
 				</Button.Root>

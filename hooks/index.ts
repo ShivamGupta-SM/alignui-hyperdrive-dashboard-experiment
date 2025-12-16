@@ -1,42 +1,48 @@
-// Re-export all hooks for easy imports
+/**
+ * Hooks - Public API
+ * 
+ * @description
+ * Centralized exports for all hooks.
+ * Organized by category for better discoverability.
+ */
 
-// Auth hooks (using Encore client + React Query)
-export * from "./use-session"
-export * from "./use-active-organization"
-export * from "./use-organizations"
-export * from "./use-sign-out"
+// ============================================
+// Feature Hooks (Re-exports from features)
+// ============================================
 
-// Data fetching hooks (using Encore client directly)
-export * from "./use-campaigns"
-export * from "./use-enrollments"
-export * from "./use-wallet"
-export * from "./use-dashboard"
-export * from "./use-invoices"
-export * from "./use-categories"
-export * from "./use-platforms"
-export * from "./use-notifications"
-export * from "./use-storage"
-export * from "./use-novu"
-export * from "./use-products"
-export * from "./use-profile"
-export * from "./use-team"
-export * from "./use-settings"
-export * from "./use-organizations"
-export * from "./use-deliverables"
+// Auth hooks
+export * from '@/features/auth'
 
-// URL state management (nuqs)
-export * from "./use-search-params"
+// Organization hooks - export explicitly to avoid conflicts with auth
+export {
+	useOrganizations as useOrganizationsFromOrgs,
+	useSwitchOrganization as useSwitchOrganizationFromOrgs,
+	useActiveOrganization,
+	useActiveOrganizationId,
+} from '@/features/organizations'
 
-// Utility hooks
-export * from "./use-clipboard"
+// ============================================
+// UI Utility Hooks
+// ============================================
+export * from './ui'
 
+// ============================================
+// State Management Hooks
+// ============================================
+export * from './state'
+
+// ============================================
+// Shared Data Hooks (Cross-feature)
+// ============================================
+export * from './shared'
+
+// ============================================
 // Re-export useful hooks from usehooks-ts
+// ============================================
 export {
 	useDebounceValue,
 	useDebounceCallback,
-	useLocalStorage,
 	useSessionStorage,
-	useMediaQuery,
 	useOnClickOutside,
 	useEventListener,
 	useInterval,
@@ -54,3 +60,5 @@ export {
 	useStep,
 	useWindowSize,
 } from "usehooks-ts"
+
+// Note: useLocalStorage is exported from ./state (custom implementation)

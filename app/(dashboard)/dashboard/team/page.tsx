@@ -3,7 +3,7 @@ import { Suspense } from "react"
 import { getTeamData } from "@/lib/ssr-data"
 import { TeamClient } from "./team-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
-import { logSSRError } from "@/lib/error-logger-simple"
+import { logSSRError } from "@/lib/logging/error-logger-simple"
 
 export const metadata: Metadata = {
 	title: "Team",

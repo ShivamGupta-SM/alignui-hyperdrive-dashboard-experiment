@@ -5,11 +5,11 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import { cn } from "@/utils/cn"
-import { AvatarWithFallback } from "@/components/ui/avatar"
-import * as Badge from "@/components/ui/badge"
-import * as Tooltip from "@/components/ui/tooltip"
-import * as Dropdown from "@/components/ui/dropdown"
-import { Logo, LogoIcon } from "@/components/ui/logo"
+import { AvatarWithFallback } from "@/components/ui/primitives/avatar"
+import * as Badge from "@/components/ui/data-display/badge"
+import * as Tooltip from "@/components/ui/layout/tooltip"
+import * as Dropdown from "@/components/ui/layout/dropdown"
+import { Logo, LogoIcon } from "@/components/ui/branding/logo"
 import {
 	House,
 	Megaphone,
@@ -31,17 +31,17 @@ import {
 	SignOut,
 	DotsThree,
 	X,
-} from "@phosphor-icons/react/dist/ssr"
-import { useSession } from "@/hooks/use-session"
+} from "@phosphor-icons/react"
+import { useSession } from "@/features/auth"
 import {
 	useOrganizations,
 	useSwitchOrganization,
-} from "@/hooks/use-organizations"
-import { useActiveOrganization } from "@/hooks/use-active-organization"
-import { useSignOut } from "@/hooks/use-sign-out"
+} from "@/features/organizations"
+import { useActiveOrganization } from "@/features/organizations"
+import { useSignOut } from "@/features/auth"
 import { ORGANIZATION_STATUS_CONFIG } from "@/lib/constants"
 import { useRouter } from "next/navigation"
-import type { organizations } from "@/lib/encore-client"
+import type { organizations } from "@/lib/api/encore-client"
 import type { OrganizationStatus } from "@/lib/types"
 
 type Organization = organizations.Organization
@@ -631,9 +631,9 @@ function OrganizationSwitcher({
 									</span>
 									<div className="flex items-center gap-1 text-paragraph-xs text-text-sub-600">
 										<span className="truncate">{org.slug}</span>
-										{org.approvalStatus === "approved" && (org as any).campaignCount !== undefined && (
+										{org.approvalStatus === "approved" && "campaignCount" in org && typeof org.campaignCount === "number" && (
 											<span className="shrink-0 whitespace-nowrap">
-												· {(org as any).campaignCount} campaigns
+												· {org.campaignCount} campaigns
 											</span>
 										)}
 									</div>

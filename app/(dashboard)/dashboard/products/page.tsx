@@ -3,7 +3,7 @@ import { Suspense } from "react"
 import { getProductsData } from "@/lib/ssr-data"
 import { ProductsClient } from "./products-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
-import { logSSRError } from "@/lib/error-logger-simple"
+import { logSSRError } from "@/lib/logging/error-logger-simple"
 
 export const metadata: Metadata = {
 	title: "Products",
@@ -14,7 +14,6 @@ export const metadata: Metadata = {
 	},
 }
 
-// Note: dynamic and revalidate exports removed - incompatible with cacheComponents
 
 async function ProductsData() {
 	try {

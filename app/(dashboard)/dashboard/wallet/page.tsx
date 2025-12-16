@@ -1,11 +1,9 @@
-"use cache"
-
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { getWalletData } from "@/lib/ssr-data"
 import { WalletClient } from "./wallet-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
-import { logSSRError } from "@/lib/error-logger-simple"
+import { logSSRError } from "@/lib/logging/error-logger-simple"
 
 export const metadata: Metadata = {
 	title: "Wallet",
@@ -16,25 +14,28 @@ export const metadata: Metadata = {
 	},
 }
 
-// Note: dynamic and revalidate exports removed - incompatible with cacheComponents
 
 async function WalletData() {
 	try {
 		const data = await getWalletData()
 		// Industry Standard: Don't pass hasOrganization prop - use context instead
-		return <WalletClient initialData={data} />
+		return <WalletClient initialData={data ?? undefined} />
 	} catch (error) {
 		logSSRError(error, "getWalletData", "wallet-data", {})
-		// Industry Standard: Return null, let context handle organization state
-		return <WalletClient initialData={null} />
+		// Industry Standard: Return undefined, let context handle organization state
+		return <WalletClient initialData={undefined} />
 	}
+}
+
+function WalletLoadingFallback() {
+	return <div className="p-8">Loading wallet...</div>
 }
 
 export default async function WalletPage() {
 	// Industry Standard: Use OrganizationGuard for consistent UX
 	return (
 		<OrganizationGuard pageType="default">
-			<Suspense fallback={<div className="p-8">Loading wallet...</div>}>
+			<Suspense fallback={<WalletLoadingFallback />}>
 				<WalletData />
 			</Suspense>
 		</OrganizationGuard>

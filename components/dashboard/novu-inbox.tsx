@@ -3,7 +3,7 @@
 import { Inbox } from "@novu/nextjs"
 import { useTheme } from "next-themes"
 import { Bell } from "@phosphor-icons/react"
-import { useSession } from "@/hooks/use-session"
+import { useSession } from "@/features/auth"
 import { cn } from "@/utils/cn"
 
 /**
@@ -49,9 +49,11 @@ export function NovuInbox() {
 
 	if (!appId) return null
 	if (isPending) return <BellButton />
-	if (!session?.user?.id) return <BellButton />
+	// Handle both UserResponse (has id) and session user (might have userID)
+	const userId = (session?.user as { id?: string; userID?: string })?.id || (session?.user as { id?: string; userID?: string })?.userID
+	if (!userId) return <BellButton />
 
-	const subscriberId = String(session.user.id)
+	const subscriberId = String(userId)
 	const isDark = resolvedTheme === "dark"
 
 	return (

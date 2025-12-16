@@ -4,22 +4,22 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
-import * as Button from "@/components/ui/button"
-import { InlineBackButton } from "@/components/ui/back-button"
-import * as StatusBadge from "@/components/ui/status-badge"
-import * as TabMenu from "@/components/ui/tab-menu-horizontal"
-import * as Dropdown from "@/components/ui/dropdown"
-import * as ProgressBar from "@/components/ui/progress-bar"
-import * as List from "@/components/ui/list"
-import { Metric, MetricGroup } from "@/components/ui/metric"
-import { Tracker } from "@/components/ui/tracker"
-import { BarList } from "@/components/ui/bar-list"
-import { AlignLineChart } from "@/components/claude-generated-components/charts"
+import * as Button from "@/components/ui/primitives/button"
+import { InlineBackButton } from "@/components/ui/navigation/back-button"
+import * as StatusBadge from "@/components/ui/data-display/status-badge"
+import * as TabMenu from "@/components/ui/navigation/tab-menu-horizontal"
+import * as Dropdown from "@/components/ui/layout/dropdown"
+import * as ProgressBar from "@/components/ui/primitives/progress-bar"
+import * as List from "@/components/ui/data-display/list"
+import { Metric, MetricGroup } from "@/components/ui/data-display/metric"
+import { Tracker } from "@/components/ui/data-display/tracker"
+import { BarList } from "@/components/ui/data-display/bar-list"
+import { AlignLineChart } from "@/components/ui/data-display/charts"
 import { ConfirmationModal } from "@/components/dashboard/modals"
-import * as Table from "@/components/ui/table"
-import * as Checkbox from "@/components/ui/checkbox"
-import * as Avatar from "@/components/ui/avatar"
-import * as Badge from "@/components/ui/badge"
+import * as Table from "@/components/ui/data-display/table"
+import * as Checkbox from "@/components/ui/forms/checkbox"
+import * as Avatar from "@/components/ui/primitives/avatar"
+import * as Badge from "@/components/ui/data-display/badge"
 import { cn } from "@/utils/cn"
 import {
 	PauseCircle,
@@ -49,10 +49,9 @@ import {
 	CaretLeft,
 	CaretRight,
 	Warning,
-} from "@phosphor-icons/react/dist/ssr"
-import type { Enrollment } from "@/hooks/use-enrollments"
+} from "@phosphor-icons/react"
+import type { Enrollment, EnrollmentStatus } from "@/features/enrollments"
 import type { DeliverableType } from "@/lib/types"
-import type { EnrollmentStatus } from "@/hooks/use-enrollments"
 import { CAMPAIGN_STATUS_CONFIG } from "@/lib/constants"
 import { THRESHOLDS } from "@/lib/types/constants"
 import {
@@ -65,8 +64,8 @@ import {
 	type CampaignPricing,
 	type CampaignStatus,
 } from "@/features/campaigns"
-import type { campaigns, enrollments } from "@/lib/encore-client"
-import type { integrations } from "@/lib/encore-client"
+import type { campaigns, enrollments } from "@/lib/api/encore-client"
+import type { integrations } from "@/lib/api/encore-client"
 import { toast } from "sonner"
 import {
 	type ColumnDef,
@@ -180,7 +179,7 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 							queryClient.invalidateQueries({ queryKey: ["campaign", campaignId] })
 							router.refresh()
 						} else {
-							toast.error(res.error || "Failed to pause campaign")
+							toast.error(res.error?.message || String(res.error) || "Failed to pause campaign")
 						}
 					} catch (e) {
 						toast.error("An error occurred")
@@ -201,7 +200,7 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 					queryClient.invalidateQueries({ queryKey: ["campaign", campaignId] })
 					router.refresh()
 				} else {
-					toast.error(res.error || "Failed to resume campaign")
+      toast.error(res.error?.message || String(res.error) || "Failed to resume campaign")
 				}
 			} catch (e) {
 				toast.error("An error occurred")
@@ -227,7 +226,7 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 							queryClient.invalidateQueries({ queryKey: ["campaign", campaignId] })
 							router.refresh()
 						} else {
-							toast.error(res.error || "Failed to end campaign")
+							toast.error(res.error?.message || String(res.error) || "Failed to end campaign")
 						}
 					} catch (e) {
 						toast.error("An error occurred")
@@ -293,7 +292,9 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 								onClick={handlePause}
 								disabled={isPending}
 							>
-								<Button.Icon as={PauseCircle} />
+								<Button.Icon>
+									<PauseCircle className="size-5" />
+								</Button.Icon>
 								<span className="hidden sm:inline">Pause</span>
 							</Button.Root>
 						)}
@@ -304,7 +305,9 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 								onClick={handleResume}
 								disabled={isPending}
 							>
-								<Button.Icon as={PlayCircle} />
+								<Button.Icon>
+									<PlayCircle className="size-5" />
+								</Button.Icon>
 								<span className="hidden sm:inline">Resume</span>
 							</Button.Root>
 						)}
@@ -312,14 +315,18 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 							<>
 								<Button.Root variant="neutral" size="xsmall" asChild>
 									<Link href={`/dashboard/campaigns/${campaign.id}/edit`}>
-										<Button.Icon as={PencilSimple} />
+										<Button.Icon>
+											<PencilSimple className="size-5" />
+										</Button.Icon>
 										<span className="hidden sm:inline">Edit</span>
 									</Link>
 								</Button.Root>
 								<Dropdown.Root>
 									<Dropdown.Trigger asChild>
 										<Button.Root variant="ghost" size="xsmall">
-											<Button.Icon as={DotsThree} />
+											<Button.Icon>
+												<DotsThree className="size-5" />
+											</Button.Icon>
 										</Button.Root>
 									</Dropdown.Trigger>
 									<Dropdown.Content align="end">
@@ -775,7 +782,7 @@ function OverviewTab({
 												{platformName}
 											</h4>
 											<div className="space-y-2 pl-4 border-l-2 border-stroke-soft-200">
-												{platformDeliverables.map((campaignDeliverable, index) => {
+												{platformDeliverables.map((campaignDeliverable: campaigns.CampaignDeliverableResponse, index: number) => {
 													const DeliverableIcon = getDeliverableIcon(
 														campaignDeliverable.deliverable?.category as string
 													)
@@ -932,9 +939,9 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
 				const res = await exportCampaignEnrollments(campaignId)
 				if (res.success && res.data) {
 					// Convert backend export data to CSV
-					const { exportToCSV } = await import("@/lib/excel")
+					const { exportToCSV } = await import("@/lib/utils/excel")
 					exportToCSV(
-						res.data as Record<string, unknown>[],
+						(res.data.data || []) as unknown as Record<string, unknown>[],
 						`campaign-${campaignId}-enrollments-${new Date().toISOString().split("T")[0]}`,
 						[
 							{ key: "enrollmentId", header: "Enrollment ID" },
@@ -952,9 +959,9 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
 							{ key: "createdAt", header: "Created At" },
 						]
 					)
-					toast.success(`Exported ${res.totalCount} enrollments to CSV`)
-				} else {
-					toast.error(res.error || "Failed to export enrollments")
+					toast.success(`Exported ${res.data.totalCount} enrollments to CSV`)
+				} else if (!res.success) {
+					toast.error(res.error?.message || String(res.error) || "Failed to export enrollments")
 				}
 			} catch (e) {
 				toast.error("An error occurred while exporting")
@@ -1126,7 +1133,9 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
 							}}
 						>
 							View
-							<Button.Icon as={ArrowRight} />
+							<Button.Icon>
+								<ArrowRight className="size-5" />
+							</Button.Icon>
 						</Button.Root>
 					)
 				},
@@ -1173,7 +1182,9 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
 						onClick={() => handleExport()}
 						disabled={isPending}
 					>
-						<Button.Icon as={DownloadSimple} />
+						<Button.Icon>
+							<DownloadSimple className="size-5" />
+						</Button.Icon>
 						{isPending ? "Exporting..." : "Export"}
 					</Button.Root>
 					<Button.Root variant="neutral" size="small" asChild>
@@ -1263,7 +1274,9 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
 								onClick={() => table.previousPage()}
 								disabled={!table.getCanPreviousPage()}
 							>
-								<Button.Icon as={CaretLeft} />
+								<Button.Icon>
+									<CaretLeft className="size-5" />
+								</Button.Icon>
 								Previous
 							</Button.Root>
 							<div className="text-paragraph-sm text-text-sub-600 px-3">
@@ -1280,7 +1293,9 @@ function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
 								disabled={!table.getCanNextPage()}
 							>
 								Next
-								<Button.Icon as={CaretRight} />
+								<Button.Icon>
+									<CaretRight className="size-5" />
+								</Button.Icon>
 							</Button.Root>
 						</div>
 					</div>

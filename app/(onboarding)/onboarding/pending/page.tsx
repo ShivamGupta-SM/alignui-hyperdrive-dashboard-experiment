@@ -1,10 +1,34 @@
 "use client"
 
-import Link from "next/link"
-import * as Button from "@/components/ui/button"
-import { Envelope, Clock, Headset } from "@phosphor-icons/react/dist/ssr"
+import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
+import { Envelope, Clock, Headset } from "@phosphor-icons/react"
+
+// Import Button directly - it's already a client component
+import { Root as ButtonRoot } from "@/components/ui/primitives/button"
 
 export default function PendingApprovalPage() {
+	const router = useRouter()
+	const [mounted, setMounted] = useState(false)
+	
+	useEffect(() => {
+		setMounted(true)
+	}, [])
+	
+	const handleDashboardClick = useCallback(() => {
+		router.push("/dashboard")
+	}, [router])
+	
+	const handleSupportClick = useCallback(() => {
+		if (typeof window !== "undefined") {
+			window.open("mailto:support@hypedrive.com")
+		}
+	}, [])
+	
+	if (!mounted) {
+		return <div className="p-8">Loading...</div>
+	}
+	
 	return (
 		<div className="w-full max-w-md text-center">
 			<div className="rounded-xl sm:rounded-2xl bg-bg-white-0 p-6 sm:p-8 ring-1 ring-inset ring-stroke-soft-200 shadow-sm">
@@ -59,15 +83,17 @@ export default function PendingApprovalPage() {
 
 				{/* Actions */}
 				<div className="flex flex-col gap-3">
-					<Button.Root variant="primary" className="w-full" asChild>
-						<Link href="/dashboard">Go to Dashboard</Link>
-					</Button.Root>
-					<Button.Root variant="ghost" className="w-full" asChild>
-						<a href="mailto:support@hypedrive.com" className="inline-flex items-center gap-2">
-							<Headset weight="duotone" className="size-5" />
-							Contact Support
-						</a>
-					</Button.Root>
+					{mounted && (
+						<>
+							<ButtonRoot variant="primary" className="w-full" onClick={handleDashboardClick}>
+								Go to Dashboard
+							</ButtonRoot>
+							<ButtonRoot variant="ghost" className="w-full inline-flex items-center gap-2" onClick={handleSupportClick}>
+								<Headset weight="duotone" className="size-5" />
+								Contact Support
+							</ButtonRoot>
+						</>
+					)}
 				</div>
 			</div>
 		</div>

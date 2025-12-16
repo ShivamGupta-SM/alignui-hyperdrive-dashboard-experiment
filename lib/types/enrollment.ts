@@ -1,7 +1,7 @@
 // Enrollment Types
 // Re-export from Encore (source of truth) for backwards compatibility
 
-import type { enrollments, shared } from "@/lib/encore-client"
+import type { enrollments, shared } from "@/lib/api/encore-client"
 
 // Re-export Encore types as source of truth
 export type EnrollmentStatus = shared.EnrollmentStatus

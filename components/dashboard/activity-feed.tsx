@@ -6,9 +6,9 @@ import {
 	useOrganizationActivity,
 	type OrganizationActivity,
 	type OrganizationActivityType,
-} from "@/hooks/use-settings"
-import * as Avatar from "@/components/ui/avatar"
-import * as Button from "@/components/ui/button"
+} from "@/features/settings"
+import * as Avatar from "@/components/ui/primitives/avatar"
+import * as Button from "@/components/ui/primitives/button"
 import {
 	Megaphone,
 	CheckCircle,
@@ -178,7 +178,7 @@ export function ActivityFeed({
 	return (
 		<div className={className}>
 			<div className="divide-y divide-stroke-soft-200">
-				{data.data.map((activity) => (
+				{data.data.map((activity: OrganizationActivity) => (
 					<ActivityItem key={activity.id} activity={activity} />
 				))}
 			</div>
@@ -196,7 +196,7 @@ export function ActivityFeed({
 							<Spinner className="size-4 animate-spin" />
 						) : (
 							<>
-								<Button.Icon as={CaretDown} />
+								<Button.Icon><CaretDown className="size-5" /></Button.Icon>
 								Load More
 							</>
 						)}
@@ -241,8 +241,8 @@ export function ActivityFeedCompact({
 
 	return (
 		<div className={cn("space-y-3", className)}>
-			{data.data.map((activity) => {
-				const config = activityConfig[activity.type] || {
+			{data.data.map((activity: OrganizationActivity) => {
+				const config = activityConfig[activity.type as OrganizationActivityType] || {
 					icon: Gear,
 					color: "text-text-sub-600",
 					bgColor: "bg-bg-weak-50",

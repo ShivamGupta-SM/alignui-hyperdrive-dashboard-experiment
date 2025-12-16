@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import * as Button from "@/components/ui/button"
-import { Callout } from "@/components/ui/callout"
+import * as Button from "@/components/ui/primitives/button"
+import { Callout } from "@/components/ui/feedback/callout"
 import { WarningCircle, ArrowLeft, CheckCircle } from "@phosphor-icons/react"
 import Link from "next/link"
 
@@ -57,7 +57,7 @@ export default function OAuthCallbackPage() {
 					if (abortController.signal.aborted) return
 
 					// Check if we have a session
-					const { getSession, ensureActiveOrgAfterOAuth } = await import("@/app/actions/auth")
+					const { getSession, ensureActiveOrgAfterOAuth } = await import("@/app/actions")
 					const sessionResult = await getSession()
 
 					if (abortController.signal.aborted) return
@@ -91,7 +91,7 @@ export default function OAuthCallbackPage() {
 							}
 						} catch (orgError) {
 							if (!abortController.signal.aborted) {
-								const { logWarn } = await import("@/lib/error-logger-simple")
+								const { logWarn } = await import("@/lib/logging/error-logger-simple")
 								logWarn("Failed to set active organization", { source: "OAuthCallback", data: { error: orgError } })
 								// Log but don't fail - user can set manually later
 							}
@@ -135,7 +135,9 @@ export default function OAuthCallbackPage() {
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 					<Button.Root variant="ghost" size="small" asChild>
 						<Link href="/sign-in">
-							<Button.Icon as={ArrowLeft} />
+							<Button.Icon>
+								<ArrowLeft className="size-5" />
+							</Button.Icon>
 							Back to Sign In
 						</Link>
 					</Button.Root>
@@ -166,7 +168,9 @@ export default function OAuthCallbackPage() {
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 					<Button.Root variant="ghost" size="small" asChild>
 						<Link href="/sign-in">
-							<Button.Icon as={ArrowLeft} />
+							<Button.Icon>
+								<ArrowLeft className="size-5" />
+							</Button.Icon>
 							Back to Sign In
 						</Link>
 					</Button.Root>
@@ -200,7 +204,9 @@ export default function OAuthCallbackPage() {
 			<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 				<Button.Root variant="ghost" size="small" asChild>
 					<Link href="/sign-in">
-						<Button.Icon as={ArrowLeft} />
+						<Button.Icon>
+							<ArrowLeft className="size-5" />
+						</Button.Icon>
 						Back to Sign In
 					</Link>
 				</Button.Root>

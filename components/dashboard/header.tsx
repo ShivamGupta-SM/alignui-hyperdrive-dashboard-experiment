@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import * as Avatar from "@/components/ui/avatar"
-import { Logo } from "@/components/ui/logo"
+import * as Avatar from "@/components/ui/primitives/avatar"
+import { Logo } from "@/components/ui/branding/logo"
 import {
 	NotificationCenter,
 	FallbackNotificationBell,
@@ -12,7 +12,7 @@ import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 import { MagnifyingGlass, Command, SidebarSimple, X, SquaresFour } from "@phosphor-icons/react"
 
-import { useSession } from "@/hooks/use-session"
+import { useSession } from "@/features/auth"
 
 interface HeaderProps {
 	unreadNotifications?: number

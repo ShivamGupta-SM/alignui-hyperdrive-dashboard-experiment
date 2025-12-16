@@ -2,9 +2,9 @@
 
 import Link from "next/link"
 import { cn } from "@/utils/cn"
-import * as Button from "@/components/ui/button"
-import { Logo } from "@/components/ui/logo"
-import { Tracker } from "@/components/ui/tracker"
+import * as Button from "@/components/ui/primitives/button"
+import { Logo } from "@/components/ui/branding/logo"
+import { Tracker } from "@/components/ui/data-display/tracker"
 import { MARKETING_STATS } from "@/lib/types/constants"
 
 // Testimonials will be fetched from API/CMS if needed
@@ -82,7 +82,7 @@ function Navigation() {
 						<Button.Root variant="primary" size="small" asChild className="hidden sm:inline-flex">
 							<Link href="/sign-up">
 								Get Started
-								<Button.Icon as={ArrowRight} />
+								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 							</Link>
 						</Button.Root>
 						<Button.Root
@@ -91,7 +91,7 @@ function Navigation() {
 							className="md:hidden"
 							onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
 						>
-							<Button.Icon as={List} />
+							<Button.Icon><List className="size-5" /></Button.Icon>
 						</Button.Root>
 					</div>
 				</div>
@@ -173,12 +173,12 @@ function HeroSection() {
 						<Button.Root variant="primary" size="medium" asChild className="w-full sm:w-auto">
 							<Link href="/sign-up">
 								Start Free Trial
-								<Button.Icon as={ArrowRight} />
+								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 							</Link>
 						</Button.Root>
 						<Button.Root variant="neutral" size="medium" asChild className="w-full sm:w-auto">
 							<Link href="#demo">
-								<Button.Icon as={Play} />
+								<Button.Icon><Play className="size-5" /></Button.Icon>
 								Watch Demo
 							</Link>
 						</Button.Root>
@@ -559,7 +559,7 @@ function MetricsSection() {
 							<Button.Root variant="primary" size="medium" asChild>
 								<Link href="/sign-up">
 									Try Dashboard Free
-									<Button.Icon as={ArrowRight} />
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 								</Link>
 							</Button.Root>
 						</div>
@@ -722,7 +722,7 @@ function PricingSection() {
 							>
 								<Link href={plan.name === "Enterprise" ? "/contact" : "/sign-up"}>
 									{plan.cta}
-									<Button.Icon as={ArrowRight} />
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 								</Link>
 							</Button.Root>
 						</div>
@@ -796,7 +796,7 @@ function CTASection() {
 							<Button.Root variant="primary" size="medium" asChild className="w-full sm:w-auto">
 								<Link href="/sign-up">
 									Get Started Free
-									<Button.Icon as={ArrowRight} />
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 								</Link>
 							</Button.Root>
 							<Button.Root

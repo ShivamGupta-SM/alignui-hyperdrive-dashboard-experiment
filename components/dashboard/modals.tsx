@@ -1,13 +1,13 @@
 "use client"
 
 import * as React from "react"
-import * as Modal from "@/components/ui/modal"
-import * as Button from "@/components/ui/button"
-import * as Input from "@/components/ui/input"
-import * as Textarea from "@/components/ui/textarea"
-import * as Select from "@/components/ui/select"
-import * as Checkbox from "@/components/ui/checkbox"
-import * as Radio from "@/components/ui/radio"
+import * as Modal from "@/components/ui/layout/modal"
+import * as Button from "@/components/ui/primitives/button"
+import * as Input from "@/components/ui/forms/input"
+import * as Textarea from "@/components/ui/forms/textarea"
+import * as Select from "@/components/ui/forms/select"
+import * as Checkbox from "@/components/ui/forms/checkbox"
+import * as Radio from "@/components/ui/forms/radio"
 import {
 	Warning,
 	Info,

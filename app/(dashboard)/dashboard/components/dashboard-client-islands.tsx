@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { cn } from "@/utils/cn"
-import * as Button from "@/components/ui/button"
+import * as Button from "@/components/ui/primitives/button"
 import { Plus } from "@phosphor-icons/react"
 import { THRESHOLDS, ANIMATION } from "@/lib/types/constants"
 
@@ -34,7 +34,7 @@ export function DashboardHeader() {
 			</div>
 			<Button.Root variant="primary" size="small" asChild className="shrink-0">
 				<Link href="/dashboard/campaigns/create">
-					<Button.Icon as={Plus} />
+					<Button.Icon><Plus className="size-5" /></Button.Icon>
 					<span className="hidden sm:inline">New Campaign</span>
 				</Link>
 			</Button.Root>

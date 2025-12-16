@@ -1,22 +1,23 @@
 "use client"
 
-import * as React from "react"
+import { useState, useEffect, useMemo, useTransition, useCallback } from "react"
 import { useActionState } from "react"
 import { useFormStatus } from "react-dom"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as Button from "@/components/ui/button"
-import * as Badge from "@/components/ui/badge"
-import * as Avatar from "@/components/ui/avatar"
-import { AvatarWithFallback } from "@/components/ui/avatar"
-import * as StatusBadge from "@/components/ui/status-badge"
-import * as Modal from "@/components/ui/modal"
-import * as Input from "@/components/ui/input"
-import * as Textarea from "@/components/ui/textarea"
-import * as Radio from "@/components/ui/radio"
-import * as Select from "@/components/ui/select"
-import * as List from "@/components/ui/list"
+import * as Button from "@/components/ui/primitives/button"
+import * as Badge from "@/components/ui/data-display/badge"
+import * as Avatar from "@/components/ui/primitives/avatar"
+import { AvatarWithFallback } from "@/components/ui/primitives/avatar"
+import * as StatusBadge from "@/components/ui/data-display/status-badge"
+import * as Modal from "@/components/ui/layout/modal"
+import * as Input from "@/components/ui/forms/input"
+import * as Textarea from "@/components/ui/forms/textarea"
+import * as Radio from "@/components/ui/forms/radio"
+import * as Select from "@/components/ui/forms/select"
+import * as List from "@/components/ui/data-display/list"
 import { getAvatarColor } from "@/utils/avatar-color"
+import { formatDateMedium } from "@/lib/utils/format"
 import {
 	Plus,
 	User,
@@ -26,20 +27,25 @@ import {
 	Eye,
 	Info,
 	Warning,
-} from "@phosphor-icons/react/dist/ssr"
+	ArrowRight,
+} from "@phosphor-icons/react"
 import { cn } from "@/utils/cn"
 import { ROLE_OPTIONS } from "@/lib/constants"
-import { inviteMember, inviteMemberAction, removeMember } from "@/app/actions/team"
+import { inviteMember, removeMember } from "@/features/team"
+import type { Result } from "@/shared/lib/errors/types"
 import { toast } from "sonner"
-import { useSession } from "@/hooks/use-session"
-import { inviteMemberSchema, type InviteMemberFormData } from "@/lib/validations"
+import { useSession } from "@/features/auth"
+import { inviteMemberSchema, VALIDATION_CONSTANTS, type InviteMemberFormData } from "@/lib/utils/validations"
 import { useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
-import type { auth } from "@/lib/encore-client"
+import { useLocalStorage } from "@/hooks/state"
+import { CalloutWithActions } from "@/components/ui/feedback/callout"
+import { useOrganizationContext } from "@/contexts/organization-context"
+import type { auth } from "@/lib/api/encore-client"
 
 // Types (simplified for internal use or imported if shared)
 // Assuming Member type is available or just using the shape
-import type { Member } from "@/hooks/use-team" // Should prefer importing shared type if available, but hook export is okay for now or define locally.
+import type { Member } from "@/features/team"
 
 type TeamMember = Member
 type UserRole = "owner" | "admin" | "manager" | "viewer" | "member"
@@ -92,10 +98,106 @@ interface TeamClientProps {
 	}
 }
 
+// Industry Standard: Use context instead of props
 export function TeamClient({ initialData }: TeamClientProps = {}) {
-	const [isInviteModalOpen, setIsInviteModalOpen] = React.useState(false)
-	const [isRemoveModalOpen, setIsRemoveModalOpen] = React.useState(false)
-	const [selectedMember, setSelectedMember] = React.useState<TeamMember | null>(null)
+	const router = useRouter()
+	
+	// Industry Standard: Always use context, never props
+	const { hasOrganization, isLoading: isOrgLoading } = useOrganizationContext()
+	
+	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
+		"team-onboarding-alert-dismissed",
+		false
+	)
+
+	// Industry Standard: Check loading state first
+	if (isOrgLoading) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				<div className="animate-pulse">
+					<div className="h-8 w-48 bg-bg-soft-200 rounded mb-4" />
+					<div className="h-40 bg-bg-soft-200 rounded-xl" />
+				</div>
+			</div>
+		)
+	}
+
+	// Show onboarding alert if no organization
+	const showOnboardingAlert = !hasOrganization && !dismissedOnboardingAlert
+
+	// If no organization, show alert
+	if (!hasOrganization) {
+		return (
+			<div className="space-y-5 sm:space-y-6">
+				{/* ONBOARDING ALERT */}
+				{showOnboardingAlert && (
+					<CalloutWithActions
+						variant="warning"
+						title="Complete Your Organization Setup"
+						dismissible
+						onDismiss={() => setDismissedOnboardingAlert(true)}
+						actions={
+							<>
+								<Button.Root
+									variant="primary"
+									size="small"
+									onClick={() => router.push("/onboarding")}
+								>
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
+									Start Onboarding
+								</Button.Root>
+								<Button.Root
+									variant="ghost"
+									size="small"
+									onClick={() => setDismissedOnboardingAlert(true)}
+								>
+									Maybe Later
+								</Button.Root>
+							</>
+						}
+					>
+						To manage team members and invitations, you need to complete your organization setup. This will only take a few minutes.
+					</CalloutWithActions>
+				)}
+
+				{/* HEADER */}
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+					<div className="min-w-0">
+						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Team</h1>
+						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
+							Manage team members and invitations
+						</p>
+					</div>
+				</div>
+
+				{/* EMPTY STATE */}
+				{dismissedOnboardingAlert && (
+					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
+						<div className="max-w-md mx-auto space-y-4">
+							<div className="flex justify-center">
+								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
+									<Warning weight="duotone" className="size-8 text-warning-base" />
+								</div>
+							</div>
+							<div>
+								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
+								<p className="text-paragraph-sm text-text-sub-600 mt-2">
+									Complete your organization setup to manage team members and invitations.
+								</p>
+							</div>
+							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
+								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
+								Start Onboarding
+							</Button.Root>
+						</div>
+					</div>
+				)}
+			</div>
+		)
+	}
+	const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+	const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false)
+	const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
 
 	// Fetch team data (hydrated from SSR)
 	const { data: session } = useSession()
@@ -103,18 +205,13 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 	// Use server data
 	const members = initialData?.members ?? []
 	const invitations = initialData?.invitations ?? []
-	const currentUserId = session?.user?.id ? String(session.user.id) : ""
+	const currentUserId = session?.user ? (("userID" in session.user ? session.user.userID : session.user.id) || "") : ""
 
-	const formatDate = (date: Date | string) => {
-		return new Date(date).toLocaleDateString("en-IN", {
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-		})
-	}
+	// Use centralized formatting from lib/format.ts
+	const formatDate = (date: Date | string): string => formatDateMedium(date)
 
 	// Stats
-	const stats = React.useMemo(
+	const stats = useMemo(
 		() => ({
 			total: members.length,
 			admins: members.filter((m) => m.role === "admin" || m.role === "owner").length,
@@ -123,6 +220,12 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 		}),
 		[members, invitations]
 	)
+
+	// Stable callbacks for member actions
+	const handleRemoveMember = useCallback((member: TeamMember) => {
+		setSelectedMember(member)
+		setIsRemoveModalOpen(true)
+	}, [])
 
 	return (
 		<div className="space-y-5 sm:space-y-6">
@@ -140,7 +243,7 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 					onClick={() => setIsInviteModalOpen(true)}
 					className="shrink-0"
 				>
-					<Button.Icon as={Plus} />
+					<Button.Icon><Plus className="size-5" /></Button.Icon>
 					<span className="hidden sm:inline">Invite Member</span>
 					<span className="sm:hidden">Invite</span>
 				</Button.Root>
@@ -251,19 +354,16 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 											<div className="flex items-center gap-2">
 												<StatusBadge.Root status={getRoleStatus(member.role)} variant="light">
 													<StatusBadge.Icon as={RoleIcon} weight="duotone" />
-													{member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+													{member.role ? member.role.charAt(0).toUpperCase() + member.role.slice(1) : "Unknown"}
 												</StatusBadge.Root>
 											</div>
 											{!isCurrentUser && !isOwner && (
 												<Button.Root
 													variant="ghost"
 													size="xsmall"
-													onClick={() => {
-														setSelectedMember(member)
-														setIsRemoveModalOpen(true)
-													}}
+													onClick={() => handleRemoveMember(member)}
 												>
-													<Button.Icon as={Trash} />
+													<Button.Icon><Trash className="size-5" /></Button.Icon>
 												</Button.Root>
 											)}
 										</div>
@@ -296,7 +396,7 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 										className="shrink-0"
 									>
 										<StatusBadge.Icon as={RoleIcon} weight="duotone" />
-										{member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+										{member.role ? member.role.charAt(0).toUpperCase() + member.role.slice(1) : "Unknown"}
 									</StatusBadge.Root>
 
 									{!isCurrentUser && !isOwner && (
@@ -316,12 +416,9 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 											<Button.Root
 												variant="ghost"
 												size="small"
-												onClick={() => {
-													setSelectedMember(member)
-													setIsRemoveModalOpen(true)
-												}}
+												onClick={() => handleRemoveMember(member)}
 											>
-												<Button.Icon as={Trash} />
+												<Button.Icon><Trash className="size-5" /></Button.Icon>
 											</Button.Root>
 										</div>
 									)}
@@ -481,30 +578,43 @@ function InviteMemberModal({
 }: { open: boolean; onOpenChange: (open: boolean) => void }) {
 	const queryClient = useQueryClient()
 	const router = useRouter()
-	const [message, setMessage] = React.useState("")
+	const [message, setMessage] = useState("")
+
+	// Wrapper action for useActionState (accepts FormData)
+	const inviteMemberAction = async (
+		prevState: Result<{ invitationId: string }> | null,
+		formData: FormData
+	): Promise<Result<{ invitationId: string }>> => {
+		const email = formData.get("email") as string
+		const role = formData.get("role") as string
+		if (!email || !role) {
+			return { success: false, error: new Error("Email and role are required") }
+		}
+		return inviteMember(email, role)
+	}
 
 	// React 19 useActionState hook
 	const [state, formAction, pending] = useActionState(inviteMemberAction, null)
 
 	// Reset form when modal closes
-	React.useEffect(() => {
+	useEffect(() => {
 		if (!open) {
 			setMessage("")
 		}
 	}, [open])
 
 	// Handle success/error from state
-	React.useEffect(() => {
+	useEffect(() => {
 		if (state?.success) {
-			toast.success(state.message || "Invitation sent successfully")
+			toast.success("Invitation sent successfully")
 			setMessage("")
 			onOpenChange(false)
 			// Invalidate team and invitations queries to refetch updated data
 			queryClient.invalidateQueries({ queryKey: ["team"] })
 			queryClient.invalidateQueries({ queryKey: ["invitations"] })
 			router.refresh()
-		} else if (state?.error) {
-			toast.error(state.error)
+		} else if (state && !state.success && state.error) {
+			toast.error(state.error instanceof Error ? state.error.message : String(state.error))
 		}
 	}, [state, onOpenChange, queryClient, router])
 
@@ -531,8 +641,10 @@ function InviteMemberModal({
 										/>
 									</Input.Wrapper>
 								</Input.Root>
-								{state?.error && (
-									<p className="mt-1 text-paragraph-xs text-error-base">{state.error}</p>
+								{state && !state.success && state.error && (
+									<p className="mt-1 text-paragraph-xs text-error-base">
+										{state.error instanceof Error ? state.error.message : String(state.error)}
+									</p>
 								)}
 							</div>
 
@@ -579,7 +691,7 @@ function InviteMemberModal({
 									rows={3}
 									value={message}
 									onChange={(e) => setMessage(e.target.value)}
-									maxLength={200}
+									maxLength={VALIDATION_CONSTANTS.MESSAGE_MAX_LENGTH}
 								/>
 								<p className="mt-1 text-paragraph-xs text-text-soft-400 text-right">
 									{message.length}/200 characters
@@ -619,7 +731,7 @@ function RemoveMemberModal({
 	onOpenChange: (open: boolean) => void
 	member: TeamMember | null
 }) {
-	const [isPending, startTransition] = React.useTransition()
+	const [isPending, startTransition] = useTransition()
 	const queryClient = useQueryClient()
 	const router = useRouter()
 
@@ -636,8 +748,8 @@ function RemoveMemberModal({
 					queryClient.invalidateQueries({ queryKey: ["team"] })
 					queryClient.invalidateQueries({ queryKey: ["members"] })
 					router.refresh()
-				} else {
-					toast.error(("error" in res ? res.error : res.message) || "Failed to remove member")
+				} else if (res.error) {
+					toast.error(res.error instanceof Error ? res.error.message : String(res.error))
 				}
 			} catch (e) {
 				toast.error("An error occurred")

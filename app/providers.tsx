@@ -4,7 +4,7 @@
 // Using side-effect import to avoid TypeScript module check errors
 if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
 	// Dynamic import for debug utilities (side-effect only)
-	void import("@/lib/debug-navigation").catch(() => {
+	void import("@/lib/utils/debug-navigation").catch(() => {
 		// Silently fail if debug file doesn't exist
 	})
 }
@@ -12,14 +12,14 @@ if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
 import { ThemeProvider } from "next-themes"
 import { useState, type ReactNode } from "react"
 import { Toaster } from "sonner"
-import { Provider as TooltipProvider } from "@/components/ui/tooltip"
-import { NotificationProvider } from "@/components/ui/notification-provider"
+import { Provider as TooltipProvider } from "@/components/ui/layout/tooltip"
+import { NotificationProvider } from "@/components/ui/feedback/notification-provider"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-import { PostHogProvider } from "@/lib/posthog"
+import { PostHogProvider } from "@/lib/integrations/posthog"
 import { NuqsAdapter } from "nuqs/adapters/next/app"
-// import { MSWInit } from "@/components/msw-init" // Mocking disabled
-import { NovuProvider } from "@/components/dashboard/novu-provider"
+// import { MSWInit } from "@/components/dev/msw-init" // Mocking disabled
+// import { NovuProvider } from "@/components/dashboard/novu-provider" // Removed - causing build issues
 import { OrganizationProvider } from "@/contexts/organization-context"
 
 function makeQueryClient() {
@@ -51,25 +51,23 @@ export function Providers({ children }: { children: ReactNode }) {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<OrganizationProvider>
-				<NovuProvider>
-					<PostHogProvider>
-						<NuqsAdapter>
-							<ThemeProvider
-								attribute="class"
-								defaultTheme="system"
-								enableSystem
-								disableTransitionOnChange
-							>
-								<TooltipProvider>
-									{children}
-								</TooltipProvider>
+				<PostHogProvider>
+					<NuqsAdapter>
+						<ThemeProvider
+							attribute="class"
+							defaultTheme="system"
+							enableSystem
+							disableTransitionOnChange
+						>
+							<TooltipProvider>
+								{children}
+							</TooltipProvider>
 
-								<NotificationProvider />
-								<Toaster />
-							</ThemeProvider>
-						</NuqsAdapter>
-					</PostHogProvider>
-				</NovuProvider>
+							<NotificationProvider />
+							<Toaster />
+						</ThemeProvider>
+					</NuqsAdapter>
+				</PostHogProvider>
 			</OrganizationProvider>
 		</QueryClientProvider>
 	)

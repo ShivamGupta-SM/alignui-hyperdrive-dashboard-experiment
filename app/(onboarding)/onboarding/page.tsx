@@ -1,20 +1,20 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as Button from "@/components/ui/button"
-import { BackButton } from "@/components/ui/back-button"
-import * as Input from "@/components/ui/input"
-import * as Select from "@/components/ui/select"
-import * as Textarea from "@/components/ui/textarea"
-import * as Checkbox from "@/components/ui/checkbox"
-import * as HorizontalStepper from "@/components/ui/horizontal-stepper"
-import * as FileUpload from "@/components/ui/file-upload"
-import * as Hint from "@/components/ui/hint"
-import { Callout } from "@/components/ui/callout"
-import { FormField } from "@/components/ui/form-field"
+import * as Button from "@/components/ui/primitives/button"
+import { BackButton } from "@/components/ui/navigation/back-button"
+import * as Input from "@/components/ui/forms/input"
+import * as Select from "@/components/ui/forms/select"
+import * as Textarea from "@/components/ui/forms/textarea"
+import * as Checkbox from "@/components/ui/forms/checkbox"
+import * as HorizontalStepper from "@/components/ui/primitives/horizontal-stepper"
+import * as FileUpload from "@/components/ui/forms/file-upload"
+import * as Hint from "@/components/ui/feedback/hint"
+import { Callout } from "@/components/ui/feedback/callout"
+import { FormField } from "@/components/ui/forms/form-field"
 import {
 	ArrowRight,
 	Check,
@@ -23,22 +23,21 @@ import {
 	CloudArrowUp,
 	Info,
 	FileText,
-} from "@phosphor-icons/react/dist/ssr"
+} from "@phosphor-icons/react"
 import { cn } from "@/utils/cn"
 import { BUSINESS_TYPE_OPTIONS, INDUSTRY_CATEGORY_OPTIONS, INDIAN_STATES } from "@/lib/constants"
-import { onboardingFormSchema, type OnboardingFormInput } from "@/lib/validations"
+import { onboardingFormSchema, type OnboardingFormInput } from "@/lib/utils/validations"
 import type { BusinessType, IndustryCategory, OrganizationDraft } from "@/lib/types"
-import type { organizations, auth } from "@/lib/encore-client"
-import { useSession } from "@/hooks/use-session"
-import { getEncoreClient } from "@/lib/encore"
+import type { organizations, auth } from "@/lib/api/encore-client"
+import { useSession } from "@/features/auth"
+import { getEncoreClient } from "@/lib/api/encore"
 import { toast } from "sonner"
-import { logInfo, logError } from "@/lib/error-logger-simple"
+import { logInfo, logError, logWarn } from "@/lib/logging/error-logger-simple"
 
 const steps = [
 	{ label: "Basic Info", value: 1 },
-	{ label: "Business", value: 2 },
-	{ label: "Verification", value: 3 },
-	{ label: "Review", value: 4 },
+	{ label: "Business & Verification", value: 2 },
+	{ label: "Review", value: 3 },
 ]
 
 export default function OnboardingPage() {
@@ -62,8 +61,57 @@ export default function OnboardingPage() {
 		address: string
 	} | null>(null)
 	
+	// ✅ OPTIMIZATION: Cache organizations list to avoid duplicate API calls
+	const [organizationsCache, setOrganizationsCache] = useState<{
+		organizations: Array<auth.OrganizationResponse & { approvalStatus?: string }>
+		fetchedAt: number
+	} | null>(null)
+	const ORGANIZATIONS_CACHE_TTL = 30000 // 30 seconds cache
+	
 	// Ref map for form fields to avoid direct DOM manipulation
 	const fieldRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>>(new Map())
+	
+	// ✅ OPTIMIZATION: Shared function to get organizations (with caching)
+	// ✅ FIX: Only fetch if user is authenticated
+	const getOrganizationsList = useCallback(async () => {
+		// Check cache first
+		if (organizationsCache && Date.now() - organizationsCache.fetchedAt < ORGANIZATIONS_CACHE_TTL) {
+			return organizationsCache.organizations
+		}
+		
+		// ✅ FIX: Don't fetch if user is not authenticated
+		if (!session?.user || isSessionPending) {
+			return []
+		}
+		
+		try {
+			// Fetch fresh data
+			const { getEncoreBrowserClient } = await import("@/lib/api/encore-browser")
+			const orgsClient = getEncoreBrowserClient()
+			const orgsResult = await orgsClient.auth.listOrganizations()
+			const organizations = (orgsResult.organizations || []) as Array<auth.OrganizationResponse & { approvalStatus?: string }>
+			
+			// Update cache
+			setOrganizationsCache({
+				organizations,
+				fetchedAt: Date.now(),
+			})
+			
+			return organizations
+		} catch (error) {
+			// ✅ FIX: If auth error, return empty array (user not authenticated yet)
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			if (errorMessage.includes("authentication") || errorMessage.includes("401") || errorMessage.includes("credentials")) {
+				return []
+			}
+			// For other errors, log but return empty
+			logWarn("Failed to fetch organizations list", { 
+				source: "Onboarding", 
+				data: { error: errorMessage } 
+			})
+			return []
+		}
+	}, [organizationsCache, session?.user, isSessionPending])
 	
 	// Check if user already has an organization - redirect to dashboard if yes
 	// This prevents forcing onboarding on users who already completed it
@@ -81,28 +129,54 @@ export default function OnboardingPage() {
 			// Clear any previous user's draft data when checking (safety measure)
 			// This ensures new users don't see previous user's data
 			try {
-				// Check if this is a new user (no organizations) and clear draft
-				const { getEncoreBrowserClient } = await import("@/lib/encore-browser")
-				const client = getEncoreBrowserClient()
-				const orgsResult = await client.auth.listOrganizations()
+				// Check if this is a new user (no organizations) and clear draft using server action
+				const { checkUserOrganizations } = await import("@/features/organizations/actions/onboarding")
+				const orgsResult = await checkUserOrganizations()
+				
+				if (!orgsResult.success) {
+					// On error, allow user to proceed (don't block onboarding)
+					// Log error but don't show to user - this is expected if backend is down or user not authenticated
+					// ✅ FIX: TypeScript knows error exists when success is false
+					const error = orgsResult.error
+					// ✅ FIX: Convert error to proper Error instance if it's not already
+					const errorInstance = error instanceof Error 
+						? error 
+						: new Error(typeof error === "string" ? error : JSON.stringify(error))
+					const errorMsg = errorInstance.message
+					
+					// ✅ FIX: Don't log authentication errors (expected for unauthenticated users)
+					// Only log unexpected errors
+					if (!errorMsg.includes("Authentication") && !errorMsg.includes("401") && !errorMsg.includes("credentials") && !errorMsg.includes("502")) {
+						logError(errorInstance, { 
+							source: "Onboarding", 
+							data: { action: "checkUserOrganizations" } 
+						})
+					} else {
+						// Log as warning for expected errors (not critical)
+						logWarn(`Expected error in checkUserOrganizations: ${errorMsg}`, { 
+							source: "Onboarding", 
+							data: { action: "checkUserOrganizations" } 
+						})
+					}
+					setHasCheckedOrg(true)
+					return
+				}
+				
+				// ✅ FIX: TypeScript knows data exists when success is true
+				if (!orgsResult.data) {
+					setHasCheckedOrg(true)
+					return
+				}
+
+				const { approvedOrgs, draftOrgs } = orgsResult.data
 				
 				// Only redirect if user has approved organizations (not drafts)
-				const approvedOrgs = orgsResult.organizations?.filter(
-					(org): org is auth.OrganizationResponse & { approvalStatus?: string } => 
-						'approvalStatus' in org && (org as { approvalStatus?: string }).approvalStatus === "approved"
-				)
 				if (approvedOrgs && approvedOrgs.length > 0) {
 					router.replace("/dashboard")
 					return
 				}
 				
 				// If user has draft org, allow them to continue onboarding
-				const draftOrgs = orgsResult.organizations?.filter(
-					(org): org is auth.OrganizationResponse & { approvalStatus?: string } => 
-						'approvalStatus' in org && 
-						((org as { approvalStatus?: string }).approvalStatus === "draft" || 
-						 (org as { approvalStatus?: string }).approvalStatus === "pending")
-				)
 				if (draftOrgs && draftOrgs.length > 0) {
 					// Set organizationId so backend auto-save can work
 					setOrganizationId(draftOrgs[0].id)
@@ -116,8 +190,16 @@ export default function OnboardingPage() {
 					}
 				}
 			} catch (error) {
-				const { logError } = await import("@/lib/error-logger-simple")
-				logError(error, { source: "Onboarding", data: { action: "checkOrganization" } })
+				// Check if it's a network/server error (502, 503, etc.) or auth error
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				const isServerError = errorMessage.includes("502") || errorMessage.includes("503") || errorMessage.includes("504") || errorMessage.includes("fetch failed")
+				const isAuthError = errorMessage.includes("authentication") || errorMessage.includes("401") || errorMessage.includes("credentials")
+				
+				// Only log unexpected errors, not expected ones (server down, auth issues)
+				if (!isServerError && !isAuthError) {
+					const { logError } = await import("@/lib/logging/error-logger-simple")
+					logError(error, { source: "Onboarding", data: { action: "checkOrganization" } })
+				}
 				// Don't block onboarding on error - let user proceed
 			}
 
@@ -217,14 +299,9 @@ export default function OnboardingPage() {
 
 			try {
 				if (abortController.signal.aborted) return
-				// First, try to load from backend (cross-device persistence)
-				// Use browser client with cookies (credentials: "include" sends cookies automatically)
-				// No need for Bearer token when cookies are available
-				const { getEncoreBrowserClient } = await import("@/lib/encore-browser")
-				const client = getEncoreBrowserClient()
-
-				const orgsResult = await client.auth.listOrganizations()
-				const draftOrg = orgsResult.organizations?.find(
+				// ✅ OPTIMIZATION: Use cached organizations list
+				const organizations = await getOrganizationsList()
+				const draftOrg = organizations.find(
 					(org): org is auth.OrganizationResponse & { approvalStatus?: string } => 
 						'approvalStatus' in org && 
 						((org as { approvalStatus?: string }).approvalStatus === "draft" || 
@@ -233,7 +310,7 @@ export default function OnboardingPage() {
 
 				if (draftOrg) {
 					// Load draft from backend
-					const { loadOnboardingDraft } = await import("@/app/actions/onboarding")
+					const { loadOnboardingDraft } = await import("@/features/organizations")
 					const backendDraft = await loadOnboardingDraft(draftOrg.id)
 
 					if (backendDraft) {
@@ -241,7 +318,7 @@ export default function OnboardingPage() {
 						setOrganizationId(draftOrg.id)
 						reset(backendDraft)
 						setDraftRestored(true)
-						const { logInfo } = await import("@/lib/error-logger-simple")
+						const { logInfo } = await import("@/lib/logging/error-logger-simple")
 						logInfo("Draft restored from backend", { source: "Onboarding" })
 						if (!abortController.signal.aborted) {
 							toast.success("Draft restored", {
@@ -262,7 +339,7 @@ export default function OnboardingPage() {
 						const draft = JSON.parse(savedDraft)
 						reset(draft)
 						setDraftRestored(true)
-						const { logInfo } = await import("@/lib/error-logger-simple")
+						const { logInfo } = await import("@/lib/logging/error-logger-simple")
 						logInfo("Draft restored from localStorage", { source: "Onboarding" })
 						if (!abortController.signal.aborted) {
 							toast.success("Draft restored", {
@@ -272,14 +349,14 @@ export default function OnboardingPage() {
 						}
 					} catch (e) {
 						if (!abortController.signal.aborted) {
-							const { logError } = await import("@/lib/error-logger-simple")
+							const { logError } = await import("@/lib/logging/error-logger-simple")
 							logError(e, { source: "Onboarding", data: { action: "parseLocalStorageDraft" } })
 						}
 					}
 				}
 			} catch (error) {
 				if (!abortController.signal.aborted) {
-					const { logError } = await import("@/lib/error-logger-simple")
+					const { logError } = await import("@/lib/logging/error-logger-simple")
 					logError(error, { source: "Onboarding", data: { action: "loadDraft" } })
 				}
 				// Fallback to localStorage
@@ -292,7 +369,7 @@ export default function OnboardingPage() {
 						setDraftRestored(true)
 					} catch (e) {
 						if (!abortController.signal.aborted) {
-							const { logError: logErr } = await import("@/lib/error-logger-simple")
+							const { logError: logErr } = await import("@/lib/logging/error-logger-simple")
 							logErr(e, { source: "Onboarding", data: { action: "parseLocalStorageDraftFallback" } })
 						}
 					}
@@ -366,7 +443,7 @@ export default function OnboardingPage() {
 			// Debounce backend saves (3 seconds - less frequent than localStorage)
 			timeoutId = setTimeout(async () => {
 				try {
-					const { saveOnboardingDraft } = await import("@/app/actions/onboarding")
+					const { saveOnboardingDraft } = await import("@/features/organizations")
 					// Convert OnboardingFormInput to Partial<OrganizationDraft>
 					// OnboardingFormInput matches OrganizationDraft structure but without step
 					const draftData: Partial<OrganizationDraft> = {
@@ -467,14 +544,16 @@ export default function OnboardingPage() {
 			if (!formData.basicInfo?.name) return
 
 			try {
-				// Use browser client with cookies (credentials: "include" sends cookies automatically)
-				// No need for Bearer token when cookies are available
-				const { getEncoreBrowserClient } = await import("@/lib/encore-browser")
-				const client = getEncoreBrowserClient()
+				// ✅ FIX: Only create organization if user is authenticated
+				if (!session?.user) {
+					// User not authenticated yet - skip organization creation
+					// Organization will be created when they submit the form
+					return
+				}
 
-				// Check if organization already exists
-				const orgsResult = await client.auth.listOrganizations()
-				const existingOrg = orgsResult.organizations?.find(
+				// ✅ OPTIMIZATION: Use cached organizations list
+				const organizations = await getOrganizationsList()
+				const existingOrg = organizations.find(
 					(org): org is auth.OrganizationResponse & { approvalStatus?: string } => 
 						'approvalStatus' in org && 
 						((org as { approvalStatus?: string }).approvalStatus === "draft" || 
@@ -488,18 +567,33 @@ export default function OnboardingPage() {
 
 				// Create new organization using custom backend endpoint (auto-sets active org)
 				// Industry Standard: Backend handles Better Auth sync + auto-set
-				const basicOrg = await client.organizations.createOrganization({
+				const { getEncoreBrowserClient } = await import("@/lib/api/encore-browser")
+				const createOrgClient = getEncoreBrowserClient()
+				const basicOrg = await createOrgClient.organizations.createOrganization({
 					name: formData.basicInfo.name,
 					// Backend auto-sets if user has no active org
 				})
 
 				if (basicOrg?.id) {
 					setOrganizationId(basicOrg.id)
+					// ✅ OPTIMIZATION: Invalidate cache when new org is created
+					setOrganizationsCache(null)
 					// ✅ No need to call setActiveOrganization - backend does it automatically!
 					logInfo("Organization created and auto-set as active", { source: "Onboarding" })
 				}
 			} catch (error) {
-				logError(error, { source: "Onboarding", data: { action: "createOrganizationForDraft" } })
+				// ✅ FIX: Check if it's an auth error (expected for unauthenticated users)
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				const isAuthError = errorMessage.includes("authentication") || errorMessage.includes("401") || errorMessage.includes("credentials")
+				
+				if (!isAuthError) {
+					logError(error, { source: "Onboarding", data: { action: "createOrganizationForDraft" } })
+				} else {
+					logWarn("User not authenticated yet, skipping organization creation", { 
+						source: "Onboarding", 
+						data: { action: "createOrganizationForDraft" } 
+					})
+				}
 				// Continue without backend saving - localStorage will still work
 			}
 		}
@@ -517,7 +611,18 @@ export default function OnboardingPage() {
 				isValid = await trigger(["basicInfo.name", "basicInfo.website", "basicInfo.description"])
 				break
 			case 2:
-				// Business Details step
+				// Combined Business Details & Verification step
+				// First check GST verification
+				const gstVerified = getValues("verification.gstVerified")
+				if (!gstVerified) {
+					// GST not verified - trigger GST validation
+					isValid = await trigger(["verification.gstNumber", "verification.gstVerified"])
+					if (!isValid) {
+						toast.error("Please verify your GST number before proceeding")
+						return
+					}
+				}
+				// Then validate business details
 				isValid = await trigger([
 					"businessDetails.businessType",
 					"businessDetails.industryCategory",
@@ -530,23 +635,12 @@ export default function OnboardingPage() {
 				])
 				break
 			case 3:
-				// Verification step - GST is required (PAN is only for shoppers, not organizations)
-				isValid = await trigger(["verification.gstNumber", "verification.gstVerified"])
-				// Also check if GST is verified
-				const gstVerified = getValues("verification.gstVerified")
-				if (!gstVerified) {
-					isValid = false
-					// Show error if GST not verified
-					setValue("verification.gstVerified", false, { shouldValidate: true })
-				}
-				break
-			case 4:
 				// Review step - no validation needed
 				isValid = true
 				break
 		}
 
-		if (isValid && currentStep < 4) {
+		if (isValid && currentStep < 3) {
 			setCurrentStep(currentStep + 1)
 			window.scrollTo({ top: 0, behavior: "smooth" })
 		}
@@ -574,12 +668,14 @@ export default function OnboardingPage() {
 			let orgId = organizationId
 			
 			if (!orgId) {
-				// Create draft organization if it doesn't exist
-				const { getEncoreBrowserClient } = await import("@/lib/encore-browser")
-				const client = getEncoreBrowserClient()
-				
-				const orgsResult = await client.auth.listOrganizations()
-				const draftOrg = orgsResult.organizations?.find(
+				// ✅ FIX: Only create/fetch organization if user is authenticated
+				if (!session?.user) {
+					throw new Error("Please sign in to verify GST. Authentication is required.")
+				}
+
+				// ✅ OPTIMIZATION: Use cached organizations list
+				const organizations = await getOrganizationsList()
+				const draftOrg = organizations.find(
 					(org): org is auth.OrganizationResponse & { approvalStatus?: string } => 
 						'approvalStatus' in org && 
 						((org as { approvalStatus?: string }).approvalStatus === "draft" || 
@@ -592,11 +688,15 @@ export default function OnboardingPage() {
 					setOrganizationId(draftOrg.id)
 				} else {
 					// Create new draft organization
+					const { getEncoreBrowserClient } = await import("@/lib/api/encore-browser")
+					const gstVerifyClient = getEncoreBrowserClient()
 					const orgName = getValues("basicInfo.name") || "Organization"
-					const newOrg = await client.organizations.createOrganization({ name: orgName })
+					const newOrg = await gstVerifyClient.organizations.createOrganization({ name: orgName })
 					if (newOrg?.id) {
 						orgId = newOrg.id
 						setOrganizationId(newOrg.id)
+						// ✅ OPTIMIZATION: Invalidate cache when new org is created
+						setOrganizationsCache(null)
 					} else {
 						throw new Error("Failed to create organization for GST verification")
 					}
@@ -605,7 +705,7 @@ export default function OnboardingPage() {
 
 			// Call actual GST verification API (SurePass integration)
 			// Server action will handle setting active organization server-side
-			const { verifyGST } = await import('@/app/actions/onboarding')
+			const { verifyGST } = await import('@/features/organizations')
 			const result = await verifyGST(gstNumber, orgId)
 
 			if (result.success && result.gstDetails) {
@@ -617,7 +717,13 @@ export default function OnboardingPage() {
 					address: result.gstDetails.address || "",
 				})
 				setValue("verification.gstVerified", true, { shouldValidate: true })
-				toast.success("GST verified successfully")
+				
+				// ✅ AUTO-FILL: Fill address from GST API response
+				if (result.gstDetails.address) {
+					setValue("businessDetails.address", result.gstDetails.address, { shouldValidate: true })
+				}
+				
+				toast.success("GST verified successfully. Address auto-filled from GST data.")
 			} else {
 				// Error from API
 				const errorMessage = "error" in result ? result.error : "GST verification failed"
@@ -839,10 +945,7 @@ export default function OnboardingPage() {
 						<Step1BasicInfo register={register} control={control} errors={errors} />
 					)}
 					{currentStep === 2 && (
-						<Step2BusinessDetails register={register} control={control} errors={errors} />
-					)}
-					{currentStep === 3 && (
-						<Step3Verification
+						<Step2BusinessAndVerification
 							register={register}
 							control={control}
 							errors={errors}
@@ -851,12 +954,11 @@ export default function OnboardingPage() {
 							getValues={getValues}
 							gstDetails={gstDetails}
 							onVerifyGst={handleVerifyGst}
-							// ❌ REMOVED: PAN verification props
 							isVerifyingGst={isVerifyingGst}
 						/>
 					)}
-					{currentStep === 4 && (
-						<Step4Review
+					{currentStep === 3 && (
+						<Step3Review
 							watch={watch}
 							onEdit={setCurrentStep}
 							termsAccepted={termsAccepted}
@@ -880,7 +982,7 @@ export default function OnboardingPage() {
 							)}
 						</div>
 						<div className="flex items-center gap-3 w-full sm:w-auto">
-							{currentStep < 4 ? (
+							{currentStep < 3 ? (
 								<Button.Root
 									type="button"
 									variant="primary"
@@ -891,7 +993,9 @@ export default function OnboardingPage() {
 									className="flex-1 sm:flex-initial"
 								>
 									Continue
-									<Button.Icon as={ArrowRight} />
+									<Button.Icon>
+										<ArrowRight className="size-5" />
+									</Button.Icon>
 								</Button.Root>
 							) : (
 								<Button.Root
@@ -969,22 +1073,124 @@ function Step1BasicInfo({ register, control, errors }: Step1Props) {
 	)
 }
 
-// Step 2: Business Details
-interface Step2Props {
+// Step 2: Business Details & Verification (Combined)
+interface Step2CombinedProps {
 	register: ReturnType<typeof useForm<OnboardingFormInput>>["register"]
 	control: ReturnType<typeof useForm<OnboardingFormInput>>["control"]
 	errors: ReturnType<typeof useForm<OnboardingFormInput>>["formState"]["errors"]
+	watch: ReturnType<typeof useForm<OnboardingFormInput>>["watch"]
+	setValue: ReturnType<typeof useForm<OnboardingFormInput>>["setValue"]
+	getValues: ReturnType<typeof useForm<OnboardingFormInput>>["getValues"]
+	gstDetails: { legalName: string; tradeName: string; status: string; address: string } | null
+	onVerifyGst: () => void
+	isVerifyingGst: boolean
 }
 
-function Step2BusinessDetails({ register, control, errors }: Step2Props) {
+function Step2BusinessAndVerification({
+	register,
+	control,
+	errors,
+	watch,
+	setValue,
+	getValues,
+	gstDetails,
+	onVerifyGst,
+	isVerifyingGst,
+}: Step2CombinedProps) {
+	const gstNumber = watch("verification.gstNumber")
+	const gstVerified = watch("verification.gstVerified")
+	const businessType = watch("businessDetails.businessType")
 	return (
 		<div className="space-y-5 sm:space-y-6">
 			<div>
-				<h2 className="text-title-h5 sm:text-title-h4 text-text-strong-950 mb-1">Business Details</h2>
-				<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">Provide your business information</p>
+				<h2 className="text-title-h5 sm:text-title-h4 text-text-strong-950 mb-1">Business Details & Verification</h2>
+				<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">
+					Verify your GST first, then complete business information
+				</p>
 			</div>
 
-			<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+			{/* GST Verification Section (First) */}
+			<div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5 bg-bg-weak-50">
+				<div className="mb-4">
+					<h3 className="text-label-sm font-medium text-text-strong-950 mb-1">GST Verification (Mandatory)</h3>
+					<p className="text-paragraph-xs text-text-sub-600">
+						Verify your GST number to auto-fill business address
+					</p>
+				</div>
+				
+				<FormField
+					label="GST Number"
+					required
+					error={errors.verification?.gstNumber?.message}
+					hint="15-character GSTIN format"
+				>
+					<div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-start">
+						<div className="flex-1 min-w-0">
+							<Input.Root>
+								<Input.Wrapper>
+									<Input.El
+										{...register("verification.gstNumber", {
+											onChange: (e) => {
+												setValue("verification.gstNumber", e.target.value.toUpperCase(), {
+													shouldValidate: true,
+												})
+											},
+										})}
+										placeholder="29AABCU9603R1ZM"
+										disabled={gstVerified}
+									/>
+								</Input.Wrapper>
+							</Input.Root>
+						</div>
+						<Button.Root
+							type="button"
+							variant={gstVerified ? "neutral" : "primary"}
+							onClick={onVerifyGst}
+							disabled={isVerifyingGst || !gstNumber || gstVerified}
+							className="w-full sm:w-auto shrink-0"
+						>
+							{isVerifyingGst ? "Verifying..." : gstVerified ? "Verified" : "Verify GST"}
+						</Button.Root>
+					</div>
+				</FormField>
+
+				{gstDetails && (
+					<div className="mt-4 rounded-xl bg-bg-white-0 p-3 sm:p-4 space-y-2 ring-1 ring-stroke-soft-200">
+						<div className="flex items-center gap-2 text-success-base text-label-sm font-medium">
+							<SealCheck className="size-5" weight="duotone" />
+							GST Verified
+						</div>
+						<div className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 space-y-1.5">
+							<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+								<span className="font-medium text-text-strong-950 min-w-[100px]">Legal Name:</span>
+								<span className="text-text-strong-950">{gstDetails.legalName}</span>
+							</div>
+							<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+								<span className="font-medium text-text-strong-950 min-w-[100px]">Trade Name:</span>
+								<span className="text-text-strong-950">{gstDetails.tradeName}</span>
+							</div>
+							<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+								<span className="font-medium text-text-strong-950 min-w-[100px]">Status:</span>
+								<span className="text-success-base font-medium">{gstDetails.status}</span>
+							</div>
+						</div>
+					</div>
+				)}
+				{errors.verification?.gstVerified && (
+					<p className="mt-2 text-paragraph-xs text-error-base font-medium">
+						{errors.verification.gstVerified.message}
+					</p>
+				)}
+			</div>
+
+			{/* Business Details Section (After GST Verification) */}
+			<div className="pt-4 border-t border-stroke-soft-200">
+				<div className="mb-4">
+					<h3 className="text-label-sm font-medium text-text-strong-950 mb-1">Business Information</h3>
+					<p className="text-paragraph-xs text-text-sub-600">Complete your business details</p>
+				</div>
+
+				<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 				<FormField
 					label="Business Type"
 					required
@@ -1056,12 +1262,18 @@ function Step2BusinessDetails({ register, control, errors }: Step2Props) {
 				</FormField>
 			</div>
 
-			<FormField label="Address" required error={errors.businessDetails?.address?.message}>
+			<FormField 
+				label="Address" 
+				required 
+				error={errors.businessDetails?.address?.message}
+				hint={gstDetails?.address ? "Auto-filled from GST verification" : undefined}
+			>
 				<Input.Root>
 					<Input.Wrapper>
 						<Input.El
 							{...register("businessDetails.address")}
 							placeholder="123, Tech Park, Sector 5"
+							disabled={!!gstDetails?.address}
 						/>
 					</Input.Wrapper>
 				</Input.Root>
@@ -1103,126 +1315,6 @@ function Step2BusinessDetails({ register, control, errors }: Step2Props) {
 					</Input.Root>
 				</FormField>
 			</div>
-		</div>
-	)
-}
-
-// Step 3: Verification
-interface Step3Props {
-	register: ReturnType<typeof useForm<OnboardingFormInput>>["register"]
-	control: ReturnType<typeof useForm<OnboardingFormInput>>["control"]
-	errors: ReturnType<typeof useForm<OnboardingFormInput>>["formState"]["errors"]
-	watch: ReturnType<typeof useForm<OnboardingFormInput>>["watch"]
-	setValue: ReturnType<typeof useForm<OnboardingFormInput>>["setValue"]
-	getValues: ReturnType<typeof useForm<OnboardingFormInput>>["getValues"]
-	gstDetails: { legalName: string; tradeName: string; status: string; address: string } | null
-	onVerifyGst: () => void
-	// ❌ REMOVED: PAN verification props - PAN is only for shoppers
-	isVerifyingGst: boolean
-}
-
-function Step3Verification({
-	register,
-	control,
-	errors,
-	watch,
-	setValue,
-	getValues,
-	gstDetails,
-	onVerifyGst,
-	// ❌ REMOVED: PAN verification props
-	isVerifyingGst,
-}: Step3Props) {
-	const gstNumber = watch("verification.gstNumber")
-	const gstVerified = watch("verification.gstVerified")
-	// ❌ REMOVED: PAN fields - PAN is only for shoppers
-	const businessType = watch("businessDetails.businessType")
-
-	return (
-		<div className="space-y-4 sm:space-y-6">
-			<div>
-				<h2 className="text-title-h5 sm:text-title-h4 text-text-strong-950 mb-1">Verification</h2>
-				<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">
-					GST verification is mandatory for platform access
-				</p>
-			</div>
-
-			{/* GST Verification */}
-			<Callout variant="warning" title="GST VERIFICATION (Mandatory)" className="mb-4 sm:mb-6">
-				GST verification is required to access the platform and receive payments.
-			</Callout>
-
-			<div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
-				<FormField
-					label="GST Number"
-					required
-					error={errors.verification?.gstNumber?.message}
-					hint="15-character GSTIN format"
-				>
-					<div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-start">
-						<div className="flex-1 min-w-0">
-							<Input.Root>
-								<Input.Wrapper>
-									<Input.El
-										{...register("verification.gstNumber", {
-											onChange: (e) => {
-												setValue("verification.gstNumber", e.target.value.toUpperCase(), {
-													shouldValidate: true,
-												})
-											},
-										})}
-										placeholder="29AABCU9603R1ZM"
-										disabled={gstVerified}
-									/>
-								</Input.Wrapper>
-							</Input.Root>
-						</div>
-						<Button.Root
-							type="button"
-							variant={gstVerified ? "neutral" : "primary"}
-							onClick={onVerifyGst}
-							disabled={isVerifyingGst || !gstNumber || gstVerified}
-							className="w-full sm:w-auto shrink-0"
-						>
-							{isVerifyingGst ? "Verifying..." : gstVerified ? "Verified" : "Verify GST"}
-						</Button.Root>
-					</div>
-				</FormField>
-
-				{gstDetails && (
-					<div className="mt-4 rounded-xl bg-bg-weak-50 p-3 sm:p-4 space-y-2">
-						<div className="flex items-center gap-2 text-success-base text-label-sm font-medium">
-							<SealCheck className="size-5" weight="duotone" />
-							GST Verified
-						</div>
-						<div className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 space-y-1.5">
-							<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-								<span className="font-medium text-text-strong-950 min-w-[100px]">Legal Name:</span>
-								<span className="text-text-strong-950">{gstDetails.legalName}</span>
-							</div>
-							<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-								<span className="font-medium text-text-strong-950 min-w-[100px]">Trade Name:</span>
-								<span className="text-text-strong-950">{gstDetails.tradeName}</span>
-							</div>
-							<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-								<span className="font-medium text-text-strong-950 min-w-[100px]">Status:</span>
-								<span className="text-success-base font-medium">{gstDetails.status}</span>
-							</div>
-							<div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2">
-								<span className="font-medium text-text-strong-950 min-w-[100px]">Address:</span>
-								<span className="text-text-strong-950">{gstDetails.address}</span>
-							</div>
-						</div>
-					</div>
-				)}
-				{errors.verification?.gstVerified && (
-					<p className="mt-2 text-paragraph-xs text-error-base font-medium">
-						{errors.verification.gstVerified.message}
-					</p>
-				)}
-			</div>
-
-			{/* ❌ REMOVED: PAN Verification - PAN is only for shoppers, not organizations */}
 
 			{/* CIN Number (Optional) */}
 			{(businessType === "private_limited" || businessType === "llp") && (
@@ -1246,19 +1338,20 @@ function Step3Verification({
 					</Input.Root>
 				</FormField>
 			)}
+			</div>
 		</div>
 	)
 }
 
-// Step 4: Review
-interface Step4Props {
+// Step 3: Review
+interface Step3ReviewProps {
 	watch: ReturnType<typeof useForm<OnboardingFormInput>>["watch"]
 	onEdit: (step: number) => void
 	termsAccepted: boolean
 	onTermsChange: (accepted: boolean) => void
 }
 
-function Step4Review({ watch, onEdit, termsAccepted, onTermsChange }: Step4Props) {
+function Step3Review({ watch, onEdit, termsAccepted, onTermsChange }: Step3ReviewProps) {
 	const formData = watch()
 
 	return (
@@ -1269,6 +1362,8 @@ function Step4Review({ watch, onEdit, termsAccepted, onTermsChange }: Step4Props
 					Please verify all details before submitting
 				</p>
 			</div>
+
+			{/* Basic Information */}
 
 			{/* Basic Information */}
 			<div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
@@ -1335,7 +1430,7 @@ function Step4Review({ watch, onEdit, termsAccepted, onTermsChange }: Step4Props
 			<div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
 				<div className="flex items-center justify-between mb-3 sm:mb-4">
 					<h3 className="text-label-sm text-text-strong-950 font-medium">Verification Status</h3>
-					<Button.Root type="button" variant="ghost" size="xsmall" onClick={() => onEdit(3)}>
+					<Button.Root type="button" variant="ghost" size="xsmall" onClick={() => onEdit(2)}>
 						Edit
 					</Button.Root>
 				</div>

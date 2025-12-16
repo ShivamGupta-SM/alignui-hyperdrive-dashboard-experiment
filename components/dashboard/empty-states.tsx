@@ -2,8 +2,8 @@
 
 import * as React from "react"
 import Link from "next/link"
-import * as Button from "@/components/ui/button"
-import * as EmptyState from "@/components/claude-generated-components/empty-state"
+import * as Button from "@/components/ui/primitives/button"
+import * as EmptyState from "@/components/ui/feedback/empty-state"
 import {
 	Rocket,
 	Megaphone,
@@ -63,13 +63,13 @@ export function WelcomeEmptyState() {
 			<EmptyState.Footer>
 				<Button.Root variant="neutral" asChild>
 					<Link href="/dashboard/wallet">
-						<Button.Icon as={Wallet} />
+						<Button.Icon><Wallet className="size-5" /></Button.Icon>
 						Fund Wallet
 					</Link>
 				</Button.Root>
 				<Button.Root variant="primary" asChild>
 					<Link href="/dashboard/campaigns/create">
-						<Button.Icon as={Plus} />
+						<Button.Icon><Plus className="size-5" /></Button.Icon>
 						Create Campaign
 					</Link>
 				</Button.Root>
@@ -99,7 +99,7 @@ export function NoCampaignsEmptyState() {
 			<EmptyState.Footer>
 				<Button.Root variant="primary" asChild>
 					<Link href="/dashboard/campaigns/create">
-						<Button.Icon as={Plus} />
+						<Button.Icon><Plus className="size-5" /></Button.Icon>
 						Create First Campaign
 					</Link>
 				</Button.Root>
@@ -158,7 +158,7 @@ export function NoProductsEmptyState() {
 			<EmptyState.Footer>
 				<Button.Root variant="primary" asChild>
 					<Link href="/dashboard/products/new">
-						<Button.Icon as={Plus} />
+						<Button.Icon><Plus className="size-5" /></Button.Icon>
 						Add First Product
 					</Link>
 				</Button.Root>
@@ -192,7 +192,7 @@ export function NoTeamMembersEmptyState({ onInvite }: NoTeamMembersEmptyStatePro
 			</EmptyState.Content>
 			<EmptyState.Footer>
 				<Button.Root variant="primary" onClick={onInvite}>
-					<Button.Icon as={Plus} />
+					<Button.Icon><Plus className="size-5" /></Button.Icon>
 					Invite First Member
 				</Button.Root>
 			</EmptyState.Footer>
@@ -419,7 +419,7 @@ export function NoWalletTransactionsEmptyState({
 			{onAddFunds && (
 				<EmptyState.Footer>
 					<Button.Root variant="primary" onClick={onAddFunds}>
-						<Button.Icon as={Plus} />
+						<Button.Icon><Plus className="size-5" /></Button.Icon>
 						Add Funds
 					</Button.Root>
 				</EmptyState.Footer>

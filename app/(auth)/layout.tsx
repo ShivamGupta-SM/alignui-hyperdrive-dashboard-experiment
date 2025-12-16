@@ -1,10 +1,9 @@
 import Link from "next/link"
-import { Logo } from "@/components/ui/logo"
-import { Sparkle, ChartLineUp, Users, ShieldCheck, Rocket } from "@phosphor-icons/react"
+import { Logo } from "@/components/ui/branding/logo"
+import { Sparkle, ChartLineUp, Users, ShieldCheck, Rocket } from "@phosphor-icons/react/dist/ssr"
 import { AuthHeader } from "@/components/auth/auth-header"
 
 // Auth pages require dynamic rendering due to client-side providers
-// Note: dynamic export removed - incompatible with cacheComponents
 
 export default function AuthLayout({
 	children,

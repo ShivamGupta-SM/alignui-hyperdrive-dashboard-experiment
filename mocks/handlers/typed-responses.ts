@@ -6,7 +6,7 @@
  */
 
 import { HttpResponse } from "msw"
-import type { products, organizations, campaigns, enrollments, invoices, auth } from "@/lib/encore-client"
+import type { products, organizations, campaigns, enrollments, invoices, auth } from "@/lib/api/encore-client"
 
 // =============================================================================
 // ENCORE API RESPONSE TYPES

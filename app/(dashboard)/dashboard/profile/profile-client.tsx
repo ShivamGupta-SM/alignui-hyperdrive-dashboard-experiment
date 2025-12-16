@@ -1,16 +1,21 @@
 'use client'
 
-import * as React from 'react'
-import * as Button from '@/components/ui/button'
-import * as Input from '@/components/ui/input'
-import * as Avatar from '@/components/ui/avatar'
-import * as StatusBadge from '@/components/ui/status-badge'
-import * as Switch from '@/components/ui/switch'
-import * as FileUpload from '@/components/ui/file-upload'
-import * as TabMenu from '@/components/ui/tab-menu-horizontal'
-import * as List from '@/components/ui/list'
-import { Metric, MetricGroup } from '@/components/ui/metric'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
+import * as Button from "@/components/ui/primitives/button"
+import * as Input from "@/components/ui/forms/input"
+import * as Avatar from "@/components/ui/primitives/avatar"
+import * as StatusBadge from "@/components/ui/data-display/status-badge"
+import * as Switch from "@/components/ui/forms/switch"
+import * as FileUpload from "@/components/ui/forms/file-upload"
+import * as TabMenu from "@/components/ui/navigation/tab-menu-horizontal"
+import * as List from "@/components/ui/data-display/list"
+import { Metric, MetricGroup } from "@/components/ui/data-display/metric"
 import { getAvatarColor } from '@/utils/avatar-color'
+import { formatDateMedium } from "@/lib/utils/format"
+import { logError } from "@/lib/logging/error-logger-simple"
 import {
   User as UserIcon,
   Lock,
@@ -23,14 +28,17 @@ import {
   Laptop,
   ShieldCheck,
   Envelope,
+  Phone,
   Clock,
   Warning,
   Info,
-} from '@phosphor-icons/react/dist/ssr'
+} from '@phosphor-icons/react'
 import { cn } from '@/utils/cn'
-import type { auth } from '@/lib/encore-browser'
-import type { auth as authServer } from '@/lib/encore-client'
-import { formatDateMedium } from '@/lib/format'
+import type { auth } from "@/lib/api/encore-browser"
+import type { auth as authServer } from "@/lib/api/encore-client"
+import { updateProfile, updatePassword, updateNotifications, enable2FA, disable2FA, revokeSession, revokeAllSessions } from '@/features/settings'
+import { FILE_SIZES } from '@/lib/types/constants'
+import { useUploadProfilePicture } from '@/hooks/shared'
 // import { useProfileData } from '@/hooks/use-profile'
 
 // User type matching the initialData structure
@@ -91,21 +99,21 @@ export function ProfileClient({ initialData }: ProfileClientProps = {}) {
   // React Query hook removed - using server data via initialData
   // const { data: profileData } = useProfileData()
   
-  const [activeTab, setActiveTab] = React.useState<TabValue>('profile')
+  const [activeTab, setActiveTab] = useState<TabValue>('profile')
   // Initialize from props
-  const [user, setUser] = React.useState<User | null>(initialData?.user || null)
-  const [isSaving, setIsSaving] = React.useState(false)
+  const [user, setUser] = useState<User | null>(initialData?.user || null)
+  const [isSaving, setIsSaving] = useState(false)
 
   // Update local user state when profileData changes - Removed
   /*
-  React.useEffect(() => {
+  useEffect(() => {
     if (profileData?.user) {
       setUser(profileData.user)
     }
   }, [profileData])
   */
 
-  const sessions = React.useMemo(() => {
+  const sessions = useMemo(() => {
     if (!initialData?.sessions) return []
     return initialData.sessions.map((session) => ({
       ...session,
@@ -113,11 +121,44 @@ export function ProfileClient({ initialData }: ProfileClientProps = {}) {
     }))
   }, [initialData])
 
-  if (!user) {
+  // Better loading/error state
+  if (!user || !initialData) {
     return (
-      <div className="animate-pulse space-y-5 sm:space-y-6">
-        <div className="h-8 w-48 bg-bg-soft-200 rounded" />
-        <div className="h-40 bg-bg-soft-200 rounded-xl" />
+      <div className="space-y-5 sm:space-y-6">
+        {/* Page Header Skeleton */}
+        <div className="animate-pulse">
+          <div className="h-8 w-48 bg-bg-soft-200 rounded mb-2" />
+          <div className="h-4 w-64 bg-bg-soft-200 rounded" />
+        </div>
+        
+        {/* Account Overview Skeleton */}
+        <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm animate-pulse">
+          <div className="flex items-center gap-4 mb-5">
+            <div className="size-16 rounded-full bg-bg-soft-200" />
+            <div className="flex-1">
+              <div className="h-5 w-32 bg-bg-soft-200 rounded mb-2" />
+              <div className="h-4 w-48 bg-bg-soft-200 rounded" />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="h-16 bg-bg-soft-200 rounded" />
+            <div className="h-16 bg-bg-soft-200 rounded" />
+            <div className="h-16 bg-bg-soft-200 rounded" />
+          </div>
+        </div>
+        
+        {/* Tabs Skeleton */}
+        <div className="h-10 bg-bg-soft-200 rounded-xl animate-pulse" />
+        
+        {/* Content Skeleton */}
+        <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm animate-pulse">
+          <div className="h-6 w-32 bg-bg-soft-200 rounded mb-4" />
+          <div className="space-y-4">
+            <div className="h-10 bg-bg-soft-200 rounded" />
+            <div className="h-10 bg-bg-soft-200 rounded" />
+            <div className="h-10 bg-bg-soft-200 rounded" />
+          </div>
+        </div>
       </div>
     )
   }
@@ -126,15 +167,15 @@ export function ProfileClient({ initialData }: ProfileClientProps = {}) {
     <div className="space-y-5 sm:space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">My Account</h1>
-        <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
+        <h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950 font-semibold">My Account</h1>
+        <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-1">
           Manage your profile, security, and preferences
         </p>
       </div>
 
       {/* Account Overview */}
-      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
-        <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm">
+        <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-5">
           <Avatar.Root size="64" color={getAvatarColor(user.name || '')} className="shrink-0">
             {user.image ? (
               <Avatar.Image src={user.image} alt={user.name || 'User'} />
@@ -143,11 +184,11 @@ export function ProfileClient({ initialData }: ProfileClientProps = {}) {
             )}
           </Avatar.Root>
           <div className="min-w-0">
-            <h2 className="text-label-md sm:text-label-lg text-text-strong-950 truncate">{user.name || 'User'}</h2>
-            <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 truncate">{user.email}</p>
+            <h2 className="text-label-md sm:text-label-lg text-text-strong-950 truncate font-semibold">{user.name || 'User'}</h2>
+            <p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 truncate mt-0.5">{user.email}</p>
           </div>
         </div>
-        <MetricGroup columns={3} className="grid-cols-3">
+        <MetricGroup columns={3} className="grid-cols-3 gap-4 sm:gap-6">
           <Metric label="Member Since" value={user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'N/A'} size="sm" />
           <Metric label="Active Sessions" value={sessions.length} size="sm" />
           <Metric label="2FA" value={user.twoFactorEnabled ? 'Enabled' : 'Disabled'} size="sm" className={cn(!user.twoFactorEnabled && "[&>div>span:last-child]:text-warning-base")} />
@@ -159,19 +200,19 @@ export function ProfileClient({ initialData }: ProfileClientProps = {}) {
         <TabMenu.Root value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
           <TabMenu.List className="min-w-max">
           <TabMenu.Trigger value="profile">
-            <UserIcon className="size-4 mr-2" />
+            <UserIcon className="size-4 mr-2" weight="duotone" />
             Profile
           </TabMenu.Trigger>
           <TabMenu.Trigger value="security">
-            <Lock className="size-4 mr-2" />
+            <Lock className="size-4 mr-2" weight="duotone" />
             Security
           </TabMenu.Trigger>
           <TabMenu.Trigger value="notifications">
-            <Bell className="size-4 mr-2" />
+            <Bell className="size-4 mr-2" weight="duotone" />
             Notifications
           </TabMenu.Trigger>
           <TabMenu.Trigger value="sessions">
-            <Devices className="size-4 mr-2" />
+            <Devices className="size-4 mr-2" weight="duotone" />
             Sessions
           </TabMenu.Trigger>
           </TabMenu.List>
@@ -198,19 +239,71 @@ interface ProfileTabProps {
 }
 
 function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
-  const [name, setName] = React.useState(user.name || '')
-  const [email, setEmail] = React.useState(user.email)
+  const [name, setName] = useState(user.name || '')
+  const [email] = useState(user.email) // Email is read-only, managed by backend
+  const [phone, setPhone] = useState(user.phone || '')
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   const router = useRouter()
   const queryClient = useQueryClient()
+  const uploadProfilePicture = useUploadProfilePicture()
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file size (2MB max)
+    if (file.size > FILE_SIZES.MAX_AVATAR_SIZE) {
+      toast.error("Image size must be less than 2MB")
+      return
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please upload an image file")
+      return
+    }
+
+    setUploadingAvatar(true)
+    try {
+      // Upload profile picture to storage
+      const uploadResult = await uploadProfilePicture.mutateAsync(file)
+      
+      // Update user profile with the new image URL using server action
+      const { updateProfile } = await import("@/features/settings")
+      const updateResult = await updateProfile({
+        image: uploadResult.fileUrl,
+      })
+
+      if (updateResult.success) {
+        toast.success("Avatar updated successfully")
+        setUser((prev: User | null) => prev ? { ...prev, image: uploadResult.fileUrl } : null)
+        queryClient.invalidateQueries({ queryKey: ["profile", "session"] })
+        queryClient.invalidateQueries({ queryKey: ["session"] })
+        router.refresh()
+      } else {
+        toast.error(updateResult.error || "Failed to update profile with new avatar")
+      }
+    } catch (error) {
+      logError(error, {
+        source: "ProfileClient",
+        data: { action: "uploadAvatar" },
+      })
+      toast.error("Failed to upload avatar. Please try again.")
+    } finally {
+      setUploadingAvatar(false)
+      // Reset input
+      e.target.value = ''
+    }
+  }
 
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      const result = await updateProfile({ name, phone: user.phone || "" })
+      const result = await updateProfile({ name, phone })
       if (result.success) {
         toast.success("Profile updated successfully")
-        setUser((prev: User | null) => prev ? { ...prev, name } : null)
+        setUser((prev: User | null) => prev ? { ...prev, name, phone } : null)
         queryClient.invalidateQueries({ queryKey: ["session"] })
         queryClient.invalidateQueries({ queryKey: ["profile"] })
         router.refresh()
@@ -226,77 +319,137 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
 
   return (
     <div className="space-y-5 sm:space-y-6">
-      {/* Avatar Section */}
-      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-6">
-        <h3 className="text-label-sm sm:text-label-md text-text-strong-950 mb-3 sm:mb-4">Profile Photo</h3>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-          <Avatar.Root size="80" color={getAvatarColor(user.name || '')} className="shrink-0">
-            {user.image ? (
-              <Avatar.Image src={user.image} alt={user.name || 'User'} />
-            ) : (
-              (user.name || 'U').charAt(0).toUpperCase()
+      {/* Profile Photo Section */}
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10 ring-1 ring-inset ring-primary-base/10">
+            <UserIcon className="size-5 text-primary-base" weight="duotone" />
+          </div>
+          <h3 className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">Profile Photo</h3>
+        </div>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-6">
+          <div className="relative group shrink-0">
+            <Avatar.Root size="80" color={getAvatarColor(user.name || '')} className="ring-4 ring-bg-weak-50">
+              {user.image ? (
+                <Avatar.Image src={user.image} alt={user.name || 'User'} />
+              ) : (
+                (user.name || 'U').charAt(0).toUpperCase()
+              )}
+            </Avatar.Root>
+            {uploadingAvatar && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
+                <div className="size-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              </div>
             )}
-          </Avatar.Root>
-          <div className="flex-1">
+          </div>
+          <div className="flex-1 min-w-0">
             <FileUpload.Root htmlFor="avatar-upload">
               <FileUpload.Icon as={CloudArrowUp} />
-              <FileUpload.Button>Change Photo</FileUpload.Button>
-              <p className="text-paragraph-xs text-text-soft-400">
-                PNG or JPG, max 2MB
+              <FileUpload.Button 
+                className={uploadingAvatar ? "opacity-50 cursor-not-allowed" : ""}
+              >
+                {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
+              </FileUpload.Button>
+              <p className="text-paragraph-xs text-text-soft-400 mt-2">
+                PNG or JPG, max 2MB. Recommended size: 200×200px
               </p>
               <input
                 id="avatar-upload"
                 type="file"
                 accept="image/*"
                 className="sr-only"
+                onChange={handleAvatarUpload}
+                disabled={uploadingAvatar}
               />
             </FileUpload.Root>
           </div>
         </div>
       </div>
 
-      {/* Personal Information - Using List */}
-      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-6">
-        <h3 className="text-label-sm sm:text-label-md text-text-strong-950 mb-3 sm:mb-4">Personal Information</h3>
-        <div className="space-y-4 max-w-md">
+      {/* Personal Information */}
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10 ring-1 ring-inset ring-primary-base/10">
+            <UserIcon className="size-5 text-primary-base" weight="duotone" />
+          </div>
+          <h3 className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">Personal Information</h3>
+        </div>
+        <div className="space-y-5">
           <div>
-            <label className="block text-label-sm text-text-strong-950 mb-2">
+            <label className="block text-label-sm sm:text-label-md text-text-strong-950 mb-2 font-medium">
               Full Name
             </label>
             <Input.Root>
               <Input.Wrapper>
+                <Input.Icon as={UserIcon} />
                 <Input.El
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter your full name"
                 />
               </Input.Wrapper>
             </Input.Root>
           </div>
           <div>
-            <label className="block text-label-sm text-text-strong-950 mb-2">
+            <label className="block text-label-sm sm:text-label-md text-text-strong-950 mb-2 font-medium">
               Email Address
             </label>
             <Input.Root>
               <Input.Wrapper>
+                <Input.Icon as={Envelope} />
                 <Input.El
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  disabled
+                  className="bg-bg-weak-50 cursor-not-allowed"
                 />
               </Input.Wrapper>
             </Input.Root>
-            <div className="flex items-center gap-2 mt-2 p-2 rounded-10 bg-information-lighter">
-              <Info className="size-4 text-information-base shrink-0" />
-              <span className="text-paragraph-xs text-information-dark">
-                Changing your email will require verification
+            <div className="flex items-start gap-2 mt-2.5 p-3 rounded-lg bg-information-lighter/50 ring-1 ring-inset ring-information-base/20">
+              <Info className="size-4 text-information-base shrink-0 mt-0.5" weight="duotone" />
+              <span className="text-paragraph-xs sm:text-paragraph-sm text-information-dark">
+                Email address cannot be changed here. Contact support if you need to update your email.
               </span>
             </div>
           </div>
+          <div>
+            <label className="block text-label-sm sm:text-label-md text-text-strong-950 mb-2 font-medium">
+              Phone Number
+            </label>
+            <Input.Root>
+              <Input.Wrapper>
+                <Input.Icon as={Phone} />
+                <Input.El
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+91 98765 43210"
+                />
+              </Input.Wrapper>
+            </Input.Root>
+            <p className="text-paragraph-xs text-text-soft-400 mt-2">
+              Optional. Used for account recovery and important notifications.
+            </p>
+          </div>
         </div>
-        <div className="mt-6 pt-6 border-t border-stroke-soft-200">
-          <Button.Root variant="primary" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </Button.Root>
+        <div className="mt-6 sm:mt-7 pt-6 sm:pt-7 border-t border-stroke-soft-200">
+          <div className="flex items-center justify-between">
+            <div>
+              {isSaving && (
+                <span className="flex items-center gap-1.5 text-label-sm text-text-sub-600">
+                  <div className="size-4 border-2 border-primary-base border-t-transparent rounded-full animate-spin" />
+                  Saving...
+                </span>
+              )}
+            </div>
+            <Button.Root 
+              variant="primary" 
+              onClick={handleSave} 
+              disabled={isSaving || (name === user.name && phone === (user.phone || ''))}
+            >
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </Button.Root>
+          </div>
         </div>
       </div>
     </div>
@@ -309,117 +462,220 @@ interface SecurityTabProps {
 }
 
 function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
-  const [currentPassword, setCurrentPassword] = React.useState('')
-  const [newPassword, setNewPassword] = React.useState('')
-  const [confirmPassword, setConfirmPassword] = React.useState('')
-  const [isSaving, setIsSaving] = React.useState(false)
-  const [twoFactorEnabled, setTwoFactorEnabled] = React.useState(initialTwoFactor || false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(initialTwoFactor || false)
+
+  const router = useRouter()
+  const queryClient = useQueryClient()
 
   const handleChangePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match")
+      return
+    }
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters")
+      return
+    }
+
     setIsSaving(true)
     try {
-      // TODO: Call actual updatePassword server action
-      // const { updatePassword } = await import('@/app/actions/settings')
-      // await updatePassword({ currentPassword, newPassword, confirmPassword })
+      const result = await updatePassword({
+        currentPassword,
+        newPassword,
+        confirmPassword: newPassword,
+      })
       
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
+      if (result.success) {
+        toast.success("Password updated successfully")
+        setCurrentPassword('')
+        setNewPassword('')
+        setConfirmPassword('')
+        queryClient.invalidateQueries({ queryKey: ["profile"] })
+        router.refresh()
+      } else {
+        toast.error("error" in result ? result.error || "Failed to update password" : "Failed to update password")
+      }
+    } catch (error) {
+      toast.error("Something went wrong. Please try again.")
     } finally {
       setIsSaving(false)
     }
   }
 
+  const handleToggle2FA = async (enabled: boolean) => {
+    if (enabled) {
+      // Enable 2FA - requires password verification
+      const password = prompt("Enter your password to enable 2FA:")
+      if (!password) {
+        setTwoFactorEnabled(false)
+        return
+      }
+      
+      try {
+        const result = await enable2FA(password)
+        if (result.success) {
+          toast.success("2FA enabled successfully")
+          setTwoFactorEnabled(true)
+          queryClient.invalidateQueries({ queryKey: ["profile"] })
+          router.refresh()
+        } else {
+          toast.error("error" in result ? result.error || "Failed to enable 2FA" : "Failed to enable 2FA")
+          setTwoFactorEnabled(false)
+        }
+      } catch (error) {
+        toast.error("Something went wrong. Please try again.")
+        setTwoFactorEnabled(false)
+      }
+    } else {
+      // Disable 2FA - requires password verification
+      const password = prompt("Enter your password to disable 2FA:")
+      if (!password) {
+        setTwoFactorEnabled(true)
+        return
+      }
+      
+      try {
+        const result = await disable2FA(password)
+        if (result.success) {
+          toast.success("2FA disabled successfully")
+          setTwoFactorEnabled(false)
+          queryClient.invalidateQueries({ queryKey: ["profile"] })
+          router.refresh()
+        } else {
+          toast.error("error" in result ? result.error || "Failed to disable 2FA" : "Failed to disable 2FA")
+          setTwoFactorEnabled(true)
+        }
+      } catch (error) {
+        toast.error("Something went wrong. Please try again.")
+        setTwoFactorEnabled(true)
+      }
+    }
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Change Password */}
-      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
-        <h3 className="text-label-md text-text-strong-950 mb-4">Change Password</h3>
-        <div className="space-y-4 max-w-md">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10 ring-1 ring-inset ring-primary-base/10">
+            <Lock className="size-5 text-primary-base" weight="duotone" />
+          </div>
+          <h3 className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">Change Password</h3>
+        </div>
+        <div className="space-y-5 max-w-md">
           <div>
-            <label className="block text-label-sm text-text-strong-950 mb-2">
+            <label className="block text-label-sm sm:text-label-md text-text-strong-950 mb-2 font-medium">
               Current Password
             </label>
             <Input.Root>
               <Input.Wrapper>
+                <Input.Icon as={Lock} />
                 <Input.El
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Enter current password"
                 />
               </Input.Wrapper>
             </Input.Root>
           </div>
           <div>
-            <label className="block text-label-sm text-text-strong-950 mb-2">
+            <label className="block text-label-sm sm:text-label-md text-text-strong-950 mb-2 font-medium">
               New Password
             </label>
             <Input.Root>
               <Input.Wrapper>
+                <Input.Icon as={Lock} />
                 <Input.El
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
                 />
               </Input.Wrapper>
             </Input.Root>
+            <p className="text-paragraph-xs text-text-soft-400 mt-2">
+              Password must be at least 8 characters long
+            </p>
           </div>
           <div>
-            <label className="block text-label-sm text-text-strong-950 mb-2">
+            <label className="block text-label-sm sm:text-label-md text-text-strong-950 mb-2 font-medium">
               Confirm New Password
             </label>
             <Input.Root>
               <Input.Wrapper>
+                <Input.Icon as={Lock} />
                 <Input.El
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
                 />
               </Input.Wrapper>
             </Input.Root>
           </div>
         </div>
-        <div className="mt-6 pt-6 border-t border-stroke-soft-200">
-          <Button.Root
-            variant="primary"
-            onClick={handleChangePassword}
-            disabled={!currentPassword || !newPassword || newPassword !== confirmPassword || isSaving}
-          >
-            {isSaving ? 'Updating...' : 'Update Password'}
-          </Button.Root>
+        <div className="mt-6 sm:mt-7 pt-6 sm:pt-7 border-t border-stroke-soft-200">
+          <div className="flex items-center justify-between">
+            <div>
+              {isSaving && (
+                <span className="flex items-center gap-1.5 text-label-sm text-text-sub-600">
+                  <div className="size-4 border-2 border-primary-base border-t-transparent rounded-full animate-spin" />
+                  Updating...
+                </span>
+              )}
+            </div>
+            <Button.Root
+              variant="primary"
+              onClick={handleChangePassword}
+              disabled={!currentPassword || !newPassword || newPassword !== confirmPassword || isSaving}
+            >
+              {isSaving ? 'Updating...' : 'Update Password'}
+            </Button.Root>
+          </div>
         </div>
       </div>
 
-      {/* Two-Factor Authentication - Using List */}
-      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+      {/* Two-Factor Authentication */}
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10 ring-1 ring-inset ring-primary-base/10">
+            <ShieldCheck className="size-5 text-primary-base" weight="duotone" />
+          </div>
+          <h3 className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">Two-Factor Authentication</h3>
+        </div>
         <List.Root size="lg">
           <List.Item>
-            <List.ItemIcon>
-              <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10">
-                <ShieldCheck className="size-5 text-primary-base" />
-              </div>
-            </List.ItemIcon>
             <List.ItemContent>
-              <List.ItemTitle>Two-Factor Authentication</List.ItemTitle>
-              <List.ItemDescription>Add an extra layer of security to your account</List.ItemDescription>
+              <List.ItemTitle>Enable 2FA</List.ItemTitle>
+              <List.ItemDescription>Add an extra layer of security to your account with two-factor authentication</List.ItemDescription>
             </List.ItemContent>
             <List.ItemAction>
               <Switch.Root
                 checked={twoFactorEnabled}
-                onCheckedChange={setTwoFactorEnabled}
+                onCheckedChange={handleToggle2FA}
               />
             </List.ItemAction>
           </List.Item>
         </List.Root>
         {twoFactorEnabled && (
-          <div className="mt-4 pt-4 border-t border-stroke-soft-200">
-            <StatusBadge.Root status="completed" variant="light">
-              <StatusBadge.Icon as={Check} weight="duotone" />
-              2FA Enabled
-            </StatusBadge.Root>
-            <p className="text-paragraph-sm text-text-sub-600 mt-2">
-              Two-factor authentication is enabled for your account.
-            </p>
+          <div className="mt-5 pt-5 border-t border-stroke-soft-200">
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-success-lighter/30 ring-1 ring-inset ring-success-base/20">
+              <Check className="size-5 text-success-base shrink-0 mt-0.5" weight="duotone" />
+              <div>
+                <StatusBadge.Root status="completed" variant="light" className="mb-2">
+                  <StatusBadge.Icon as={Check} weight="duotone" />
+                  2FA Enabled
+                </StatusBadge.Root>
+                <p className="text-paragraph-sm text-text-sub-600">
+                  Two-factor authentication is enabled for your account. Your account is now more secure.
+                </p>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -429,33 +685,81 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
 
 // Notifications Tab - Using List
 function NotificationsTab() {
-  const [emailNotifications, setEmailNotifications] = React.useState({
+  const router = useRouter()
+  const queryClient = useQueryClient()
+  const [isSaving, setIsSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const [emailNotifications, setEmailNotifications] = useState({
     newEnrollments: true,
     campaignApprovals: true,
     walletUpdates: false,
     weeklySummary: true,
   })
 
-  const [pushNotifications, setPushNotifications] = React.useState({
+  const [pushNotifications, setPushNotifications] = useState({
     instantAlerts: true,
     dailyDigest: false,
   })
 
-  const [quietHours, setQuietHours] = React.useState({
+  const [quietHours, setQuietHours] = useState({
     enabled: false,
     from: '22:00',
     to: '07:00',
   })
 
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [])
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
+    try {
+      const result = await updateNotifications({
+        emailNewEnrollments: emailNotifications.newEnrollments,
+        emailCampaignUpdates: emailNotifications.campaignApprovals,
+        emailWalletAlerts: emailNotifications.walletUpdates,
+        emailWeeklySummary: emailNotifications.weeklySummary,
+        pushEnabled: pushNotifications.instantAlerts,
+        soundEnabled: pushNotifications.dailyDigest,
+        emailInvoiceReminders: false, // Not in UI yet
+      })
+      
+      if (result.success) {
+        setSaved(true)
+        timeoutRef.current = setTimeout(() => setSaved(false), 2000)
+        queryClient.invalidateQueries({ queryKey: ["profile", "notifications"] })
+        router.refresh()
+      } else {
+        toast.error("error" in result ? result.error || "Failed to save notifications" : "Failed to save notifications")
+      }
+    } catch (error) {
+      toast.error("Something went wrong. Please try again.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Email Notifications - Using List */}
-      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10">
-            <Envelope className="size-5 text-primary-base" />
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10 ring-1 ring-inset ring-primary-base/10">
+            <Envelope className="size-5 text-primary-base" weight="duotone" />
           </div>
-          <h3 className="text-label-md text-text-strong-950">Email Notifications</h3>
+          <h3 className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">Email Notifications</h3>
         </div>
         <List.Root variant="divided" size="md">
           <List.Item>
@@ -518,12 +822,12 @@ function NotificationsTab() {
       </div>
 
       {/* Push Notifications - Using List */}
-      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10">
-            <Bell className="size-5 text-primary-base" />
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10 ring-1 ring-inset ring-primary-base/10">
+            <Bell className="size-5 text-primary-base" weight="duotone" />
           </div>
-          <h3 className="text-label-md text-text-strong-950">Push Notifications</h3>
+          <h3 className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">Push Notifications</h3>
         </div>
         <List.Root variant="divided" size="md">
           <List.Item>
@@ -558,12 +862,12 @@ function NotificationsTab() {
       </div>
 
       {/* Quiet Hours */}
-      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm">
         <List.Root size="lg">
           <List.Item>
             <List.ItemIcon>
-              <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10">
-                <Clock className="size-5 text-primary-base" />
+              <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10 ring-1 ring-inset ring-primary-base/10">
+                <Clock className="size-5 text-primary-base" weight="duotone" />
               </div>
             </List.ItemIcon>
             <List.ItemContent>
@@ -581,7 +885,7 @@ function NotificationsTab() {
         {quietHours.enabled && (
           <div className="flex items-center gap-4 pt-4 mt-4 border-t border-stroke-soft-200">
             <div className="flex-1">
-              <label className="block text-label-sm text-text-sub-600 mb-2">From</label>
+              <label className="block text-label-sm sm:text-label-md text-text-sub-600 mb-2 font-medium">From</label>
               <Input.Root>
                 <Input.Wrapper>
                   <Input.El
@@ -593,7 +897,7 @@ function NotificationsTab() {
               </Input.Root>
             </div>
             <div className="flex-1">
-              <label className="block text-label-sm text-text-sub-600 mb-2">To</label>
+              <label className="block text-label-sm sm:text-label-md text-text-sub-600 mb-2 font-medium">To</label>
               <Input.Root>
                 <Input.Wrapper>
                   <Input.El
@@ -610,7 +914,18 @@ function NotificationsTab() {
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <Button.Root variant="primary">Save Changes</Button.Root>
+        <Button.Root variant="primary" onClick={handleSave} disabled={isSaving}>
+          {saved ? (
+            <>
+              <Check className="size-4 mr-2" weight="bold" />
+              Saved!
+            </>
+          ) : isSaving ? (
+            "Saving..."
+          ) : (
+            "Save Changes"
+          )}
+        </Button.Root>
       </div>
     </div>
   )
@@ -637,7 +952,7 @@ interface SessionsTabProps {
 }
 
 function SessionsTab({ sessions }: SessionsTabProps) {
-  const [revoking, setRevoking] = React.useState<string | null>(null)
+  const [revoking, setRevoking] = useState<string | null>(null)
   const router = useRouter()
   const queryClient = useQueryClient()
 
@@ -683,6 +998,7 @@ function SessionsTab({ sessions }: SessionsTabProps) {
     }
   }
 
+  // Use centralized formatting from lib/format.ts directly
   const formatDate = (dateStr: string | undefined): string => {
     if (!dateStr) return 'Unknown'
     return formatDateMedium(dateStr)
@@ -690,9 +1006,9 @@ function SessionsTab({ sessions }: SessionsTabProps) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-label-md text-text-strong-950">Active Sessions</h3>
+      <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">Active Sessions</h3>
           <Button.Root
             variant="basic"
             size="small"
@@ -746,9 +1062,9 @@ function SessionsTab({ sessions }: SessionsTabProps) {
           })}
         </List.Root>
 
-        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-stroke-soft-200 p-3 rounded-10 bg-warning-lighter">
-          <Warning className="size-4 text-warning-base shrink-0" />
-          <span className="text-paragraph-xs text-warning-dark">
+        <div className="flex items-start gap-2.5 mt-5 pt-5 border-t border-stroke-soft-200 p-3 sm:p-4 rounded-xl bg-warning-lighter/50 ring-1 ring-inset ring-warning-base/20">
+          <Warning className="size-4 text-warning-base shrink-0 mt-0.5" weight="duotone" />
+          <span className="text-paragraph-xs sm:text-paragraph-sm text-warning-dark">
             If you see a device you don't recognize, revoke access immediately and change your password.
           </span>
         </div>

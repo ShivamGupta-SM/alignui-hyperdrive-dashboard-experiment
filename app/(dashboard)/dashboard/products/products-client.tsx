@@ -4,16 +4,16 @@ import { useState, useEffect, useMemo, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as Button from "@/components/ui/button"
-import * as Badge from "@/components/ui/badge"
-import * as Input from "@/components/ui/input"
-import * as Select from "@/components/ui/select"
-import * as Modal from "@/components/ui/modal"
-import * as Textarea from "@/components/ui/textarea"
+import * as Button from "@/components/ui/primitives/button"
+import * as Badge from "@/components/ui/data-display/badge"
+import * as Input from "@/components/ui/forms/input"
+import * as Select from "@/components/ui/forms/select"
+import * as Modal from "@/components/ui/layout/modal"
+import * as Textarea from "@/components/ui/forms/textarea"
 import { NoProductsEmptyState } from "@/components/dashboard/empty-states"
 import { ConfirmationModal } from "@/components/dashboard"
-import * as FileUpload from "@/components/ui/file-upload"
-import { FileDropzone } from "@/components/ui/file-dropzone"
+import * as FileUpload from "@/components/ui/forms/file-upload"
+import { FileDropzone } from "@/components/ui/forms/file-dropzone"
 import Image from "next/image"
 import {
 	Plus,
@@ -29,22 +29,22 @@ import {
 	ChartBar,
 	ArrowRight,
 	Warning,
-} from "@phosphor-icons/react/dist/ssr"
+} from "@phosphor-icons/react"
 import { cn } from "@/utils/cn"
-import { formatDateShort } from "@/lib/format"
+import { formatDateShort } from "@/lib/utils/format"
 import { toast } from "sonner"
-import { useLocalStorage } from "@/hooks/use-local-storage"
-import { CalloutWithActions } from "@/components/ui/callout"
+import { useLocalStorage } from "@/hooks/state"
+import { CalloutWithActions } from "@/components/ui/feedback/callout"
 import { useOrganizationContext } from "@/contexts/organization-context"
-import * as Tooltip from "@/components/ui/tooltip"
-import type { products } from "@/lib/encore-browser"
+import * as Tooltip from "@/components/ui/layout/tooltip"
+import type { products } from "@/lib/api/encore-browser"
 import {
 	createProduct,
 	updateProduct,
 	deleteProduct,
 	bulkImportProducts,
-} from "@/app/actions/products"
-import { productFormSchema, type ProductFormInput } from "@/lib/validations"
+} from "@/features/products"
+import { productFormSchema, type ProductFormInput } from "@/lib/utils/validations"
 import { nanoid } from "nanoid"
 import { FILE_SIZES } from "@/lib/types/constants"
 
@@ -75,7 +75,7 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 	
 	// Industry Standard: Always use context, never props
 	const { hasOrganization, isLoading: isOrgLoading, organization } = useOrganizationContext()
-	const isApproved = (organization as any)?.approvalStatus === "approved"
+	const isApproved = organization?.approvalStatus === "approved"
 	
 	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
 		"products-onboarding-alert-dismissed",
@@ -120,7 +120,7 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 									size="small"
 									onClick={() => router.push("/onboarding")}
 								>
-									<Button.Icon as={ArrowRight} />
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 									Start Onboarding
 								</Button.Root>
 								<Button.Root
@@ -163,7 +163,7 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 								</p>
 							</div>
 							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
-								<Button.Icon as={ArrowRight} />
+								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 								Start Onboarding
 							</Button.Root>
 						</div>
@@ -226,7 +226,7 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 					setDeletingProductId(null)
 					router.refresh()
 					} else {
-						toast.error(res.error || "Failed to delete product")
+						toast.error(res.error?.message || String(res.error) || "Failed to delete product")
 					}
 				} catch (e) {
 					toast.error("An error occurred")
@@ -252,7 +252,7 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 						size="small"
 						onClick={() => setIsBulkImportModalOpen(true)}
 					>
-						<Button.Icon as={CloudArrowUp} />
+						<Button.Icon><CloudArrowUp className="size-5" /></Button.Icon>
 						<span className="hidden sm:inline">Import</span>
 					</Button.Root>
 					<Tooltip.Provider>
@@ -265,16 +265,16 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 										disabled={!isApproved}
 										onClick={() => setIsAddModalOpen(true)}
 									>
-										<Button.Icon as={Plus} />
+										<Button.Icon><Plus className="size-5" /></Button.Icon>
 										<span className="hidden sm:inline">Add Product</span>
 									</Button.Root>
 								</div>
 							</Tooltip.Trigger>
 							{!isApproved && (
 								<Tooltip.Content>
-									{(organization as any)?.approvalStatus === "draft" 
+									{organization?.approvalStatus === "draft" 
 										? "Complete onboarding and wait for admin approval"
-										: (organization as any)?.approvalStatus === "pending"
+										: organization?.approvalStatus === "pending"
 										? "Your application is under review"
 										: "Organization approval required"}
 								</Tooltip.Content>
@@ -566,7 +566,7 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
 							onClick={onEdit}
 							className="flex-1 bg-white/95 backdrop-blur-sm shadow-sm"
 						>
-							<Button.Icon as={PencilSimple} />
+							<Button.Icon><PencilSimple className="size-5" /></Button.Icon>
 							Edit
 						</Button.Root>
 						{product.productLink && (
@@ -577,7 +577,7 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
 								className="bg-white/95 backdrop-blur-sm shadow-sm"
 							>
 								<a href={product.productLink} target="_blank" rel="noopener noreferrer" aria-label="Open product link in new tab">
-									<Button.Icon as={ArrowSquareOut} />
+									<Button.Icon><ArrowSquareOut className="size-5" /></Button.Icon>
 								</a>
 							</Button.Root>
 						)}
@@ -588,7 +588,7 @@ function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
 							className="bg-white/95 backdrop-blur-sm shadow-sm"
 							aria-label="Delete product"
 						>
-							<Button.Icon as={Trash} />
+							<Button.Icon><Trash className="size-5" /></Button.Icon>
 						</Button.Root>
 					</div>
 				</div>
@@ -714,7 +714,7 @@ function ProductModal({ open, onOpenChange, product, categories, platforms }: Pr
 						toast.success("Product updated successfully")
 						onOpenChange(false)
 					} else {
-						toast.error(res.error || "Failed to update product")
+						toast.error(res.error?.message || String(res.error) || "Failed to update product")
 					}
 				} else {
 					const res = await createProduct(submitData)
@@ -723,7 +723,7 @@ function ProductModal({ open, onOpenChange, product, categories, platforms }: Pr
 						reset()
 						onOpenChange(false)
 					} else {
-						toast.error(res.error || "Failed to create product")
+						toast.error(res.error?.message || String(res.error) || "Failed to create product")
 					}
 				}
 			} catch (e) {
@@ -1046,14 +1046,14 @@ function BulkImportModal({ open, onOpenChange, categories, platforms }: BulkImpo
 				const response = await bulkImportProducts(productsToImport)
 				// Industry Standard: Type-safe handling with discriminated union
 				// Type assertion needed because response.success is boolean, not literal type
-				const typedResponse: ImportResult = response.success
+				const typedResponse: ImportResult = response.success && response.data
 					? { 
 						success: true, 
-						message: response.message ?? "Import completed", 
-						imported: response.imported ?? 0, 
-						errors: response.errors 
+						message: response.data.message || "Import completed", 
+						imported: response.data.imported ?? 0, 
+						errors: response.data.errors 
 					}
-					: { success: false, error: response.error ?? "Import failed" }
+					: { success: false, error: (!response.success && "error" in response ? (response.error?.message || String(response.error)) : "Import failed") || "Import failed" }
 				
 				setResult(typedResponse)
 				setStep("result")

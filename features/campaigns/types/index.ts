@@ -7,7 +7,7 @@
  */
 
 // Re-export from Encore client (source of truth)
-import type { campaigns, shared } from '@/lib/encore-client'
+import type { campaigns, shared } from "@/lib/api/encore-client"
 
 export type Campaign = campaigns.Campaign
 export type CampaignWithStats = campaigns.CampaignWithStats

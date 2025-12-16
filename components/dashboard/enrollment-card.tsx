@@ -3,12 +3,12 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/utils/cn"
-import * as Avatar from "@/components/ui/avatar"
-import * as Badge from "@/components/ui/badge"
-import * as Button from "@/components/ui/button"
-import * as Checkbox from "@/components/ui/checkbox"
+import * as Avatar from "@/components/ui/primitives/avatar"
+import * as Badge from "@/components/ui/data-display/badge"
+import * as Button from "@/components/ui/primitives/button"
+import * as Checkbox from "@/components/ui/forms/checkbox"
 import { ArrowSquareOut, SealCheck, CurrencyCircleDollar, Info } from "@phosphor-icons/react"
-import type { EnrollmentWithRelations } from "@/hooks/use-enrollments"
+import type { EnrollmentWithRelations } from "@/features/enrollments"
 import { ENROLLMENT_STATUS_CONFIG } from "@/lib/constants"
 
 // Color palette for avatar initials based on first letter

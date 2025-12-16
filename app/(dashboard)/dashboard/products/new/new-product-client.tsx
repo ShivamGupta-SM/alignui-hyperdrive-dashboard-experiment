@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import Link from "next/link"
-import * as Button from "@/components/ui/button"
-import { BackButton } from "@/components/ui/back-button"
-import * as Input from "@/components/ui/input"
-import * as Textarea from "@/components/ui/textarea"
-import * as Select from "@/components/ui/select"
-import * as FileUpload from "@/components/ui/file-upload"
-import * as Breadcrumb from "@/components/ui/breadcrumb"
+import * as Button from "@/components/ui/primitives/button"
+import { BackButton } from "@/components/ui/navigation/back-button"
+import * as Input from "@/components/ui/forms/input"
+import * as Textarea from "@/components/ui/forms/textarea"
+import * as Select from "@/components/ui/forms/select"
+import * as FileUpload from "@/components/ui/forms/file-upload"
+import * as Breadcrumb from "@/components/ui/navigation/breadcrumb"
 import {
 	ArrowRight,
 	Package,
@@ -26,14 +26,14 @@ import {
 	Warning,
 } from "@phosphor-icons/react"
 import { cn } from "@/utils/cn"
-import { useLocalStorage } from "@/hooks/use-local-storage"
-import { CalloutWithActions } from "@/components/ui/callout"
+import { useLocalStorage } from "@/hooks/state"
+import { CalloutWithActions } from "@/components/ui/feedback/callout"
 import { useOrganizationContext } from "@/contexts/organization-context"
 import { nanoid } from "nanoid"
-import { createProduct } from "@/app/actions/products"
+import { createProduct } from "@/features/products"
 import { toast } from "sonner"
-import { productFormSchema, type ProductFormInput } from "@/lib/validations"
-import type { products } from "@/lib/encore-browser"
+import { productFormSchema, type ProductFormInput } from "@/lib/utils/validations"
+import type { products } from "@/lib/api/encore-browser"
 
 type ProductCategory = products.ProductCategory
 
@@ -86,7 +86,7 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 									size="small"
 									onClick={() => router.push("/onboarding")}
 								>
-									<Button.Icon as={ArrowRight} />
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 									Start Onboarding
 								</Button.Root>
 								<Button.Root
@@ -126,7 +126,7 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 								</p>
 							</div>
 							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
-								<Button.Icon as={ArrowRight} />
+								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 								Start Onboarding
 							</Button.Root>
 						</div>
@@ -190,11 +190,11 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 					toast.success("Product created successfully")
 					router.push("/dashboard/products")
 				} else {
-					const errorMessage = result.error || "Failed to create product"
+					const errorMessage = result.error?.message || String(result.error) || "Failed to create product"
 					// Check if error is related to approval status
-					if (errorMessage?.toLowerCase().includes("not yet approved") || 
-					    errorMessage?.toLowerCase().includes("not approved") ||
-					    errorMessage?.toLowerCase().includes("approval")) {
+					if (errorMessage.toLowerCase().includes("not yet approved") || 
+					    errorMessage.toLowerCase().includes("not approved") ||
+					    errorMessage.toLowerCase().includes("approval")) {
 						toast.error("Organization Not Approved", {
 							description: "Please complete onboarding and wait for admin approval before adding products.",
 							action: {
@@ -204,7 +204,7 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 							duration: 8000
 						})
 					} else {
-						toast.error(errorMessage)
+						toast.error(errorMessage || "Failed to create product")
 					}
 				}
 			} catch (error) {
@@ -265,7 +265,7 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 									"Saving..."
 								) : (
 									<>
-										<Button.Icon as={CheckCircle} />
+										<Button.Icon><CheckCircle className="size-5" /></Button.Icon>
 										<span className="hidden sm:inline">Save Product</span>
 										<span className="sm:hidden">Save</span>
 									</>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { getEnrollmentDetailData } from "@/lib/ssr-data"
 import { EnrollmentDetailClient } from "./enrollment-detail-client"
-import { logSSRError } from "@/lib/error-logger-simple"
+import { logSSRError } from "@/lib/logging/error-logger-simple"
 
 export async function generateMetadata({
 	params,

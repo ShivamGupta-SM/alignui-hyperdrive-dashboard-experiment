@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import { cn } from "@/utils/cn"
-import type { EnrollmentTransitionHistoryItem } from "@/hooks/use-enrollments"
+import { formatTimeAgo, formatDateShort } from "@/lib/utils/format"
+import type { EnrollmentTransitionHistoryItem } from "@/features/enrollments"
 import {
 	CheckCircle,
 	XCircle,
@@ -59,6 +60,7 @@ function getStatusLabel(status: string): string {
 	return labels[status] || status
 }
 
+// Use centralized formatting from lib/format.ts
 function formatDate(dateString: string): string {
 	const date = new Date(dateString)
 	const now = new Date()
@@ -66,22 +68,16 @@ function formatDate(dateString: string): string {
 	const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
 	const diffDays = Math.floor(diffHours / 24)
 
-	if (diffHours < 1) {
-		const diffMins = Math.floor(diffMs / (1000 * 60))
-		return `${diffMins}m ago`
-	}
+	// Use lib/format.ts for hours/days
 	if (diffHours < 24) {
-		return `${diffHours}h ago`
+		return formatTimeAgo(diffHours)
 	}
 	if (diffDays < 7) {
 		return `${diffDays}d ago`
 	}
 
-	return date.toLocaleDateString("en-IN", {
-		day: "numeric",
-		month: "short",
-		year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
-	})
+	// For longer periods, use date format from lib/format.ts
+	return formatDateShort(date)
 }
 
 function TimelineItem({

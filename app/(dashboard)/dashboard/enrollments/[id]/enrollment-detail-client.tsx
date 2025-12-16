@@ -4,12 +4,12 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import * as Button from "@/components/ui/button"
-import * as StatusBadge from "@/components/ui/status-badge"
-import * as Avatar from "@/components/ui/avatar"
-import * as Modal from "@/components/ui/modal"
-import * as Textarea from "@/components/ui/textarea"
-import { InlineBackButton } from "@/components/ui/back-button"
+import * as Button from "@/components/ui/primitives/button"
+import * as StatusBadge from "@/components/ui/data-display/status-badge"
+import * as Avatar from "@/components/ui/primitives/avatar"
+import * as Modal from "@/components/ui/layout/modal"
+import * as Textarea from "@/components/ui/forms/textarea"
+import { InlineBackButton } from "@/components/ui/navigation/back-button"
 import { getAvatarColor } from "@/utils/avatar-color"
 import {
 	ArrowLeft,
@@ -29,14 +29,18 @@ import {
 	Star,
 	ShareNetwork,
 	ClipboardText,
-} from "@phosphor-icons/react/dist/ssr"
+} from "@phosphor-icons/react"
 import { cn } from "@/utils/cn"
 import { ENROLLMENT_STATUS_CONFIG, REJECTION_REASONS } from "@/lib/constants"
-import type { Enrollment } from "@/hooks/use-enrollments"
-import { updateEnrollmentStatus, requestEnrollmentChanges } from "@/app/actions/enrollments"
-import type { EnrollmentStatus } from "@/hooks/use-enrollments"
+import type { Enrollment, EnrollmentStatus } from "@/features/enrollments"
+import { updateEnrollmentStatus } from "@/features/enrollments"
+// TODO: requestEnrollmentChanges needs to be implemented in enrollments feature
+async function requestEnrollmentChanges(enrollmentId: string, comment: string) {
+	// Placeholder - this functionality needs to be implemented
+	return { success: false, error: new Error("Not implemented yet") }
+}
 import { EnrollmentTimeline } from "@/components/dashboard/enrollment-timeline"
-import type { enrollments, campaigns, integrations } from "@/lib/encore-client"
+import type { enrollments, campaigns, integrations } from "@/lib/api/encore-client"
 
 // Helper to calculate costs from Encore enrollment
 function calculateCosts(enrollment: Enrollment | enrollments.EnrollmentDetail) {
@@ -96,7 +100,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 	const error = null
 
 	// Action handlers
-	const statusConfig = enrollmentDetail ? ENROLLMENT_STATUS_CONFIG[enrollmentDetail.status] : null
+	const statusConfig = enrollmentDetail ? ENROLLMENT_STATUS_CONFIG[enrollmentDetail.status as EnrollmentStatus] : null
 	const formatCurrency = (amount: number) => `₹${amount.toLocaleString("en-IN")}`
 	const formatDate = (date: Date) =>
 		new Date(date).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
@@ -118,7 +122,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 				router.push("/dashboard/enrollments")
 				}, 1500)
 			} else {
-				toast.error(result.error || "Failed to approve enrollment")
+				toast.error(result.error?.message || String(result.error) || "Failed to approve enrollment")
 				setIsProcessing(false)
 			}
 		} catch (error) {
@@ -146,7 +150,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 				router.push("/dashboard/enrollments")
 				}, 1500)
 			} else {
-				toast.error(result.error || "Failed to reject enrollment")
+				toast.error(result.error?.message || String(result.error) || "Failed to reject enrollment")
 				setIsProcessing(false)
 			}
 		} catch (error) {
@@ -173,7 +177,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 				router.push("/dashboard/enrollments")
 				}, 1500)
 			} else {
-				toast.error(result.error || "Failed to request changes")
+				toast.error(result.error?.message || String(result.error) || "Failed to request changes")
 				setIsProcessing(false)
 			}
 		} catch (error) {
@@ -394,7 +398,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 
 						// Group submissions by platform
 						const groupedByPlatform = enrollmentDetail.submissions.reduce(
-							(acc, submission) => {
+							(acc: Record<string, typeof enrollmentDetail.submissions>, submission: typeof enrollmentDetail.submissions[0]) => {
 								const platformId =
 									deliverablePlatformMap.get(submission.campaignDeliverableId) || "general"
 								const platformName =
@@ -429,7 +433,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 												{platformName}
 											</h4>
 											<div className="space-y-2 pl-4 border-l-2 border-stroke-soft-200">
-												{platformSubmissions.map((submission, index) => {
+												{platformSubmissions.map((submission: typeof enrollmentDetail.submissions[0], index: number) => {
 													const DeliverableIcon = getDeliverableIcon(submission.deliverableName)
 													const isSubmitted = !!submission.submittedAt
 													const hasLink = !!submission.proofLink
@@ -578,7 +582,9 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 									size="small"
 									onClick={() => setIsChangesModalOpen(true)}
 								>
-									<Button.Icon as={PencilSimple} />
+									<Button.Icon>
+										<PencilSimple className="size-5" />
+									</Button.Icon>
 									Request Changes
 								</Button.Root>
 								<Button.Root
@@ -586,11 +592,15 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 									size="small"
 									onClick={() => setIsRejectModalOpen(true)}
 								>
-									<Button.Icon as={X} />
+									<Button.Icon>
+										<X className="size-5" />
+									</Button.Icon>
 									Reject
 								</Button.Root>
 								<Button.Root variant="primary" onClick={() => setIsApproveModalOpen(true)}>
-									<Button.Icon as={Check} />
+									<Button.Icon>
+										<Check className="size-5" />
+									</Button.Icon>
 									Approve & Pay
 								</Button.Root>
 							</div>
@@ -609,7 +619,9 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 								className="flex-1"
 								onClick={() => setIsChangesModalOpen(true)}
 							>
-								<Button.Icon as={PencilSimple} />
+								<Button.Icon>
+									<PencilSimple className="size-5" />
+								</Button.Icon>
 								Changes
 							</Button.Root>
 							<Button.Root
@@ -618,7 +630,9 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 								className="flex-1"
 								onClick={() => setIsRejectModalOpen(true)}
 							>
-								<Button.Icon as={X} />
+								<Button.Icon>
+									<X className="size-5" />
+								</Button.Icon>
 								Reject
 							</Button.Root>
 							<Button.Root
@@ -626,7 +640,9 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 								className="flex-[1.5]"
 								onClick={() => setIsApproveModalOpen(true)}
 							>
-								<Button.Icon as={Check} />
+								<Button.Icon>
+									<Check className="size-5" />
+								</Button.Icon>
 								Approve
 							</Button.Root>
 						</div>

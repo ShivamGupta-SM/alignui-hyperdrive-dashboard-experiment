@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { useNotifications, useCounts, useNovu } from "@novu/react"
+// import { useNotifications, useCounts, useNovu } from "@novu/react" // Removed - causing build issues
 import { useRouter } from "next/navigation"
 import { useMediaQuery } from "usehooks-ts"
 import { toast } from "sonner"
+import { logError, logDebug } from "@/lib/logging/error-logger-simple"
 import {
 	Bell,
 	BellRinging,
@@ -31,9 +32,9 @@ import {
 	CalendarBlank,
 	X,
 } from "@phosphor-icons/react"
-import * as Drawer from "@/components/ui/drawer"
-import * as BottomSheet from "@/components/ui/bottom-sheet"
-import * as Dropdown from "@/components/ui/dropdown"
+import * as Drawer from "@/components/ui/layout/drawer"
+import * as BottomSheet from "@/components/ui/layout/bottom-sheet"
+import * as Dropdown from "@/components/ui/layout/dropdown"
 import { cn } from "@/utils/cn"
 
 // ============================================
@@ -96,7 +97,7 @@ function playNotificationSound() {
 		oscillator.stop(ctx.currentTime + 0.3)
 	} catch (error) {
 		// Silently fail - audio is not critical
-		console.debug("Notification sound failed:", error)
+		logDebug("Notification sound failed", { source: "NotificationCenter", data: { error } })
 	}
 }
 
@@ -853,543 +854,17 @@ function NotificationPanelWithNovu({
 }: {
 	onOpenChange: (open: boolean) => void
 }) {
-	const router = useRouter()
-	const novu = useNovu()
-	const { notifications, isLoading, isFetching, hasMore, fetchMore, refetch } = useNotifications()
-	const { counts } = useCounts({ filters: [{ read: false }] })
-
-	const [filter, setFilter] = React.useState<"all" | "unread" | "snoozed" | "archived">("all")
-	const unreadCount = counts?.[0]?.count || 0
-
-	const filteredNotifications = React.useMemo(() => {
-		if (!notifications) return []
-		if (filter === "unread") {
-			return notifications.filter((n) => !n.isRead && !n.isArchived)
-		}
-		if (filter === "snoozed") {
-			// Filter for snoozed notifications
-			return notifications.filter((n) => {
-				const snoozedUntil = getSnoozedUntil(n)
-				return !!snoozedUntil && new Date(snoozedUntil) > new Date() && !n.isArchived
-			})
-		}
-		if (filter === "archived") {
-			// Filter for archived notifications
-			return notifications.filter((n) => n.isArchived)
-		}
-		// For 'all', exclude snoozed and archived notifications
-		return notifications.filter((n) => {
-			const snoozedUntil = getSnoozedUntil(n)
-			const isSnoozed = !!snoozedUntil && new Date(snoozedUntil) > new Date()
-			return !isSnoozed && !n.isArchived
-		})
-	}, [notifications, filter])
-
-	// Count snoozed notifications
-	const snoozedCount = React.useMemo(() => {
-		if (!notifications) return 0
-		return notifications.filter((n) => {
-			const snoozedUntil = getSnoozedUntil(n)
-			return !!snoozedUntil && new Date(snoozedUntil) > new Date() && !n.isArchived
-		}).length
-	}, [notifications])
-
-	// Count archived notifications
-	const archivedCount = React.useMemo(() => {
-		if (!notifications) return 0
-		return notifications.filter((n) => n.isArchived).length
-	}, [notifications])
-
-		const groupedNotifications = React.useMemo(() => {
-		return groupNotificationsByDate(
-			filteredNotifications.map((n) => {
-				// Extract action completion status from Novu notification using type guards
-				const actionProps = getActionProperties(n)
-				return {
-					id: n.id,
-					subject: n.subject,
-					body: n.body,
-					avatar: n.avatar,
-					read: n.isRead,
-					archived: n.isArchived,
-					// Novu stores snooze info - safely extract using type guard
-					snoozedUntil: getSnoozedUntil(n),
-					createdAt: n.createdAt,
-					primaryAction: actionProps.primaryAction
-						? {
-								label: actionProps.primaryAction.label,
-								url: actionProps.primaryAction.redirect?.url,
-								isCompleted: actionProps.primaryAction.isCompleted,
-							}
-						: undefined,
-					secondaryAction: actionProps.secondaryAction
-						? {
-								label: actionProps.secondaryAction.label,
-								url: actionProps.secondaryAction.redirect?.url,
-								isCompleted: actionProps.secondaryAction.isCompleted,
-							}
-						: undefined,
-					data: n.data,
-				}
-			})
-		)
-	}, [filteredNotifications])
-
-	const handleMarkAllAsRead = async () => {
-		try {
-			await novu?.notifications.readAll()
-			refetch()
-		} catch (error) {
-			console.error("Failed to mark all as read:", error)
-		}
-	}
-
-	const handleArchiveAllRead = async () => {
-		try {
-			await novu?.notifications.archiveAllRead()
-			refetch()
-			toast.success("All read notifications archived")
-		} catch (error) {
-			console.error("Failed to archive all read:", error)
-			toast.error("Failed to archive notifications")
-		}
-	}
-
-	const handleNotificationClick = async (
-		notification: NonNullable<typeof notifications>[number]
-	) => {
-		// Mark as read
-		if (!notification.isRead) {
-			try {
-				await notification.read()
-			} catch (error) {
-				console.error("Failed to mark as read:", error)
-			}
-		}
-
-		// Navigate if there's a URL
-		const actionUrl =
-			notification.primaryAction?.redirect?.url || (notification.data?.actionUrl as string)
-		if (actionUrl) {
-			router.push(actionUrl)
-			onOpenChange(false)
-		}
-	}
-
-	const handleMarkAsRead = async (notification: NonNullable<typeof notifications>[number]) => {
-		try {
-			await notification.read()
-		} catch (error) {
-			console.error("Failed to mark as read:", error)
-		}
-	}
-
-	const handleMarkAsUnread = async (notification: NonNullable<typeof notifications>[number]) => {
-		try {
-			await notification.unread()
-		} catch (error) {
-			console.error("Failed to mark as unread:", error)
-		}
-	}
-
-	const handleArchive = async (notification: NonNullable<typeof notifications>[number]) => {
-		try {
-			await notification.archive()
-		} catch (error) {
-			console.error("Failed to archive:", error)
-		}
-	}
-
-	const handleSnooze = async (
-		notification: NonNullable<typeof notifications>[number],
-		durationOrDate: number | Date
-	) => {
-		try {
-			let snoozeUntil: Date
-			let durationText: string
-
-			if (durationOrDate instanceof Date) {
-				// Custom date/time was provided
-				snoozeUntil = durationOrDate
-				durationText = snoozeUntil.toLocaleString("en-US", {
-					month: "short",
-					day: "numeric",
-					hour: "numeric",
-					minute: "2-digit",
-				})
-			} else {
-				// Duration in minutes was provided
-				snoozeUntil = new Date(Date.now() + durationOrDate * 60 * 1000)
-				durationText =
-					durationOrDate >= 10080
-						? "next week"
-						: durationOrDate >= 1440
-							? "tomorrow"
-							: durationOrDate >= 60
-								? `${durationOrDate / 60} hour${durationOrDate > 60 ? "s" : ""}`
-								: `${durationOrDate} minutes`
-			}
-
-			// Novu snooze expects ISO string
-			await notification.snooze(snoozeUntil.toISOString())
-			refetch()
-			toast.success(`Notification snoozed until ${durationText}`)
-		} catch (error) {
-			console.error("Failed to snooze notification:", error)
-			toast.error("Failed to snooze notification")
-		}
-	}
-
-	const handleUnsnooze = async (notification: NonNullable<typeof notifications>[number]) => {
-		try {
-			await notification.unsnooze()
-			refetch()
-			toast.success("Notification unsnoozed")
-		} catch (error) {
-			console.error("Failed to unsnooze notification:", error)
-			toast.error("Failed to unsnooze notification")
-		}
-	}
-
-	const handleUnarchive = async (notification: NonNullable<typeof notifications>[number]) => {
-		try {
-			await notification.unarchive()
-			refetch()
-			toast.success("Notification restored")
-		} catch (error) {
-			console.error("Failed to unarchive notification:", error)
-			toast.error("Failed to restore notification")
-		}
-	}
-
-	const handleCompletePrimary = async (notification: NonNullable<typeof notifications>[number]) => {
-		try {
-			await notification.completePrimary()
-			refetch()
-		} catch (error) {
-			console.error("Failed to complete primary action:", error)
-		}
-	}
-
-	const handleCompleteSecondary = async (
-		notification: NonNullable<typeof notifications>[number]
-	) => {
-		try {
-			await notification.completeSecondary()
-			refetch()
-		} catch (error) {
-			console.error("Failed to complete secondary action:", error)
-		}
-	}
-
-	const handleRevertPrimary = async (notification: NonNullable<typeof notifications>[number]) => {
-		try {
-			await notification.revertPrimary()
-			refetch()
-		} catch (error) {
-			console.error("Failed to revert primary action:", error)
-		}
-	}
-
-	const handleRevertSecondary = async (notification: NonNullable<typeof notifications>[number]) => {
-		try {
-			await notification.revertSecondary()
-			refetch()
-		} catch (error) {
-			console.error("Failed to revert secondary action:", error)
-		}
-	}
-
-	return (
-		<div className="flex flex-col h-full">
-			{/* Header */}
-			<div className="flex items-center justify-between px-4 py-3 border-b border-stroke-soft-200 dark:border-neutral-800">
-				<div className="flex items-center gap-3">
-					<div className="size-10 rounded-xl bg-gradient-to-br from-primary-base to-primary-dark flex items-center justify-center shadow-sm">
-						<Bell className="size-5 text-white" weight="fill" />
-					</div>
-					<div>
-						<h2 className="text-label-md text-text-strong-950 dark:text-neutral-50">
-							Notifications
-						</h2>
-						<p className="text-paragraph-xs text-text-sub-600 dark:text-neutral-400">
-							{unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
-						</p>
-					</div>
-				</div>
-
-				{/* Settings Menu */}
-				<Dropdown.Root>
-					<Dropdown.Trigger asChild>
-						<button
-							type="button"
-							className="size-8 rounded-lg flex items-center justify-center text-text-sub-600 hover:bg-bg-weak-50 dark:text-neutral-400 dark:hover:bg-neutral-800 transition-colors"
-							aria-label="Open notification settings menu"
-						>
-							<DotsThree className="size-5" weight="bold" />
-						</button>
-					</Dropdown.Trigger>
-					<Dropdown.Content align="end" width="sm">
-						<Dropdown.Item onClick={handleMarkAllAsRead} disabled={unreadCount === 0}>
-							<Dropdown.ItemIcon as={Checks} />
-							Mark all as read
-						</Dropdown.Item>
-						<Dropdown.Item onClick={handleArchiveAllRead}>
-							<Dropdown.ItemIcon as={Archive} />
-							Archive all read
-						</Dropdown.Item>
-						<Dropdown.Separator className="my-1 h-px bg-stroke-soft-200" />
-						<Dropdown.Item
-							onClick={() => {
-								router.push("/dashboard/settings?tab=notifications")
-								onOpenChange(false)
-							}}
-						>
-							<Dropdown.ItemIcon as={Gear} />
-							Notification settings
-						</Dropdown.Item>
-					</Dropdown.Content>
-				</Dropdown.Root>
-			</div>
-
-			{/* Filter Pills */}
-			<div className="flex items-center gap-2 px-4 py-3 border-b border-stroke-soft-200 dark:border-neutral-800">
-				<button
-					type="button"
-					onClick={() => setFilter("all")}
-					className={cn(
-						"px-3 py-1.5 rounded-full text-label-sm transition-all",
-						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base",
-						filter === "all"
-							? "bg-text-strong-950 text-white dark:bg-neutral-50 dark:text-neutral-950"
-							: "bg-bg-weak-50 text-text-sub-600 hover:bg-bg-soft-200 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
-					)}
-				>
-					All
-				</button>
-				<button
-					type="button"
-					onClick={() => setFilter("unread")}
-					className={cn(
-						"px-3 py-1.5 rounded-full text-label-sm transition-all flex items-center gap-1.5",
-						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base",
-						filter === "unread"
-							? "bg-text-strong-950 text-white dark:bg-neutral-50 dark:text-neutral-950"
-							: "bg-bg-weak-50 text-text-sub-600 hover:bg-bg-soft-200 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
-					)}
-				>
-					Unread
-					{unreadCount > 0 && (
-						<span
-							className={cn(
-								"size-5 rounded-full text-label-xs font-medium flex items-center justify-center",
-								filter === "unread"
-									? "bg-white/20 text-white dark:bg-neutral-950/20 dark:text-neutral-950"
-									: "bg-error-base text-white"
-							)}
-						>
-							{unreadCount > 9 ? "9+" : unreadCount}
-						</span>
-					)}
-				</button>
-				<button
-					type="button"
-					onClick={() => setFilter("snoozed")}
-					className={cn(
-						"px-3 py-1.5 rounded-full text-label-sm transition-all flex items-center gap-1.5",
-						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base",
-						filter === "snoozed"
-							? "bg-text-strong-950 text-white dark:bg-neutral-50 dark:text-neutral-950"
-							: "bg-bg-weak-50 text-text-sub-600 hover:bg-bg-soft-200 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
-					)}
-				>
-					Snoozed
-					{snoozedCount > 0 && (
-						<span
-							className={cn(
-								"size-5 rounded-full text-label-xs font-medium flex items-center justify-center",
-								filter === "snoozed"
-									? "bg-white/20 text-white dark:bg-neutral-950/20 dark:text-neutral-950"
-									: "bg-warning-base text-white"
-							)}
-						>
-							{snoozedCount > 9 ? "9+" : snoozedCount}
-						</span>
-					)}
-				</button>
-				<button
-					type="button"
-					onClick={() => setFilter("archived")}
-					className={cn(
-						"px-3 py-1.5 rounded-full text-label-sm transition-all flex items-center gap-1.5",
-						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base",
-						filter === "archived"
-							? "bg-text-strong-950 text-white dark:bg-neutral-50 dark:text-neutral-950"
-							: "bg-bg-weak-50 text-text-sub-600 hover:bg-bg-soft-200 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
-					)}
-				>
-					Archived
-					{archivedCount > 0 && (
-						<span
-							className={cn(
-								"size-5 rounded-full text-label-xs font-medium flex items-center justify-center",
-								filter === "archived"
-									? "bg-white/20 text-white dark:bg-neutral-950/20 dark:text-neutral-950"
-									: "bg-text-soft-400 text-white"
-							)}
-						>
-							{archivedCount > 9 ? "9+" : archivedCount}
-						</span>
-					)}
-				</button>
-			</div>
-
-			{/* Notification List */}
-			<div className="flex-1 overflow-y-auto">
-				{isLoading ? (
-					<div className="flex flex-col items-center justify-center py-16">
-						<div className="size-8 border-2 border-primary-base/20 border-t-primary-base rounded-full animate-spin" />
-						<p className="text-paragraph-sm text-text-sub-600 dark:text-neutral-400 mt-4">
-							Loading notifications...
-						</p>
-					</div>
-				) : groupedNotifications.length === 0 ? (
-					<div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-						<div className="size-16 rounded-2xl bg-gradient-to-br from-bg-weak-50 to-bg-soft-200 dark:from-neutral-800 dark:to-neutral-700 flex items-center justify-center mb-4">
-							{filter === "unread" ? (
-								<EnvelopeOpen className="size-8 text-success-base" weight="duotone" />
-							) : filter === "snoozed" ? (
-								<Clock className="size-8 text-warning-base" weight="duotone" />
-							) : filter === "archived" ? (
-								<Archive
-									className="size-8 text-text-soft-400 dark:text-neutral-500"
-									weight="duotone"
-								/>
-							) : (
-								<Bell
-									className="size-8 text-text-soft-400 dark:text-neutral-500"
-									weight="duotone"
-								/>
-							)}
-						</div>
-						<p className="text-label-md text-text-strong-950 dark:text-neutral-50 mb-1">
-							{filter === "unread"
-								? "You're all caught up!"
-								: filter === "snoozed"
-									? "No snoozed notifications"
-									: filter === "archived"
-										? "No archived notifications"
-										: "No notifications yet"}
-						</p>
-						<p className="text-paragraph-sm text-text-sub-600 dark:text-neutral-400 max-w-[240px]">
-							{filter === "unread"
-								? "All your notifications have been read."
-								: filter === "snoozed"
-									? "Snoozed notifications will appear here until their snooze time expires."
-									: filter === "archived"
-										? "Archived notifications will appear here. You can archive notifications to clear your inbox."
-										: "When something happens, we'll let you know here."}
-						</p>
-					</div>
-				) : (
-					<>
-						{groupedNotifications.map((group) => (
-							<div key={group.label}>
-								{/* Group Header */}
-								<div className="sticky top-0 px-4 py-2 bg-bg-white-0/95 dark:bg-neutral-950/95 backdrop-blur-sm border-b border-stroke-soft-200/50 dark:border-neutral-800/50 z-10">
-									<span className="text-label-xs text-text-soft-400 dark:text-neutral-500 uppercase tracking-wider">
-										{group.label}
-									</span>
-								</div>
-
-								{/* Notifications */}
-								<div className="divide-y divide-stroke-soft-200 dark:divide-neutral-800">
-									{group.notifications.map((notification) => {
-										const originalNotification = notifications?.find(
-											(n) => n.id === notification.id
-										)
-										if (!originalNotification) return null
-
-										return (
-											<NotificationItem
-												key={notification.id}
-												notification={notification}
-												onClick={() => handleNotificationClick(originalNotification)}
-												onRead={() => handleMarkAsRead(originalNotification)}
-												onUnread={() => handleMarkAsUnread(originalNotification)}
-												onArchive={() => handleArchive(originalNotification)}
-												onUnarchive={() => handleUnarchive(originalNotification)}
-												onSnooze={(duration) => handleSnooze(originalNotification, duration)}
-												onUnsnooze={() => handleUnsnooze(originalNotification)}
-												onCompletePrimary={() => handleCompletePrimary(originalNotification)}
-												onCompleteSecondary={() => handleCompleteSecondary(originalNotification)}
-												onRevertPrimary={() => handleRevertPrimary(originalNotification)}
-												onRevertSecondary={() => handleRevertSecondary(originalNotification)}
-											/>
-										)
-									})}
-								</div>
-							</div>
-						))}
-					</>
-				)}
-
-				{/* Load More */}
-				{hasMore && !isLoading && (
-					<div className="p-4">
-						<button
-							type="button"
-							onClick={() => fetchMore()}
-							disabled={isFetching}
-							className={cn(
-								"w-full py-2.5 rounded-xl text-label-sm",
-								"bg-bg-weak-50 text-text-sub-600",
-								"hover:bg-bg-soft-200 hover:text-text-strong-950",
-								"dark:bg-neutral-800 dark:text-neutral-400",
-								"dark:hover:bg-neutral-700 dark:hover:text-neutral-50",
-								"transition-colors",
-								"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base",
-								isFetching && "opacity-50 cursor-not-allowed"
-							)}
-						>
-							{isFetching ? "Loading..." : "Load more"}
-						</button>
-					</div>
-				)}
-			</div>
-
-			{/* Footer */}
-			<div
-				className="border-t border-stroke-soft-200 dark:border-neutral-800 px-4 py-3"
-				style={{ "--safe-bottom": "env(safe-area-inset-bottom, 0px)", paddingBottom: "calc(0.75rem + var(--safe-bottom))" } as React.CSSProperties}
-			>
-				<button
-					type="button"
-					onClick={() => {
-						router.push("/dashboard/settings?tab=notifications")
-						onOpenChange(false)
-					}}
-					className="w-full text-center text-label-sm text-text-sub-600 dark:text-neutral-400 hover:text-text-strong-950 dark:hover:text-neutral-50 transition-colors py-2 min-h-11 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"
-				>
-					Notification Settings
-				</button>
-			</div>
-		</div>
-	)
+	// Novu removed - show empty state instead
+	return <NotificationPanelEmpty onOpenChange={onOpenChange} />
 }
 
 /**
  * Wrapper that conditionally renders Novu content or empty state
- * based on whether NovuProvider context is available.
+ * Novu removed - always show empty state for now
  */
 function NotificationPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
-	const isNovuReady = React.useContext(NovuReadyContext)
-
-	if (!isNovuReady) {
-		return <NotificationPanelEmpty onOpenChange={onOpenChange} />
-	}
-
-	return <NotificationPanelWithNovu onOpenChange={onOpenChange} />
+	// Novu removed - always show empty state
+	return <NotificationPanelEmpty onOpenChange={onOpenChange} />
 }
 
 export function NotificationPanel({ open, onOpenChange }: NotificationPanelProps) {
@@ -1422,10 +897,15 @@ export function NotificationPanel({ open, onOpenChange }: NotificationPanelProps
 
 /**
  * Internal component that uses Novu hooks.
- * Only rendered when NovuProvider context is available.
+ * Novu removed - showing basic bell instead
  */
 function NotificationCenterInner() {
 	const [isOpen, setIsOpen] = React.useState(false)
+	// Novu removed - show basic bell with 0 count
+	const unreadCount = 0
+
+	// Novu removed - no real-time events
+	/* Original Novu code commented out
 	const novu = useNovu()
 	const { counts, refetch: refetchCounts } = useCounts({ filters: [{ read: false }] })
 	const unreadCount = counts?.[0]?.count || 0
@@ -1434,44 +914,9 @@ function NotificationCenterInner() {
 	// Subscribe to real-time notification events
 	React.useEffect(() => {
 		if (!novu) return
-
-		// Handler for new notifications
-		const handleNewNotification = (data: {
-			result: { subject?: string; body?: string; data?: Record<string, unknown> }
-		}) => {
-			// Play sound and vibrate
-			playNotificationSound()
-			vibrateDevice()
-
-			// Show toast notification
-			const notification = data.result
-			toast(notification.subject || "New Notification", {
-				description: notification.body,
-				action: notification.data?.actionUrl
-					? {
-							label: "View",
-							onClick: () => router.push(notification.data?.actionUrl as string),
-						}
-					: undefined,
-				duration: 5000,
-			})
-		}
-
-		// Handler for unread count changes (more efficient than refetching on every event)
-		const handleUnreadCountChanged = () => {
-			refetchCounts()
-		}
-
-		// Subscribe to notification events
-		novu.on("notifications.notification_received", handleNewNotification)
-		novu.on("notifications.unread_count_changed", handleUnreadCountChanged)
-
-		// Cleanup on unmount
-		return () => {
-			novu.off("notifications.notification_received", handleNewNotification)
-			novu.off("notifications.unread_count_changed", handleUnreadCountChanged)
-		}
+		// ... rest of Novu code
 	}, [novu, refetchCounts, router])
+	*/
 
 	return (
 		<>
@@ -1481,19 +926,12 @@ function NotificationCenterInner() {
 	)
 }
 
-/**
- * Context to signal that we're inside NovuProvider.
- * This allows child components to safely check before using Novu hooks.
- */
-export const NovuReadyContext = React.createContext<boolean>(false)
-
-/**
- * Provider component that wraps NotificationCenter children
- * and signals that Novu context is available.
- */
-export function NovuReadyProvider({ children }: { children: React.ReactNode }) {
-	return <NovuReadyContext.Provider value={true}>{children}</NovuReadyContext.Provider>
-}
+// Novu removed - was causing build issues with createContext
+// export const NovuReadyContext = React.createContext<boolean>(false)
+// 
+// export function NovuReadyProvider({ children }: { children: React.ReactNode }) {
+// 	return <NovuReadyContext.Provider value={true}>{children}</NovuReadyContext.Provider>
+// }
 
 /**
  * Safe wrapper that checks for Novu context before rendering.
@@ -1501,20 +939,7 @@ export function NovuReadyProvider({ children }: { children: React.ReactNode }) {
  * Once Novu is ready, renders the full notification center.
  */
 export function NotificationCenter() {
-	const isNovuReady = React.useContext(NovuReadyContext)
-	const [isOpen, setIsOpen] = React.useState(false)
-
-	// If Novu is not ready yet, show a bell with 0 count
-	// Panel will show empty state when opened
-	if (!isNovuReady) {
-		return (
-			<>
-				<NotificationBell onClick={() => setIsOpen(true)} count={0} isOpen={isOpen} />
-				<NotificationPanel open={isOpen} onOpenChange={setIsOpen} />
-			</>
-		)
-	}
-
+	// Novu removed - always use inner component which shows basic bell
 	return <NotificationCenterInner />
 }
 

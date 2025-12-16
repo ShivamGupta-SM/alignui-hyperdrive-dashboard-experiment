@@ -6,12 +6,13 @@
  */
 
 import { unstable_cache } from "next/cache"
-import { getEncoreClient, getAuthenticatedEncoreClient, getErrorDetails } from "@/lib/encore"
+import { getEncoreClient, getAuthenticatedEncoreClient, getErrorDetails } from "@/lib/api/encore"
 import { cookies } from "next/headers"
-import type { shared } from "@/lib/encore-client"
-import { logSSRError, logAPIError, logError, logWarn, logInfo } from "@/lib/error-logger-simple"
+import type { shared } from "@/lib/api/encore-client"
+import { logSSRError, logAPIError, logError, logWarn, logInfo } from "@/lib/logging/error-logger-simple"
 import { initServerMocks } from "@/lib/init-mocks-server"
-import { getSession } from "@/app/actions/auth"
+import { getSession } from "@/features/auth"
+import { requireAuth, isAuthenticationError } from "@/lib/auth-helpers"
 
 // Initialize MSW before any fetch calls (only in development with mocking enabled)
 if (typeof window === "undefined" && process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
@@ -147,7 +148,7 @@ export async function getOrganizations(): Promise<Array<{ id: string; name: stri
 
 		const client = await getAuthClient()
 		const result = await client.auth.listOrganizations()
-		return result.organizations || []
+		return (result.organizations || []) as unknown as Array<{ [key: string]: unknown; id: string; name: string }>
 	} catch (error) {
 		logSSRError(error, "getOrganizations", "organizations", {})
 		return []
@@ -184,29 +185,34 @@ export async function requireOrganization() {
 // ===========================================
 
 // Cached dashboard data fetching
-async function getDashboardDataCached(client: ReturnType<typeof getAuthenticatedEncoreClient>, activeOrgId: string) {
-	return client.organizations.getDashboardOverview({ days: 7 })
-}
+/**
+ * Get dashboard data for the current user
+ * 
+ * ✅ FIX: Removed unstable_cache wrapper because:
+ * - Dashboard data is user-specific (depends on session/cookies)
+ * - Cannot use dynamic data sources (cookies) inside cached functions
+ * - Each user should see their own dashboard data
+ * 
+ * Industry Standard: User-specific data should not be cached
+ */
+export async function getDashboardData() {
+	// CRITICAL: Check for active organization BEFORE calling API
+	// This prevents unnecessary API calls and clearer error messages
+	const activeOrgId = await getOrganizationIdOrNull()
 
-export const getDashboardData = unstable_cache(
-	async () => {
-		// CRITICAL: Check for active organization BEFORE calling API
-		// This prevents unnecessary API calls and clearer error messages
-		const activeOrgId = await getOrganizationIdOrNull()
+	if (!activeOrgId) {
+		// No active organization - return null gracefully
+		// DashboardClient will show appropriate UI
+		return null
+	}
 
-		if (!activeOrgId) {
-			// No active organization - return null gracefully
-			// DashboardClient will show appropriate UI
-			return null
-		}
-
-		// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
-		// Fetch dashboard data with error handling - always return null on error
-		// This ensures page can still render even if dashboard data fails
-		try {
-			const client = await getAuthClient()
-			const response = await getDashboardDataCached(client, activeOrgId)
-			return response
+	// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
+	// Fetch dashboard data with error handling - always return null on error
+	// This ensures page can still render even if dashboard data fails
+	try {
+		const client = await getAuthClient()
+		const response = await client.organizations.getDashboardOverview({ days: 7 })
+		return response
 	} catch (error) {
 		// CRITICAL: Deep error inspection for debugging
 		// Check if it's a network error first
@@ -302,24 +308,28 @@ export const getDashboardData = unstable_cache(
 		// Return null - DashboardClient handles null data gracefully
 		return null
 	}
-	},
-	["dashboard"], // Cache key
-	{
-		tags: ["dashboard"],
-		revalidate: 60, // Revalidate every 60 seconds
-	}
-)
+}
 
 // ===========================================
 // WALLET
 // ===========================================
 
 export async function getWalletData() {
-	const client = await getAuthClient()
-
-	// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
 	try {
-		const [wallet, withdrawals, transactions, holds, stats] = await Promise.all([
+		// CRITICAL: Check authentication before making API calls
+		// This prevents "invalid authentication credentials" errors when user is not logged in
+		const auth = await requireAuth()
+		
+		if (!auth.success) {
+			// User is not authenticated - return null instead of throwing error
+			logWarn("User not authenticated, returning null wallet data", { source: "getWalletData" })
+			return null
+		}
+
+		const client = await getAuthClient()
+
+		// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
+		const results = await Promise.allSettled([
 			client.wallets.getOrganizationWallet(),
 			client.wallets.listOrganizationWithdrawals({ skip: 0, take: 50 }),
 			client.wallets.getOrganizationWalletTransactions({ skip: 0, take: 50 }),
@@ -327,14 +337,39 @@ export async function getWalletData() {
 			client.wallets.getWithdrawalStats({ holderType: "organization" }),
 		])
 
+		const wallet = results[0].status === "fulfilled" ? results[0].value : null
+		const withdrawals = results[1].status === "fulfilled" ? results[1].value : { data: [] }
+		const transactions = results[2].status === "fulfilled" ? results[2].value : { data: [] }
+		const holds = results[3].status === "fulfilled" ? results[3].value : { holds: [] }
+		const stats = results[4].status === "fulfilled" ? results[4].value : null
+
+		// Log errors for failed promises
+		results.forEach((result, index) => {
+			if (result.status === "rejected") {
+				const names = ["wallet", "withdrawals", "transactions", "holds", "stats"]
+				logSSRError(result.reason, "getWalletData", `wallet-${names[index]}`, {
+					data: { automaticScoping: true },
+				})
+			}
+		})
+
 		return {
 			balance: wallet,
 			withdrawals: withdrawals.data || [],
-			transactions: transactions.data,
-			activeHolds: holds.holds,
+			transactions: transactions.data || [],
+			activeHolds: holds.holds || [],
 			stats,
 		}
 	} catch (error) {
+		// Handle authentication errors gracefully
+		if (isAuthenticationError(error)) {
+			logWarn("Authentication error in getWalletData, returning null", {
+				source: "getWalletData",
+				data: { errorMessage: error instanceof Error ? error.message : String(error) },
+			})
+			return null
+		}
+		
 		logSSRError(error, "getWalletData", "wallet-data", {
 			data: { automaticScoping: true },
 		})
@@ -348,28 +383,64 @@ export async function getWalletData() {
 
 export const getCampaignsData = unstable_cache(
 	async (status?: string) => {
-		const client = await getAuthClient()
-
-		// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
-		const params: {
-			skip: number
-			take: number
-			status?: shared.CampaignStatus
-		} = {
-			skip: 0,
-			take: 50,
-		}
-
-		if (status && status !== "all") {
-			params.status = status as shared.CampaignStatus
-		}
-
-		// Fetch campaigns with error handling - always return valid structure
 		try {
+			// CRITICAL: Check authentication before making API calls
+			// This prevents "invalid authentication credentials" errors when user is not logged in
+			const auth = await requireAuth()
+			
+			if (!auth.success) {
+				// User is not authenticated - return empty data instead of throwing error
+				logWarn("User not authenticated, returning empty campaigns data", { source: "getCampaignsData" })
+				return {
+					campaigns: [],
+					data: [],
+					total: 0,
+					skip: 0,
+					take: 50,
+					hasMore: false,
+				}
+			}
+
+			const client = await getAuthClient()
+
+			// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
+			const params: {
+				skip: number
+				take: number
+				status?: shared.CampaignStatus
+			} = {
+				skip: 0,
+				take: 50,
+			}
+
+			if (status && status !== "all") {
+				params.status = status as shared.CampaignStatus
+			}
+
+			// Fetch campaigns with error handling - always return valid structure
 			const response = await client.campaigns.listCampaigns(params)
 			// Return with 'campaigns' key for CampaignsClient compatibility
 			return { campaigns: response.data, ...response }
 		} catch (error) {
+			// Handle authentication errors gracefully
+			if (isAuthenticationError(error)) {
+				logWarn("Authentication error in getCampaignsData, returning empty data", {
+					source: "getCampaignsData",
+					data: {
+						errorMessage: error instanceof Error ? error.message : String(error),
+						statusFilter: status,
+					},
+				})
+				return {
+					campaigns: [],
+					data: [],
+					total: 0,
+					skip: 0,
+					take: 50,
+					hasMore: false,
+				}
+			}
+			
 			// CRITICAL: Log with full context BEFORE returning fallback
 			logSSRError(error, "getCampaignsData", "campaigns", {
 				data: {
@@ -393,52 +464,65 @@ export const getCampaignsData = unstable_cache(
 	["campaigns"], // Cache key
 	{
 		tags: ["campaigns"],
-		revalidate: 60, // Revalidate every 60 seconds
 	}
 )
 
 export async function getCampaignDetailData(campaignId: string) {
 	const client = await getAuthClient()
 
-	const [campaign, stats, pricing, deliverables, performance, enrollments, platforms] =
-		await Promise.all([
+	try {
+		const results = await Promise.allSettled([
 			client.campaigns.getCampaign(campaignId),
-			client.campaigns.getCampaignStats(campaignId).catch((error) => {
-				logSSRError(error, "getCampaignDetailData", "campaign-stats", { data: { campaignId } })
-				return undefined
-			}),
-			client.campaigns.getCampaignPricing(campaignId).catch((error) => {
-				logSSRError(error, "getCampaignDetailData", "campaign-pricing", { data: { campaignId } })
-				return undefined
-			}),
-			client.campaigns.listCampaignDeliverables(campaignId).catch((error) => {
-				logSSRError(error, "getCampaignDetailData", "campaign-deliverables", { data: { campaignId } })
-				return { data: [] }
-			}),
-			client.campaigns.getCampaignPerformance(campaignId, {}).catch((error) => {
-				logSSRError(error, "getCampaignDetailData", "campaign-performance", { data: { campaignId } })
-				return { data: [] }
-			}),
-			client.enrollments
-				.listCampaignEnrollments(campaignId, { take: 100 })
-				.catch((error) => {
-					logSSRError(error, "getCampaignDetailData", "campaign-enrollments", { data: { campaignId } })
-					return { data: [] }
-				}),
-			client.integrations.listActivePlatforms().catch((error) => {
-				logSSRError(error, "getCampaignDetailData", "active-platforms", { data: { campaignId } })
-				return { platforms: [] }
-			}),
+			client.campaigns.getCampaignStats(campaignId),
+			client.campaigns.getCampaignPricing(campaignId),
+			client.campaigns.listCampaignDeliverables(campaignId),
+			client.campaigns.getCampaignPerformance(campaignId, {}),
+			client.enrollments.listCampaignEnrollments(campaignId, { take: 100 }),
+			client.integrations.listActivePlatforms(),
 		])
 
-	return {
-		...campaign, // Spread campaign properties
-		stats,
-		pricing,
-		deliverables: deliverables?.data || [],
-		performance: performance?.data || [],
-		enrollments: enrollments?.data || [],
-		platforms: platforms?.platforms || [],
+		const campaign = results[0].status === "fulfilled" ? results[0].value : null
+		const stats = results[1].status === "fulfilled" ? results[1].value : undefined
+		const pricing = results[2].status === "fulfilled" ? results[2].value : undefined
+		const deliverables = results[3].status === "fulfilled" ? results[3].value : { data: [] }
+		const performance = results[4].status === "fulfilled" ? results[4].value : { data: [] }
+		const enrollments = results[5].status === "fulfilled" ? results[5].value : { data: [] }
+		const platforms = results[6].status === "fulfilled" ? results[6].value : { platforms: [] }
+
+		// Log errors for failed promises
+		results.forEach((result, index) => {
+			if (result.status === "rejected") {
+				const names = ["campaign", "stats", "pricing", "deliverables", "performance", "enrollments", "platforms"]
+				logSSRError(result.reason, "getCampaignDetailData", `campaign-${names[index]}`, { data: { campaignId } })
+			}
+		})
+
+		// Campaign is required - if it fails, return null
+		if (!campaign) {
+			return null
+		}
+
+		// Handle legacy enrollments format
+		const enrollmentsData = enrollments.data || []
+		if (Array.isArray(enrollmentsData) && enrollmentsData.length > 0 && "enrollment" in enrollmentsData[0]) {
+			// Legacy format: { enrollment: {...}, ... }
+			// Convert to new format: just the enrollment object
+			const convertedEnrollments = (enrollmentsData as Array<{ enrollment: unknown }>).map((item) => item.enrollment)
+			enrollments.data = convertedEnrollments as typeof enrollmentsData
+		}
+
+		return {
+			campaign,
+			stats,
+			pricing,
+			deliverables: deliverables.data || [],
+			performance: performance.data || [],
+			enrollments: enrollmentsData,
+			platforms: platforms.platforms || [],
+		}
+	} catch (error) {
+		logSSRError(error, "getCampaignDetailData", "campaign-detail", { data: { campaignId } })
+		return null
 	}
 }
 
@@ -447,44 +531,71 @@ export async function getCampaignDetailData(campaignId: string) {
 // ===========================================
 
 export async function getEnrollmentsData(status?: string, campaignId?: string) {
-	const client = await getAuthClient()
+	try {
+		// CRITICAL: Check authentication before making API calls
+		// This prevents "invalid authentication credentials" errors when user is not logged in
+		const auth = await requireAuth()
+		
+		if (!auth.success) {
+			// User is not authenticated - return empty data instead of throwing error
+			logWarn("User not authenticated, returning empty enrollments data", { source: "getEnrollmentsData" })
+			return { enrollments: [], data: [], total: 0, skip: 0, take: 50, hasMore: false }
+		}
 
-	// Industry Standard: Backend uses activeOrganizationId automatically
-	// For brands: Use listOrganizationEnrollments (all enrollments across all campaigns)
-	// For shoppers: Use listMyEnrollments (their own enrollments)
-	
-	// Check if user has active organization (brand) or is a shopper
-	const orgId = await getOrganizationIdOrNull()
-	
-	const params: {
-		skip: number
-		take: number
-		status?: shared.EnrollmentStatus
-		campaignId?: string
-	} = {
-		skip: 0,
-		take: 50,
-	}
+		const client = await getAuthClient()
 
-	if (status && status !== "all") {
-		params.status = status as shared.EnrollmentStatus
-	}
+		// Industry Standard: Backend uses activeOrganizationId automatically
+		// For brands: Use listOrganizationEnrollments (all enrollments across all campaigns)
+		// For shoppers: Use listMyEnrollments (their own enrollments)
+		
+		// Check if user has active organization (brand) or is a shopper
+		const orgId = await getOrganizationIdOrNull()
+		
+		const params: {
+			skip: number
+			take: number
+			status?: shared.EnrollmentStatus
+			campaignId?: string
+		} = {
+			skip: 0,
+			take: 50,
+		}
 
-	if (campaignId && campaignId !== "") {
-		params.campaignId = campaignId
-	}
+		if (status && status !== "all") {
+			params.status = status as shared.EnrollmentStatus
+		}
 
-	// If user has active organization, use organization-level endpoint (for brands)
-	// Otherwise, use shopper endpoint (for shoppers)
-	let response
-	if (orgId) {
-		response = await client.enrollments.listOrganizationEnrollments(params)
-	} else {
-		response = await client.enrollments.listMyEnrollments(params)
+		if (campaignId && campaignId !== "") {
+			params.campaignId = campaignId
+		}
+
+		// If user has active organization, use organization-level endpoint (for brands)
+		// Otherwise, use shopper endpoint (for shoppers)
+		let response
+		if (orgId) {
+			response = await client.enrollments.listOrganizationEnrollments(params)
+		} else {
+			response = await client.enrollments.listMyEnrollments(params)
+		}
+		
+		// Return with 'enrollments' key for EnrollmentsClient compatibility
+		return { enrollments: response.data, ...response }
+	} catch (error) {
+		// Handle authentication errors gracefully
+		if (isAuthenticationError(error)) {
+			logWarn("Authentication error in getEnrollmentsData, returning empty data", {
+				source: "getEnrollmentsData",
+				data: { errorMessage: error instanceof Error ? error.message : String(error) },
+			})
+			return { enrollments: [], data: [], total: 0, skip: 0, take: 50, hasMore: false }
+		}
+		
+		// For other errors, log and return empty data
+		logSSRError(error, "getEnrollmentsData", "enrollments", {
+			data: { status, campaignId }
+		})
+		return { enrollments: [], data: [], total: 0, skip: 0, take: 50, hasMore: false }
 	}
-	
-	// Return with 'enrollments' key for EnrollmentsClient compatibility
-	return { enrollments: response.data, ...response }
 }
 
 export async function getEnrollmentDetailData(enrollmentId: string) {
@@ -494,25 +605,41 @@ export async function getEnrollmentDetailData(enrollmentId: string) {
 	const enrollmentDetail = await client.enrollments.getEnrollmentDetail(enrollmentId)
 
 	// Fetch platforms and campaign deliverables for categorization
-	const [platforms, campaignDeliverables] = await Promise.all([
-		client.integrations.listActivePlatforms().catch((error) => {
-			logSSRError(error, "getEnrollmentDetailData", "active-platforms", { data: { enrollmentId } })
-			return { platforms: [] }
-		}),
-		enrollmentDetail.campaign?.id
-			? client.campaigns
-				.listCampaignDeliverables(enrollmentDetail.campaign.id)
+	try {
+		const results = await Promise.allSettled([
+			client.integrations.listActivePlatforms(),
+			enrollmentDetail.campaign?.id
+				? client.campaigns.listCampaignDeliverables(enrollmentDetail.campaign.id)
 				.catch((error) => {
 					logSSRError(error, "getEnrollmentDetailData", "campaign-deliverables", { data: { enrollmentId, campaignId: enrollmentDetail.campaign?.id } })
 					return { data: [] }
 				})
 			: Promise.resolve({ data: [] }),
-	])
+		])
 
-	return {
-		...enrollmentDetail,
-		platforms: platforms.platforms || [],
-		campaignDeliverables: campaignDeliverables?.data || [],
+		const platforms = results[0].status === "fulfilled" ? results[0].value : { platforms: [] }
+		const campaignDeliverables = results[1].status === "fulfilled" ? results[1].value : { data: [] }
+
+		// Log errors for failed promises
+		results.forEach((result, index) => {
+			if (result.status === "rejected") {
+				const names = ["platforms", "campaign-deliverables"]
+				logSSRError(result.reason, "getEnrollmentDetailData", names[index], { data: { enrollmentId } })
+			}
+		})
+
+		return {
+			...enrollmentDetail,
+			platforms: platforms.platforms || [],
+			campaignDeliverables: campaignDeliverables?.data || [],
+		}
+	} catch (error) {
+		logSSRError(error, "getEnrollmentDetailData", "enrollment-detail", { data: { enrollmentId } })
+		return {
+			...enrollmentDetail,
+			platforms: [],
+			campaignDeliverables: [],
+		}
 	}
 }
 
@@ -521,19 +648,70 @@ export async function getEnrollmentDetailData(enrollmentId: string) {
 // ===========================================
 
 export async function getProductsData() {
-	const client = await getAuthClient()
+	try {
+		// CRITICAL: Check authentication before making API calls
+		// This prevents "invalid authentication credentials" errors when user is not logged in
+		const auth = await requireAuth()
+		
+		if (!auth.success) {
+			// User is not authenticated - return empty data instead of throwing error
+			logWarn("User not authenticated, returning empty products data", { source: "getProductsData" })
+			return {
+				data: [],
+				total: 0,
+				categories: [],
+				platforms: [],
+			}
+		}
 
-	const [products, categories, platforms] = await Promise.all([
-		client.products.listProducts({ skip: 0, take: 100 }),
-		client.products.listAllCategories(),
-		client.integrations.listActivePlatforms(),
-	])
+		const client = await getAuthClient()
 
-	return {
-		data: products.data,
-		total: products.total,
-		categories: categories.categories || [],
-		platforms: platforms.platforms || [],
+		const results = await Promise.allSettled([
+			client.products.listProducts({ skip: 0, take: 100 }),
+			client.products.listAllCategories(),
+			client.integrations.listActivePlatforms(),
+		])
+
+		const products = results[0].status === "fulfilled" ? results[0].value : { data: [], total: 0 }
+		const categories = results[1].status === "fulfilled" ? results[1].value : { categories: [] }
+		const platforms = results[2].status === "fulfilled" ? results[2].value : { platforms: [] }
+
+		// Log errors for failed promises
+		results.forEach((result, index) => {
+			if (result.status === "rejected") {
+				const names = ["products", "categories", "platforms"]
+				logSSRError(result.reason, "getProductsData", `products-${names[index]}`, {})
+			}
+		})
+
+		return {
+			data: products.data || [],
+			total: products.total || 0,
+			categories: categories.categories || [],
+			platforms: platforms.platforms || [],
+		}
+	} catch (error) {
+		// Handle authentication errors gracefully
+		if (isAuthenticationError(error)) {
+			logWarn("Authentication error in getProductsData, returning empty data", {
+				source: "getProductsData",
+				data: { errorMessage: error instanceof Error ? error.message : String(error) },
+			})
+			return {
+				data: [],
+				total: 0,
+				categories: [],
+				platforms: [],
+			}
+		}
+		
+		logSSRError(error, "getProductsData", "products-data", {})
+		return {
+			data: [],
+			total: 0,
+			categories: [],
+			platforms: [],
+		}
 	}
 }
 
@@ -575,23 +753,36 @@ export async function getTeamData() {
 
 	// Industry Standard: Backend uses activeOrganizationId automatically - no need to pass it
 	// But listInvitations requires organizationId parameter
-	const [members, invitations] = await Promise.all([
-		// listMembers was moved to Better Auth service
-		client.auth.listMembersAuth().catch((error) => {
-			logSSRError(error, "getTeamData", "members", { data: { activeOrgId } })
-			return { members: [] }
-		}),
-		activeOrgId
-			? client.auth.listInvitations({ organizationId: activeOrgId }).catch((error) => {
-				logSSRError(error, "getTeamData", "invitations", { data: { activeOrgId } })
-				return { invitations: [] }
-			})
-			: Promise.resolve({ invitations: [] }),
-	])
+	try {
+		const results = await Promise.allSettled([
+			// listMembers was moved to Better Auth service
+			client.auth.listMembersAuth(),
+			activeOrgId
+				? client.organizations.listInvitations(activeOrgId)
+				: Promise.resolve({ data: [] }),
+		])
 
-	return {
-		members: members.members || [],
-		invitations: invitations.invitations || [],
+		const members = results[0].status === "fulfilled" ? results[0].value : { members: [] }
+		const invitations = results[1].status === "fulfilled" ? results[1].value : { data: [] }
+
+		// Log errors for failed promises
+		results.forEach((result, index) => {
+			if (result.status === "rejected") {
+				const names = ["members", "invitations"]
+				logSSRError(result.reason, "getTeamData", names[index], { data: { activeOrgId } })
+			}
+		})
+
+		return {
+			members: members.members || [],
+			invitations: invitations.data || [],
+		}
+	} catch (error) {
+		logSSRError(error, "getTeamData", "team-data", { data: { activeOrgId } })
+		return {
+			members: [],
+			invitations: [],
+		}
 	}
 }
 
@@ -760,7 +951,7 @@ export async function getProfileData() {
 			throw new Error("Session not found")
 		}
 
-		const user = sessionResult.user as {
+		const user = sessionResult.user as unknown as {
 			userID: string
 			name: string
 			email: string

@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { cn } from '@/utils/cn'
-import * as Button from '@/components/ui/button'
-import { Logo } from '@/components/ui/logo'
+import * as Button from "@/components/ui/primitives/button"
+import { Logo } from "@/components/ui/branding/logo"
 import {
   ArrowRight,
   List,
@@ -43,7 +43,7 @@ export function NavigationClient() {
             <Button.Root variant="primary" size="small" asChild className="hidden sm:inline-flex">
               <Link href="/sign-up">
                 Get Started
-                <Button.Icon as={ArrowRight} />
+                <Button.Icon><ArrowRight className="size-5" /></Button.Icon>
               </Link>
             </Button.Root>
             <Button.Root
@@ -52,7 +52,7 @@ export function NavigationClient() {
               className="md:hidden"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
-              <Button.Icon as={List} />
+              <Button.Icon><List className="size-5" /></Button.Icon>
             </Button.Root>
           </div>
         </div>

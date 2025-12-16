@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
-import * as Button from "@/components/ui/button"
-import * as Input from "@/components/ui/input"
-import { FormField } from "@/components/ui/form-field"
-import { Building, Info } from "@phosphor-icons/react/dist/ssr"
+import * as Button from "@/components/ui/primitives/button"
+import * as Input from "@/components/ui/forms/input"
+import { FormField } from "@/components/ui/forms/form-field"
+import { Building, Info } from "@phosphor-icons/react"
 import { z } from "zod"
-import { createBasicOrganization } from "@/app/actions/organizations"
+import { createBasicOrganization } from "@/features/organizations"
 
 const simpleOrgSchema = z.object({
 	name: z
@@ -43,7 +43,8 @@ export function SimpleOnboarding() {
 			const result = await createBasicOrganization(data.name)
 
 			if (!result.success) {
-				throw new Error(result.error || "Failed to create organization")
+				const errorMsg = result.error instanceof Error ? result.error.message : String(result.error)
+				throw new Error(errorMsg || "Failed to create organization")
 			}
 
 			toast.success("Organization created successfully!")

@@ -4,7 +4,7 @@ import { getDashboardData } from "@/lib/ssr-data"
 import { DashboardClient } from "./dashboard-client"
 import { cookies } from "next/headers"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
-import { logError, logWarn } from "@/lib/error-logger-simple"
+import { logError, logWarn } from "@/lib/logging/error-logger-simple"
 
 export const metadata: Metadata = {
 	title: "Dashboard",
@@ -15,7 +15,6 @@ export const metadata: Metadata = {
 	},
 }
 
-// Note: dynamic and revalidate exports removed - incompatible with cacheComponents
 
 async function DashboardData() {
 	const data = await getDashboardData()
