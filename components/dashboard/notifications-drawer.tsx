@@ -17,11 +17,8 @@ import {
 	XCircle,
 	Megaphone,
 } from "@phosphor-icons/react"
-import { useRouter } from "next/navigation"
-import type { notifications } from "@/lib/api/encore-browser"
-
-// Use Encore's notification types
-type NotificationType = notifications.NotificationType
+import { useRouter, useParams } from "next/navigation"
+import type { NotificationType } from "@/hooks/shared/use-notifications"
 
 interface Notification {
 	id: string
@@ -173,6 +170,7 @@ export function NotificationsDrawer({
 	isLoading = false,
 }: NotificationsDrawerProps) {
 	const router = useRouter()
+	const params = useParams<{ organizationId?: string }>()
 	const [filter, setFilter] = React.useState<"all" | "unread">("all")
 
 	const filteredNotifications = React.useMemo(() => {
@@ -435,7 +433,7 @@ export function NotificationsDrawer({
 					<button
 						type="button"
 						onClick={() => {
-							router.push("/dashboard/settings?tab=notifications")
+							router.push(params.organizationId ? `/dashboard/${params.organizationId}/settings?tab=notifications` : "/dashboard/settings?tab=notifications")
 							onOpenChange(false)
 						}}
 						className="w-full text-center text-label-sm text-text-sub-600 hover:text-text-strong-950 transition-colors py-2 min-h-11 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"

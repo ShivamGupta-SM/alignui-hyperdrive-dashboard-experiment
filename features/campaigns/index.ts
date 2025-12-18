@@ -1,43 +1,55 @@
 /**
  * Campaign Feature - Public API
- * 
- * @description
- * Single entry point for importing campaign feature.
- * Export only what other features/pages need.
+ *
+ * Clean exports - no redundant layers
  */
 
 // Types
-export type * from './types'
+export type * from "./types"
 
-// Hooks
+// Hooks (queries + mutations in one file)
 export {
-  useSearchCampaigns,
-  useCampaign,
-  useCampaignWithStats,
-} from './hooks/use-campaigns'
+	// Query Keys
+	campaignKeys,
+	// Queries
+	useCampaigns,
+	useSearchCampaigns,
+	useCampaign,
+	useCampaignWithStats,
+	useCampaignStats,
+	useCampaignPricing,
+	useCampaignPerformance,
+	useDeliverableTypes,
+	useDeliverableType,
+	useCampaignDeliverables,
+	// Mutations
+	useCreateCampaign,
+	useUpdateCampaign,
+	useDeleteCampaign,
+	useUpdateCampaignStatus,
+	useDuplicateCampaign,
+	usePauseCampaign,
+	useResumeCampaign,
+	useEndCampaign,
+	useExportCampaignEnrollments,
+	useAddCampaignDeliverable,
+	useAddCampaignDeliverablesBatch,
+	useUpdateCampaignDeliverable,
+	useRemoveCampaignDeliverable,
+} from "./hooks/use-campaigns"
 
+// Server Actions (for direct use in components)
 export {
-  useCreateCampaign,
-  useUpdateCampaign,
-  useDeleteCampaign,
-  useUpdateCampaignStatus,
-} from './hooks/use-campaign-mutations'
-
-// Actions
-export {
-  createCampaign,
-  updateCampaign,
-  deleteCampaign,
-  duplicateCampaign,
-  updateCampaignStatus,
-  pauseCampaign,
-  resumeCampaign,
-  endCampaign,
-  exportCampaignEnrollments,
-} from './actions/campaigns'
-
-// Query Keys (for cache invalidation)
-export { campaignQueryKeys } from './lib/query-keys'
+	createCampaign,
+	updateCampaign,
+	deleteCampaign,
+	duplicateCampaign,
+	updateCampaignStatus,
+	pauseCampaign,
+	resumeCampaign,
+	endCampaign,
+	exportCampaignEnrollments,
+} from "./actions/campaigns"
 
 // Validation Schemas
 export {
@@ -51,5 +63,7 @@ export {
 	type CreateCampaignBody,
 	type UpdateCampaignBody,
 	type CampaignStatus as CampaignStatusSchema,
-} from './lib/validation'
+} from "./lib/validation"
 
+// SSR Data Fetching
+export { getCampaignsData, getCampaignDetailData } from "./ssr"

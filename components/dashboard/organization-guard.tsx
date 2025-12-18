@@ -1,12 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
-import { useOrganizationContext } from "@/contexts/organization-context"
+import { useRouter, useParams } from "next/navigation"
+import { useOrganizations } from "@/features/organizations"
 import { useLocalStorage } from "@/hooks/state"
-import { CalloutWithActions } from "@/components/ui/feedback/callout"
 import * as Button from "@/components/ui/primitives/button"
-import { ArrowRight, Warning, Building, Sparkle, CheckCircle, Circle, Dot, Plus, Megaphone, DownloadSimple, MagnifyingGlass } from "@phosphor-icons/react"
+import { ArrowRight, Building, Sparkle, CheckCircle, Circle, Dot } from "@phosphor-icons/react"
 import { Skeleton } from "@/components/ui/primitives/skeleton"
 
 interface OrganizationGuardProps {
@@ -32,8 +31,8 @@ interface OrganizationGuardProps {
 
 /**
  * Standard component to handle "no organization" state
- * Industry Standard: Centralized organization state handling
- * 
+ * URL-based multi-tenancy: Verifies organization access from URL params
+ *
  * Usage:
  * ```tsx
  * <OrganizationGuard>
@@ -49,14 +48,21 @@ export function OrganizationGuard({
 	pageType = "default",
 }: OrganizationGuardProps) {
 	const router = useRouter()
-	const { hasOrganization, isLoading } = useOrganizationContext()
+	const params = useParams<{ organizationId?: string }>()
+	const { data: orgsData, isPending } = useOrganizations()
+
+	// URL-based multi-tenancy: verify organization from URL params
+	const organizations = orgsData?.organizations || []
+	const organization = organizations.find(org => org.id === params.organizationId)
+	const hasOrganization = !!organization
+
 	const [dismissedAlert, setDismissedAlert] = useLocalStorage<boolean>(
 		"organization-guard-alert-dismissed",
 		false
 	)
 
 	// Show loading state
-	if (isLoading) {
+	if (isPending) {
 		return (
 			<div className="space-y-5 sm:space-y-6">
 				<div className="animate-pulse">

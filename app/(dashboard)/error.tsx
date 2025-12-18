@@ -2,8 +2,7 @@
 
 import { useEffect } from "react"
 import { PageError } from "@/components/shared/error-boundary"
-import { handleAuthError } from "@/lib/errors/error-handler"
-import { isAuthenticationError } from "@/lib/errors/encore-error-handler"
+import { handleAuthError, isAuthenticationError } from "@/lib/errors/encore-error-handler"
 import { logError } from "@/lib/logging/error-logger-simple"
 
 interface ErrorProps {

@@ -71,9 +71,9 @@ export default function ResetPasswordPage() {
 
 		try {
 			const { resetPassword } = await import("@/app/actions")
-			const result = await resetPassword(token, data.password)
+			const result = await resetPassword({ token, newPassword: data.password })
 
-			if (result.success) {
+			if (result?.data?.success) {
 				setSuccess(true)
 				// Redirect to callbackURL if provided and valid, otherwise to sign-in
 				const redirectUrl = getSafeRedirectUrl(callbackURL || null, "/sign-in")
@@ -81,7 +81,7 @@ export default function ResetPasswordPage() {
 					router.push(redirectUrl)
 				}, 2000)
 			} else {
-				setError("error" in result ? result.error || "Failed to reset password" : "Failed to reset password")
+				setError(result?.serverError || "Failed to reset password")
 			}
 		} catch (err) {
 			setError("Failed to reset password. Please try again.")

@@ -3,16 +3,40 @@
  */
 
 // Types
-export type * from './types'
+export type * from "./types"
 
 // Hooks
-export { useSession, useUser, useSessionData, useIsAuthenticated } from './hooks/use-session'
-export { useOrganizations, useSwitchOrganization } from './hooks/use-organizations'
-export { useSignOut } from './hooks/use-sign-out'
+export {
+	// Query Keys
+	authKeys,
+	// Queries
+	useSession,
+	useUser,
+	useSessionData,
+	useIsAuthenticated,
+	useOrganizations,
+	// Mutations
+	useSwitchOrganization,
+	useSignOut,
+} from "./hooks/use-auth"
 
-// Actions
-export * from './actions'
+// Server Actions
+export {
+	signInEmail,
+	signUpEmail,
+	signInSocial,
+	signOut,
+	forgotPassword,
+	resetPassword,
+	resetPasswordCallback,
+	verifyEmail,
+	getCurrentUser,
+	getSession,
+	verify2FATotp,
+	verify2FAOtp,
+	send2FAOtp,
+	ensureActiveOrgAfterOAuth,
+} from "./actions/auth-actions"
 
-// Query Keys
-export { authQueryKeys } from './lib/query-keys'
-
+// Legacy aliases for backward compatibility
+export { signInEmail as signIn, signUpEmail as signUp } from "./actions/auth-actions"

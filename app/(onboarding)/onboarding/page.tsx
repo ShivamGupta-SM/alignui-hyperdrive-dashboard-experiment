@@ -33,6 +33,7 @@ import { useSession } from "@/features/auth"
 import { getEncoreClient } from "@/lib/api/encore"
 import { toast } from "sonner"
 import { logInfo, logError, logWarn } from "@/lib/logging/error-logger-simple"
+import { getErrorMessage, getErrorMessageForLog } from "@/lib/utils/format"
 
 const steps = [
 	{ label: "Basic Info", value: 1 },
@@ -100,14 +101,14 @@ export default function OnboardingPage() {
 			return organizations
 		} catch (error) {
 			// ✅ FIX: If auth error, return empty array (user not authenticated yet)
-			const errorMessage = error instanceof Error ? error.message : String(error)
-			if (errorMessage.includes("authentication") || errorMessage.includes("401") || errorMessage.includes("credentials")) {
+			const errorMsg = getErrorMessageForLog(error)
+			if (errorMsg.includes("authentication") || errorMsg.includes("401") || errorMsg.includes("credentials")) {
 				return []
 			}
 			// For other errors, log but return empty
-			logWarn("Failed to fetch organizations list", { 
-				source: "Onboarding", 
-				data: { error: errorMessage } 
+			logWarn("Failed to fetch organizations list", {
+				source: "Onboarding",
+				data: { error: errorMsg }
 			})
 			return []
 		}
@@ -131,45 +132,10 @@ export default function OnboardingPage() {
 			try {
 				// Check if this is a new user (no organizations) and clear draft using server action
 				const { checkUserOrganizations } = await import("@/features/organizations/actions/onboarding")
-				const orgsResult = await checkUserOrganizations()
-				
-				if (!orgsResult.success) {
-					// On error, allow user to proceed (don't block onboarding)
-					// Log error but don't show to user - this is expected if backend is down or user not authenticated
-					// ✅ FIX: TypeScript knows error exists when success is false
-					const error = orgsResult.error
-					// ✅ FIX: Convert error to proper Error instance if it's not already
-					const errorInstance = error instanceof Error 
-						? error 
-						: new Error(typeof error === "string" ? error : JSON.stringify(error))
-					const errorMsg = errorInstance.message
-					
-					// ✅ FIX: Don't log authentication errors (expected for unauthenticated users)
-					// Only log unexpected errors
-					if (!errorMsg.includes("Authentication") && !errorMsg.includes("401") && !errorMsg.includes("credentials") && !errorMsg.includes("502")) {
-						logError(errorInstance, { 
-							source: "Onboarding", 
-							data: { action: "checkUserOrganizations" } 
-						})
-					} else {
-						// Log as warning for expected errors (not critical)
-						logWarn(`Expected error in checkUserOrganizations: ${errorMsg}`, { 
-							source: "Onboarding", 
-							data: { action: "checkUserOrganizations" } 
-						})
-					}
-					setHasCheckedOrg(true)
-					return
-				}
-				
-				// ✅ FIX: TypeScript knows data exists when success is true
-				if (!orgsResult.data) {
-					setHasCheckedOrg(true)
-					return
-				}
+				const checkResult = await checkUserOrganizations({})
+				const approvedOrgs = checkResult?.data?.approvedOrgs
+				const draftOrgs = checkResult?.data?.draftOrgs
 
-				const { approvedOrgs, draftOrgs } = orgsResult.data
-				
 				// Only redirect if user has approved organizations (not drafts)
 				if (approvedOrgs && approvedOrgs.length > 0) {
 					router.replace("/dashboard")
@@ -191,14 +157,19 @@ export default function OnboardingPage() {
 				}
 			} catch (error) {
 				// Check if it's a network/server error (502, 503, etc.) or auth error
-				const errorMessage = error instanceof Error ? error.message : String(error)
-				const isServerError = errorMessage.includes("502") || errorMessage.includes("503") || errorMessage.includes("504") || errorMessage.includes("fetch failed")
-				const isAuthError = errorMessage.includes("authentication") || errorMessage.includes("401") || errorMessage.includes("credentials")
-				
+				const errorMsg = getErrorMessageForLog(error)
+				const isServerError = errorMsg.includes("502") || errorMsg.includes("503") || errorMsg.includes("504") || errorMsg.includes("fetch failed")
+				const isAuthError = errorMsg.includes("Authentication") || errorMsg.includes("authentication") || errorMsg.includes("401") || errorMsg.includes("credentials")
+
 				// Only log unexpected errors, not expected ones (server down, auth issues)
 				if (!isServerError && !isAuthError) {
-					const { logError } = await import("@/lib/logging/error-logger-simple")
 					logError(error, { source: "Onboarding", data: { action: "checkOrganization" } })
+				} else {
+					// Log as warning for expected errors (not critical)
+					logWarn(`Expected error in checkUserOrganizations: ${errorMsg}`, {
+						source: "Onboarding",
+						data: { action: "checkUserOrganizations" }
+					})
 				}
 				// Don't block onboarding on error - let user proceed
 			}
@@ -235,7 +206,7 @@ export default function OnboardingPage() {
 				website: "",
 			},
 			businessDetails: {
-				businessType: "private_limited",
+				businessType: "pvt_ltd",
 				industryCategory: "electronics",
 				contactPerson: "",
 				phone: "",
@@ -311,7 +282,8 @@ export default function OnboardingPage() {
 				if (draftOrg) {
 					// Load draft from backend
 					const { loadOnboardingDraft } = await import("@/features/organizations")
-					const backendDraft = await loadOnboardingDraft(draftOrg.id)
+					const draftResult = await loadOnboardingDraft({ organizationId: draftOrg.id })
+					const backendDraft = draftResult?.data
 
 					if (backendDraft) {
 						if (abortController.signal.aborted) return
@@ -488,9 +460,9 @@ export default function OnboardingPage() {
 							}
 						),
 					}
-					const result = await saveOnboardingDraft(organizationId, draftData)
+					const result = await saveOnboardingDraft({ organizationId, formData: draftData })
 
-					if (result.success) {
+					if (result?.data?.success) {
 						setDraftSaved(true)
 						logInfo("Draft saved to backend", { source: "Onboarding" })
 						// Show subtle toast (only once per session to avoid spam)
@@ -505,9 +477,9 @@ export default function OnboardingPage() {
 							setDraftSaved(false)
 						}, 3000)
 					} else {
-						logError(new Error("error" in result ? result.error : "Unknown error"), { 
-							source: "Onboarding", 
-							data: { action: "saveDraft" } 
+						logError(new Error(result?.serverError || "Unknown error"), {
+							source: "Onboarding",
+							data: { action: "saveDraft" }
 						})
 					}
 				} catch (error) {
@@ -583,15 +555,15 @@ export default function OnboardingPage() {
 				}
 			} catch (error) {
 				// ✅ FIX: Check if it's an auth error (expected for unauthenticated users)
-				const errorMessage = error instanceof Error ? error.message : String(error)
-				const isAuthError = errorMessage.includes("authentication") || errorMessage.includes("401") || errorMessage.includes("credentials")
-				
+				const errorMsg = getErrorMessageForLog(error)
+				const isAuthError = errorMsg.includes("authentication") || errorMsg.includes("401") || errorMsg.includes("credentials")
+
 				if (!isAuthError) {
 					logError(error, { source: "Onboarding", data: { action: "createOrganizationForDraft" } })
 				} else {
-					logWarn("User not authenticated yet, skipping organization creation", { 
-						source: "Onboarding", 
-						data: { action: "createOrganizationForDraft" } 
+					logWarn("User not authenticated yet, skipping organization creation", {
+						source: "Onboarding",
+						data: { action: "createOrganizationForDraft" }
 					})
 				}
 				// Continue without backend saving - localStorage will still work
@@ -706,35 +678,34 @@ export default function OnboardingPage() {
 			// Call actual GST verification API (SurePass integration)
 			// Server action will handle setting active organization server-side
 			const { verifyGST } = await import('@/features/organizations')
-			const result = await verifyGST(gstNumber, orgId)
+			const result = await verifyGST({ gstNumber, organizationId: orgId })
 
-			if (result.success && result.gstDetails) {
+			if (result?.data?.success && result.data.gstDetails) {
 				// Success - set verified GST details from SurePass API
 				setGstDetails({
-					legalName: result.gstDetails.legalName || "",
-					tradeName: result.gstDetails.tradeName || "",
-					status: result.gstDetails.gstStatus || "Active",
-					address: result.gstDetails.address || "",
+					legalName: result.data.gstDetails.legalName || "",
+					tradeName: result.data.gstDetails.tradeName || "",
+					status: result.data.gstDetails.gstStatus || "Active",
+					address: result.data.gstDetails.address || "",
 				})
 				setValue("verification.gstVerified", true, { shouldValidate: true })
-				
+
 				// ✅ AUTO-FILL: Fill address from GST API response
-				if (result.gstDetails.address) {
-					setValue("businessDetails.address", result.gstDetails.address, { shouldValidate: true })
+				if (result.data.gstDetails.address) {
+					setValue("businessDetails.address", result.data.gstDetails.address, { shouldValidate: true })
 				}
-				
+
 				toast.success("GST verified successfully. Address auto-filled from GST data.")
 			} else {
 				// Error from API
-				const errorMessage = "error" in result ? result.error : "GST verification failed"
+				const errorMessage = result?.serverError || "GST verification failed"
 				toast.error(errorMessage)
 				setGstDetails(null)
 				setValue("verification.gstVerified", false, { shouldValidate: true })
 			}
 		} catch (error) {
 			// Network or other errors
-			const errorMessage = error instanceof Error ? error.message : "Failed to verify GST. Please try again."
-			toast.error(errorMessage)
+			toast.error(getErrorMessage(error, "Failed to verify GST. Please try again."))
 			setGstDetails(null)
 			setValue("verification.gstVerified", false, { shouldValidate: true })
 		} finally {
@@ -822,8 +793,8 @@ export default function OnboardingPage() {
 			}
 			const result = await submitOnboarding(formData)
 
-			if (!result.success) {
-				throw new Error("error" in result ? result.error : "Failed to submit application")
+			if (!result?.data?.success) {
+				throw new Error(result?.serverError || "Failed to submit application")
 			}
 
 			// Clear draft data on successful submission
@@ -835,9 +806,8 @@ export default function OnboardingPage() {
 		} catch (error: unknown) {
 			logError(error, { source: "Onboarding", data: { action: "submitOnboarding" } })
 			// Show error to user using toast (industry standard)
-			const errorMessage = error instanceof Error ? error.message : "Failed to submit application. Please try again."
 			toast.error("Submission Failed", {
-				description: errorMessage,
+				description: getErrorMessage(error, "Failed to submit application. Please try again."),
 				duration: 5000,
 			})
 			// Don't redirect on error - let user fix and retry
@@ -1317,7 +1287,7 @@ function Step2BusinessAndVerification({
 			</div>
 
 			{/* CIN Number (Optional) */}
-			{(businessType === "private_limited" || businessType === "llp") && (
+			{(businessType === "pvt_ltd" || businessType === "llp") && (
 				<FormField
 					label="CIN Number (for Pvt Ltd/LLP only)"
 					error={errors.verification?.cinNumber?.message}

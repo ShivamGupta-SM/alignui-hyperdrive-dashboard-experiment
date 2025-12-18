@@ -149,9 +149,9 @@ export function ActivityFeed({
 	showLoadMore = true,
 }: ActivityFeedProps) {
 	const [page, setPage] = React.useState(0)
-	const { data, isLoading, error } = useOrganizationActivity(organizationId, page * limit, limit)
+	const { data, isPending, error } = useOrganizationActivity(organizationId, page * limit, limit)
 
-	if (isLoading && page === 0) {
+	if (isPending && page === 0) {
 		return (
 			<div className={cn("flex items-center justify-center py-8", className)}>
 				<Spinner className="size-6 text-primary-base animate-spin" />
@@ -178,8 +178,8 @@ export function ActivityFeed({
 	return (
 		<div className={className}>
 			<div className="divide-y divide-stroke-soft-200">
-				{data.data.map((activity: OrganizationActivity) => (
-					<ActivityItem key={activity.id} activity={activity} />
+				{data.data.map((activity) => (
+					<ActivityItem key={activity.id} activity={activity as OrganizationActivity} />
 				))}
 			</div>
 
@@ -190,9 +190,9 @@ export function ActivityFeed({
 						size="small"
 						className="w-full"
 						onClick={() => setPage((p) => p + 1)}
-						disabled={isLoading}
+						disabled={isPending}
 					>
-						{isLoading ? (
+						{isPending ? (
 							<Spinner className="size-4 animate-spin" />
 						) : (
 							<>
@@ -213,9 +213,9 @@ export function ActivityFeedCompact({
 	className,
 	limit = 5,
 }: Omit<ActivityFeedProps, "showLoadMore">) {
-	const { data, isLoading } = useOrganizationActivity(organizationId, 0, limit)
+	const { data, isPending } = useOrganizationActivity(organizationId, 0, limit)
 
-	if (isLoading) {
+	if (isPending) {
 		return (
 			<div className={cn("space-y-3", className)}>
 				{Array.from({ length: 3 }).map((_, i) => (
@@ -241,8 +241,9 @@ export function ActivityFeedCompact({
 
 	return (
 		<div className={cn("space-y-3", className)}>
-			{data.data.map((activity: OrganizationActivity) => {
-				const config = activityConfig[activity.type as OrganizationActivityType] || {
+			{data.data.map((activity) => {
+				const typedActivity = activity as OrganizationActivity
+				const config = activityConfig[typedActivity.type as OrganizationActivityType] || {
 					icon: Gear,
 					color: "text-text-sub-600",
 					bgColor: "bg-bg-weak-50",
@@ -250,7 +251,7 @@ export function ActivityFeedCompact({
 				const Icon = config.icon
 
 				return (
-					<div key={activity.id} className="flex gap-2.5">
+					<div key={typedActivity.id} className="flex gap-2.5">
 						<div
 							className={cn(
 								"flex size-6 shrink-0 items-center justify-center rounded-full",
@@ -261,10 +262,10 @@ export function ActivityFeedCompact({
 						</div>
 						<div className="flex-1 min-w-0">
 							<p className="text-paragraph-xs text-text-sub-600 line-clamp-1">
-								{activity.description}
+								{typedActivity.description}
 							</p>
 							<p className="text-paragraph-xs text-text-soft-400">
-								{formatTimeAgo(activity.createdAt)}
+								{formatTimeAgo(typedActivity.createdAt)}
 							</p>
 						</div>
 					</div>

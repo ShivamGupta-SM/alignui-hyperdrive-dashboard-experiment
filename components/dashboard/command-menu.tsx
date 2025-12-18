@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import * as Command from "@/components/ui/navigation/command-menu"
 import {
 	Plus,
@@ -24,7 +24,11 @@ interface CommandMenuProps {
 
 export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
 	const router = useRouter()
+	const params = useParams<{ organizationId?: string }>()
 	const [search, setSearch] = React.useState("")
+
+	// Get organizationId from URL params for URL-based multi-tenancy
+	const orgId = params.organizationId
 
 	const handleSelect = (href: string) => {
 		onOpenChange(false)
@@ -71,12 +75,12 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
 			<Command.List>
 				{/* Quick Actions */}
 				<Command.Group heading="Quick Actions">
-					<Command.Item onSelect={() => handleSelect("/dashboard/campaigns/create")}>
+					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/campaigns/create`)}>
 						<Command.ItemIcon as={Plus} />
 						<span className="flex-1">Create new campaign</span>
 						<kbd className="text-paragraph-xs text-text-soft-400">⌘N</kbd>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect("/dashboard/products/new")}>
+					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/products/new`)}>
 						<Command.ItemIcon as={ShoppingBag} />
 						<span className="flex-1">Add new product</span>
 						<kbd className="text-paragraph-xs text-text-soft-400">⌘P</kbd>
@@ -95,32 +99,32 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
 
 				{/* Navigation */}
 				<Command.Group heading="Navigation">
-					<Command.Item onSelect={() => handleSelect("/dashboard")}>
+					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}`)}>
 						<Command.ItemIcon as={House} />
 						<span className="flex-1">Go to Dashboard</span>
 						<kbd className="text-paragraph-xs text-text-soft-400">⌘1</kbd>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect("/dashboard/campaigns")}>
+					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/campaigns`)}>
 						<Command.ItemIcon as={Megaphone} />
 						<span className="flex-1">Go to Campaigns</span>
 						<kbd className="text-paragraph-xs text-text-soft-400">⌘2</kbd>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect("/dashboard/enrollments")}>
+					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/enrollments`)}>
 						<Command.ItemIcon as={UserPlus} />
 						<span className="flex-1">Go to Enrollments</span>
 						<kbd className="text-paragraph-xs text-text-soft-400">⌘3</kbd>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect("/dashboard/products")}>
+					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/products`)}>
 						<Command.ItemIcon as={ShoppingBag} />
 						<span className="flex-1">Go to Products</span>
 						<kbd className="text-paragraph-xs text-text-soft-400">⌘4</kbd>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect("/dashboard/wallet")}>
+					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/wallet`)}>
 						<Command.ItemIcon as={Wallet} />
 						<span className="flex-1">Go to Wallet</span>
 						<kbd className="text-paragraph-xs text-text-soft-400">⌘5</kbd>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect("/dashboard/settings")}>
+					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/settings`)}>
 						<Command.ItemIcon as={Gear} />
 						<span className="flex-1">Go to Settings</span>
 						<kbd className="text-paragraph-xs text-text-soft-400">⌘,</kbd>
@@ -129,17 +133,17 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
 
 				{/* Recent */}
 				<Command.Group heading="Recent">
-					<Command.Item onSelect={() => handleSelect("/dashboard/campaigns/1")}>
+					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/campaigns/1`)}>
 						<Command.ItemIcon as={Megaphone} />
 						<span className="flex-1">Summer Sale Campaign</span>
 						<span className="text-paragraph-xs text-text-soft-400">Campaign</span>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect("/dashboard/enrollments/1")}>
+					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/enrollments/1`)}>
 						<Command.ItemIcon as={UserPlus} />
 						<span className="flex-1">Rahul Mehta - Enrollment</span>
 						<span className="text-paragraph-xs text-text-soft-400">Enrollment</span>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect("/dashboard/products/1")}>
+					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/products/1`)}>
 						<Command.ItemIcon as={ShoppingBag} />
 						<span className="flex-1">Wireless Earbuds Max</span>
 						<span className="text-paragraph-xs text-text-soft-400">Product</span>

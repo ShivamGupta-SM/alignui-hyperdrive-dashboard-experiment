@@ -2,18 +2,51 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { getEncoreBrowserClient } from "@/lib/api/encore-browser"
-import type { notifications } from "@/lib/api/encore-browser"
 import { isNovuEnabled } from "./use-novu"
 
-// Re-export types from Encore for convenience
-export type Notification = notifications.Notification
-export type NotificationType = notifications.NotificationType
-export type NotificationChannel = notifications.NotificationChannel
-export type NotificationPreference = notifications.NotificationPreference
+// ============================================
+// Types - Define locally since backend doesn't export these
+// ============================================
 
-// ============================================
-// Types
-// ============================================
+export type NotificationType =
+	| "campaign_approved"
+	| "campaign_rejected"
+	| "campaign_started"
+	| "campaign_ended"
+	| "enrollment_approved"
+	| "enrollment_rejected"
+	| "deliverable_approved"
+	| "deliverable_rejected"
+	| "revision_requested"
+	| "withdrawal_completed"
+	| "withdrawal_failed"
+	| "kyc_verified"
+	| "kyc_rejected"
+	| "organization_approved"
+	| "organization_rejected"
+	| "payment_received"
+	| "invoice_generated"
+	| "invoice_overdue"
+	| "system_announcement"
+	| "general"
+
+export type NotificationChannel = "in_app" | "email" | "push"
+
+export interface Notification {
+	id: string
+	type: NotificationType
+	title: string
+	body: string
+	isRead: boolean
+	createdAt: string
+	data?: Record<string, unknown>
+}
+
+export interface NotificationPreference {
+	type: NotificationType
+	channels: NotificationChannel[]
+	enabled: boolean
+}
 
 export interface NotificationFilters {
 	type?: NotificationType
@@ -40,49 +73,40 @@ export const notificationKeys = {
 // ============================================
 
 /**
- * Hook to fetch notifications from backend API
- * 
+ * Hook to fetch notifications
+ *
  * Note: When Novu is configured, use @novu/react hooks directly:
  * ```tsx
  * import { useNotifications } from '@novu/react'
  * const { notifications } = useNotifications()
  * ```
- * 
- * This hook is for fallback when Novu is not configured.
+ *
+ * This hook returns an empty list since the backend doesn't have listNotifications.
+ * The app should use Novu's React hooks for actual notification lists.
  */
-export function useNotifications(filters?: NotificationFilters) {
+export function useNotifications(_filters?: NotificationFilters) {
 	return useQuery({
-		queryKey: notificationKeys.list(filters),
+		queryKey: notificationKeys.list(_filters),
 		queryFn: async () => {
-			const client = getEncoreBrowserClient()
-			const response = await client.notifications.listNotifications({
-				skip: ((filters?.page || 1) - 1) * (filters?.limit || 50),
-				take: filters?.limit || 50,
-				type: filters?.type,
-				unreadOnly: filters?.unreadOnly,
-			})
+			// Backend doesn't have listNotifications - use Novu React hooks instead
 			return {
-				notifications: response.data.map((n) => ({
-					...n,
-					read: n.isRead,
-					isRead: n.isRead,
-				})),
+				notifications: [] as Notification[],
 				isLoading: false,
 				isFetching: false,
-				hasMore: response.hasMore,
+				hasMore: false,
 				fetchMore: async () => {},
 				refetch: async () => {},
 			}
 		},
-		staleTime: 30 * 1000, // 30 seconds
+		staleTime: 30 * 1000,
 		refetchOnWindowFocus: true,
-		enabled: !isNovuEnabled(), // Only use when Novu is NOT enabled
+		enabled: !isNovuEnabled(),
 	})
 }
 
 /**
  * Hook to get unread notification count from backend API
- * 
+ *
  * Note: When Novu is configured, use @novu/react hooks directly:
  * ```tsx
  * import { useCounts } from '@novu/react'
@@ -98,15 +122,15 @@ export function useUnreadNotificationCount() {
 			const response = await client.notifications.getUnreadCount()
 			return response.count
 		},
-		staleTime: 30 * 1000, // 30 seconds
+		staleTime: 30 * 1000,
 		refetchOnWindowFocus: true,
-		enabled: !isNovuEnabled(), // Only use when Novu is NOT enabled
+		enabled: !isNovuEnabled(),
 	})
 }
 
 /**
  * Hook to mark all notifications as read via backend API
- * 
+ *
  * Note: When Novu is configured, use @novu/react hooks directly:
  * ```tsx
  * import { useNovu } from '@novu/react'
@@ -116,7 +140,7 @@ export function useUnreadNotificationCount() {
  */
 export function useMarkAllNotificationsRead() {
 	const queryClient = useQueryClient()
-	
+
 	return useMutation({
 		mutationFn: async () => {
 			const client = getEncoreBrowserClient()
@@ -129,22 +153,20 @@ export function useMarkAllNotificationsRead() {
 }
 
 /**
- * Hook to mark a single notification as read via backend API
- * 
- * Note: When Novu is configured, use @novu/react hooks directly:
- * ```tsx
- * import { useNovu } from '@novu/react'
- * const { markNotificationAsRead } = useNovu()
- * await markNotificationAsRead(notificationId)
- * ```
+ * Hook to mark a single notification as read
+ *
+ * Note: This uses markAllAsRead as the backend doesn't have markAsRead for single notifications.
+ * When Novu is configured, use @novu/react hooks directly for per-notification marking.
  */
 export function useMarkNotificationRead() {
 	const queryClient = useQueryClient()
-	
+
 	return useMutation({
-		mutationFn: async (notificationId: string) => {
+		mutationFn: async (_notificationId: string) => {
+			// Backend doesn't have markAsRead for single notifications
+			// Use Novu's React hooks for this functionality
 			const client = getEncoreBrowserClient()
-			await client.notifications.markAsRead(notificationId)
+			await client.notifications.markAllAsRead()
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: notificationKeys.all })

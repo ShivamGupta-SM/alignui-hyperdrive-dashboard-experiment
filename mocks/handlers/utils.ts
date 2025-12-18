@@ -17,7 +17,6 @@ import type {
 	enrollments,
 	products,
 	invoices,
-	notifications,
 } from "@/lib/api/encore-browser"
 
 // =============================================================================
@@ -110,7 +109,7 @@ export function encoreUnauthorizedResponse(message: string) {
 // =============================================================================
 
 /** Type-safe Wallet response */
-export function typedWalletResponse(wallet: wallets.Wallet) {
+export function typedWalletResponse(wallet: wallets.OrganizationWalletResponse) {
 	return HttpResponse.json(wallet)
 }
 
@@ -209,14 +208,14 @@ export function typedInvoiceListResponse(
 	return encoreListResponse(data, total, skip, take)
 }
 
-/** Type-safe Notification response */
-export function typedNotificationResponse(notification: notifications.Notification) {
+/** Type-safe Notification response - uses local types since backend uses Novu */
+export function typedNotificationResponse(notification: { id: string; type: string; title: string; message: string; isRead: boolean; createdAt: string }) {
 	return HttpResponse.json(notification)
 }
 
-/** Type-safe Notification list */
+/** Type-safe Notification list - uses local types since backend uses Novu */
 export function typedNotificationListResponse(
-	data: notifications.Notification[],
+	data: Array<{ id: string; type: string; title: string; message: string; isRead: boolean; createdAt: string }>,
 	total: number,
 	skip: number,
 	take: number
@@ -228,5 +227,5 @@ export function typedNotificationListResponse(
 // TYPE RE-EXPORTS
 // =============================================================================
 
-export type { wallets, organizations, campaigns, enrollments, products, invoices, notifications }
+export type { wallets, organizations, campaigns, enrollments, products, invoices }
 

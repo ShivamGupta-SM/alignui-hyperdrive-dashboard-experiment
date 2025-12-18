@@ -2,7 +2,7 @@
 
 import * as React from "react"
 // import { useNotifications, useCounts, useNovu } from "@novu/react" // Removed - causing build issues
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { useMediaQuery } from "usehooks-ts"
 import { toast } from "sonner"
 import { logError, logDebug } from "@/lib/logging/error-logger-simple"
@@ -792,6 +792,7 @@ interface NotificationPanelProps {
  */
 function NotificationPanelEmpty({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
 	const router = useRouter()
+	const params = useParams<{ organizationId?: string }>()
 
 	return (
 		<div className="flex flex-col h-full">
@@ -833,7 +834,7 @@ function NotificationPanelEmpty({ onOpenChange }: { onOpenChange: (open: boolean
 				<button
 					type="button"
 					onClick={() => {
-						router.push("/dashboard/settings?tab=notifications")
+						router.push(params.organizationId ? `/dashboard/${params.organizationId}/settings?tab=notifications` : "/dashboard/settings?tab=notifications")
 						onOpenChange(false)
 					}}
 					className="w-full text-center text-label-sm text-text-sub-600 dark:text-neutral-400 hover:text-text-strong-950 dark:hover:text-neutral-50 transition-colors py-2 min-h-11 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"

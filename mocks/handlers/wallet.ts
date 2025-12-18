@@ -30,11 +30,10 @@ export const walletHandlers = [
 			return encoreErrorResponse("Wallet not found", 404)
 		}
 
-		// Return full Wallet type as expected by Encore client
+		// Return OrganizationWalletResponse type
 		return encoreResponse({
 			id: `wallet-${orgId}`,
-			holderId: orgId,
-			holderType: "organization" as const,
+			organizationId: orgId,
 			currency: "INR",
 			balance: wallet.availableBalance + wallet.heldAmount,
 			pendingBalance: wallet.heldAmount,
@@ -58,10 +57,10 @@ export const walletHandlers = [
 			return encoreErrorResponse("Wallet not found", 404)
 		}
 
+		// Return OrganizationWalletResponse type
 		return encoreResponse({
 			id: `wallet-${orgId}`,
-			holderId: orgId,
-			holderType: "organization" as const,
+			organizationId: orgId,
 			currency: "INR",
 			balance: wallet.availableBalance + wallet.heldAmount,
 			pendingBalance: wallet.heldAmount,

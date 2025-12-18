@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { cn } from "@/utils/cn"
 import * as Avatar from "@/components/ui/primitives/avatar"
 import * as Badge from "@/components/ui/data-display/badge"
@@ -171,6 +171,7 @@ export function EnrollmentTableRow({
 	onSelect,
 }: EnrollmentTableRowProps) {
 	const router = useRouter()
+	const params = useParams<{ organizationId?: string }>()
 	const statusConfig = ENROLLMENT_STATUS_CONFIG[enrollment.status]
 
 	const formatCurrency = (amount: number) => {
@@ -180,8 +181,8 @@ export function EnrollmentTableRow({
 	const isReviewable = enrollment.status === "awaiting_review"
 
 	// Default navigation handlers if not provided
-	const handleReview = onReview || (() => router.push(`/dashboard/enrollments/${enrollment.id}`))
-	const handleView = onView || (() => router.push(`/dashboard/enrollments/${enrollment.id}`))
+	const handleReview = onReview || (() => router.push(`/dashboard/${params.organizationId}/enrollments/${enrollment.id}`))
+	const handleView = onView || (() => router.push(`/dashboard/${params.organizationId}/enrollments/${enrollment.id}`))
 
 	return (
 		<tr
@@ -192,7 +193,7 @@ export function EnrollmentTableRow({
 			)}
 			onClick={
 				!onSelect && !onReview && !onView
-					? () => router.push(`/dashboard/enrollments/${enrollment.id}`)
+					? () => router.push(`/dashboard/${params.organizationId}/enrollments/${enrollment.id}`)
 					: undefined
 			}
 		>

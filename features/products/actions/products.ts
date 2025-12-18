@@ -1,140 +1,136 @@
-/**
- * Products Server Actions
- * 
- * @description
- * Server-side actions for product mutations.
- * Uses Result pattern for consistent error handling.
- */
-
 "use server"
 
-import { revalidatePath } from "next/cache"
-import { getEncoreClient, handleAPIError } from "@/lib/api/encore"
-import { getOrganizationIdOrNull } from "@/lib/ssr-data"
-import type { Result } from "@/shared/lib/errors/types"
+/**
+ * Products Server Actions
+ *
+ * Uses next-safe-action for type-safe, error-handled server actions
+ */
+
+import { revalidateTag } from "next/cache"
+import { z } from "zod"
+
+import { authAction } from "@/lib/safe-action"
+import { getErrorMessage } from "@/lib/utils/format"
 import type { products } from "@/lib/api/encore-client"
-import type { Product, BulkImportResult } from "../types"
+
+// =============================================================================
+// Schemas
+// =============================================================================
+
+const createProductSchema = z.object({
+	organizationId: z.string().min(1),
+	name: z.string().min(1),
+	description: z.string().optional(),
+	sku: z.string().min(1),
+	categoryId: z.string().optional(),
+	platformId: z.string().optional(),
+	price: z.number().min(0),
+	productLink: z.string().min(1),
+	productImages: z.array(z.string()).optional(),
+})
+
+const updateProductSchema = z.object({
+	id: z.string().min(1),
+	name: z.string().optional(),
+	description: z.string().optional(),
+	sku: z.string().optional(),
+	categoryId: z.string().optional(),
+	platformId: z.string().optional(),
+})
+
+const deleteProductSchema = z.object({
+	id: z.string().min(1),
+})
+
+const bulkImportSchema = z.object({
+	organizationId: z.string().min(1),
+	products: z.array(
+		z.object({
+			name: z.string().optional(),
+			description: z.string().optional(),
+			sku: z.string().optional(),
+			categoryId: z.string().optional(),
+			platformId: z.string().optional(),
+			price: z.number().optional(),
+			productLink: z.string().optional(),
+			productImages: z.array(z.string()).optional(),
+		})
+	),
+})
+
+// =============================================================================
+// Actions
+// =============================================================================
 
 /**
- * Create a new product
- * 
- * @description
- * Creates a new product and invalidates related cache.
- * 
- * @param data - Product creation data
- * @returns Result with created product or error
+ * Create product
  */
-export async function createProduct(
-	data: Partial<products.Product>
-): Promise<Result<Product>> {
-	const client = getEncoreClient()
-	const orgId = await getOrganizationIdOrNull()
+export const createProduct = authAction
+	.inputSchema(createProductSchema)
+	.action(async ({ parsedInput, ctx }): Promise<products.Product> => {
+		const result = await ctx.client.products.createProduct({
+			organizationId: parsedInput.organizationId,
+			name: parsedInput.name,
+			description: parsedInput.description,
+			sku: parsedInput.sku,
+			categoryId: parsedInput.categoryId,
+			platformId: parsedInput.platformId,
+			price: parsedInput.price,
+			productLink: parsedInput.productLink,
+			productImages: parsedInput.productImages,
+		})
 
-	if (!orgId) {
-		return { success: false, error: new Error("Organization ID not found") }
-	}
-
-	try {
-		const createData: products.CreateProductRequest = {
-			name: data.name || "",
-			description: data.description,
-			sku: data.sku || "",
-			categoryId: data.categoryId,
-			platformId: data.platformId,
-			price: (data as products.Product).price || 0,
-			productLink: (data as products.Product).productLink || "",
-			productImages: (data as products.Product).productImages,
-		}
-		const result = await client.products.createProduct(createData)
-		revalidatePath("/dashboard/products")
-		return { success: true, data: result }
-	} catch (error: unknown) {
-		const apiError = handleAPIError(error)
-		return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-	}
-}
+		revalidateTag("products")
+		return result
+	})
 
 /**
- * Update an existing product
- * 
- * @description
- * Updates a product and invalidates related cache.
- * 
- * @param id - Product ID
- * @param data - Product update data
- * @returns Result indicating success or error
+ * Update product
  */
-export async function updateProduct(
-	id: string,
-	data: Partial<products.Product>
-): Promise<Result<Product>> {
-	const client = getEncoreClient()
-
-	try {
-		const updateData: products.UpdateProductRequest = {
+export const updateProduct = authAction
+	.inputSchema(updateProductSchema)
+	.action(async ({ parsedInput, ctx }): Promise<products.Product> => {
+		const { id, ...data } = parsedInput
+		const result = await ctx.client.products.updateProduct(id, {
 			name: data.name,
 			description: data.description,
 			sku: data.sku,
 			categoryId: data.categoryId,
 			platformId: data.platformId,
-		}
-		const result = await client.products.updateProduct(id, updateData)
-		revalidatePath("/dashboard/products")
-		return { success: true, data: result }
-	} catch (error: unknown) {
-		const apiError = handleAPIError(error)
-		return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-	}
-}
+		})
+
+		revalidateTag("products")
+		revalidateTag(`product-${id}`)
+		return result
+	})
 
 /**
- * Delete a product
- * 
- * @description
- * Deletes a product and invalidates related cache.
- * 
- * @param id - Product ID
- * @returns Result indicating success or error
+ * Delete product
  */
-export async function deleteProduct(id: string): Promise<Result<void>> {
-	const client = getEncoreClient()
-
-	try {
-		await client.products.deleteProduct(id)
-		revalidatePath("/dashboard/products")
-		return { success: true, data: undefined }
-	} catch (error: unknown) {
-		const apiError = handleAPIError(error)
-		return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-	}
-}
+export const deleteProduct = authAction
+	.inputSchema(deleteProductSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		await ctx.client.products.deleteProduct(parsedInput.id)
+		revalidateTag("products")
+		revalidateTag(`product-${parsedInput.id}`)
+		return { success: true }
+	})
 
 /**
  * Bulk import products
- * 
- * @description
- * Imports multiple products at once.
- * 
- * @param productsData - Array of product data
- * @returns Result with import statistics or error
  */
-export async function bulkImportProducts(
-	productsData: Partial<products.CreateProductRequest>[]
-): Promise<Result<BulkImportResult>> {
-	const client = getEncoreClient()
-	const orgId = await getOrganizationIdOrNull()
-
-	if (!orgId) {
-		return { success: false, error: new Error("Organization ID not found") }
-	}
-
-	try {
+export const bulkImportProducts = authAction
+	.inputSchema(bulkImportSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const { organizationId, products: productsData } = parsedInput
 		let successCount = 0
 		const errors: string[] = []
 
 		try {
-			const result = await client.products.bulkImportProducts({
+			const result = await ctx.client.products.bulkImportProducts({
+				organizationId,
 				products: productsData.map((p) => ({
+					organizationId,
 					name: p.name || "",
 					description: p.description,
 					sku: p.sku || "",
@@ -151,7 +147,8 @@ export async function bulkImportProducts(
 			// Fallback to individual creates
 			for (const p of productsData) {
 				try {
-					const createData: products.CreateProductRequest = {
+					await ctx.client.products.createProduct({
+						organizationId,
 						name: p.name || "",
 						description: p.description,
 						sku: p.sku || "",
@@ -160,32 +157,23 @@ export async function bulkImportProducts(
 						price: p.price || 0,
 						productLink: p.productLink || "",
 						productImages: p.productImages,
-					}
-					await client.products.createProduct(createData)
+					})
 					successCount++
 				} catch (e: unknown) {
-					const errorMessage = e instanceof Error ? e.message : "Unknown error"
-					errors.push((p.name || "Unknown product") + ": " + errorMessage)
+					errors.push((p.name || "Unknown product") + ": " + getErrorMessage(e, "Unknown error"))
 				}
 			}
 		}
 
-		revalidatePath("/dashboard/products")
+		revalidateTag("products")
 
 		return {
-			success: true,
-			data: {
-				imported: successCount,
-				failed: errors.length,
-				errors,
-				message: errors.length > 0
+			imported: successCount,
+			failed: errors.length,
+			errors,
+			message:
+				errors.length > 0
 					? `Imported ${successCount} products. Failed: ${errors.length}`
 					: `Imported ${successCount} products`,
-				success: errors.length === 0,
-			},
 		}
-	} catch (error: unknown) {
-		const apiError = handleAPIError(error)
-		return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-	}
-}
+	})

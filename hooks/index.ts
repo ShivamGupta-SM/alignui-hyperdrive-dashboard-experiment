@@ -13,13 +13,20 @@
 // Auth hooks
 export * from '@/features/auth'
 
-// Organization hooks - export explicitly to avoid conflicts with auth
+// Organization hooks - from features module
 export {
-	useOrganizations as useOrganizationsFromOrgs,
-	useSwitchOrganization as useSwitchOrganizationFromOrgs,
+	useOrganization,
+	useOrganizationStatus,
+	useOrganizations,
+	useOrganizationById,
 	useActiveOrganization,
-	useActiveOrganizationId,
-} from '@/features/organizations'
+	useSwitchOrganization,
+	useNeedsOnboarding,
+} from '@/features/organizations/hooks/use-organizations'
+
+// Legacy aliases for backwards compatibility
+export { useOrganizations as useOrganizationsFromOrgs } from '@/features/organizations/hooks/use-organizations'
+export { useSwitchOrganization as useSwitchOrganizationFromOrgs } from '@/features/organizations/hooks/use-organizations'
 
 // ============================================
 // UI Utility Hooks

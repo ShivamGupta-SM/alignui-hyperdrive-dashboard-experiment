@@ -1,118 +1,82 @@
-/**
- * Enrollments Server Actions
- * 
- * @description
- * Server-side actions for enrollment mutations.
- * Uses Result pattern for consistent error handling.
- */
-
 "use server"
 
-import { revalidatePath } from "next/cache"
-import { getEncoreClient, handleAPIError } from "@/lib/api/encore"
-import type { Result } from "@/shared/lib/errors/types"
+/**
+ * Enrollment Server Actions
+ *
+ * Uses next-safe-action for type-safe, error-handled server actions
+ */
+
+import { revalidateTag } from "next/cache"
+import { z } from "zod"
+
+import { authAction } from "@/lib/safe-action"
 import type { shared } from "@/lib/api/encore-client"
-import { updateEnrollmentBodySchema, bulkUpdateEnrollmentBodySchema } from "@/lib/utils/validations"
+
+// =============================================================================
+// Schemas
+// =============================================================================
+
+const updateStatusSchema = z.object({
+	id: z.string().min(1),
+	status: z.enum(["approved", "rejected", "withdrawn"]),
+	reason: z.string().optional(),
+})
+
+const bulkUpdateSchema = z.object({
+	ids: z.array(z.string().min(1)).min(1),
+	status: z.enum(["approved", "rejected"]),
+	reason: z.string().optional(),
+})
+
+// =============================================================================
+// Actions
+// =============================================================================
 
 /**
- * Update enrollment status
- * 
- * @description
- * Updates enrollment status (approve, reject, withdraw).
- * 
- * @param id - Enrollment ID
- * @param status - New status
- * @param reason - Optional reason
- * @returns Result indicating success or error
+ * Update enrollment status (approve/reject/withdraw)
  */
-export async function updateEnrollmentStatus(
-	id: string,
-	status: string,
-	reason?: string
-): Promise<Result<{ status: shared.EnrollmentStatus }>> {
-	const client = getEncoreClient()
+export const updateEnrollmentStatus = authAction
+	.inputSchema(updateStatusSchema)
+	.action(async ({ parsedInput, ctx }): Promise<{ status: shared.EnrollmentStatus }> => {
+		const { id, status, reason } = parsedInput
 
-	if (!id || typeof id !== "string") {
-		return { success: false, error: new Error("Enrollment ID is required") }
-	}
-
-	const validation = updateEnrollmentBodySchema.safeParse({ status, reason })
-	if (!validation.success) {
-		return {
-			success: false,
-			error: new Error(validation.error.issues[0]?.message || "Invalid input"),
-		}
-	}
-
-	try {
 		if (status === "approved") {
-			await client.enrollments.approveEnrollment(id, { remarks: reason })
+			await ctx.client.enrollments.approveEnrollment(id, { remarks: reason })
 		} else if (status === "rejected") {
-			await client.enrollments.rejectEnrollment(id, { reason: reason || "Rejected" })
+			await ctx.client.enrollments.rejectEnrollment(id, { reason: reason || "Rejected" })
 		} else if (status === "withdrawn") {
-			await client.enrollments.withdrawEnrollment(id)
-		} else {
-			throw new Error("Invalid status transition")
+			await ctx.client.enrollments.withdrawEnrollment(id)
 		}
 
-		revalidatePath("/dashboard/enrollments")
-		revalidatePath(`/dashboard/enrollments/${id}`)
-		revalidatePath("/dashboard")
+		revalidateTag("enrollments")
+		revalidateTag(`enrollment-${id}`)
+		revalidateTag("dashboard")
 
-		return { success: true, data: { status: status as shared.EnrollmentStatus } }
-	} catch (error: unknown) {
-		const apiError = handleAPIError(error)
-		return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-	}
-}
+		return { status: status as shared.EnrollmentStatus }
+	})
 
 /**
  * Bulk update enrollments
- * 
- * @description
- * Updates multiple enrollments at once.
- * 
- * @param ids - Array of enrollment IDs
- * @param status - New status
- * @param reason - Optional reason
- * @returns Result with updated count or error
  */
-export async function bulkUpdateEnrollments(
-	ids: string[],
-	status: string,
-	reason?: string
-): Promise<Result<{ updatedCount: number }>> {
-	const client = getEncoreClient()
+export const bulkUpdateEnrollments = authAction
+	.inputSchema(bulkUpdateSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const { ids, status, reason } = parsedInput
 
-	const validation = bulkUpdateEnrollmentBodySchema.safeParse({ ids, status, reason })
-	if (!validation.success) {
-		return {
-			success: false,
-			error: new Error(validation.error.issues[0]?.message || "Invalid input"),
-		}
-	}
-
-	try {
 		if (status === "approved") {
-			await client.enrollments.bulkApproveEnrollments({
+			await ctx.client.enrollments.bulkApproveEnrollments({
 				enrollmentIds: ids,
 				remarks: reason,
 			})
 		} else if (status === "rejected") {
-			await client.enrollments.bulkRejectEnrollments({
+			await ctx.client.enrollments.bulkRejectEnrollments({
 				enrollmentIds: ids,
 				reason: reason || "Rejected",
 			})
-		} else {
-			throw new Error(`Bulk ${status} not supported`)
 		}
 
-		revalidatePath("/dashboard/enrollments")
-		revalidatePath("/dashboard")
+		revalidateTag("enrollments")
+		revalidateTag("dashboard")
 
-		return { success: true, data: { updatedCount: ids.length } }
-	} catch (error: unknown) {
-		const apiError = handleAPIError(error)
-		return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-	}
-}
+		return { updatedCount: ids.length }
+	})

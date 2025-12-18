@@ -7,6 +7,7 @@
 
 import { getSession } from "@/features/auth"
 import { logWarn } from "@/lib/logging/error-logger-simple"
+import { getErrorMessageForLog } from "@/lib/utils/format"
 
 /**
  * Check if user is authenticated
@@ -19,9 +20,9 @@ export async function requireAuth(): Promise<{
 	error?: string
 }> {
 	try {
-		const sessionResult = await getSession()
+		const sessionResult = await getSession({})
 
-		if (!sessionResult.success || !sessionResult.user) {
+		if (!sessionResult?.data?.session || !sessionResult.data.user) {
 			return {
 				success: false,
 				error: "User not authenticated",
@@ -30,7 +31,7 @@ export async function requireAuth(): Promise<{
 
 		return {
 			success: true,
-			user: sessionResult.user,
+			user: sessionResult.data.user,
 		}
 	} catch (error) {
 		// Handle authentication errors gracefully
@@ -57,7 +58,7 @@ export async function requireAuth(): Promise<{
 		// For other errors, log and return failure
 		logWarn("Error checking authentication", {
 			source: "requireAuth",
-			data: { error: error instanceof Error ? error.message : String(error) },
+			data: { error: getErrorMessageForLog(error) },
 		})
 
 		return {

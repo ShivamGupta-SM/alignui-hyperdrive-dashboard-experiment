@@ -530,8 +530,9 @@ export const onboardingFormSchema = z.object({
 		website: z.string().url("Please enter a valid URL").max(VALIDATION_CONSTANTS.URL_MAX_LENGTH, `URL must be less than ${VALIDATION_CONSTANTS.URL_MAX_LENGTH} characters`).optional().or(z.literal("")),
 	}),
 	businessDetails: z.object({
+		// Uses backend values directly - no mapping needed
 		businessType: z.enum(
-			["private_limited", "public_limited", "llp", "partnership", "sole_proprietorship"],
+			["pvt_ltd", "public_ltd", "llp", "partnership", "proprietorship"],
 			{
 				message: "Please select a business type",
 			}

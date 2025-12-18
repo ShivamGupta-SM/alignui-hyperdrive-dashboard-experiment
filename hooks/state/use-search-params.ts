@@ -137,3 +137,14 @@ export function usePaginationParams() {
 		limit: parseAsInteger.withDefault(10),
 	})
 }
+
+/**
+ * Hook for products list page URL state
+ */
+export function useProductSearchParams() {
+	return useQueryStates({
+		search: parseAsString.withDefault(""),
+		category: parseAsString.withDefault("all"),
+		platform: parseAsString.withDefault("all"),
+	})
+}

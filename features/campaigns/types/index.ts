@@ -21,8 +21,8 @@ export type CampaignType = shared.CampaignType
 export interface CampaignFilters {
   status?: CampaignStatus
   search?: string
-  page?: number
-  limit?: number
+  skip?: number
+  take?: number
   organizationId?: string
   productId?: string
   platformId?: string

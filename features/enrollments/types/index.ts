@@ -20,8 +20,8 @@ export interface EnrollmentFilters {
 	status?: string
 	campaignId?: string
 	search?: string
-	page?: number
-	limit?: number
+	skip?: number
+	take?: number
 	[key: string]: string | number | undefined
 }
 

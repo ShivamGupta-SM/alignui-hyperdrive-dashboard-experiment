@@ -1,67 +1,66 @@
+/**
+ * Dashboard React Query Hook
+ *
+ * Clean pattern: Direct client usage
+ */
+
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { dashboardKeys } from "@/lib/query-keys"
-import type { organizations, auth } from "@/lib/api/encore-browser"
-import { useSession } from "@/features/auth"
+import { getEncoreBrowserClient } from "@/lib/api/encore-browser"
+import type { organizations } from "@/lib/api/encore-browser"
 import { logWarn, logError } from "@/lib/logging/error-logger-simple"
-import { getDashboardOverview } from "@/features/organizations/lib/api"
+
+// ============================================
+// Client Instance
+// ============================================
+const client = getEncoreBrowserClient()
+
+// ============================================
+// Query Keys
+// ============================================
+export const dashboardKeys = {
+	all: (orgId: string) => ["dashboard", orgId] as const,
+	stats: (orgId: string, days: number) => [...dashboardKeys.all(orgId), "stats", days] as const,
+}
 
 // ============================================
 // Types
 // ============================================
-
 export type DashboardData = organizations.DashboardOverviewResponse
 
 // ============================================
-// React Query Hook
+// Hook
 // ============================================
 
 /**
- * Hook to fetch dashboard overview data
- * Uses React Query for caching and automatic refetching
+ * Fetch dashboard overview data
  */
-export function useDashboard(options?: {
-	organizationId?: string
-	days?: number
-	enabled?: boolean
-}) {
-	const { organizationId, days = 7, enabled = true } = options ?? {}
-	const { data: sessionData } = useSession()
-
-	// Get active organization ID for query key and API call
-	const meUser = sessionData?.user as auth.MeResponse | undefined
-	const activeOrgId = organizationId || meUser?.activeOrganizationId
+export function useDashboard(options: { organizationId: string; days?: number; enabled?: boolean }) {
+	const { organizationId, days = 7, enabled = true } = options
 
 	return useQuery<DashboardData | null>({
-		queryKey: [...dashboardKeys.stats(), activeOrgId || "no-org", days],
+		queryKey: dashboardKeys.stats(organizationId, days),
 		queryFn: async () => {
 			try {
-				if (!activeOrgId) {
-					// Return null instead of throwing to prevent hook order issues
-					logWarn("No active organization found for dashboard", { source: "useDashboard" })
+				if (!organizationId) {
+					logWarn("No organization ID provided for dashboard", { source: "useDashboard" })
 					return null
 				}
 
-				const response = await getDashboardOverview({ days })
-				return response
+				return await client.organizations.getDashboardOverview({ organizationId, days })
 			} catch (error: unknown) {
-				// Log error with proper logging utility
-				logError(error, { 
-					source: "useDashboard", 
-					data: { 
-						activeOrgId, 
-						days,
-						action: "getDashboardOverview"
-					} 
+				logError(error, {
+					source: "useDashboard",
+					data: { organizationId, days, action: "getDashboardOverview" },
 				})
 				return null
 			}
 		},
-		enabled: enabled && !!sessionData && !!activeOrgId, // Only fetch when session is loaded AND has active org
-		staleTime: 60 * 1000, // 1 minute (increased from 30s for better performance)
-		gcTime: 5 * 60 * 1000, // 5 minutes
-		retry: false, // Don't retry to prevent hook order issues
-		refetchOnWindowFocus: false, // Disable auto-refetch on focus for dashboard (data updates infrequently)
+		enabled: enabled && !!organizationId,
+		staleTime: 60 * 1000,
+		gcTime: 5 * 60 * 1000,
+		retry: false,
+		refetchOnWindowFocus: false,
 	})
 }

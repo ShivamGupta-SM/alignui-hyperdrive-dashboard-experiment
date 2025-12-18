@@ -1,100 +1,84 @@
-/**
- * Wallet Server Actions
- * 
- * @description
- * Server-side actions for wallet operations.
- * Uses Result pattern for consistent error handling.
- */
-
 "use server"
 
-import { revalidatePath } from "next/cache"
-import { getEncoreClient, handleAPIError } from "@/lib/api/encore"
-import { getOrganizationIdOrNull } from "@/lib/ssr-data"
-import type { Result } from "@/shared/lib/errors/types"
-import { withdrawalBodySchema, creditRequestBodySchema } from "@/lib/utils/validations"
-import type { Withdrawal } from "../types"
+/**
+ * Wallet Server Actions
+ *
+ * Uses next-safe-action for type-safe, error-handled server actions
+ */
+
+import { revalidateTag } from "next/cache"
+import { z } from "zod"
+
+import { authAction } from "@/lib/safe-action"
+
+// =============================================================================
+// Schemas
+// =============================================================================
+
+const withdrawalSchema = z.object({
+	organizationId: z.string().min(1),
+	amount: z.number().positive(),
+	notes: z.string().optional(),
+})
+
+const cancelWithdrawalSchema = z.object({
+	withdrawalId: z.string().min(1),
+})
+
+const creditRequestSchema = z.object({
+	organizationId: z.string().min(1),
+	amount: z.number().positive(),
+	reason: z.string().min(1),
+})
+
+// =============================================================================
+// Actions
+// =============================================================================
 
 /**
  * Request withdrawal
- * 
- * @description
- * Creates a withdrawal request.
- * 
- * @param data - Withdrawal data
- * @returns Result with withdrawal ID or error
  */
-export async function requestWithdrawal(data: unknown): Promise<Result<{ withdrawalId: string }>> {
-	const validation = withdrawalBodySchema.safeParse(data)
-	if (!validation.success) {
-		return {
-			success: false,
-			error: new Error(validation.error.issues[0]?.message || "Invalid input"),
-		}
-	}
+export const requestWithdrawal = authAction
+	.inputSchema(withdrawalSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const { organizationId, amount, notes } = parsedInput
 
-	const client = getEncoreClient()
-	const orgId = await getOrganizationIdOrNull()
-
-	if (!orgId) {
-		return { success: false, error: new Error("Organization ID not found") }
-	}
-
-	try {
-		const result = await client.wallets.createOrganizationWithdrawal(orgId, {
-			amount: validation.data.amount,
-			notes: validation.data.notes,
+		const result = await ctx.client.wallets.createOrganizationWithdrawal(organizationId, {
+			amount,
+			notes,
 		})
 
-		revalidatePath("/dashboard/wallet")
-		return {
-			success: true,
-			data: { withdrawalId: result.id },
-		}
-	} catch (error: unknown) {
-		const apiError = handleAPIError(error)
-		return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-	}
-}
+		revalidateTag("wallet")
+		revalidateTag("withdrawals")
+
+		return { withdrawalId: result.id }
+	})
+
+/**
+ * Cancel withdrawal
+ */
+export const cancelWithdrawal = authAction
+	.inputSchema(cancelWithdrawalSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		await ctx.client.wallets.cancelWithdrawal(parsedInput.withdrawalId)
+		revalidateTag("wallet")
+		revalidateTag("withdrawals")
+		return { success: true }
+	})
 
 /**
  * Request credit increase
- * 
- * @description
- * Submits a credit increase request.
- * 
- * @param data - Credit request data
- * @returns Result indicating success or error
  */
-export async function requestCredit(data: unknown): Promise<Result<{ requestId: string }>> {
-	const validation = creditRequestBodySchema.safeParse(data)
-	if (!validation.success) {
-		return {
-			success: false,
-			error: new Error(validation.error.issues[0]?.message || "Invalid input"),
-		}
-	}
+export const requestCredit = authAction
+	.inputSchema(creditRequestSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const { organizationId, amount, reason } = parsedInput
 
-	const client = getEncoreClient()
-	const orgId = await getOrganizationIdOrNull()
-
-	if (!orgId) {
-		return { success: false, error: new Error("Organization ID not found") }
-	}
-
-	try {
-		await client.organizations.requestCreditIncrease(orgId, {
-			requestedAmount: validation.data.amount,
-			reason: validation.data.reason,
+		await ctx.client.organizations.requestCreditIncrease(organizationId, {
+			requestedAmount: amount,
+			reason,
 		})
 
-		revalidatePath("/dashboard/wallet")
-		return {
-			success: true,
-			data: { requestId: "submitted" },
-		}
-	} catch (error: unknown) {
-		const apiError = handleAPIError(error)
-		return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-	}
-}
+		revalidateTag("wallet")
+		return { requestId: "submitted" }
+	})

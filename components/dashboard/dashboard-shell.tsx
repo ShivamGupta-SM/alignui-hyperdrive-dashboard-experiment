@@ -1,15 +1,17 @@
 "use client"
 
 import * as React from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { useRouter, usePathname, useParams } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { Header } from "@/components/dashboard/header"
 import { NotificationsDrawer } from "@/components/dashboard/notifications-drawer"
 import { CommandMenu } from "@/components/dashboard/command-menu"
 import { SettingsPanel } from "@/components/dashboard/settings-panel"
+import { StatusBanner } from "@/components/dashboard/status-banner"
 import { useBreadcrumbs, useIsDesktop } from "@/hooks/ui"
 import { useSignOut, useSession } from "@/features/auth"
+import { useOrganization } from "@/features/organizations"
 import { useUIStore } from "@/lib/stores/ui-store"
 import { useNotifications as useBackendNotifications, useUnreadNotificationCount as useBackendUnreadCount, useMarkAllNotificationsRead as useBackendMarkAllRead, useMarkNotificationRead as useBackendMarkRead, useDashboard } from "@/hooks/shared"
 import { useTheme } from "next-themes"
@@ -26,6 +28,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
 	const router = useRouter()
 	const pathname = usePathname()
+	const params = useParams<{ organizationId: string }>()
+	const organizationId = params.organizationId || ""
 	const queryClient = useQueryClient()
 	const { theme, setTheme, resolvedTheme } = useTheme()
 	const {
@@ -38,6 +42,16 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 		settingsPanelOpen,
 		setSettingsPanelOpen,
 	} = useUIStore()
+
+	// ✅ Organization check - redirect to onboarding if not approved
+	const { organization, needsOnboarding, isDraft, isPending: isOrgPending } = useOrganization()
+
+	React.useEffect(() => {
+		// Wait for org data to load, then redirect if needed
+		if (!isOrgPending && needsOnboarding) {
+			router.replace("/onboarding")
+		}
+	}, [isOrgPending, needsOnboarding, router])
 
 	// Mobile menu uses local state (as per UIState design)
 	const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
@@ -75,8 +89,11 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 	}, [])
 
 	// Dashboard data for pending enrollments count
-	// Use try-catch to prevent hook order issues during errors
-	const dashboardQuery = useDashboard({ enabled: mounted }) // Only fetch after mount
+	// URL-based multi-tenancy: organizationId from URL params
+	const dashboardQuery = useDashboard({
+		organizationId,
+		enabled: mounted && !!organizationId, // Only fetch after mount and if org exists
+	})
 	const pendingEnrollmentsCount = dashboardQuery.data?.stats?.pendingEnrollments ?? 0
 
 	// Get auto-generated breadcrumbs from pathname
@@ -234,6 +251,8 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 							<div
 								className="container mx-auto max-w-7xl px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
 							>
+								{/* Status banner for non-approved organizations */}
+								<StatusBanner />
 								{children}
 							</div>
 						</main>
@@ -301,6 +320,8 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 							<div
 								className="container mx-auto max-w-7xl px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
 							>
+								{/* Status banner for non-approved organizations */}
+								<StatusBanner />
 								{children}
 							</div>
 						</main>

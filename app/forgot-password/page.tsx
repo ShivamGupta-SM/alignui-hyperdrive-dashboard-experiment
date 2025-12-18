@@ -43,12 +43,12 @@ export default function ForgotPasswordPage() {
 				setError("Invalid redirect URL configuration")
 				return
 			}
-			const result = await forgotPassword(data.email, resetUrl)
+			const result = await forgotPassword({ email: data.email, redirectTo: resetUrl })
 
-			if (result.success) {
+			if (result?.data?.success) {
 				setSuccess(true)
 			} else {
-				setError("error" in result ? result.error || "Failed to send reset email" : "Failed to send reset email")
+				setError(result?.serverError || "Failed to send reset email")
 			}
 		} catch (err) {
 			setError("Failed to send reset email. Please try again.")

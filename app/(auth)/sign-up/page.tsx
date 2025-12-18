@@ -22,6 +22,7 @@ import {
 } from "@phosphor-icons/react"
 import { cn } from "@/utils/cn"
 import { signUpSchema, VALIDATION_CONSTANTS, type SignUpFormData } from "@/lib/utils/validations"
+import { getErrorMessage } from "@/lib/utils/format"
 
 export default function SignUpPage() {
 	const router = useRouter()
@@ -103,15 +104,15 @@ export default function SignUpPage() {
 			}
 
 			const { signUpEmail } = await import("@/app/actions")
-			const result = await signUpEmail(data.email, data.password, data.email.split("@")[0])
+			const result = await signUpEmail({ email: data.email, password: data.password, name: data.email.split("@")[0] })
 
-			if (!result.success) {
-				const errorMessage = "error" in result ? result.error : "Failed to create account"
+			if (!result?.data?.success) {
+				const errorMessage = result?.serverError || "Failed to create account"
 				throw new Error(errorMessage)
 			}
 
 			// ✅ FIX: Wait a bit if active org was just set to ensure session is refreshed
-			const activeOrgSet = "activeOrgSet" in result ? result.activeOrgSet : false
+			const activeOrgSet = result.data.activeOrgSet ?? false
 			if (activeOrgSet) {
 				await new Promise((resolve) => setTimeout(resolve, 500))
 			}
@@ -120,7 +121,7 @@ export default function SignUpPage() {
 			router.push("/dashboard")
 			router.refresh()
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to create account")
+			setError(getErrorMessage(err, "Failed to create account"))
 		} finally {
 			setIsLoading(false)
 		}
@@ -130,22 +131,20 @@ export default function SignUpPage() {
 		setIsLoading(true)
 		try {
 			const { signInSocial } = await import("@/app/actions")
-			const result = await signInSocial("google")
+			const result = await signInSocial({ provider: "google" })
 
-			if (!result.success) {
-				const errorMessage = "error" in result ? result.error : "Google sign-up failed"
+			if (!result?.data?.success) {
+				const errorMessage = result?.serverError || "Google sign-up failed"
 				throw new Error(errorMessage)
 			}
 
 			// If redirect is needed, it will be handled by the server action
-			if (!("redirect" in result) || !result.redirect) {
+			if (!result.data.redirect) {
 				router.push("/dashboard")
 				router.refresh()
 			}
 		} catch (error) {
-			setError(
-				error instanceof Error ? error.message : "Failed to sign up with Google. Please try again."
-			)
+			setError(getErrorMessage(error, "Failed to sign up with Google. Please try again."))
 		} finally {
 			setIsLoading(false)
 		}

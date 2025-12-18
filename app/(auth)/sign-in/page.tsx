@@ -12,6 +12,7 @@ import * as Divider from "@/components/ui/layout/divider"
 import { Callout } from "@/components/ui/feedback/callout"
 import { signInSchema, type SignInFormData } from "@/lib/utils/validations"
 import { logInfo, logError } from "@/lib/logging/error-logger-simple"
+import { getErrorMessage } from "@/lib/utils/format"
 import {
 	GoogleLogo,
 	Eye,
@@ -48,17 +49,17 @@ export default function SignInPage() {
 
 		try {
 			const { signInEmail } = await import("@/app/actions")
-			const result = await signInEmail(data.email, data.password, data.rememberMe)
-			logInfo("Sign-in result received", { source: "SignInPage", data: { hasSuccess: result.success } })
+			const result = await signInEmail({ email: data.email, password: data.password, rememberMe: data.rememberMe })
+			logInfo("Sign-in result received", { source: "SignInPage", data: { hasSuccess: result?.data?.success } })
 
-			if (!result.success) {
-				const errorMessage = "error" in result ? result.error : "Invalid email or password"
+			if (!result?.data?.success) {
+				const errorMessage = result?.serverError || "Invalid email or password"
 				throw new Error(errorMessage)
 			}
 
 			// Handle 2FA if required
-			if ("requiresTwoFactor" in result && result.requiresTwoFactor) {
-				router.push(`/verify?token=${result.twoFactorToken}`)
+			if (result.data.requiresTwoFactor && result.data.twoFactorToken) {
+				router.push(`/verify?token=${result.data.twoFactorToken}`)
 				return
 			}
 
@@ -103,9 +104,7 @@ export default function SignInPage() {
 
 		} catch (error) {
 			logError(error, { source: "SignInPage", data: { email: data.email } })
-			setFormError(
-				error instanceof Error ? error.message : "Invalid email or password. Please try again."
-			)
+			setFormError(getErrorMessage(error, "Invalid email or password. Please try again."))
 			setIsLoading(false)
 		}
 	}
@@ -114,24 +113,22 @@ export default function SignInPage() {
 		setIsLoading(true)
 		try {
 			const { signInSocial } = await import("@/app/actions")
-			const result = await signInSocial("google")
+			const result = await signInSocial({ provider: "google" })
 
-			if (!result.success) {
-				const errorMessage = "error" in result ? result.error : "Google sign-in failed"
+			if (!result?.data?.success) {
+				const errorMessage = result?.serverError || "Google sign-in failed"
 				throw new Error(errorMessage)
 			}
 
 			// If redirect is needed, it will be handled by the server action
-			if (!("redirect" in result) || !result.redirect) {
+			if (!result.data.redirect) {
 				// Always go to dashboard - onboarding alert will show if needed
 				// Don't force onboarding redirect
 				router.push("/dashboard")
 				router.refresh()
 			}
 		} catch (error) {
-			setFormError(
-				error instanceof Error ? error.message : "Failed to sign in with Google. Please try again."
-			)
+			setFormError(getErrorMessage(error, "Failed to sign in with Google. Please try again."))
 		} finally {
 			setIsLoading(false)
 		}

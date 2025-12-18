@@ -2,12 +2,13 @@
 
 export type OrganizationStatus = "pending" | "approved" | "rejected" | "suspended"
 
+// Uses backend values directly - no mapping needed
 export type BusinessType =
-	| "sole_proprietorship"
+	| "proprietorship"
 	| "partnership"
 	| "llp"
-	| "private_limited"
-	| "public_limited"
+	| "pvt_ltd"
+	| "public_ltd"
 
 export type IndustryCategory =
 	| "electronics"

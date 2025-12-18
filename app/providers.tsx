@@ -20,7 +20,7 @@ import { PostHogProvider } from "@/lib/integrations/posthog"
 import { NuqsAdapter } from "nuqs/adapters/next/app"
 // import { MSWInit } from "@/components/dev/msw-init" // Mocking disabled
 // import { NovuProvider } from "@/components/dashboard/novu-provider" // Removed - causing build issues
-import { OrganizationProvider } from "@/contexts/organization-context"
+// OrganizationProvider removed - URL-based multi-tenancy: organization ID from URL params
 
 function makeQueryClient() {
 	return new QueryClient({
@@ -50,25 +50,23 @@ export function Providers({ children }: { children: ReactNode }) {
 
 	return (
 		<QueryClientProvider client={queryClient}>
-			<OrganizationProvider>
-				<PostHogProvider>
-					<NuqsAdapter>
-						<ThemeProvider
-							attribute="class"
-							defaultTheme="system"
-							enableSystem
-							disableTransitionOnChange
-						>
-							<TooltipProvider>
-								{children}
-							</TooltipProvider>
+			<PostHogProvider>
+				<NuqsAdapter>
+					<ThemeProvider
+						attribute="class"
+						defaultTheme="system"
+						enableSystem
+						disableTransitionOnChange
+					>
+						<TooltipProvider>
+							{children}
+						</TooltipProvider>
 
-							<NotificationProvider />
-							<Toaster />
-						</ThemeProvider>
-					</NuqsAdapter>
-				</PostHogProvider>
-			</OrganizationProvider>
+						<NotificationProvider />
+						<Toaster />
+					</ThemeProvider>
+				</NuqsAdapter>
+			</PostHogProvider>
 		</QueryClientProvider>
 	)
 }

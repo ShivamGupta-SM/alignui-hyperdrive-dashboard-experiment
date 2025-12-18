@@ -44,13 +44,13 @@ export default function VerifyPage() {
 
 			try {
 				const { verify2FATotp } = await import("@/features/auth")
-				const result = await verify2FATotp(twoFactorToken, code)
+				const result = await verify2FATotp({ twoFactorToken, code })
 
-				if (result.success) {
+				if (result?.data?.success) {
 					router.push("/dashboard")
 					router.refresh()
 				} else {
-					setError("error" in result ? result.error || "Invalid code. Please try again." : "Invalid code. Please try again.")
+					setError(result?.serverError || "Invalid code. Please try again.")
 				}
 			} catch (err) {
 				setError("Invalid code. Please try again.")
@@ -67,7 +67,7 @@ export default function VerifyPage() {
 		setResendCooldown(30)
 		try {
 			const { send2FAOtp } = await import("@/features/auth")
-			await send2FAOtp(twoFactorToken)
+			await send2FAOtp({ twoFactorToken })
 		} catch {
 			// Silently fail - user can try again
 		}

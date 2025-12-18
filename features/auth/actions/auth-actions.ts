@@ -1,18 +1,132 @@
 "use server"
 
-// Mocking disabled - removed MSW initialization
+/**
+ * Auth Server Actions
+ *
+ * Uses next-safe-action for type-safe, error-handled server actions
+ */
 
-import { getEncoreClient, getAuthenticatedEncoreClient, handleAPIError, getErrorDetails } from "@/lib/api/encore"
-import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
-import type { auth } from "@/lib/api/encore-client"
-import { logDebug } from "@/lib/logging/error-logger-simple"
 import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
+import { z } from "zod"
+
+import { authAction, publicActionClient } from "@/lib/safe-action"
+import { getAuthenticatedEncoreClient } from "@/lib/api/encore"
+import { logDebug, logInfo, logError } from "@/lib/logging/error-logger-simple"
+import { validateCallbackUrlServer } from "@/lib/utils/url-validation"
+import { getErrorMessageForLog } from "@/lib/utils/format"
+import type { auth } from "@/lib/api/encore-client"
+
+// =============================================================================
+// Schemas
+// =============================================================================
+
+const signInSchema = z.object({
+	email: z.string().email(),
+	password: z.string().min(1),
+	rememberMe: z.boolean().optional(),
+})
+
+const signUpSchema = z.object({
+	email: z.string().email(),
+	password: z.string().min(8),
+	name: z.string().optional(),
+	rememberMe: z.boolean().optional(),
+})
+
+const socialSignInSchema = z.object({
+	provider: z.enum(["google", "github", "microsoft"]),
+})
+
+const forgotPasswordSchema = z.object({
+	email: z.string().email(),
+	redirectTo: z.string().optional(),
+})
+
+const resetPasswordCallbackSchema = z.object({
+	token: z.string().min(1),
+})
+
+const resetPasswordSchema = z.object({
+	token: z.string().min(1),
+	newPassword: z.string().min(8),
+})
+
+const changePasswordSchema = z.object({
+	currentPassword: z.string().min(1),
+	newPassword: z.string().min(8),
+	revokeOtherSessions: z.boolean().optional(),
+})
+
+const changeEmailSchema = z.object({
+	newEmail: z.string().email(),
+	callbackURL: z.string().optional(),
+})
+
+const updateProfileSchema = z.object({
+	name: z.string().optional(),
+	image: z.string().optional(),
+})
+
+const deleteUserSchema = z.object({
+	password: z.string().optional(),
+	callbackURL: z.string().optional(),
+})
+
+const sendVerificationSchema = z.object({
+	email: z.string().email().optional(),
+	callbackURL: z.string().optional(),
+})
+
+const verifyEmailSchema = z.object({
+	token: z.string().min(1),
+	callbackURL: z.string().optional(),
+})
+
+const sessionTokenSchema = z.object({
+	token: z.string().min(1),
+})
+
+const enable2FASchema = z.object({
+	password: z.string().min(1),
+	issuer: z.string().optional(),
+})
+
+const disable2FASchema = z.object({
+	password: z.string().min(1),
+})
+
+const verify2FATotpSchema = z.object({
+	twoFactorToken: z.string().min(1),
+	code: z.string().min(1),
+	trustDevice: z.boolean().optional(),
+})
+
+const verify2FAOtpSchema = z.object({
+	twoFactorToken: z.string().min(1),
+	otp: z.string().min(1),
+	trustDevice: z.boolean().optional(),
+})
+
+const verify2FABackupSchema = z.object({
+	twoFactorToken: z.string().min(1),
+	code: z.string().min(1),
+	trustDevice: z.boolean().optional(),
+})
+
+const send2FAOtpSchema = z.object({
+	twoFactorToken: z.string().min(1),
+	trustDevice: z.boolean().optional(),
+})
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
 
 /**
  * Helper function to ensure user has an active organization set
  * Prefers approved organizations over draft/pending ones
- * Returns true if active org was set or already exists, false otherwise
  */
 async function ensureActiveOrganization(token: string): Promise<{
 	success: boolean
@@ -21,125 +135,108 @@ async function ensureActiveOrganization(token: string): Promise<{
 }> {
 	try {
 		const authClient = getAuthenticatedEncoreClient(token)
-		
+
 		// Get current user to check activeOrganizationId
 		const meResult = await authClient.auth.me()
 		const hasActiveOrg = !!meResult.activeOrganizationId
-		
+
 		// If user already has active org, no need to set
 		if (hasActiveOrg) {
-			return {
-				success: true,
-				hasOrganization: true,
-				activeOrgSet: true,
-			}
+			return { success: true, hasOrganization: true, activeOrgSet: true }
 		}
-		
+
 		// Get user's organizations
 		const orgsResult = await authClient.auth.listOrganizations()
 		const organizations = orgsResult.organizations || []
-		
+
 		if (organizations.length === 0) {
-			return {
-				success: true,
-				hasOrganization: false,
-				activeOrgSet: false,
-			}
+			return { success: true, hasOrganization: false, activeOrgSet: false }
 		}
-		
-		// ✅ OPTIMIZATION: Prefer approved organizations, but don't call getOrganization in loop
-		// Note: listOrganizations might not return approvalStatus, so we'll set the first org
-		// If backend returns approvalStatus in listOrganizations response, we can use it directly
+
+		// Prefer approved organizations
 		let orgToSet = organizations[0]
-		
-		// ✅ OPTIMIZATION: Check if organizations have approvalStatus in response (avoid extra API calls)
-		// If approvalStatus is available, use it directly without calling getOrganization
-		const orgsWithStatus = organizations.filter((org): org is typeof org & { approvalStatus: string } => 
-			'approvalStatus' in org && typeof (org as { approvalStatus?: string }).approvalStatus === "string"
+
+		const orgsWithStatus = organizations.filter(
+			(org): org is typeof org & { approvalStatus: string } =>
+				"approvalStatus" in org && typeof (org as { approvalStatus?: string }).approvalStatus === "string"
 		)
-		
+
 		if (orgsWithStatus.length > 0) {
-			// Find approved org from list (no extra API call needed)
-			const approvedOrg = orgsWithStatus.find(org => org.approvalStatus === "approved")
+			const approvedOrg = orgsWithStatus.find((org) => org.approvalStatus === "approved")
 			if (approvedOrg) {
 				orgToSet = approvedOrg
 			}
 		} else {
-			// ✅ FALLBACK: Only call getOrganization if approvalStatus not in list response
-			// Try to find an approved organization (check up to 2 orgs for performance)
+			// Fallback: check up to 2 orgs for performance
 			for (let i = 0; i < Math.min(organizations.length, 2); i++) {
 				try {
 					const fullOrg = await authClient.organizations.getOrganization(organizations[i].id)
-					// Prefer approved organizations
 					if (fullOrg.approvalStatus === "approved") {
 						orgToSet = organizations[i]
 						break
 					}
 				} catch (error) {
-					// If we can't get details, continue with next org
 					logDebug("[ensureActiveOrganization] Failed to get org details", {
 						source: "ensureActiveOrganization",
-						data: { orgId: organizations[i].id, error: error instanceof Error ? error.message : String(error) },
+						data: { orgId: organizations[i].id, error: getErrorMessageForLog(error) },
 					})
 				}
 			}
 		}
-		
-		// Set the first organization as active
-		await authClient.auth.setActiveOrganization({
-			organizationId: orgToSet.id,
-		})
-		
-		// Revalidate session to refresh with new active org
+
+		// Set the organization as active
+		await authClient.auth.setActiveOrganization({ organizationId: orgToSet.id })
+
 		revalidatePath("/", "layout")
-		
+
 		logDebug("[ensureActiveOrganization] Set active organization", {
 			source: "ensureActiveOrganization",
 			data: { organizationId: orgToSet.id, organizationName: orgToSet.name },
 		})
-		
-		return {
-			success: true,
-			hasOrganization: true,
-			activeOrgSet: true,
-		}
+
+		return { success: true, hasOrganization: true, activeOrgSet: true }
 	} catch (error) {
-		// Log error but don't fail - user can set manually later
 		logDebug("[ensureActiveOrganization] Failed to set active organization", {
 			source: "ensureActiveOrganization",
-			data: { error: error instanceof Error ? error.message : String(error) },
+			data: { error: getErrorMessageForLog(error) },
 		})
-		
-		// ✅ OPTIMIZATION: Don't call listOrganizations again in catch block
-		// We already have the organizations from the try block, use that info
-		// If error occurred before getting organizations, return false
-		return {
-			success: false,
-			hasOrganization: false,
-			activeOrgSet: false,
-		}
+
+		return { success: false, hasOrganization: false, activeOrgSet: false }
 	}
 }
 
 /**
+ * Helper to set auth cookie
+ */
+async function setAuthCookie(token: string, rememberMe?: boolean) {
+	const cookieStore = await cookies()
+	cookieStore.set("auth-token", token, {
+		httpOnly: true,
+		secure: process.env.NODE_ENV === "production",
+		sameSite: "lax",
+		path: "/",
+		maxAge: rememberMe !== false ? 60 * 60 * 24 * 7 : 60 * 60 * 24, // 7 days or 24 hours
+	})
+}
+
+// =============================================================================
+// Public Actions (No Auth Required)
+// =============================================================================
+
+/**
  * Sign in with email and password
  */
-export async function signInEmail(email: string, password: string, rememberMe?: boolean) {
-	// Mocking disabled - removed MSW initialization
-	
-	const client = getEncoreClient()
+export const signInEmail = publicActionClient
+	.inputSchema(signInSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const { email, password, rememberMe } = parsedInput
 
-	try {
-		const { logInfo } = await import("@/lib/logging/error-logger-simple")
 		logInfo("Calling client.auth.signInEmail", { source: "SignIn" })
-		const result = await client.auth.signInEmail({ email, password, rememberMe })
-		logInfo("Sign-in successful", { 
+		const result = await ctx.client.auth.signInEmail({ email, password, rememberMe })
+
+		logInfo("Sign-in successful", {
 			source: "SignIn",
-			data: {
-				hasUser: !!result.user,
-				hasToken: !!result.token,
-				redirect: result.redirect
-			}
+			data: { hasUser: !!result.user, hasToken: !!result.token, redirect: result.redirect },
 		})
 
 		// Handle 2FA redirect if needed
@@ -157,25 +254,13 @@ export async function signInEmail(email: string, password: string, rememberMe?: 
 		}
 
 		// Set auth cookie if token is returned
-		// - rememberMe = true (or undefined) → 7 days
-		// - rememberMe = false → 24 hours (session-only)
 		if (result.token) {
-			const cookieStore = await cookies()
-			logDebug("[SignIn] Setting auth-token cookie", { source: "SignIn", data: { token: result.token?.substring(0, 10) + "..." } })
-			cookieStore.set("auth-token", result.token, {
-				httpOnly: true,
-				secure: process.env.NODE_ENV === "production",
-				sameSite: "lax",
-				path: "/", // Ensure cookie is sent with all requests
-				maxAge: rememberMe !== false ? 60 * 60 * 24 * 7 : 60 * 60 * 24, // 7 days if remember me, else 24 hours
-			})
+			await setAuthCookie(result.token, rememberMe)
 		}
 
-		// Revalidate session query to trigger refetch
 		revalidatePath("/", "layout")
 
-		// ✅ FIX: Ensure active organization is set after login
-		// This fixes the issue where users have orgs but no active org
+		// Ensure active organization is set after login
 		let hasOrganization = false
 		let activeOrgSet = false
 		if (result.token) {
@@ -183,16 +268,12 @@ export async function signInEmail(email: string, password: string, rememberMe?: 
 				const orgResult = await ensureActiveOrganization(result.token)
 				hasOrganization = orgResult.hasOrganization
 				activeOrgSet = orgResult.activeOrgSet
-				
-				// Revalidate again after setting active org to ensure session is fresh
+
 				if (activeOrgSet) {
 					revalidatePath("/", "layout")
 				}
 			} catch (error) {
-				// If check fails, assume no org (safe default)
 				logDebug("[SignIn] Failed to ensure active organization:", { source: "SignIn", data: { error } })
-				hasOrganization = false
-				activeOrgSet = false
 			}
 		}
 
@@ -201,76 +282,35 @@ export async function signInEmail(email: string, password: string, rememberMe?: 
 			user: result.user,
 			token: result.token,
 			redirect: result.redirect,
-			hasOrganization, // Flag to help with redirect logic
-			activeOrgSet, // Flag to indicate if active org was set
+			hasOrganization,
+			activeOrgSet,
 		}
-	} catch (error: unknown) {
-		const { logError } = await import("@/lib/logging/error-logger-simple")
-		logError(error, { source: "SignIn", data: { email } })
-
-		// Return consistent error format
-		return handleAPIError(error)
-	}
-}
+	})
 
 /**
  * Sign up with email and password
  */
-export async function signUpEmail(
-	email: string,
-	password: string,
-	name?: string,
-	rememberMe?: boolean
-) {
-	// Ensure MSW is initialized before making API calls
-	if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
-		const { logInfo, logWarn } = await import("@/lib/logging/error-logger-simple")
-		logInfo("Initializing MSW before API call", { source: "SignUp" })
-		const { initServerMocks } = await import("@/lib/init-mocks-server")
-		await initServerMocks()
-		// Wait longer to ensure MSW is fully ready and fetch is patched
-		await new Promise((resolve) => setTimeout(resolve, 500))
+export const signUpEmail = publicActionClient
+	.inputSchema(signUpSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const { email, password, name, rememberMe } = parsedInput
 
-		// Verify fetch is patched
-		if (typeof globalThis.fetch === "undefined") {
-			logWarn("globalThis.fetch is undefined", { source: "SignUp" })
-		} else {
-			logInfo("globalThis.fetch is available (should be patched)", { source: "SignUp" })
-		}
-	}
+		logInfo("Making signUpEmail API call", { source: "SignUp" })
 
-	const client = getEncoreClient()
-	const { logInfo } = await import("@/lib/logging/error-logger-simple")
-	logInfo("Encore client created, making signUpEmail API call", { source: "SignUp" })
-
-	try {
-		const result = await client.auth.signUpEmail({
+		const result = await ctx.client.auth.signUpEmail({
 			email,
 			password,
 			name: name || email.split("@")[0],
 			rememberMe,
 		})
 
-		// Set auth cookie if token is returned
-		// Note: Better Auth also sets "better-auth.session_token" cookie via createSessionCookie()
-		// We set "auth-token" cookie to match Better Auth's behavior:
-		// - rememberMe = true (or undefined) → 7 days (matches Better Auth's createSessionCookie)
-		// - rememberMe = false → 24 hours (session-only)
 		if (result.token) {
-			const cookieStore = await cookies()
-			cookieStore.set("auth-token", result.token, {
-				httpOnly: true,
-				secure: process.env.NODE_ENV === "production",
-				sameSite: "lax",
-				maxAge: rememberMe !== false ? 60 * 60 * 24 * 7 : 60 * 60 * 24, // 7 days if remember me, else 24 hours (matches Better Auth)
-			})
+			await setAuthCookie(result.token, rememberMe)
 		}
 
-		// Revalidate session query to trigger refetch
 		revalidatePath("/", "layout")
 
-		// ✅ FIX: Ensure active organization is set after signup
-		// This fixes the issue where existing users sign up again and have orgs but no active org
+		// Ensure active organization is set after signup
 		let hasOrganization = false
 		let activeOrgSet = false
 		if (result.token) {
@@ -278,48 +318,31 @@ export async function signUpEmail(
 				const orgResult = await ensureActiveOrganization(result.token)
 				hasOrganization = orgResult.hasOrganization
 				activeOrgSet = orgResult.activeOrgSet
-				
-				// Revalidate again after setting active org to ensure session is fresh
+
 				if (activeOrgSet) {
 					revalidatePath("/", "layout")
 				}
 			} catch (error) {
-				// If check fails, assume no org (safe default for new users)
 				logDebug("[SignUp] Failed to ensure active organization:", { source: "SignUp", data: { error } })
-				hasOrganization = false
-				activeOrgSet = false
 			}
-		}
-
-		// Clear any previous user's onboarding draft data on signup
-		try {
-			// Note: localStorage is client-side only, but we clear it here as a safety measure
-			// The actual clearing happens in the client component after redirect
-		} catch (e) {
-			// Ignore errors
 		}
 
 		return {
 			success: true,
 			user: result.user,
 			token: result.token,
-			hasOrganization, // Flag to help with redirect logic
-			activeOrgSet, // Flag to indicate if active org was set
+			hasOrganization,
+			activeOrgSet,
 		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+	})
 
 /**
  * Sign in with social provider (OAuth)
  */
-export async function signInSocial(provider: "google" | "github" | "microsoft") {
-	// Mocking disabled - removed MSW initialization
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.signInSocial({ provider })
+export const signInSocial = publicActionClient
+	.inputSchema(socialSignInSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.signInSocial({ provider: parsedInput.provider })
 
 		// If redirect URL is returned, redirect to OAuth provider
 		if (result.redirect && result.url) {
@@ -328,17 +351,9 @@ export async function signInSocial(provider: "google" | "github" | "microsoft") 
 
 		// If token is returned, set cookie
 		if (result.token) {
-			const cookieStore = await cookies()
-			cookieStore.set("auth-token", result.token, {
-				httpOnly: true,
-				secure: process.env.NODE_ENV === "production",
-				sameSite: "lax",
-				maxAge: 60 * 60 * 24 * 7, // 7 days
-			})
+			await setAuthCookie(result.token, true)
 		}
 
-		// Revalidate session query to trigger refetch
-		const { revalidatePath } = await import("next/cache")
 		revalidatePath("/", "layout")
 
 		return {
@@ -348,97 +363,214 @@ export async function signInSocial(provider: "google" | "github" | "microsoft") 
 			redirect: result.redirect,
 			url: result.url,
 		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+	})
 
 /**
  * Sign out current user
- * Always clears cookies and cache, even if backend call fails
  */
-export async function signOut() {
-	// Always clear cookie and revalidate, even if backend call fails
-	// This ensures user can logout even if backend is having issues
+export const signOut = publicActionClient.inputSchema(z.object({})).action(async ({ ctx }) => {
+	// Always clear cookie and revalidate
 	const cookieStore = await cookies()
 	cookieStore.delete("auth-token")
-	
-	const { revalidatePath } = await import("next/cache")
+
 	revalidatePath("/", "layout")
 
 	try {
-		const client = getEncoreClient()
-		await client.auth.signOut()
+		await ctx.client.auth.signOut()
 		return { success: true }
-	} catch (error: unknown) {
-		const { logError } = await import("@/lib/logging/error-logger-simple")
+	} catch (error) {
 		logError(error, { source: "SignOut", data: { message: "Backend call failed, but cookies cleared" } })
-		
-		// Still return success since we cleared the cookies
-		// Frontend will redirect to sign-in page
 		return { success: true }
 	}
-}
+})
 
 /**
  * Get current user session
- * Returns session with user object
  */
-export async function getSession(): Promise<{
-	success: boolean
+export const getSession = publicActionClient.inputSchema(z.object({})).action(async ({ ctx }): Promise<{
 	session?: auth.SessionResponse & { user?: auth.UserResponse }
 	user?: auth.MeResponse | auth.UserResponse
-	error?: string
-}> {
-	// Get auth token from cookie
+}> => {
 	const cookieStore = await cookies()
 	const token = cookieStore.get("auth-token")?.value
 
-	logDebug("[getSession] Token from cookie:", { source: "getSession", data: { token: token ? token.substring(0, 10) + "..." : "null" } })
+	logDebug("[getSession] Token from cookie:", {
+		source: "getSession",
+		data: { token: token ? `${token.substring(0, 10)}...` : "null" },
+	})
 
-	const client = token ? getAuthenticatedEncoreClient(token) : getEncoreClient()
+	const client = token ? getAuthenticatedEncoreClient(token) : ctx.client
 
-	try {
-		const sessionResult = await client.auth.getSession()
+	const sessionResult = await client.auth.getSession()
 
-		// If no session, return null
-		if (!sessionResult.session || !sessionResult.user) {
-			return {
-				success: true,
-				session: undefined,
-				user: undefined,
-			}
-		}
-
-		// Return session with user
-		return {
-			success: true,
-			session: {
-				...sessionResult.session,
-				token: token || sessionResult.session?.token || "", // Ensure token is present
-				user: sessionResult.user,
-			},
-			user: sessionResult.user,
-		}
-	} catch (error: unknown) {
-		// If session is invalid, clear the cookie to prevent redirect loops
-		// Middleware might see the cookie and redirect to dashboard, but if backend rejects it, we must clear it
-		if (token) {
-			const cookieStore = await cookies()
-			cookieStore.delete("auth-token")
-		}
-
-		return handleAPIError(error)
+	if (!sessionResult.session || !sessionResult.user) {
+		return { session: undefined, user: undefined }
 	}
-}
+
+	return {
+		session: {
+			...sessionResult.session,
+			token: token || sessionResult.session?.token || "",
+			user: sessionResult.user,
+		},
+		user: sessionResult.user,
+	}
+})
+
+/**
+ * Forgot password - Request password reset email
+ */
+export const forgotPassword = publicActionClient
+	.inputSchema(forgotPasswordSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const validatedRedirectTo = parsedInput.redirectTo
+			? validateCallbackUrlServer(parsedInput.redirectTo)
+			: undefined
+
+		const result = await ctx.client.auth.forgotPassword({
+			email: parsedInput.email,
+			redirectTo: validatedRedirectTo || undefined,
+		})
+
+		return { success: result.success }
+	})
+
+/**
+ * Reset password callback - Verify token validity
+ */
+export const resetPasswordCallback = publicActionClient
+	.inputSchema(resetPasswordCallbackSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		try {
+			const result = await ctx.client.auth.resetPasswordCallback(parsedInput.token)
+			return { valid: result.valid, email: result.email }
+		} catch {
+			return { valid: false }
+		}
+	})
+
+/**
+ * Reset password with token
+ */
+export const resetPassword = publicActionClient
+	.inputSchema(resetPasswordSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.resetPassword({
+			token: parsedInput.token,
+			newPassword: parsedInput.newPassword,
+		})
+
+		revalidatePath("/", "layout")
+
+		return { success: result.success }
+	})
+
+/**
+ * Verify email with token
+ */
+export const verifyEmail = publicActionClient
+	.inputSchema(verifyEmailSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const validatedCallbackURL = parsedInput.callbackURL
+			? validateCallbackUrlServer(parsedInput.callbackURL)
+			: undefined
+
+		const result = await ctx.client.auth.verifyEmail({
+			token: parsedInput.token,
+			callbackURL: validatedCallbackURL || undefined,
+		})
+
+		revalidatePath("/", "layout")
+
+		return { success: result.success }
+	})
+
+/**
+ * Verify TOTP code during 2FA flow
+ */
+export const verify2FATotp = publicActionClient
+	.inputSchema(verify2FATotpSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.twoFactorVerifyTotp({
+			twoFactorToken: parsedInput.twoFactorToken,
+			code: parsedInput.code,
+			trustDevice: parsedInput.trustDevice,
+		})
+
+		if (result.token) {
+			await setAuthCookie(result.token, true)
+		}
+
+		revalidatePath("/", "layout")
+
+		return { success: result.success, token: result.token }
+	})
+
+/**
+ * Verify OTP for 2FA
+ */
+export const verify2FAOtp = publicActionClient
+	.inputSchema(verify2FAOtpSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.twoFactorVerifyOtp({
+			twoFactorToken: parsedInput.twoFactorToken,
+			otp: parsedInput.otp,
+			trustDevice: parsedInput.trustDevice,
+		})
+
+		if (result.token) {
+			await setAuthCookie(result.token, true)
+		}
+
+		revalidatePath("/", "layout")
+
+		return { success: result.success, token: result.token }
+	})
+
+/**
+ * Verify backup code during 2FA flow
+ */
+export const verify2FABackupCode = publicActionClient
+	.inputSchema(verify2FABackupSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.twoFactorVerifyBackupCode({
+			twoFactorToken: parsedInput.twoFactorToken,
+			code: parsedInput.code,
+			trustDevice: parsedInput.trustDevice,
+		})
+
+		if (result.token) {
+			await setAuthCookie(result.token, true)
+		}
+
+		revalidatePath("/", "layout")
+
+		return { success: result.success, token: result.token }
+	})
+
+/**
+ * Send OTP for 2FA verification
+ */
+export const send2FAOtp = publicActionClient
+	.inputSchema(send2FAOtpSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.twoFactorSendOtp({
+			twoFactorToken: parsedInput.twoFactorToken,
+			trustDevice: parsedInput.trustDevice,
+		})
+
+		return { success: result.success }
+	})
+
+// =============================================================================
+// Authenticated Actions
+// =============================================================================
 
 /**
  * Get current authenticated user
- * Uses the /auth/me endpoint which returns MeResponse with userID field
  */
-export async function getCurrentUser(): Promise<{
-	success: boolean
-	user?: {
+export const getCurrentUser = authAction.inputSchema(z.object({})).action(async ({ ctx }): Promise<{
+	user: {
 		userID: string
 		email: string
 		name: string
@@ -455,616 +587,221 @@ export async function getCurrentUser(): Promise<{
 		phone?: string
 		twoFactorEnabled: boolean
 	}
-	error?: string
-}> {
-	// Get auth token from cookie
-	const cookieStore = await cookies()
-	const token = cookieStore.get("auth-token")?.value
+}> => {
+	const userResult = await ctx.client.auth.me()
 
-	if (!token) {
-		return {
-			success: true,
-			user: undefined,
-		}
+	const normalizedUser = {
+		...userResult,
+		userID: (userResult as unknown as { userID?: string; id?: string }).userID || (userResult as unknown as { userID?: string; id?: string }).id || "",
+		id: (userResult as unknown as { userID?: string; id?: string }).id || (userResult as unknown as { userID?: string; id?: string }).userID || "",
 	}
 
-	const client = getAuthenticatedEncoreClient(token)
-
-	try {
-		const userResult = await client.auth.me()
-		// MeResponse has userID, UserResponse has id - normalize to match expected type
-		const normalizedUser = {
-			...userResult,
-			userID: (userResult as any).userID || (userResult as any).id,
-			id: (userResult as any).id || (userResult as any).userID,
-		} as any
-		return {
-			success: true,
-			user: normalizedUser,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
-
-/**
- * Forgot password - Request password reset email
- */
-export async function forgotPassword(email: string, redirectTo?: string) {
-	const client = getEncoreClient()
-
-	try {
-		// Validate redirectTo to prevent open redirects
-		const { validateCallbackUrlServer } = await import("@/lib/utils/url-validation")
-		const validatedRedirectTo = redirectTo 
-			? validateCallbackUrlServer(redirectTo) 
-			: undefined
-
-		const result = await client.auth.forgotPassword({ email, redirectTo: validatedRedirectTo || undefined })
-		return {
-			success: result.success,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
-
-/**
- * Reset password callback - Verify token validity
- */
-export async function resetPasswordCallback(token: string) {
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.resetPasswordCallback(token)
-		return {
-			success: true,
-			valid: result.valid,
-			email: result.email,
-		}
-	} catch (error: unknown) {
-		return {
-			...handleAPIError(error),
-			valid: false,
-		}
-	}
-}
-
-/**
- * Reset password with token
- */
-export async function resetPassword(token: string, newPassword: string) {
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.resetPassword({ token, newPassword })
-
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-
-		return {
-			success: result.success,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+	return { user: normalizedUser as typeof normalizedUser & { userID: string; email: string; name: string; emailVerified: boolean; role: string; twoFactorEnabled: boolean } }
+})
 
 /**
  * Change password (authenticated)
  */
-export async function changePassword(
-	currentPassword: string,
-	newPassword: string,
-	revokeOtherSessions?: boolean
-) {
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.changePassword({
-			currentPassword,
-			newPassword,
-			revokeOtherSessions,
+export const changePassword = authAction
+	.inputSchema(changePasswordSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.changePassword({
+			currentPassword: parsedInput.currentPassword,
+			newPassword: parsedInput.newPassword,
+			revokeOtherSessions: parsedInput.revokeOtherSessions,
 		})
 
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
 		revalidatePath("/", "layout")
 
-		return {
-			success: result.success,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+		return { success: result.success }
+	})
 
 /**
  * Change email address
  */
-export async function changeEmail(newEmail: string, callbackURL?: string) {
-	const client = getEncoreClient()
+export const changeEmail = authAction.inputSchema(changeEmailSchema).action(async ({ parsedInput, ctx }) => {
+	const validatedCallbackURL = parsedInput.callbackURL
+		? validateCallbackUrlServer(parsedInput.callbackURL)
+		: undefined
 
-	try {
-		// Validate callbackURL to prevent open redirects
-		const { validateCallbackUrlServer } = await import("@/lib/utils/url-validation")
-		const validatedCallbackURL = callbackURL 
-			? validateCallbackUrlServer(callbackURL) 
-			: undefined
+	const result = await ctx.client.auth.changeEmail({
+		newEmail: parsedInput.newEmail,
+		callbackURL: validatedCallbackURL || undefined,
+	})
 
-		const result = await client.auth.changeEmail({ newEmail, callbackURL: validatedCallbackURL || undefined })
+	revalidatePath("/", "layout")
 
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-
-		return {
-			success: result.status,
-			message: result.message,
-			user: result.user,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+	return { success: result.status, message: result.message, user: result.user }
+})
 
 /**
  * Update user profile
  */
-export async function updateProfile(data: { name?: string; image?: string }) {
-	const client = getEncoreClient()
+export const updateProfile = authAction.inputSchema(updateProfileSchema).action(async ({ parsedInput, ctx }) => {
+	const result = await ctx.client.auth.updateUser(parsedInput)
 
-	try {
-		const result = await client.auth.updateUser(data)
+	revalidatePath("/", "layout")
+	revalidatePath("/dashboard/settings")
+	revalidatePath("/dashboard/profile")
 
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-		revalidatePath("/dashboard/settings")
-		revalidatePath("/dashboard/profile")
-
-		return {
-			success: result.success,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+	return { success: result.success }
+})
 
 /**
  * Delete user account
  */
-export async function deleteUser(password?: string, callbackURL?: string) {
-	const client = getEncoreClient()
+export const deleteUser = authAction.inputSchema(deleteUserSchema).action(async ({ parsedInput, ctx }) => {
+	const validatedCallbackURL = parsedInput.callbackURL
+		? validateCallbackUrlServer(parsedInput.callbackURL)
+		: undefined
 
-	try {
-		// Validate callbackURL to prevent open redirects
-		const { validateCallbackUrlServer } = await import("@/lib/utils/url-validation")
-		const validatedCallbackURL = callbackURL 
-			? validateCallbackUrlServer(callbackURL) 
-			: undefined
+	const result = await ctx.client.auth.deleteUser({
+		password: parsedInput.password,
+		callbackURL: validatedCallbackURL || undefined,
+	})
 
-		const result = await client.auth.deleteUser({ password, callbackURL: validatedCallbackURL || undefined })
+	// Clear auth cookie
+	const cookieStore = await cookies()
+	cookieStore.delete("auth-token")
 
-		// Clear auth cookie
-		const cookieStore = await cookies()
-		cookieStore.delete("auth-token")
+	revalidatePath("/", "layout")
 
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-
-		return {
-			success: result.success,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+	return { success: result.success }
+})
 
 /**
  * Send verification email
  */
-export async function sendVerificationEmail(email?: string, callbackURL?: string) {
-	const client = getEncoreClient()
-
-	try {
-		// Validate callbackURL to prevent open redirects
-		const { validateCallbackUrlServer } = await import("@/lib/utils/url-validation")
-		const validatedCallbackURL = callbackURL 
-			? validateCallbackUrlServer(callbackURL) 
+export const sendVerificationEmail = authAction
+	.inputSchema(sendVerificationSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const validatedCallbackURL = parsedInput.callbackURL
+			? validateCallbackUrlServer(parsedInput.callbackURL)
 			: undefined
 
-		const result = await client.auth.sendVerificationEmail({
-			email: email || "",
+		const result = await ctx.client.auth.sendVerificationEmail({
+			email: parsedInput.email || "",
 			callbackURL: validatedCallbackURL || undefined,
 		})
 
-		return {
-			success: result.status,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
-
-/**
- * Verify email with token
- */
-export async function verifyEmail(token: string, callbackURL?: string) {
-	const client = getEncoreClient()
-
-	try {
-		// Validate callbackURL to prevent open redirects
-		const { validateCallbackUrlServer } = await import("@/lib/utils/url-validation")
-		const validatedCallbackURL = callbackURL 
-			? validateCallbackUrlServer(callbackURL) 
-			: undefined
-
-		const result = await client.auth.verifyEmail({ token, callbackURL: validatedCallbackURL || undefined })
-
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-
-		return {
-			success: result.success,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+		return { success: result.status }
+	})
 
 /**
  * List all sessions
  */
-export async function listSessions() {
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.listSessions()
-		return {
-			success: true,
-			sessions: result.sessions || [],
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+export const listSessions = authAction.inputSchema(z.object({})).action(async ({ ctx }) => {
+	const result = await ctx.client.auth.listSessions()
+	return { sessions: result.sessions || [] }
+})
 
 /**
  * Revoke a specific session
  */
-export async function revokeSession(token: string) {
-	const client = getEncoreClient()
+export const revokeSession = authAction.inputSchema(sessionTokenSchema).action(async ({ parsedInput, ctx }) => {
+	const result = await ctx.client.auth.revokeSession({ token: parsedInput.token })
 
-	try {
-		const result = await client.auth.revokeSession({ token })
+	revalidatePath("/", "layout")
 
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-
-		return {
-			success: result.status,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+	return { success: result.status }
+})
 
 /**
  * Revoke all other sessions (keep current)
  */
-export async function revokeOtherSessions() {
-	const client = getEncoreClient()
+export const revokeOtherSessions = authAction.inputSchema(z.object({})).action(async ({ ctx }) => {
+	const result = await ctx.client.auth.revokeOtherSessions()
 
-	try {
-		const result = await client.auth.revokeOtherSessions()
+	revalidatePath("/", "layout")
 
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-
-		return {
-			success: result.status,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+	return { success: result.status }
+})
 
 /**
  * List device sessions
  */
-export async function listDeviceSessions() {
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.listDeviceSessions()
-		return {
-			success: true,
-			sessions: result.sessions || [],
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+export const listDeviceSessions = authAction.inputSchema(z.object({})).action(async ({ ctx }) => {
+	const result = await ctx.client.auth.listDeviceSessions()
+	return { sessions: result.sessions || [] }
+})
 
 /**
  * Set active session
  */
-export async function setActiveSession(sessionToken: string) {
-	const client = getEncoreClient()
+export const setActiveSession = authAction
+	.inputSchema(z.object({ sessionToken: z.string().min(1) }))
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.setActiveSession({ sessionToken: parsedInput.sessionToken })
 
-	try {
-		const result = await client.auth.setActiveSession({ sessionToken })
-
-		// Set auth cookie if token is returned
 		if (result.token) {
-			const cookieStore = await cookies()
-			cookieStore.set("auth-token", result.token, {
-				httpOnly: true,
-				secure: process.env.NODE_ENV === "production",
-				sameSite: "lax",
-				maxAge: 60 * 60 * 24 * 7, // 7 days
-			})
+			await setAuthCookie(result.token, true)
 		}
 
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
 		revalidatePath("/", "layout")
 
-		return {
-			success: result.success,
-			token: result.token,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+		return { success: result.success, token: result.token }
+	})
 
 /**
  * Enable 2FA
  */
-export async function enable2FA(password: string, issuer?: string) {
-	const client = getEncoreClient()
+export const enable2FA = authAction.inputSchema(enable2FASchema).action(async ({ parsedInput, ctx }) => {
+	const result = await ctx.client.auth.twoFactorEnable({
+		password: parsedInput.password,
+		issuer: parsedInput.issuer,
+	})
 
-	try {
-		const result = await client.auth.twoFactorEnable({ password, issuer })
-		return {
-			success: result.success,
-			backupCodes: result.backupCodes,
-			totpURI: result.totpURI,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
+	return {
+		success: result.success,
+		backupCodes: result.backupCodes,
+		totpURI: result.totpURI,
 	}
-}
+})
 
 /**
  * Disable 2FA
  */
-export async function disable2FA(password: string) {
-	const client = getEncoreClient()
+export const disable2FA = authAction.inputSchema(disable2FASchema).action(async ({ parsedInput, ctx }) => {
+	const result = await ctx.client.auth.twoFactorDisable({ password: parsedInput.password })
 
-	try {
-		const result = await client.auth.twoFactorDisable({ password })
+	revalidatePath("/", "layout")
 
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-
-		return {
-			success: result.success,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+	return { success: result.success }
+})
 
 /**
  * Get TOTP URI for 2FA setup
  */
-export async function get2FATotpURI(password: string) {
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.twoFactorGetTotpUri({ password })
-		return {
-			success: true,
-			totpURI: result.totpURI,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+export const get2FATotpURI = authAction
+	.inputSchema(z.object({ password: z.string().min(1) }))
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.twoFactorGetTotpUri({ password: parsedInput.password })
+		return { totpURI: result.totpURI }
+	})
 
 /**
  * Generate backup codes for 2FA
  */
-export async function generate2FABackupCodes(password: string) {
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.twoFactorGenerateBackupCodes({ password })
-		return {
-			success: true,
-			backupCodes: result.backupCodes,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+export const generate2FABackupCodes = authAction
+	.inputSchema(z.object({ password: z.string().min(1) }))
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.twoFactorGenerateBackupCodes({ password: parsedInput.password })
+		return { backupCodes: result.backupCodes }
+	})
 
 /**
  * View backup codes (requires password)
  */
-export async function view2FABackupCodes(password: string) {
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.twoFactorViewBackupCodes({ password })
-		return {
-			success: true,
-			backupCodes: result.backupCodes,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
-
-/**
- * Verify TOTP code during 2FA flow
- */
-export async function verify2FATotp(twoFactorToken: string, code: string, trustDevice?: boolean) {
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.twoFactorVerifyTotp({
-			twoFactorToken,
-			code,
-			trustDevice,
-		})
-
-		// Set auth cookie if token is returned
-		if (result.token) {
-			const cookieStore = await cookies()
-			cookieStore.set("auth-token", result.token, {
-				httpOnly: true,
-				secure: process.env.NODE_ENV === "production",
-				sameSite: "lax",
-				maxAge: 60 * 60 * 24 * 7, // 7 days
-			})
-		}
-
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-
-		return {
-			success: result.success,
-			token: result.token,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
-
-/**
- * Verify OTP for 2FA
- */
-export async function verify2FAOtp(twoFactorToken: string, otp: string, trustDevice?: boolean) {
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.twoFactorVerifyOtp({
-			twoFactorToken,
-			otp,
-			trustDevice,
-		})
-
-		// Set auth cookie if token is returned
-		if (result.token) {
-			const cookieStore = await cookies()
-			cookieStore.set("auth-token", result.token, {
-				httpOnly: true,
-				secure: process.env.NODE_ENV === "production",
-				sameSite: "lax",
-				maxAge: 60 * 60 * 24 * 7, // 7 days
-			})
-		}
-
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-
-		return {
-			success: result.success,
-			token: result.token,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
-
-/**
- * Verify backup code during 2FA flow
- */
-export async function verify2FABackupCode(
-	twoFactorToken: string,
-	code: string,
-	trustDevice?: boolean
-) {
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.twoFactorVerifyBackupCode({
-			twoFactorToken,
-			code,
-			trustDevice,
-		})
-
-		// Set auth cookie if token is returned
-		if (result.token) {
-			const cookieStore = await cookies()
-			cookieStore.set("auth-token", result.token, {
-				httpOnly: true,
-				secure: process.env.NODE_ENV === "production",
-				sameSite: "lax",
-				maxAge: 60 * 60 * 24 * 7, // 7 days
-			})
-		}
-
-		// Revalidate to trigger session refetch
-		const { revalidatePath } = await import("next/cache")
-		revalidatePath("/", "layout")
-
-		return {
-			success: result.success,
-			token: result.token,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
-
-/**
- * Send OTP for 2FA verification
- */
-export async function send2FAOtp(twoFactorToken: string, trustDevice?: boolean) {
-	const client = getEncoreClient()
-
-	try {
-		const result = await client.auth.twoFactorSendOtp({ twoFactorToken, trustDevice })
-		return {
-			success: result.success,
-		}
-	} catch (error: unknown) {
-		return handleAPIError(error)
-	}
-}
+export const view2FABackupCodes = authAction
+	.inputSchema(z.object({ password: z.string().min(1) }))
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.twoFactorViewBackupCodes({ password: parsedInput.password })
+		return { backupCodes: result.backupCodes }
+	})
 
 /**
  * Ensure active organization is set after OAuth login
- * This is called from the OAuth callback page to set active org
  */
-export async function ensureActiveOrgAfterOAuth(): Promise<{
-	success: boolean
-	hasOrganization: boolean
-	activeOrgSet: boolean
-}> {
-	const cookieStore = await cookies()
-	const token = cookieStore.get("auth-token")?.value
-
-	if (!token) {
-		return {
-			success: false,
-			hasOrganization: false,
-			activeOrgSet: false,
-		}
-	}
-
-	return await ensureActiveOrganization(token)
-}
+export const ensureActiveOrgAfterOAuth = authAction.inputSchema(z.object({})).action(async ({ ctx }) => {
+	return await ensureActiveOrganization(ctx.token)
+})

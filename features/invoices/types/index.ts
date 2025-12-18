@@ -12,8 +12,8 @@ export type InvoiceStatus = shared.InvoiceStatus
 // Feature-specific types
 export interface InvoiceFilters {
 	status?: string
-	page?: number
-	limit?: number
+	skip?: number
+	take?: number
 	[key: string]: string | number | undefined
 }
 

@@ -115,7 +115,7 @@ export function getErrorDetails(error: unknown): {
 	message: string
 	code?: ErrCode
 	status?: number
-	details?: any
+	details?: unknown
 	isAPIError: boolean
 } {
 	if (isAPIError(error)) {
@@ -135,22 +135,20 @@ export function getErrorDetails(error: unknown): {
 }
 
 /**
- * Type-safe error handler for server actions
- * Returns a consistent error format for frontend consumption
+ * Client-side: Handle authentication errors by redirecting to login
+ * Use this in error boundaries and catch blocks on the client
  */
-export function handleAPIError(error: unknown): {
-	success: false
-	error: string
-	code?: ErrCode
-	status?: number
-} {
-	const details = getErrorDetails(error)
+export function handleAuthError(error: unknown): void {
+	if (isAuthenticationError(error)) {
+		// Only run on client
+		if (typeof window !== "undefined") {
+			// Clear auth token cookie
+			document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
 
-	return {
-		success: false,
-		error: details.message,
-		code: details.code,
-		status: details.status,
+			// Redirect to sign-in with return URL
+			const returnUrl = encodeURIComponent(window.location.pathname + window.location.search)
+			window.location.href = `/sign-in?redirect=${returnUrl}`
+		}
 	}
 }
 

@@ -6,6 +6,7 @@ import * as Button from "@/components/ui/primitives/button"
 import { Callout } from "@/components/ui/feedback/callout"
 import { WarningCircle, ArrowLeft, CheckCircle } from "@phosphor-icons/react"
 import Link from "next/link"
+import { getErrorMessage } from "@/lib/utils/format"
 
 /**
  * OAuth Callback Handler Page
@@ -58,18 +59,18 @@ export default function OAuthCallbackPage() {
 
 					// Check if we have a session
 					const { getSession, ensureActiveOrgAfterOAuth } = await import("@/app/actions")
-					const sessionResult = await getSession()
+					const sessionResult = await getSession({})
 
 					if (abortController.signal.aborted) return
 
-					if (sessionResult.success && sessionResult.session) {
+					if (sessionResult?.data?.session) {
 						// ✅ FIX: Ensure active organization is set after OAuth login
 						// This fixes the race condition and ensures active org is set before redirect
 						try {
-							const orgResult = await ensureActiveOrgAfterOAuth()
+							const orgResult = await ensureActiveOrgAfterOAuth({})
 							if (abortController.signal.aborted) return
 
-							if (orgResult.success && orgResult.activeOrgSet) {
+							if (orgResult?.data?.success && orgResult?.data?.activeOrgSet) {
 								// Wait a bit more for session to refresh with active org
 								await new Promise<void>((resolve) => {
 									if (abortController.signal.aborted) return
@@ -105,9 +106,7 @@ export default function OAuthCallbackPage() {
 				} catch (err) {
 					if (!abortController.signal.aborted) {
 						setStatus("error")
-						setErrorMessage(
-							err instanceof Error ? err.message : "Failed to complete authentication"
-						)
+						setErrorMessage(getErrorMessage(err, "Failed to complete authentication"))
 					}
 				}
 			} else {

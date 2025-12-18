@@ -3,24 +3,35 @@
  */
 
 // Types
-export type * from './types'
+export type * from "./types"
 
 // Hooks
-export { useOrganizations } from './hooks/use-organizations'
-export { useSwitchOrganization } from './hooks/use-organization-mutations'
-export { useActiveOrganization, useActiveOrganizationId } from './hooks/use-active-organization'
-
-// Actions
 export {
-	verifyGST,
-	submitOnboarding,
-	saveOnboardingDraft,
-	loadOnboardingDraft,
-	resubmitOrganizationForApproval,
-	createBasicOrganization,
-	switchOrganization,
-} from './actions'
+	// Query Keys
+	organizationKeys,
+	// Queries
+	useOrganizations,
+	useOrganizationById,
+	useActiveOrganization,
+	useOrganization,
+	// Mutations
+	useSwitchOrganization,
+	// Helpers
+	useNeedsOnboarding,
+	useOrganizationStatus,
+} from "./hooks/use-organizations"
 
-// Query Keys
-export { organizationsQueryKeys } from './lib/query-keys'
+// Server Actions - Onboarding
+export { verifyGST, submitOnboarding, checkUserOrganizations } from "./actions/onboarding"
 
+// Server Actions - Draft
+export { saveOnboardingDraft, loadOnboardingDraft } from "./actions/draft"
+
+// Server Actions - Approval
+export { submitOrganizationForApproval, resubmitOrganizationForApproval } from "./actions/approval"
+
+// Server Actions - Organizations
+export { createBasicOrganization, switchOrganization } from "./actions/organizations"
+
+// SSR Data Fetching
+export { getDashboardData } from "./ssr"

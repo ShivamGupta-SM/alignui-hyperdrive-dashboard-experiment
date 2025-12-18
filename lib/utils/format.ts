@@ -1,5 +1,41 @@
 // Centralized formatting utilities to prevent re-creation on every render
 
+// =============================================================================
+// Error Formatting
+// =============================================================================
+
+/**
+ * Extract error message from unknown error type
+ * Use this instead of: error instanceof Error ? error.message : "default"
+ *
+ * @example
+ * catch (error) {
+ *   toast.error(getErrorMessage(error, "Failed to save"))
+ * }
+ */
+export function getErrorMessage(error: unknown, defaultMessage: string = "An error occurred"): string {
+	if (typeof error === "string") return error
+	if (error instanceof Error) return error.message
+	return defaultMessage
+}
+
+/**
+ * Extract error message for logging (stringifies unknown errors)
+ * Use this for logging where you want to capture any error type
+ *
+ * @example
+ * logError(error, { message: getErrorMessageForLog(error) })
+ */
+export function getErrorMessageForLog(error: unknown): string {
+	if (typeof error === "string") return error
+	if (error instanceof Error) return error.message
+	return String(error)
+}
+
+// =============================================================================
+// Currency Formatting
+// =============================================================================
+
 /**
  * Format a number as Indian currency (INR)
  */
@@ -26,6 +62,10 @@ export function formatCurrencyCompact(amount: number): string {
 	}
 	return `₹${amount}`
 }
+
+// =============================================================================
+// Date Formatting
+// =============================================================================
 
 /**
  * Format a date as short date (e.g., "15 Jan")
@@ -78,6 +118,10 @@ export function formatTimeAgo(hoursAgo: number): string {
 	if (hoursAgo < 24) return `${hoursAgo}h ago`
 	return `${Math.floor(hoursAgo / 24)}d ago`
 }
+
+// =============================================================================
+// Number Formatting
+// =============================================================================
 
 /**
  * Format a number with Indian number system (lakhs, crores)

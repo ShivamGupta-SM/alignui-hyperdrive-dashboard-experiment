@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
+import { getErrorMessage } from "@/lib/utils/format"
 
 interface SkiaLiquidLogoProps {
 	logoPath?: string
@@ -288,7 +289,7 @@ export function SkiaLiquidLogo({
 			} catch (e) {
 				console.error("Skia init error:", e)
 				if (isMounted) {
-					setError(e instanceof Error ? e.message : "Failed to initialize Skia")
+					setError(getErrorMessage(e, "Failed to initialize Skia"))
 				}
 			}
 		}

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useParams } from "next/navigation"
 import { useTheme } from "next-themes"
 import { cn } from "@/utils/cn"
 import { AvatarWithFallback } from "@/components/ui/primitives/avatar"
@@ -33,13 +33,10 @@ import {
 	X,
 } from "@phosphor-icons/react"
 import { useSession } from "@/features/auth"
-import {
-	useOrganizations,
-	useSwitchOrganization,
-} from "@/features/organizations"
-import { useActiveOrganization } from "@/features/organizations"
+import { useOrganizations } from "@/features/organizations"
 import { useSignOut } from "@/features/auth"
 import { ORGANIZATION_STATUS_CONFIG } from "@/lib/constants"
+import { StatusBadge } from "@/components/dashboard/status-banner"
 import { useRouter } from "next/navigation"
 import type { organizations } from "@/lib/api/encore-client"
 import type { OrganizationStatus } from "@/lib/types"
@@ -54,71 +51,76 @@ interface SidebarProps {
 	onSettingsClick?: () => void
 }
 
-const navigation = [
+// Navigation items - hrefs are generated dynamically based on organizationId
+const getNavigation = (organizationId: string) => [
 	{
 		id: "dashboard",
 		label: "Dashboard",
-		href: "/dashboard",
+		href: `/dashboard/${organizationId}`,
 		icon: House,
 	},
 	{
 		id: "campaigns",
 		label: "Campaigns",
-		href: "/dashboard/campaigns",
+		href: `/dashboard/${organizationId}/campaigns`,
 		icon: Megaphone,
 	},
 	{
 		id: "enrollments",
 		label: "Enrollments",
-		href: "/dashboard/enrollments",
+		href: `/dashboard/${organizationId}/enrollments`,
 		icon: UserPlus,
 		hasBadge: true,
 	},
 	{
 		id: "products",
 		label: "Products",
-		href: "/dashboard/products",
+		href: `/dashboard/${organizationId}/products`,
 		icon: ShoppingBag,
 	},
 	{
 		id: "wallet",
 		label: "Wallet",
-		href: "/dashboard/wallet",
+		href: `/dashboard/${organizationId}/wallet`,
 		icon: Wallet,
 	},
 	{
 		id: "invoices",
 		label: "Invoices",
-		href: "/dashboard/invoices",
+		href: `/dashboard/${organizationId}/invoices`,
 		icon: FileText,
 	},
 	{
 		id: "team",
 		label: "Team",
-		href: "/dashboard/team",
+		href: `/dashboard/${organizationId}/team`,
 		icon: UsersThree,
 	},
 ]
 
-const footerNavigation = [
+const getFooterNavigation = (organizationId: string) => [
 	{
 		id: "settings",
 		label: "Settings",
-		href: "/dashboard/settings",
+		href: `/dashboard/${organizationId}/settings`,
 		icon: Gear,
 		// Will open SettingsPanel instead of navigating
 	},
 	{
 		id: "help",
 		label: "Help & Support",
-		href: "/dashboard/help",
+		href: `/dashboard/${organizationId}/help`,
 		icon: Question,
 	},
 ]
 
+// Navigation item type
+type NavigationItem = ReturnType<typeof getNavigation>[0]
+type FooterNavigationItem = ReturnType<typeof getFooterNavigation>[0]
+
 // NavItem extracted outside Sidebar to prevent recreation on every render
 interface NavItemProps {
-	item: (typeof navigation)[0] | (typeof footerNavigation)[0]
+	item: NavigationItem | FooterNavigationItem
 	isActive: boolean
 	collapsed: boolean
 	pendingEnrollments: number
@@ -214,32 +216,32 @@ export function Sidebar({
 }: SidebarProps) {
 	const router = useRouter()
 	const pathname = usePathname()
-	const { theme, setTheme, resolvedTheme } = useTheme()
+	const params = useParams<{ organizationId: string }>()
+	const organizationId = params.organizationId
+	const { setTheme, resolvedTheme } = useTheme()
 	const { data: session } = useSession()
 	const user = session?.user
-	const { data: organizationsData, isLoading: isLoadingOrgs } = useOrganizations()
+	const { data: organizationsData, isPending: isLoadingOrgs } = useOrganizations()
 	const organizations = organizationsData?.organizations || []
-	const currentOrganization = useActiveOrganization()
-	const switchOrganization = useSwitchOrganization()
+	const currentOrganization = organizations.find(org => org.id === organizationId) || null
 	const { signOut: handleSignOut } = useSignOut()
 
 	const isDarkMode = resolvedTheme === "dark"
 	const onToggleDarkMode = () => setTheme(resolvedTheme === "dark" ? "light" : "dark")
 	const onSignOut = handleSignOut
 
+	// Generate navigation items with current organizationId
+	const navigation = React.useMemo(() => getNavigation(organizationId || ""), [organizationId])
+	const footerNavigation = React.useMemo(() => getFooterNavigation(organizationId || ""), [organizationId])
+
 	const handleOrganizationChange = (org: Organization) => {
 		// Don't switch if already the active organization
-		if (currentOrganization?.id === org.id) {
+		if (organizationId === org.id) {
 			return
 		}
-		
-		// Don't switch if mutation is already in progress
-		if (switchOrganization.isPending) {
-			return
-		}
-		
-		// Call mutation - all success/error handling is in the hook
-		switchOrganization.mutate(org.id)
+
+		// URL-based organization switching - navigate to new org's dashboard
+		router.push(`/dashboard/${org.id}`)
 	}
 
 	const handleCreateOrganization = () => {
@@ -248,8 +250,9 @@ export function Sidebar({
 	}
 
 	const isActiveHref = (href: string) => {
-		if (href === "/dashboard") {
-			return pathname === "/dashboard"
+		// For organization dashboard root, exact match
+		if (href === `/dashboard/${organizationId}`) {
+			return pathname === `/dashboard/${organizationId}`
 		}
 		return pathname.startsWith(href)
 	}
@@ -273,7 +276,7 @@ export function Sidebar({
 					collapsed ? "justify-center px-2" : "px-5"
 				)}
 			>
-				<Link href="/dashboard" onClick={onMobileClose} className="flex items-center">
+				<Link href={organizationId ? `/dashboard/${organizationId}` : "/dashboard"} onClick={onMobileClose} className="flex items-center">
 					{collapsed ? <LogoIcon size={32} /> : <Logo width={130} height={28} />}
 				</Link>
 			</div>
@@ -290,7 +293,7 @@ export function Sidebar({
 					onCreateOrganization={handleCreateOrganization}
 					collapsed={collapsed}
 					isDarkMode={isDarkMode}
-					isLoading={isLoadingOrgs || switchOrganization.isPending}
+					isLoading={isLoadingOrgs}
 				/>
 			</div>
 
@@ -575,9 +578,13 @@ function OrganizationSwitcher({
 						</span>
 					</div>
 					<div className="flex min-w-0 flex-1 flex-col text-left">
-						<span className="truncate text-label-sm font-semibold text-text-strong-950">
-							{currentOrganization.name}
-						</span>
+						<div className="flex items-center gap-2">
+							<span className="truncate text-label-sm font-semibold text-text-strong-950">
+								{currentOrganization.name}
+							</span>
+							{/* Status badge for non-approved orgs */}
+							<StatusBadge />
+						</div>
 						<span className="truncate text-paragraph-xs text-text-sub-600">
 							{currentOrganization.slug}
 						</span>

@@ -33,9 +33,9 @@ export default function VerifyEmailPage() {
 				const validatedCallbackURL = callbackURL 
 					? getSafeRedirectUrl(callbackURL, "/") 
 					: undefined
-				const result = await verifyEmail(token, validatedCallbackURL || undefined)
+				const result = await verifyEmail({ token, callbackURL: validatedCallbackURL })
 
-				if (result.success) {
+				if (result?.data?.success) {
 					setIsVerified(true)
 					// Refresh session to update emailVerified status
 					router.refresh()
@@ -46,7 +46,7 @@ export default function VerifyEmailPage() {
 						}, 2000)
 					}
 				} else {
-					setError("error" in result ? result.error || "Failed to verify email" : "Failed to verify email")
+					setError(result?.serverError || "Failed to verify email")
 				}
 			} catch (err) {
 				setError("Failed to verify email. Please try again.")

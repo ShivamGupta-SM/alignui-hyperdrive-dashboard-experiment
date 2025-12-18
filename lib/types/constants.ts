@@ -1,14 +1,3 @@
-// Query Key Constants & Cache Times
-
-export const QUERY_KEYS = {
-	CAMPAIGNS: "campaigns",
-	ENROLLMENTS: "enrollments",
-	INVOICES: "invoices",
-	WALLET: "wallet",
-	DASHBOARD: "dashboard",
-	SESSIONS: "sessions",
-} as const
-
 // Cache times (in milliseconds)
 export const STALE_TIMES = {
 	// Data that changes frequently (30 seconds)
@@ -31,6 +20,8 @@ export const THRESHOLDS = {
 	HIGH_APPROVAL_RATE: 80,
 	// Rejection rate threshold for positive delta display
 	LOW_REJECTION_RATE: 15,
+	// Order value threshold for "high value" enrollments (in rupees)
+	HIGH_VALUE_ORDER: 25000,
 } as const
 
 // GST State Codes Mapping

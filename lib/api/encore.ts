@@ -58,7 +58,7 @@ export {
 	isNotFoundError,
 	isValidationError,
 	getErrorDetails,
-	handleAPIError,
+	handleAuthError,
 } from "../errors/encore-error-handler"
 
 // Note: For logging utilities, use direct import:

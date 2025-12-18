@@ -11,7 +11,11 @@ import { THRESHOLDS, ANIMATION } from "@/lib/types/constants"
 // ============================================
 // Dashboard Header (needs client for date formatting)
 // ============================================
-export function DashboardHeader() {
+interface DashboardHeaderProps {
+	organizationId: string
+}
+
+export function DashboardHeader({ organizationId }: DashboardHeaderProps) {
 	const [dateString, setDateString] = useState<string>("")
 
 	useEffect(() => {
@@ -33,7 +37,7 @@ export function DashboardHeader() {
 				</p>
 			</div>
 			<Button.Root variant="primary" size="small" asChild className="shrink-0">
-				<Link href="/dashboard/campaigns/create">
+				<Link href={`/dashboard/${organizationId}/campaigns/create`}>
 					<Button.Icon><Plus className="size-5" /></Button.Icon>
 					<span className="hidden sm:inline">New Campaign</span>
 				</Link>
@@ -70,7 +74,12 @@ const formatTimeAgo = (hoursAgo: number): string => {
 	return `${days}d ago`
 }
 
-export function PriorityEnrollmentItem({ enrollment }: { enrollment: PendingEnrollment }) {
+interface PriorityEnrollmentItemProps {
+	enrollment: PendingEnrollment
+	organizationId: string
+}
+
+export function PriorityEnrollmentItem({ enrollment, organizationId }: PriorityEnrollmentItemProps) {
 	const [currentTime, setCurrentTime] = useState<number | null>(null)
 
 	useEffect(() => {
@@ -81,7 +90,7 @@ export function PriorityEnrollmentItem({ enrollment }: { enrollment: PendingEnro
 
 	const hoursAgo = currentTime ? getHoursAgo(enrollment.createdAt, currentTime) : 0
 	const overdue = hoursAgo > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS
-	const highValue = (enrollment.orderValue || 0) >= 25000
+	const highValue = (enrollment.orderValue || 0) >= THRESHOLDS.HIGH_VALUE_ORDER
 
 	return (
 		<div
@@ -124,7 +133,7 @@ export function PriorityEnrollmentItem({ enrollment }: { enrollment: PendingEnro
 					<div className="flex items-center justify-between mt-2">
 						<span className="text-label-xs text-text-soft-400">{formatTimeAgo(hoursAgo)}</span>
 						<Button.Root variant="primary" size="xsmall" asChild>
-							<Link href={`/dashboard/enrollments/${enrollment.id}`}>Review</Link>
+							<Link href={`/dashboard/${organizationId}/enrollments/${enrollment.id}`}>Review</Link>
 						</Button.Root>
 					</div>
 				</div>
@@ -175,7 +184,7 @@ export function PriorityEnrollmentItem({ enrollment }: { enrollment: PendingEnro
 				</div>
 
 				<Button.Root variant="primary" size="xsmall" asChild className="shrink-0">
-					<Link href={`/dashboard/enrollments/${enrollment.id}`}>Review</Link>
+					<Link href={`/dashboard/${organizationId}/enrollments/${enrollment.id}`}>Review</Link>
 				</Button.Root>
 			</div>
 		</div>

@@ -28,8 +28,9 @@ import {
 	Check,
 	Plus,
 } from "@phosphor-icons/react"
+import { useParams } from "next/navigation"
 import { useSession } from "@/features/auth"
-import { useActiveOrganization } from "@/features/organizations"
+import { useOrganizations } from "@/features/organizations"
 import { useSignOut } from "@/features/auth"
 
 interface SettingsPanelProps {
@@ -52,7 +53,11 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 	const { theme, setTheme, resolvedTheme } = useTheme()
 	const { data: session } = useSession()
 	const user = session?.user
-	const currentOrganization = useActiveOrganization()
+	// URL-based multi-tenancy: get organization from URL params
+	const params = useParams<{ organizationId?: string }>()
+	const { data: orgsData } = useOrganizations()
+	const organizations = orgsData?.organizations || []
+	const currentOrganization = organizations.find(org => org.id === params.organizationId)
 	const { signOut: handleSignOut } = useSignOut()
 
 	const isDarkMode = resolvedTheme === "dark"
@@ -140,7 +145,11 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 	const { theme, setTheme, resolvedTheme } = useTheme()
 	const { data: session } = useSession()
 	const user = session?.user
-	const currentOrganization = useActiveOrganization()
+	// URL-based multi-tenancy: get organization from URL params
+	const params = useParams<{ organizationId?: string }>()
+	const { data: orgsData } = useOrganizations()
+	const organizations = orgsData?.organizations || []
+	const currentOrganization = organizations.find(org => org.id === params.organizationId)
 	const { signOut: handleSignOut } = useSignOut()
 
 	const isDarkMode = resolvedTheme === "dark"
@@ -210,19 +219,19 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 						<MenuItem
 							icon={User}
 							label="My Profile"
-							href="/dashboard/profile"
+							href={`/dashboard/${params.organizationId}/profile`}
 							onClick={onClose}
 						/>
 						<MenuItem
 							icon={Lock}
 							label="Change Password"
-							href="/dashboard/profile#security"
+							href={`/dashboard/${params.organizationId}/profile#security`}
 							onClick={onClose}
 						/>
 						<MenuItem
 							icon={Bell}
 							label="Notifications"
-							href="/dashboard/profile#notifications"
+							href={`/dashboard/${params.organizationId}/profile#notifications`}
 							onClick={onClose}
 						/>
 						<div className="flex items-center justify-between rounded-10 px-3 py-2.5">
@@ -248,13 +257,13 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 						<MenuItem
 							icon={Buildings}
 							label="Organization Settings"
-							href="/dashboard/settings"
+							href={`/dashboard/${params.organizationId}/settings`}
 							onClick={onClose}
 						/>
 						<MenuItem
 							icon={UsersThree}
 							label="Team Members"
-							href="/dashboard/team"
+							href={`/dashboard/${params.organizationId}/team`}
 							onClick={onClose}
 						/>
 					</div>

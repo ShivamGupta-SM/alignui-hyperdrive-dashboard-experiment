@@ -296,11 +296,11 @@ export const ROLE_OPTIONS: { value: UserRole; label: string; description: string
 ]
 
 export const BUSINESS_TYPE_OPTIONS: { value: BusinessType; label: string }[] = [
-	{ value: "sole_proprietorship", label: "Sole Proprietorship" },
+	{ value: "proprietorship", label: "Sole Proprietorship" },
 	{ value: "partnership", label: "Partnership" },
 	{ value: "llp", label: "LLP" },
-	{ value: "private_limited", label: "Private Limited" },
-	{ value: "public_limited", label: "Public Limited" },
+	{ value: "pvt_ltd", label: "Private Limited" },
+	{ value: "public_ltd", label: "Public Limited" },
 ]
 
 export const INDUSTRY_CATEGORY_OPTIONS: { value: IndustryCategory; label: string }[] = [

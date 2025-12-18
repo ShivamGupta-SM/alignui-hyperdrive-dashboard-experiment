@@ -497,6 +497,7 @@ export namespace admin {
 
         /**
          * Invalidate permission cache (useful after bulk changes)
+         * Uses distributed pub/sub to invalidate caches across all service instances
          */
         public async invalidatePermissionCache(): Promise<{
     success: boolean
@@ -2066,12 +2067,26 @@ export namespace auth {
          * List user's organizations
          */
         public async listOrganizations(): Promise<{
-    organizations: OrganizationResponse[]
+    organizations: {
+        id: string
+        name: string
+        slug: string
+        logo: string | null
+        createdAt: string
+        approvalStatus?: string
+    }[]
 }> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("GET", `/auth/organization/list`)
             return await resp.json() as {
-    organizations: OrganizationResponse[]
+    organizations: {
+        id: string
+        name: string
+        slug: string
+        logo: string | null
+        createdAt: string
+        approvalStatus?: string
+    }[]
 }
         }
 
@@ -2938,6 +2953,7 @@ export namespace campaigns {
     }
 
     export interface CreateCampaignRequest {
+        organizationId: string
         productId: string
         title: string
         description?: string
@@ -2982,14 +2998,11 @@ export namespace campaigns {
     }
 
     export interface ListCampaignsParams {
+        organizationId: string
         skip?: number
         take?: number
         status?: shared.CampaignStatus
-        /**
-         * organizationId removed - backend uses authData.activeOrganizationId automatically (industry standard)
-         */
         productId?: string
-
         platformId?: string
         categoryId?: string
     }
@@ -3197,6 +3210,7 @@ export namespace campaigns {
          * Duplicate campaign (creates a copy in draft status)
          */
         public async duplicateCampaign(id: string, params: {
+    organizationId: string
     newTitle?: string
 }): Promise<Campaign> {
             // Now make the actual call to the API
@@ -3383,12 +3397,13 @@ export namespace campaigns {
 }> {
             // Convert our params into the objects we need for the request
             const query = makeRecord<string, string | string[]>({
-                categoryId: params.categoryId,
-                platformId: params.platformId,
-                productId:  params.productId,
-                skip:       params.skip === undefined ? undefined : String(params.skip),
-                status:     params.status === undefined ? undefined : String(params.status),
-                take:       params.take === undefined ? undefined : String(params.take),
+                categoryId:     params.categoryId,
+                organizationId: params.organizationId,
+                platformId:     params.platformId,
+                productId:      params.productId,
+                skip:           params.skip === undefined ? undefined : String(params.skip),
+                status:         params.status === undefined ? undefined : String(params.status),
+                take:           params.take === undefined ? undefined : String(params.take),
             })
 
             // Now make the actual call to the API
@@ -3461,8 +3476,10 @@ export namespace campaigns {
 
         /**
          * List pending submissions for review (organization)
+         * URL-based multi-tenancy: organizationId from URL params
          */
         public async listPendingSubmissions(params: {
+    organizationId: string
     skip?: number
     take?: number
     campaignId?: string
@@ -3475,9 +3492,10 @@ export namespace campaigns {
 }> {
             // Convert our params into the objects we need for the request
             const query = makeRecord<string, string | string[]>({
-                campaignId: params.campaignId,
-                skip:       params.skip === undefined ? undefined : String(params.skip),
-                take:       params.take === undefined ? undefined : String(params.take),
+                campaignId:     params.campaignId,
+                organizationId: params.organizationId,
+                skip:           params.skip === undefined ? undefined : String(params.skip),
+                take:           params.take === undefined ? undefined : String(params.take),
             })
 
             // Now make the actual call to the API
@@ -4738,6 +4756,7 @@ export namespace enrollments {
          * List organization enrollments (for brand - all enrollments across all campaigns)
          */
         public async listOrganizationEnrollments(params: {
+    organizationId: string
     skip?: number
     take?: number
     status?: shared.EnrollmentStatus
@@ -4751,10 +4770,11 @@ export namespace enrollments {
 }> {
             // Convert our params into the objects we need for the request
             const query = makeRecord<string, string | string[]>({
-                campaignId: params.campaignId,
-                skip:       params.skip === undefined ? undefined : String(params.skip),
-                status:     params.status === undefined ? undefined : String(params.status),
-                take:       params.take === undefined ? undefined : String(params.take),
+                campaignId:     params.campaignId,
+                organizationId: params.organizationId,
+                skip:           params.skip === undefined ? undefined : String(params.skip),
+                status:         params.status === undefined ? undefined : String(params.status),
+                take:           params.take === undefined ? undefined : String(params.take),
             })
 
             // Now make the actual call to the API
@@ -5025,13 +5045,15 @@ export namespace integrations {
 }
         }
 
+        /**
+         * Novu Bridge endpoint - handles workflow discovery and execution
+         */
         public async novuBridge(method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "TRACE", path: string[], body?: RequestInit["body"], options?: CallParameters): Promise<globalThis.Response> {
             return this.baseClient.callAPI(method, `/novu/${path.map(encodeURIComponent).join("/")}`, body, options)
         }
 
         /**
-         * Health check endpoint for Novu Bridge
-         * Used by Novu to verify the bridge is accessible
+         * Health check for Novu Bridge
          */
         public async novuHealth(): Promise<{
     status: string
@@ -5120,6 +5142,7 @@ export namespace invoices {
     }
 
     export interface ListInvoicesParams {
+        organizationId: string
         skip?: number
         take?: number
         status?: shared.InvoiceStatus
@@ -5203,9 +5226,10 @@ export namespace invoices {
 }> {
             // Convert our params into the objects we need for the request
             const query = makeRecord<string, string | string[]>({
-                skip:   params.skip === undefined ? undefined : String(params.skip),
-                status: params.status === undefined ? undefined : String(params.status),
-                take:   params.take === undefined ? undefined : String(params.take),
+                organizationId: params.organizationId,
+                skip:           params.skip === undefined ? undefined : String(params.skip),
+                status:         params.status === undefined ? undefined : String(params.status),
+                take:           params.take === undefined ? undefined : String(params.take),
             })
 
             // Now make the actual call to the API
@@ -5240,194 +5264,20 @@ export namespace invoices {
 }
 
 export namespace notifications {
-    export type DeliveryStatus = "pending" | "sent" | "delivered" | "failed" | "bounced" | "complained" | "opened" | "clicked"
-
-    export interface ListNotificationsParams {
-        skip?: number
-        take?: number
-        type?: NotificationType
-        unreadOnly?: boolean
-    }
-
-    export interface Notification {
-        id: string
-        userId: string
-        type: NotificationType
-        title: string
-        message: string
-        data?: { [key: string]: any }
-        channels: NotificationChannel[]
-        isRead: boolean
-        readAt?: string
-        actionUrl?: string
-        createdAt: string
-    }
-
-    export type NotificationChannel = "in_app" | "email" | "push" | "sms"
-
-    export interface NotificationPreference {
-        id: string
-        userId: string
-        notificationType: NotificationType
-        channels: NotificationChannel[]
-        isEnabled: boolean
-        createdAt: string
-        updatedAt: string
-    }
-
-    export type NotificationType = "campaign_approved" | "campaign_rejected" | "campaign_started" | "campaign_ended" | "enrollment_approved" | "enrollment_rejected" | "deliverable_approved" | "deliverable_rejected" | "revision_requested" | "payment_received" | "withdrawal_completed" | "withdrawal_failed" | "kyc_verified" | "kyc_rejected" | "invoice_generated" | "invoice_overdue" | "system_announcement" | "general"
-
-    export interface UpdatePreferenceRequest {
-        notificationType: NotificationType
-        channels?: NotificationChannel[]
-        isEnabled?: boolean
-    }
 
     export class ServiceClient {
         private baseClient: BaseClient
 
         constructor(baseClient: BaseClient) {
             this.baseClient = baseClient
-            this.deleteNotification = this.deleteNotification.bind(this)
-            this.getDeliveryAnalytics = this.getDeliveryAnalytics.bind(this)
-            this.getDeliveryStatus = this.getDeliveryStatus.bind(this)
-            this.getGlobalPreference = this.getGlobalPreference.bind(this)
-            this.getNotification = this.getNotification.bind(this)
             this.getUnreadCount = this.getUnreadCount.bind(this)
-            this.listNotifications = this.listNotifications.bind(this)
-            this.listPreferences = this.listPreferences.bind(this)
             this.markAllAsRead = this.markAllAsRead.bind(this)
-            this.markAsRead = this.markAsRead.bind(this)
             this.novuWebhook = this.novuWebhook.bind(this)
-            this.registerPushToken = this.registerPushToken.bind(this)
-            this.resetPreferences = this.resetPreferences.bind(this)
-            this.resubscribe = this.resubscribe.bind(this)
-            this.unregisterPushToken = this.unregisterPushToken.bind(this)
-            this.unsubscribeGet = this.unsubscribeGet.bind(this)
-            this.unsubscribeWithToken = this.unsubscribeWithToken.bind(this)
-            this.updateGlobalPreference = this.updateGlobalPreference.bind(this)
-            this.updatePreference = this.updatePreference.bind(this)
         }
 
         /**
-         * Delete notification (mark as seen in Novu - there's no delete)
-         */
-        public async deleteNotification(id: string): Promise<{
-    success: boolean
-}> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("DELETE", `/notifications/${encodeURIComponent(id)}`)
-            return await resp.json() as {
-    success: boolean
-}
-        }
-
-        /**
-         * Get delivery analytics for a date range
-         */
-        public async getDeliveryAnalytics(params: {
-    startDate?: string
-    endDate?: string
-    workflowId?: string
-}): Promise<{
-    total: number
-    sent: number
-    delivered: number
-    failed: number
-    bounced: number
-    opened: number
-    clicked: number
-    deliveryRate: number
-    openRate: number
-    clickRate: number
-}> {
-            // Convert our params into the objects we need for the request
-            const query = makeRecord<string, string | string[]>({
-                endDate:    params.endDate,
-                startDate:  params.startDate,
-                workflowId: params.workflowId,
-            })
-
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/notifications/analytics/delivery`, undefined, {query})
-            return await resp.json() as {
-    total: number
-    sent: number
-    delivered: number
-    failed: number
-    bounced: number
-    opened: number
-    clicked: number
-    deliveryRate: number
-    openRate: number
-    clickRate: number
-}
-        }
-
-        /**
-         * Get delivery status for a specific notification
-         */
-        public async getDeliveryStatus(transactionId: string): Promise<{
-    transactionId: string
-    statuses: {
-        channel: string
-        status: DeliveryStatus
-        deliveredAt?: string
-        openedAt?: string
-        clickedAt?: string
-        failedAt?: string
-        failureReason?: string
-    }[]
-}> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/notifications/${encodeURIComponent(transactionId)}/delivery-status`)
-            return await resp.json() as {
-    transactionId: string
-    statuses: {
-        channel: string
-        status: DeliveryStatus
-        deliveredAt?: string
-        openedAt?: string
-        clickedAt?: string
-        failedAt?: string
-        failureReason?: string
-    }[]
-}
-        }
-
-        /**
-         * Get global preferences (all channels on/off)
-         * Global preferences are part of the list() response
-         */
-        public async getGlobalPreference(): Promise<{
-    enabled: boolean
-    channels: {
-        type: string
-        enabled: boolean
-    }[]
-}> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/notifications/preferences/global`)
-            return await resp.json() as {
-    enabled: boolean
-    channels: {
-        type: string
-        enabled: boolean
-    }[]
-}
-        }
-
-        /**
-         * Get notification by ID
-         */
-        public async getNotification(id: string): Promise<Notification> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/notifications/${encodeURIComponent(id)}`)
-            return await resp.json() as Notification
-        }
-
-        /**
-         * Get unread count
+         * Get unread notification count
+         * Note: Novu Inbox component shows this automatically
          */
         public async getUnreadCount(): Promise<{
     count: number
@@ -5440,227 +5290,26 @@ export namespace notifications {
         }
 
         /**
-         * List my notifications (from Novu)
-         */
-        public async listNotifications(params: ListNotificationsParams): Promise<{
-    data: Notification[]
-    total: number
-    skip: number
-    take: number
-    hasMore: boolean
-}> {
-            // Convert our params into the objects we need for the request
-            const query = makeRecord<string, string | string[]>({
-                skip:       params.skip === undefined ? undefined : String(params.skip),
-                take:       params.take === undefined ? undefined : String(params.take),
-                type:       params.type === undefined ? undefined : String(params.type),
-                unreadOnly: params.unreadOnly === undefined ? undefined : String(params.unreadOnly),
-            })
-
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/notifications`, undefined, {query})
-            return await resp.json() as {
-    data: Notification[]
-    total: number
-    skip: number
-    take: number
-    hasMore: boolean
-}
-        }
-
-        /**
-         * List notification preferences from Novu
-         */
-        public async listPreferences(): Promise<{
-    data: NotificationPreference[]
-}> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/notifications/preferences`)
-            return await resp.json() as {
-    data: NotificationPreference[]
-}
-        }
-
-        /**
          * Mark all notifications as read
          */
         public async markAllAsRead(): Promise<{
-    markedCount: number
+    success: boolean
 }> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("POST", `/notifications/read-all`)
             return await resp.json() as {
-    markedCount: number
+    success: boolean
 }
         }
 
         /**
-         * Mark notification as read
-         */
-        public async markAsRead(id: string): Promise<Notification> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("POST", `/notifications/${encodeURIComponent(id)}/read`)
-            return await resp.json() as Notification
-        }
-
-        /**
-         * Novu Webhook Handler
+         * Novu Webhook Endpoint
          * 
-         * Configure this URL in Novu Dashboard:
-         * https://your-api.hypedrive.in/notifications/webhook/novu
-         * 
-         * Novu sends webhooks with:
-         * - X-Novu-Signature header for verification
-         * - JSON body with event type and data
+         * Receives delivery status updates from Novu.
+         * All tracking is in Novu Dashboard - we just log for debugging.
          */
         public async novuWebhook(method: "POST", body?: RequestInit["body"], options?: CallParameters): Promise<globalThis.Response> {
             return this.baseClient.callAPI(method, `/notifications/webhook/novu`, body, options)
-        }
-
-        /**
-         * Register push token
-         */
-        public async registerPushToken(params: {
-    token: string
-    platform: "ios" | "android" | "web"
-}): Promise<{
-    success: boolean
-}> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("POST", `/notifications/push-token`, JSON.stringify(params))
-            return await resp.json() as {
-    success: boolean
-}
-        }
-
-        /**
-         * Reset preferences - redirects user to use updatePreference to change back to defaults
-         * Note: Novu doesn't have a "reset" concept - preferences are managed per-workflow
-         */
-        public async resetPreferences(): Promise<{
-    message: string
-}> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("POST", `/notifications/preferences/reset`)
-            return await resp.json() as {
-    message: string
-}
-        }
-
-        /**
-         * Resubscribe to email notifications using signed token
-         * For users who want to undo their unsubscribe action
-         */
-        public async resubscribe(params: {
-    token: string
-}): Promise<{
-    success: boolean
-    message: string
-}> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("POST", `/notifications/resubscribe`, JSON.stringify(params))
-            return await resp.json() as {
-    success: boolean
-    message: string
-}
-        }
-
-        /**
-         * Unregister push token
-         */
-        public async unregisterPushToken(params: {
-    token: string
-}): Promise<{
-    success: boolean
-}> {
-            // Convert our params into the objects we need for the request
-            const query = makeRecord<string, string | string[]>({
-                token: params.token,
-            })
-
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("DELETE", `/notifications/push-token`, undefined, {query})
-            return await resp.json() as {
-    success: boolean
-}
-        }
-
-        /**
-         * GET endpoint for one-click unsubscribe (RFC 8058 compliance)
-         * Allows users to unsubscribe by clicking a link in email
-         */
-        public async unsubscribeGet(params: {
-    token: string
-}): Promise<{
-    success: boolean
-    message: string
-}> {
-            // Convert our params into the objects we need for the request
-            const query = makeRecord<string, string | string[]>({
-                token: params.token,
-            })
-
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/notifications/unsubscribe`, undefined, {query})
-            return await resp.json() as {
-    success: boolean
-    message: string
-}
-        }
-
-        /**
-         * One-click unsubscribe using signed token
-         * This endpoint is called from email unsubscribe links
-         * Token contains: subscriberId, workflowId (optional), timestamp, signature
-         */
-        public async unsubscribeWithToken(params: {
-    token: string
-}): Promise<{
-    success: boolean
-    message: string
-}> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("POST", `/notifications/unsubscribe`, JSON.stringify(params))
-            return await resp.json() as {
-    success: boolean
-    message: string
-}
-        }
-
-        /**
-         * Update global preferences
-         */
-        public async updateGlobalPreference(params: {
-    enabled?: boolean
-    channels?: {
-        type: string
-        enabled: boolean
-    }[]
-}): Promise<{
-    enabled: boolean
-    channels: {
-        type: string
-        enabled: boolean
-    }[]
-}> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("PATCH", `/notifications/preferences/global`, JSON.stringify(params))
-            return await resp.json() as {
-    enabled: boolean
-    channels: {
-        type: string
-        enabled: boolean
-    }[]
-}
-        }
-
-        /**
-         * Update notification preference via Novu
-         */
-        public async updatePreference(params: UpdatePreferenceRequest): Promise<NotificationPreference> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("PATCH", `/notifications/preferences`, JSON.stringify(params))
-            return await resp.json() as NotificationPreference
         }
     }
 }
@@ -5701,6 +5350,7 @@ export namespace organizations {
          */
         phoneNumber?: string
 
+        email?: string
         address?: string
         city?: string
         state?: string
@@ -5926,6 +5576,7 @@ export namespace organizations {
         website?: string
         contactPerson?: string
         phoneNumber?: string
+        email?: string
         address?: string
         city?: string
         state?: string
@@ -5964,11 +5615,11 @@ export namespace organizations {
 
         /**
          * Add bank account
-         * Industry Standard: Uses activeOrganizationId from session automatically
+         * URL-based multi-tenancy: organizationId in URL path
          */
-        public async addBankAccount(params: AddBankAccountRequest): Promise<OrganizationBankAccount> {
+        public async addBankAccount(organizationId: string, params: AddBankAccountRequest): Promise<OrganizationBankAccount> {
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("POST", `/organizations/bank-accounts`, JSON.stringify(params))
+            const resp = await this.baseClient.callTypedAPI("POST", `/organizations/${encodeURIComponent(organizationId)}/bank-accounts`, JSON.stringify(params))
             return await resp.json() as OrganizationBankAccount
         }
 
@@ -5983,13 +5634,13 @@ export namespace organizations {
 
         /**
          * Delete bank account (soft delete)
-         * Industry Standard: Uses activeOrganizationId from session automatically
+         * URL-based multi-tenancy: organizationId comes from URL path
          */
-        public async deleteBankAccount(id: string): Promise<{
+        public async deleteBankAccount(organizationId: string, id: string): Promise<{
     success: boolean
 }> {
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("DELETE", `/organizations/bank-accounts/${encodeURIComponent(id)}`)
+            const resp = await this.baseClient.callTypedAPI("DELETE", `/organizations/${encodeURIComponent(organizationId)}/bank-accounts/${encodeURIComponent(id)}`)
             return await resp.json() as {
     success: boolean
 }
@@ -6014,11 +5665,11 @@ export namespace organizations {
 
         /**
          * Get bank account by ID
-         * Industry Standard: Uses activeOrganizationId from session automatically
+         * URL-based multi-tenancy: organizationId comes from URL path
          */
-        public async getBankAccount(id: string): Promise<OrganizationBankAccount> {
+        public async getBankAccount(organizationId: string, id: string): Promise<OrganizationBankAccount> {
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/organizations/bank-accounts/${encodeURIComponent(id)}`)
+            const resp = await this.baseClient.callTypedAPI("GET", `/organizations/${encodeURIComponent(organizationId)}/bank-accounts/${encodeURIComponent(id)}`)
             return await resp.json() as OrganizationBankAccount
         }
 
@@ -6026,11 +5677,13 @@ export namespace organizations {
          * Get comprehensive dashboard overview for organization
          */
         public async getDashboardOverview(params: {
+    organizationId: string
     days?: number
 }): Promise<DashboardOverviewResponse> {
             // Convert our params into the objects we need for the request
             const query = makeRecord<string, string | string[]>({
-                days: params.days === undefined ? undefined : String(params.days),
+                days:           params.days === undefined ? undefined : String(params.days),
+                organizationId: params.organizationId,
             })
 
             // Now make the actual call to the API
@@ -6040,10 +5693,11 @@ export namespace organizations {
 
         /**
          * Get GST details
+         * URL-based multi-tenancy: organizationId comes from URL path
          */
-        public async getGSTDetails(): Promise<GSTDetailsResponse> {
+        public async getGSTDetails(organizationId: string): Promise<GSTDetailsResponse> {
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/organizations/gst`)
+            const resp = await this.baseClient.callTypedAPI("GET", `/organizations/${encodeURIComponent(organizationId)}/gst`)
             return await resp.json() as GSTDetailsResponse
         }
 
@@ -6060,9 +5714,9 @@ export namespace organizations {
         /**
          * Get organization activity timeline
          * Get organization activity
-         * Industry Standard: Uses activeOrganizationId from session automatically
+         * URL-based multi-tenancy: organizationId comes from URL path
          */
-        public async getOrganizationActivity(params: {
+        public async getOrganizationActivity(organizationId: string, params: {
     skip?: number
     take?: number
 }): Promise<{
@@ -6087,7 +5741,7 @@ export namespace organizations {
             })
 
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/organizations/activity`, undefined, {query})
+            const resp = await this.baseClient.callTypedAPI("GET", `/organizations/${encodeURIComponent(organizationId)}/activity`, undefined, {query})
             return await resp.json() as {
     data: {
         id: string
@@ -6108,9 +5762,9 @@ export namespace organizations {
         /**
          * Get campaign-level statistics
          * Get organization campaign stats
-         * Industry Standard: Uses activeOrganizationId from session automatically
+         * URL-based multi-tenancy: organizationId comes from URL path
          */
-        public async getOrganizationCampaignStats(params: {
+        public async getOrganizationCampaignStats(organizationId: string, params: {
     skip?: number
     take?: number
 }): Promise<{
@@ -6127,7 +5781,7 @@ export namespace organizations {
             })
 
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/organizations/campaign-stats`, undefined, {query})
+            const resp = await this.baseClient.callTypedAPI("GET", `/organizations/${encodeURIComponent(organizationId)}/campaign-stats`, undefined, {query})
             return await resp.json() as {
     data: OrganizationCampaignStats[]
     total: number
@@ -6139,21 +5793,22 @@ export namespace organizations {
 
         /**
          * Get organization statistics
+         * URL-based multi-tenancy: organizationId comes from URL path
          */
-        public async getOrganizationStats(): Promise<OrganizationStats> {
+        public async getOrganizationStats(organizationId: string): Promise<OrganizationStats> {
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/organizations/stats`)
+            const resp = await this.baseClient.callTypedAPI("GET", `/organizations/${encodeURIComponent(organizationId)}/stats`)
             return await resp.json() as OrganizationStats
         }
 
         /**
          * List bank accounts (bounded list - max 1 per org by schema)
          */
-        public async listBankAccounts(): Promise<{
+        public async listBankAccounts(organizationId: string): Promise<{
     data: OrganizationBankAccount[]
 }> {
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/organizations/bank-accounts`)
+            const resp = await this.baseClient.callTypedAPI("GET", `/organizations/${encodeURIComponent(organizationId)}/bank-accounts`)
             return await resp.json() as {
     data: OrganizationBankAccount[]
 }
@@ -6260,11 +5915,11 @@ export namespace organizations {
         /**
          * Set default bank account
          * NOTE: Organizations only have 1 bank account (closed-loop policy), so this is a no-op
-         * Industry Standard: Uses activeOrganizationId from session automatically
+         * URL-based multi-tenancy: organizationId comes from URL path
          */
-        public async setDefaultBankAccount(id: string): Promise<OrganizationBankAccount> {
+        public async setDefaultBankAccount(organizationId: string, id: string): Promise<OrganizationBankAccount> {
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("POST", `/organizations/bank-accounts/${encodeURIComponent(id)}/set-default`)
+            const resp = await this.baseClient.callTypedAPI("POST", `/organizations/${encodeURIComponent(organizationId)}/bank-accounts/${encodeURIComponent(id)}/set-default`)
             return await resp.json() as OrganizationBankAccount
         }
 
@@ -6285,11 +5940,11 @@ export namespace organizations {
 
         /**
          * Update bank account
-         * Industry Standard: Uses activeOrganizationId from session automatically
+         * URL-based multi-tenancy: organizationId comes from URL path
          */
-        public async updateBankAccount(id: string, params: UpdateBankAccountRequest): Promise<OrganizationBankAccount> {
+        public async updateBankAccount(organizationId: string, id: string, params: UpdateBankAccountRequest): Promise<OrganizationBankAccount> {
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("PATCH", `/organizations/bank-accounts/${encodeURIComponent(id)}`, JSON.stringify(params))
+            const resp = await this.baseClient.callTypedAPI("PATCH", `/organizations/${encodeURIComponent(organizationId)}/bank-accounts/${encodeURIComponent(id)}`, JSON.stringify(params))
             return await resp.json() as OrganizationBankAccount
         }
 
@@ -6331,25 +5986,24 @@ export namespace organizations {
          * 4. Webhook: /webhooks/razorpay-x/fund-account-validation
          * 5. Update organizationBankAccount.isVerified and verifiedAt on success
          * =============================================================================
-         * Industry Standard: Uses activeOrganizationId from session automatically
+         * URL-based multi-tenancy: organizationId comes from URL path
          */
-        public async verifyBankAccount(id: string): Promise<OrganizationBankAccount> {
+        public async verifyBankAccount(organizationId: string, id: string): Promise<OrganizationBankAccount> {
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("POST", `/organizations/bank-accounts/${encodeURIComponent(id)}/verify`)
+            const resp = await this.baseClient.callTypedAPI("POST", `/organizations/${encodeURIComponent(organizationId)}/bank-accounts/${encodeURIComponent(id)}/verify`)
             return await resp.json() as OrganizationBankAccount
         }
 
         /**
          * Verify GST number
          * ✅ FIX: Allows verification without organization (for onboarding before org creation)
-         * Industry Standard: Uses activeOrganizationId from session automatically if available
+         * URL-based multi-tenancy: organizationId from URL path (optional for onboarding)
          */
-        public async verifyGST(params: {
+        public async verifyGST(organizationId: string, params: {
     gstNumber: string
-    organizationId?: string
 }): Promise<GSTDetails> {
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("POST", `/organizations/verify-gst`, JSON.stringify(params))
+            const resp = await this.baseClient.callTypedAPI("POST", `/organizations/${encodeURIComponent(organizationId)}/verify-gst`, JSON.stringify(params))
             return await resp.json() as GSTDetails
         }
     }
@@ -6364,6 +6018,7 @@ export namespace products {
     }
 
     export interface CreateProductRequest {
+        organizationId: string
         name: string
         description?: string
         sku: string
@@ -6375,6 +6030,7 @@ export namespace products {
     }
 
     export interface CreateProductRequest {
+        organizationId: string
         name: string
         description?: string
         sku: string
@@ -6505,6 +6161,7 @@ export namespace products {
          * Bulk import products
          */
         public async bulkImportProducts(params: {
+    organizationId: string
     products: CreateProductRequest[]
 }): Promise<{
     imported: number
@@ -7380,6 +7037,19 @@ export namespace wallets {
         message: string
     }
 
+    export interface OrganizationWalletResponse {
+        id: string
+        organizationId: string
+        blnkBalanceId?: string
+        currency: string
+        balance: number
+        pendingBalance: number
+        availableBalance: number
+        createdAt: string
+        creditLimit?: number
+        creditUtilized?: number
+    }
+
     export interface RetryWithdrawalResponse {
         withdrawalId: string
         payoutId: string
@@ -7389,22 +7059,15 @@ export namespace wallets {
         retriedAt: string
     }
 
-    export interface Wallet {
+    export interface ShopperWalletResponse {
         id: string
-        holderId: string
-        holderType: "organization" | "shopper"
+        shopperId: string
         blnkBalanceId?: string
         currency: string
         balance: number
         pendingBalance: number
         availableBalance: number
         createdAt: string
-        /**
-         * Credit fields (only for organization wallets)
-         */
-        creditLimit?: number
-
-        creditUtilized?: number
     }
 
     export interface WalletTransaction {
@@ -7563,27 +7226,33 @@ export namespace wallets {
         /**
          * Get my wallet (shopper)
          */
-        public async getMyWallet(): Promise<Wallet> {
+        public async getMyWallet(): Promise<ShopperWalletResponse> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI("GET", `/wallets/me`)
-            return await resp.json() as Wallet
+            return await resp.json() as ShopperWalletResponse
         }
 
         /**
          * Get organization wallet
          */
-        public async getOrganizationWallet(): Promise<Wallet> {
+        public async getOrganizationWallet(params: {
+    organizationId: string
+}): Promise<OrganizationWalletResponse> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                organizationId: params.organizationId,
+            })
+
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/wallet`)
-            return await resp.json() as Wallet
+            const resp = await this.baseClient.callTypedAPI("GET", `/wallet`, undefined, {query})
+            return await resp.json() as OrganizationWalletResponse
         }
 
         /**
          * Get organization wallet transactions
-         * Get organization wallet transactions
-         * Industry Standard: Uses activeOrganizationId from session automatically
          */
         public async getOrganizationWalletTransactions(params: {
+    organizationId: string
     skip?: number
     take?: number
 }): Promise<{
@@ -7595,8 +7264,9 @@ export namespace wallets {
 }> {
             // Convert our params into the objects we need for the request
             const query = makeRecord<string, string | string[]>({
-                skip: params.skip === undefined ? undefined : String(params.skip),
-                take: params.take === undefined ? undefined : String(params.take),
+                organizationId: params.organizationId,
+                skip:           params.skip === undefined ? undefined : String(params.skip),
+                take:           params.take === undefined ? undefined : String(params.take),
             })
 
             // Now make the actual call to the API
@@ -7613,11 +7283,18 @@ export namespace wallets {
         /**
          * Get organization wallet active holds (enrollment holds)
          */
-        public async getWalletHolds(): Promise<{
+        public async getWalletHolds(params: {
+    organizationId: string
+}): Promise<{
     holds: ActiveHold[]
 }> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                organizationId: params.organizationId,
+            })
+
             // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI("GET", `/wallet/holds`)
+            const resp = await this.baseClient.callTypedAPI("GET", `/wallet/holds`, undefined, {query})
             return await resp.json() as {
     holds: ActiveHold[]
 }
@@ -7725,6 +7402,7 @@ export namespace wallets {
          * List organization withdrawals
          */
         public async listOrganizationWithdrawals(params: {
+    organizationId: string
     skip?: number
     take?: number
     status?: shared.WithdrawalStatus
@@ -7737,9 +7415,10 @@ export namespace wallets {
 }> {
             // Convert our params into the objects we need for the request
             const query = makeRecord<string, string | string[]>({
-                skip:   params.skip === undefined ? undefined : String(params.skip),
-                status: params.status === undefined ? undefined : String(params.status),
-                take:   params.take === undefined ? undefined : String(params.take),
+                organizationId: params.organizationId,
+                skip:           params.skip === undefined ? undefined : String(params.skip),
+                status:         params.status === undefined ? undefined : String(params.status),
+                take:           params.take === undefined ? undefined : String(params.take),
             })
 
             // Now make the actual call to the API

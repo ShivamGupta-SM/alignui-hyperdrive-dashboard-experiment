@@ -1,320 +1,214 @@
-/**
- * Campaign Server Actions
- * 
- * @description
- * Server-side actions for campaign mutations.
- * Uses Result pattern for consistent error handling.
- */
-
 "use server"
 
-import { revalidatePath, revalidateTag } from "next/cache"
-import { getEncoreClient, handleAPIError } from "@/lib/api/encore"
-import { handleServerAuthError } from "@/lib/errors/error-handler"
+/**
+ * Campaign Server Actions
+ *
+ * Uses next-safe-action for type-safe, error-handled server actions
+ */
+
+import { revalidateTag } from "next/cache"
+import { z } from "zod"
+
+import { authAction } from "@/lib/safe-action"
 import type { campaigns } from "@/lib/api/encore-client"
-import type { Result } from "@/shared/lib/errors/types"
-import type { Campaign } from "../types"
+
+// =============================================================================
+// Schemas
+// =============================================================================
+
+const createCampaignSchema = z.object({
+	organizationId: z.string().min(1),
+	productId: z.string().min(1),
+	title: z.string().min(1),
+	description: z.string(),
+	startDate: z.string(),
+	endDate: z.string(),
+	maxEnrollments: z.number().int().positive(),
+	campaignType: z.enum(["cashback", "barter", "hybrid"]),
+	isPublic: z.boolean(),
+})
+
+const updateCampaignSchema = z.object({
+	id: z.string().min(1),
+	data: z.object({
+		title: z.string().optional(),
+		description: z.string().optional(),
+		startDate: z.string().optional(),
+		endDate: z.string().optional(),
+		maxEnrollments: z.number().int().positive().optional(),
+		campaignType: z.enum(["cashback", "barter", "hybrid"]).optional(),
+		isPublic: z.boolean().optional(),
+	}),
+})
+
+const campaignIdSchema = z.object({
+	id: z.string().min(1),
+})
+
+const duplicateCampaignSchema = z.object({
+	id: z.string().min(1),
+	organizationId: z.string().min(1),
+})
+
+const updateStatusSchema = z.object({
+	id: z.string().min(1),
+	action: z.enum(["submit", "activate", "cancel", "end", "complete", "archive", "unarchive"]),
+})
+
+const pauseCampaignSchema = z.object({
+	id: z.string().min(1),
+	reason: z.string().default("Paused by user"),
+})
+
+// =============================================================================
+// Actions
+// =============================================================================
 
 /**
- * Create a new campaign
- * 
- * @description
- * Creates a new campaign and invalidates related cache.
- * 
- * @param data - Campaign creation data
- * @returns Result with created campaign or error
- * 
- * @example
- * ```ts
- * const result = await createCampaign({ title: "New Campaign", ... })
- * if (result.success) {
- *   console.log("Created:", result.data)
- * } else {
- *   console.error("Error:", result.error)
- * }
- * ```
+ * Create campaign
  */
-export async function createCampaign(
-  data: Partial<campaigns.CreateCampaignRequest>
-): Promise<Result<Campaign>> {
-  const client = getEncoreClient()
-
-  try {
-    const response = await client.campaigns.createCampaign(data as campaigns.CreateCampaignRequest)
-    // Immediate invalidation (Next.js 16)
-    revalidateTag("campaigns")
-    revalidateTag("dashboard")
-    // Also revalidate paths for compatibility
-    revalidatePath("/dashboard/campaigns")
-    return { success: true, data: response }
-  } catch (error: unknown) {
-    // Handle auth errors (session revoked) - redirects to login if 401/403
-    handleServerAuthError(error)
-    // If not auth error, return error response
-    const apiError = handleAPIError(error)
-    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-  }
-}
+export const createCampaign = authAction
+	.inputSchema(createCampaignSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.campaigns.createCampaign(parsedInput)
+		revalidateTag("campaigns")
+		revalidateTag("dashboard")
+		return result
+	})
 
 /**
- * Update an existing campaign
- * 
- * @description
- * Updates a campaign and invalidates related cache.
- * 
- * @param id - Campaign ID
- * @param data - Campaign update data
- * @returns Result indicating success or error
+ * Update campaign
  */
-export async function updateCampaign(
-  id: string,
-  data: Partial<campaigns.UpdateCampaignRequest>
-): Promise<Result<void>> {
-  const client = getEncoreClient()
-
-  try {
-    await client.campaigns.updateCampaign(id, data as campaigns.UpdateCampaignRequest)
-    revalidatePath("/dashboard/campaigns")
-    revalidatePath(`/dashboard/campaigns/${id}`)
-    return { success: true, data: undefined }
-  } catch (error: unknown) {
-    handleServerAuthError(error)
-    const apiError = handleAPIError(error)
-    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-  }
-}
+export const updateCampaign = authAction
+	.inputSchema(updateCampaignSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const { id, data } = parsedInput
+		const result = await ctx.client.campaigns.updateCampaign(id, data)
+		revalidateTag("campaigns")
+		revalidateTag(`campaign-${id}`)
+		return result
+	})
 
 /**
- * Delete a campaign
- * 
- * @description
- * Deletes a campaign and invalidates related cache.
- * 
- * @param id - Campaign ID
- * @returns Result indicating success or error
+ * Delete campaign
  */
-export async function deleteCampaign(id: string): Promise<Result<void>> {
-  const client = getEncoreClient()
-
-  try {
-    await client.campaigns.deleteCampaign(id)
-    // Immediate invalidation (Next.js 16)
-    revalidateTag("campaigns")
-    revalidateTag(`campaign-${id}`)
-    revalidateTag("dashboard")
-    // Also revalidate paths for compatibility
-    revalidatePath("/dashboard/campaigns")
-    return { success: true, data: undefined }
-  } catch (error: unknown) {
-    handleServerAuthError(error)
-    const apiError = handleAPIError(error)
-    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-  }
-}
+export const deleteCampaign = authAction
+	.inputSchema(campaignIdSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		await ctx.client.campaigns.deleteCampaign(parsedInput.id)
+		revalidateTag("campaigns")
+		revalidateTag(`campaign-${parsedInput.id}`)
+		revalidateTag("dashboard")
+		return { success: true }
+	})
 
 /**
- * Duplicate a campaign
- * 
- * @description
- * Creates a copy of an existing campaign as a draft.
- * 
- * @param id - Campaign ID to duplicate
- * @returns Result with new campaign or error
+ * Duplicate campaign
  */
-export async function duplicateCampaign(id: string): Promise<Result<Campaign>> {
-  const client = getEncoreClient()
+export const duplicateCampaign = authAction
+	.inputSchema(duplicateCampaignSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const { id, organizationId } = parsedInput
+		const original = await ctx.client.campaigns.getCampaign(id)
 
-  try {
-    const original = await client.campaigns.getCampaign(id)
+		const newCampaign = await ctx.client.campaigns.createCampaign({
+			organizationId,
+			productId: original.productId,
+			title: `${original.title} (Copy)`,
+			description: original.description || "",
+			startDate: original.startDate,
+			endDate: original.endDate,
+			maxEnrollments: original.maxEnrollments,
+			campaignType: original.campaignType,
+			isPublic: original.isPublic,
+		})
 
-    // Create new campaign with same data but as draft
-    const newCampaign = await client.campaigns.createCampaign({
-      productId: original.productId,
-      title: `${original.title} (Copy)`,
-      description: original.description || "",
-      startDate: original.startDate,
-      endDate: original.endDate,
-      maxEnrollments: original.maxEnrollments,
-      campaignType: original.campaignType,
-      isPublic: original.isPublic,
-    })
-
-    revalidatePath("/dashboard/campaigns")
-    return { success: true, data: newCampaign }
-  } catch (error: unknown) {
-    handleServerAuthError(error)
-    const apiError = handleAPIError(error)
-    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-  }
-}
+		revalidateTag("campaigns")
+		return newCampaign
+	})
 
 /**
  * Update campaign status
- * 
- * @description
- * Updates campaign status with appropriate state transitions.
- * 
- * @param id - Campaign ID
- * @param action - Status transition action
- * @returns Result with updated campaign or error
  */
-export async function updateCampaignStatus(
-  id: string,
-  action: "submit" | "activate" | "cancel" | "end" | "complete" | "archive" | "unarchive"
-): Promise<Result<Campaign>> {
-  const client = getEncoreClient()
+export const updateCampaignStatus = authAction
+	.inputSchema(updateStatusSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const { id, action } = parsedInput
+		let result
 
-  try {
-    let result: Campaign
+		switch (action) {
+			case "submit":
+				result = await ctx.client.campaigns.submitForApproval(id)
+				break
+			case "activate":
+				result = await ctx.client.campaigns.activateCampaign(id)
+				break
+			case "cancel":
+				await ctx.client.campaigns.updateCampaignStatus(id, { targetStatus: "cancelled" })
+				result = await ctx.client.campaigns.getCampaign(id)
+				break
+			case "end":
+				result = await ctx.client.campaigns.endCampaign(id)
+				break
+			case "complete":
+				await ctx.client.campaigns.updateCampaignStatus(id, { targetStatus: "completed" })
+				result = await ctx.client.campaigns.getCampaign(id)
+				break
+			case "archive":
+				result = await ctx.client.campaigns.archiveCampaign(id)
+				break
+			case "unarchive":
+				result = await ctx.client.campaigns.unarchiveCampaign(id)
+				break
+		}
 
-    switch (action) {
-      case "submit":
-        result = await client.campaigns.submitForApproval(id)
-        break
-      case "activate":
-        result = await client.campaigns.activateCampaign(id)
-        break
-      case "cancel":
-        await client.campaigns.updateCampaignStatus(id, { targetStatus: "cancelled" })
-        result = await client.campaigns.getCampaign(id)
-        break
-      case "end":
-        result = await client.campaigns.endCampaign(id)
-        break
-      case "complete":
-        await client.campaigns.updateCampaignStatus(id, { targetStatus: "completed" })
-        result = await client.campaigns.getCampaign(id)
-        break
-      case "archive":
-        result = await client.campaigns.archiveCampaign(id)
-        break
-      case "unarchive":
-        result = await client.campaigns.unarchiveCampaign(id)
-        break
-      default:
-        return { success: false, error: new Error("Invalid action") }
-    }
-
-    revalidatePath("/dashboard/campaigns")
-    revalidatePath(`/dashboard/campaigns/${id}`)
-    return { success: true, data: result }
-  } catch (error: unknown) {
-    handleServerAuthError(error)
-    const errorMessage = error instanceof Error ? error.message : `Failed to ${action} campaign`
-    return { success: false, error: new Error(errorMessage) }
-  }
-}
+		revalidateTag("campaigns")
+		revalidateTag(`campaign-${id}`)
+		return result
+	})
 
 /**
- * Pause a campaign
- * 
- * @description
- * Pauses an active campaign.
- * 
- * @param id - Campaign ID
- * @param reason - Optional pause reason
- * @returns Result indicating success or error
+ * Pause campaign
  */
-export async function pauseCampaign(
-  id: string,
-  reason: string = "Paused by user"
-): Promise<Result<void>> {
-  const client = getEncoreClient()
-
-  try {
-    await client.campaigns.pauseCampaign(id, { reason })
-    revalidatePath("/dashboard/campaigns")
-    revalidatePath(`/dashboard/campaigns/${id}`)
-    return { success: true, data: undefined }
-  } catch (error: unknown) {
-    handleServerAuthError(error)
-    const apiError = handleAPIError(error)
-    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-  }
-}
+export const pauseCampaign = authAction
+	.inputSchema(pauseCampaignSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		const { id, reason } = parsedInput
+		await ctx.client.campaigns.pauseCampaign(id, { reason })
+		revalidateTag("campaigns")
+		revalidateTag(`campaign-${id}`)
+		return { success: true }
+	})
 
 /**
- * Resume a paused campaign
- * 
- * @description
- * Resumes a paused campaign.
- * 
- * @param id - Campaign ID
- * @returns Result indicating success or error
+ * Resume campaign
  */
-export async function resumeCampaign(id: string): Promise<Result<void>> {
-  const client = getEncoreClient()
-
-  try {
-    await client.campaigns.resumeCampaign(id)
-    revalidatePath("/dashboard/campaigns")
-    revalidatePath(`/dashboard/campaigns/${id}`)
-    return { success: true, data: undefined }
-  } catch (error: unknown) {
-    handleServerAuthError(error)
-    const apiError = handleAPIError(error)
-    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-  }
-}
+export const resumeCampaign = authAction
+	.inputSchema(campaignIdSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		await ctx.client.campaigns.resumeCampaign(parsedInput.id)
+		revalidateTag("campaigns")
+		revalidateTag(`campaign-${parsedInput.id}`)
+		return { success: true }
+	})
 
 /**
- * End a campaign
- * 
- * @description
- * Ends an active campaign.
- * 
- * @param id - Campaign ID
- * @returns Result indicating success or error
+ * End campaign
  */
-export async function endCampaign(id: string): Promise<Result<void>> {
-  const client = getEncoreClient()
-
-  try {
-    await client.campaigns.endCampaign(id)
-    revalidatePath("/dashboard/campaigns")
-    revalidatePath(`/dashboard/campaigns/${id}`)
-    return { success: true, data: undefined }
-  } catch (error: unknown) {
-    handleServerAuthError(error)
-    const apiError = handleAPIError(error)
-    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-  }
-}
+export const endCampaign = authAction
+	.inputSchema(campaignIdSchema)
+	.action(async ({ parsedInput, ctx }) => {
+		await ctx.client.campaigns.endCampaign(parsedInput.id)
+		revalidateTag("campaigns")
+		revalidateTag(`campaign-${parsedInput.id}`)
+		return { success: true }
+	})
 
 /**
  * Export campaign enrollments
- * 
- * @description
- * Exports campaign enrollment data for CSV generation.
- * 
- * @param campaignId - Campaign ID
- * @returns Result with export data or error
  */
-export async function exportCampaignEnrollments(
-  campaignId: string
-): Promise<Result<{
-  data: unknown[]
-  totalCount: number
-  campaignTitle: string
-  exportedAt: string
-}>> {
-  const client = getEncoreClient()
-
-  try {
-    const result = await client.enrollments.exportEnrollments(campaignId, {})
-    return {
-      success: true,
-      data: {
-        data: result.data,
-        totalCount: result.totalCount,
-        campaignTitle: result.campaignTitle,
-        exportedAt: result.exportedAt,
-      },
-    }
-  } catch (error: unknown) {
-    handleServerAuthError(error)
-    const apiError = handleAPIError(error)
-    return { success: false, error: apiError instanceof Error ? apiError : new Error(String(apiError)) }
-  }
-}
-
+export const exportCampaignEnrollments = authAction
+	.inputSchema(z.object({ campaignId: z.string().min(1) }))
+	.action(async ({ parsedInput, ctx }) => {
+		return ctx.client.enrollments.exportEnrollments(parsedInput.campaignId, {})
+	})

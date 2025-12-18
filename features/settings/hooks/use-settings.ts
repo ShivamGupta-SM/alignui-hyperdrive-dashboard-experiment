@@ -1,142 +1,136 @@
 /**
  * Settings React Query Hooks
- * 
- * @description
- * Standardized React Query hooks for settings data fetching.
- * Uses centralized API layer and query keys factory.
+ *
+ * Clean pattern: Direct client usage for queries
  */
 
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
-import { settingsQueryKeys } from '../lib/query-keys'
-import {
-	getOrganization,
-	listBankAccounts,
-	getGSTDetails,
-	getSettingsData,
-	getOrganizationActivity,
-} from '../lib/api'
-import { STALE_TIMES } from '@/lib/types'
-import type {
-	Organization,
-	OrganizationBankAccount,
-	GSTDetails,
-	SettingsData,
-} from '../types'
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { getEncoreBrowserClient } from "@/lib/api/encore-browser"
+import { STALE_TIME } from "@/lib/utils/query-config"
+import * as actions from "../actions/settings"
+import type { OrganizationSettings, AddBankAccountInput, VerifyGstInput } from "../types"
+
+// ============================================
+// Client Instance
+// ============================================
+const client = getEncoreBrowserClient()
+
+// ============================================
+// Query Keys
+// ============================================
+export const settingsKeys = {
+	all: (orgId: string) => ["settings", orgId] as const,
+	organization: (orgId: string) => [...settingsKeys.all(orgId), "organization"] as const,
+	bankAccounts: (orgId: string) => [...settingsKeys.all(orgId), "bankAccounts"] as const,
+	gst: (orgId: string) => [...settingsKeys.all(orgId), "gst"] as const,
+	activity: (orgId: string) => [...settingsKeys.all(orgId), "activity"] as const,
+	sessions: () => ["sessions"] as const,
+}
+
+// ============================================
+// QUERIES - Direct Client Usage
+// ============================================
 
 /**
- * Hook: Get organization settings
- * 
- * @description
- * Fetches organization settings from the API.
- * 
- * @param organizationId - Organization ID (or "me" for active org)
- * @returns React Query result with organization data
- * 
- * @example
- * ```tsx
- * const { data, isLoading } = useOrganizationSettings(orgId)
- * ```
+ * Get organization settings
  */
 export function useOrganizationSettings(organizationId: string) {
 	return useQuery({
-		queryKey: settingsQueryKeys.organization(organizationId),
-		queryFn: () => getOrganization(organizationId),
+		queryKey: settingsKeys.organization(organizationId),
+		queryFn: async () => {
+			if (organizationId && organizationId !== "me") {
+				return client.organizations.getOrganization(organizationId)
+			}
+			const me = await client.auth.me()
+			const activeOrgId = me.activeOrganizationId
+			if (!activeOrgId) throw new Error("No active organization")
+			return client.organizations.getOrganization(activeOrgId)
+		},
 		enabled: !!organizationId,
-		staleTime: STALE_TIMES.STATIC,
+		staleTime: STALE_TIME.MEDIUM,
 	})
 }
 
 /**
- * Hook: Get bank accounts
- * 
- * @description
- * Fetches bank accounts for the organization.
- * 
- * @param organizationId - Organization ID (for enabled check)
- * @returns React Query result with bank accounts
+ * Get bank accounts
  */
 export function useBankAccounts(organizationId: string) {
 	return useQuery({
-		queryKey: settingsQueryKeys.bankAccounts(),
-		queryFn: () => listBankAccounts(),
+		queryKey: settingsKeys.bankAccounts(organizationId),
+		queryFn: () => client.organizations.listBankAccounts(organizationId),
 		enabled: !!organizationId,
-		staleTime: STALE_TIMES.STATIC,
+		staleTime: STALE_TIME.MEDIUM,
 	})
 }
 
 /**
- * Hook: Get GST details
- * 
- * @description
- * Fetches GST details for the organization.
- * 
- * @param organizationId - Organization ID (for enabled check)
- * @returns React Query result with GST details
+ * Get GST details
  */
 export function useGstDetails(organizationId: string) {
 	return useQuery({
-		queryKey: settingsQueryKeys.gst(),
-		queryFn: () => getGSTDetails(),
+		queryKey: settingsKeys.gst(organizationId),
+		queryFn: () => client.organizations.getGSTDetails(organizationId),
 		enabled: !!organizationId,
-		staleTime: STALE_TIMES.STATIC,
+		staleTime: STALE_TIME.MEDIUM,
 	})
 }
 
 /**
- * Hook: Get all settings data (SSR hydration)
- * 
- * @description
- * Fetches all settings data for SSR hydration.
- * Used by the settings page to hydrate React Query cache.
- * 
- * @param organizationId - Organization ID
- * @returns React Query result with all settings data
+ * Get all settings data (for SSR hydration)
  */
 export function useSettingsData(organizationId: string) {
 	return useQuery({
-		queryKey: settingsQueryKeys.data(),
-		queryFn: () => getSettingsData(organizationId),
+		queryKey: settingsKeys.all(organizationId),
+		queryFn: async () => {
+			let activeOrgId = organizationId
+			if (organizationId === "me" || !organizationId) {
+				const me = await client.auth.me()
+				if (!me.activeOrganizationId) throw new Error("No active organization")
+				activeOrgId = me.activeOrganizationId
+			}
+
+			const [organization, bankAccountsData, gstData] = await Promise.all([
+				client.organizations.getOrganization(activeOrgId),
+				client.organizations.listBankAccounts(activeOrgId),
+				client.organizations.getGSTDetails(activeOrgId),
+			])
+
+			return {
+				organization,
+				bankAccounts: bankAccountsData.data || [],
+				gstDetails: gstData.gstDetails,
+			}
+		},
 		enabled: !!organizationId,
-		staleTime: STALE_TIMES.STATIC,
+		staleTime: STALE_TIME.MEDIUM,
 	})
 }
 
 /**
- * Hook: Get organization activity
- * 
- * @description
- * Fetches organization activity feed.
- * 
- * @param organizationId - Organization ID
- * @param skip - Number of items to skip
- * @param take - Number of items to take
- * @returns React Query result with activity data
+ * Get organization activity
  */
-export function useOrganizationActivity(
-	organizationId: string,
-	skip = 0,
-	take = 20
-) {
+export function useOrganizationActivity(organizationId: string, skip = 0, take = 20) {
 	return useQuery({
-		queryKey: [...settingsQueryKeys.activity(organizationId), { skip, take }],
+		queryKey: [...settingsKeys.activity(organizationId), { skip, take }],
 		queryFn: async () => {
-			const response = await getOrganizationActivity({ skip, take })
-			// Map action to type for component compatibility
+			const response = await client.organizations.getOrganizationActivity(organizationId, { skip, take })
 			return {
 				...response,
-				data: (response.data as Array<{
-					id: string
-					action: string
-					entityType: string
-					entityId: string
-					details: Record<string, unknown>
-					adminName: string | null
-					createdAt: string
-				}>).map((item) => ({
+				data: (
+					response.data as Array<{
+						id: string
+						action: string
+						entityType: string
+						entityId: string
+						details: Record<string, unknown>
+						adminName: string | null
+						createdAt: string
+					}>
+				).map((item) => ({
 					...item,
-					type: item.action as import('../types').OrganizationActivityType,
+					type: item.action,
 					description: formatActivityDescription(item.action, item.entityType, item.details),
 					actorName: item.adminName ?? undefined,
 					actorAvatar: undefined,
@@ -144,11 +138,236 @@ export function useOrganizationActivity(
 			}
 		},
 		enabled: !!organizationId,
-		staleTime: STALE_TIMES.STANDARD,
+		staleTime: STALE_TIME.SHORT,
 	})
 }
 
-// Helper to format activity description
+/**
+ * Get user sessions
+ */
+export function useUserSessions() {
+	return useQuery({
+		queryKey: settingsKeys.sessions(),
+		queryFn: () => actions.getUserSessions({}),
+	})
+}
+
+// ============================================
+// MUTATIONS - Via Server Actions
+// ============================================
+
+/**
+ * Update profile
+ */
+export function useUpdateProfile() {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: actions.updateProfile,
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["auth"] })
+		},
+	})
+}
+
+/**
+ * Update organization settings
+ */
+export function useUpdateOrganizationSettings(organizationId: string) {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: (data: Partial<OrganizationSettings>) => actions.updateOrganization({ name: data.name || "", website: data.website, address: data.address }),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: settingsKeys.organization(organizationId) })
+		},
+	})
+}
+
+/**
+ * Update password
+ */
+export function useUpdatePassword() {
+	return useMutation({
+		mutationFn: actions.updatePassword,
+	})
+}
+
+/**
+ * Update notification settings
+ */
+export function useUpdateNotifications() {
+	return useMutation({
+		mutationFn: actions.updateNotifications,
+	})
+}
+
+/**
+ * Add bank account
+ */
+export function useAddBankAccount(organizationId: string) {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: (data: AddBankAccountInput) => actions.addBankAccount(data),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
+		},
+	})
+}
+
+/**
+ * Delete bank account
+ */
+export function useDeleteBankAccount(organizationId: string) {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: (id: string) => actions.removeBankAccount({ accountId: id }),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
+		},
+	})
+}
+
+/**
+ * Set default bank account
+ */
+export function useSetDefaultBankAccount(organizationId: string) {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: (id: string) => actions.setDefaultBankAccount({ accountId: id }),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
+		},
+	})
+}
+
+/**
+ * Verify bank account
+ */
+export function useVerifyBankAccount(organizationId: string) {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: (bankAccountId: string) => actions.verifyBankAccount({ accountId: bankAccountId }),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
+		},
+	})
+}
+
+/**
+ * Verify GST
+ */
+export function useVerifyGst(organizationId: string) {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: (data: VerifyGstInput) => client.organizations.verifyGST(organizationId, data),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: settingsKeys.gst(organizationId) })
+			qc.invalidateQueries({ queryKey: settingsKeys.organization(organizationId) })
+		},
+	})
+}
+
+/**
+ * Enable 2FA
+ */
+export function useEnable2FA() {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: ({ password, issuer }: { password: string; issuer?: string }) =>
+			actions.enable2FA({ password, issuer }),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["auth"] })
+		},
+	})
+}
+
+/**
+ * Verify 2FA
+ */
+export function useVerify2FA() {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: (code: string) => actions.verify2FA({ code }),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["auth"] })
+		},
+	})
+}
+
+/**
+ * Disable 2FA
+ */
+export function useDisable2FA() {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: (password: string) => actions.disable2FA({ password }),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["auth"] })
+		},
+	})
+}
+
+/**
+ * Change email
+ */
+export function useChangeEmail() {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: ({ newEmail, password }: { newEmail: string; password: string }) =>
+			actions.changeEmail({ newEmail, password }),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["auth"] })
+		},
+	})
+}
+
+/**
+ * Delete user account
+ */
+export function useDeleteUserAccount() {
+	return useMutation({
+		mutationFn: (password?: string) => actions.deleteUserAccount({ password }),
+	})
+}
+
+/**
+ * Send verification email
+ */
+export function useSendVerificationEmail() {
+	return useMutation({
+		mutationFn: (email?: string) => actions.sendVerificationEmail({ email }),
+	})
+}
+
+/**
+ * Revoke session
+ */
+export function useRevokeSession() {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: (sessionId: string) => actions.revokeSession({ sessionId }),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: settingsKeys.sessions() })
+		},
+	})
+}
+
+/**
+ * Revoke all sessions
+ */
+export function useRevokeAllSessions() {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: () => actions.revokeAllSessions({}),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: settingsKeys.sessions() })
+		},
+	})
+}
+
+// ============================================
+// Helpers
+// ============================================
+
 function formatActivityDescription(
 	action: string,
 	entityType: string,
@@ -178,3 +397,5 @@ function formatActivityDescription(
 	return entityName && entityName !== entityType ? `${base}: ${entityName}` : base
 }
 
+// Re-export types
+export type * from "../types"

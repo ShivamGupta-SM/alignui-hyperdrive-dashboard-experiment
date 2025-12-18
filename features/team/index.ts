@@ -3,17 +3,25 @@
  */
 
 // Types
-export type * from './types'
+export type * from "./types"
 
 // Hooks
-export { useTeam } from './hooks/use-team'
-
-// Actions
 export {
-	inviteMember,
-	removeMember,
-} from './actions/team'
+	// Query Keys
+	teamKeys,
+	// Queries
+	useTeamMembers,
+	useTeamInvitations,
+	useTeam,
+	// Mutations
+	useInviteMember,
+	useRemoveMember,
+	useCancelInvitation,
+	useUpdateMemberRole,
+} from "./hooks/use-team"
 
-// Query Keys
-export { teamQueryKeys } from './lib/query-keys'
+// Server Actions
+export { inviteMember, removeMember, cancelInvitation, updateMemberRole } from "./actions/team"
 
+// SSR Data Fetching
+export { getTeamData } from "./ssr"

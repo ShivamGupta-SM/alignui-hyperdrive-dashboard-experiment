@@ -7,6 +7,7 @@ import * as Button from "@/components/ui/primitives/button"
 import { Callout } from "@/components/ui/feedback/callout"
 import { CheckCircle, WarningCircle, ArrowLeft, Envelope } from "@phosphor-icons/react"
 import { toast } from "sonner"
+import { getErrorMessage } from "@/lib/utils/format"
 
 /**
  * Invitation Acceptance Page
@@ -38,9 +39,9 @@ export default function AcceptInvitationPage() {
 			try {
 				// Check if user is authenticated
 				const { getSession } = await import("@/app/actions")
-				const sessionResult = await getSession()
+				const sessionResult = await getSession({})
 
-				if (!sessionResult.success || !sessionResult.session) {
+				if (!sessionResult?.data?.session) {
 					// User not authenticated - redirect to sign-in with invitation ID
 					setStatus("needs-auth")
 					return
@@ -51,9 +52,7 @@ export default function AcceptInvitationPage() {
 				await acceptInvitation()
 			} catch (err) {
 				setStatus("error")
-				setErrorMessage(
-					err instanceof Error ? err.message : "Failed to process invitation"
-				)
+				setErrorMessage(getErrorMessage(err, "Failed to process invitation"))
 			}
 		}
 
@@ -84,9 +83,9 @@ export default function AcceptInvitationPage() {
 			}
 		} catch (err) {
 			setStatus("error")
-			const errorMsg = err instanceof Error ? err.message : "Failed to accept invitation"
+			const errorMsg = getErrorMessage(err, "Failed to accept invitation")
 			setErrorMessage(errorMsg)
-			
+
 			// Check if it's an authentication error
 			if (errorMsg.includes("unauthenticated") || errorMsg.includes("Unauthorized")) {
 				setStatus("needs-auth")

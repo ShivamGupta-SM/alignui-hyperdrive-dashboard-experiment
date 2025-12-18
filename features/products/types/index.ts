@@ -13,8 +13,8 @@ export interface ProductFilters {
 	search?: string
 	category?: string
 	platform?: string
-	page?: number
-	limit?: number
+	skip?: number
+	take?: number
 	[key: string]: string | number | undefined
 }
 

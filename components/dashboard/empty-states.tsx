@@ -25,7 +25,11 @@ import {
 // Welcome Empty State (New Organization)
 // ============================================
 
-export function WelcomeEmptyState() {
+interface WelcomeEmptyStateProps {
+	organizationId: string
+}
+
+export function WelcomeEmptyState({ organizationId }: WelcomeEmptyStateProps) {
 	return (
 		<EmptyState.Root size="large">
 			<EmptyState.Header>
@@ -62,13 +66,13 @@ export function WelcomeEmptyState() {
 			</EmptyState.Content>
 			<EmptyState.Footer>
 				<Button.Root variant="neutral" asChild>
-					<Link href="/dashboard/wallet">
+					<Link href={`/dashboard/${organizationId}/wallet`}>
 						<Button.Icon><Wallet className="size-5" /></Button.Icon>
 						Fund Wallet
 					</Link>
 				</Button.Root>
 				<Button.Root variant="primary" asChild>
-					<Link href="/dashboard/campaigns/create">
+					<Link href={`/dashboard/${organizationId}/campaigns/create`}>
 						<Button.Icon><Plus className="size-5" /></Button.Icon>
 						Create Campaign
 					</Link>
@@ -82,7 +86,11 @@ export function WelcomeEmptyState() {
 // No Campaigns Empty State
 // ============================================
 
-export function NoCampaignsEmptyState() {
+interface NoCampaignsEmptyStateProps {
+	organizationId: string
+}
+
+export function NoCampaignsEmptyState({ organizationId }: NoCampaignsEmptyStateProps) {
 	return (
 		<EmptyState.Root size="large">
 			<EmptyState.Header>
@@ -98,7 +106,7 @@ export function NoCampaignsEmptyState() {
 			</EmptyState.Content>
 			<EmptyState.Footer>
 				<Button.Root variant="primary" asChild>
-					<Link href="/dashboard/campaigns/create">
+					<Link href={`/dashboard/${organizationId}/campaigns/create`}>
 						<Button.Icon><Plus className="size-5" /></Button.Icon>
 						Create First Campaign
 					</Link>
@@ -112,7 +120,11 @@ export function NoCampaignsEmptyState() {
 // No Pending Enrollments Empty State
 // ============================================
 
-export function NoPendingEnrollmentsEmptyState() {
+interface NoPendingEnrollmentsEmptyStateProps {
+	organizationId: string
+}
+
+export function NoPendingEnrollmentsEmptyState({ organizationId }: NoPendingEnrollmentsEmptyStateProps) {
 	return (
 		<EmptyState.Root size="large">
 			<EmptyState.Header>
@@ -129,7 +141,7 @@ export function NoPendingEnrollmentsEmptyState() {
 			</EmptyState.Content>
 			<EmptyState.Footer>
 				<Button.Root variant="neutral" asChild>
-					<Link href="/dashboard/enrollments">View All Enrollments</Link>
+					<Link href={`/dashboard/${organizationId}/enrollments`}>View All Enrollments</Link>
 				</Button.Root>
 			</EmptyState.Footer>
 		</EmptyState.Root>
@@ -140,7 +152,11 @@ export function NoPendingEnrollmentsEmptyState() {
 // No Products Empty State
 // ============================================
 
-export function NoProductsEmptyState() {
+interface NoProductsEmptyStateProps {
+	organizationId: string
+}
+
+export function NoProductsEmptyState({ organizationId }: NoProductsEmptyStateProps) {
 	return (
 		<EmptyState.Root size="large">
 			<EmptyState.Header>
@@ -157,7 +173,7 @@ export function NoProductsEmptyState() {
 			</EmptyState.Content>
 			<EmptyState.Footer>
 				<Button.Root variant="primary" asChild>
-					<Link href="/dashboard/products/new">
+					<Link href={`/dashboard/${organizationId}/products/new`}>
 						<Button.Icon><Plus className="size-5" /></Button.Icon>
 						Add First Product
 					</Link>
@@ -248,7 +264,11 @@ export function NoSearchResultsEmptyState({
 // No Invoices Empty State
 // ============================================
 
-export function NoInvoicesEmptyState() {
+interface NoInvoicesEmptyStateProps {
+	organizationId: string
+}
+
+export function NoInvoicesEmptyState({ organizationId }: NoInvoicesEmptyStateProps) {
 	return (
 		<EmptyState.Root size="large">
 			<EmptyState.Header>
@@ -265,7 +285,7 @@ export function NoInvoicesEmptyState() {
 			</EmptyState.Content>
 			<EmptyState.Footer>
 				<Button.Root variant="neutral" asChild>
-					<Link href="/dashboard/enrollments">View Enrollments</Link>
+					<Link href={`/dashboard/${organizationId}/enrollments`}>View Enrollments</Link>
 				</Button.Root>
 			</EmptyState.Footer>
 		</EmptyState.Root>
@@ -368,7 +388,11 @@ export function NetworkErrorEmptyState({ onRetry }: NetworkErrorEmptyStateProps)
 // Permission Denied Empty State
 // ============================================
 
-export function PermissionDeniedEmptyState() {
+interface PermissionDeniedEmptyStateProps {
+	organizationId?: string
+}
+
+export function PermissionDeniedEmptyState({ organizationId }: PermissionDeniedEmptyStateProps) {
 	return (
 		<EmptyState.Root size="large">
 			<EmptyState.Header>
@@ -385,7 +409,7 @@ export function PermissionDeniedEmptyState() {
 			</EmptyState.Content>
 			<EmptyState.Footer>
 				<Button.Root variant="neutral" asChild>
-					<Link href="/dashboard">Go to Dashboard</Link>
+					<Link href={organizationId ? `/dashboard/${organizationId}` : "/dashboard"}>Go to Dashboard</Link>
 				</Button.Root>
 			</EmptyState.Footer>
 		</EmptyState.Root>
