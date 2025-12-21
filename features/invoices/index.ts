@@ -28,5 +28,4 @@ export {
 	getEnrollmentsByIds,
 } from "./actions/invoices"
 
-// SSR Data Fetching
-export { getInvoicesData } from "./ssr"
+// SSR Data Fetching - Import directly from @/features/invoices/ssr in server components

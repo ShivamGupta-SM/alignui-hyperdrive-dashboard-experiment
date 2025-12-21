@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { getEnrollmentDetailData } from "@/features/enrollments"
+import { getEnrollmentDetailData } from "@/features/enrollments/ssr"
 import { EnrollmentDetailClient } from "./enrollment-detail-client"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
 

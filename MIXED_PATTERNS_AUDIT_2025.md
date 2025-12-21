@@ -291,3 +291,5 @@ Most of the codebase follows good patterns, but there are a few critical issues 
 4. **Organizations hooks** bypass API layer and use hardcoded query keys
 
 These should be fixed to ensure consistency and prevent runtime errors.
+
+

@@ -26,5 +26,4 @@ export {
 // Server Actions
 export { createProduct, updateProduct, deleteProduct, bulkImportProducts } from "./actions/products"
 
-// SSR Data Fetching
-export { getProductsData, getCategoriesData } from "./ssr"
+// SSR Data Fetching - Import directly from @/features/products/ssr in server components

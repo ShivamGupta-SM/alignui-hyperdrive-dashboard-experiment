@@ -219,3 +219,5 @@ export function useSwitchOrganization() {
 4. ✅ Use React Query's built-in features
 
 **No migration needed** - just simplify what you have!
+
+

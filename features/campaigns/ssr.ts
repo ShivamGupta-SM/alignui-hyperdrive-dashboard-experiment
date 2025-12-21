@@ -5,74 +5,22 @@
  * Organized by feature for clean architecture.
  */
 
-import { unstable_cache } from "next/cache"
-import { getAuthClient, getOrganizationIdOrNull } from "@/lib/auth/server"
-import { requireAuth, isAuthenticationError } from "@/lib/auth-helpers"
+import { getAuthClient } from "@/lib/auth/server"
+import { isAuthenticationError } from "@/lib/errors/encore-error-handler"
 import { logSSRError, logWarn } from "@/lib/logging/error-logger-simple"
 import { getErrorMessageForLog } from "@/lib/utils/format"
 import type { shared } from "@/lib/api/encore-client"
 
 /**
- * Get campaigns list with caching
+ * Get campaigns list
  */
-export const getCampaignsData = unstable_cache(
-	async (organizationId: string, status?: string) => {
-		try {
-			// Check authentication before making API calls
-			const auth = await requireAuth()
+export async function getCampaignsData(organizationId: string, status?: string) {
+	try {
+		const client = await getAuthClient()
+		const session = await client.auth.getSession()
 
-			if (!auth.success) {
-				logWarn("User not authenticated, returning empty campaigns data", { source: "getCampaignsData" })
-				return {
-					campaigns: [],
-					data: [],
-					total: 0,
-					skip: 0,
-					take: 50,
-					hasMore: false,
-				}
-			}
-
-			const client = await getAuthClient()
-
-			const params: {
-				organizationId: string
-				skip: number
-				take: number
-				status?: shared.CampaignStatus
-			} = {
-				organizationId,
-				skip: 0,
-				take: 50,
-			}
-
-			if (status && status !== "all") {
-				params.status = status as shared.CampaignStatus
-			}
-
-			const response = await client.campaigns.listCampaigns(params)
-			return { campaigns: response.data, ...response }
-		} catch (error) {
-			// Handle authentication errors gracefully
-			if (isAuthenticationError(error)) {
-				logWarn("Authentication error in getCampaignsData, returning empty data", {
-					source: "getCampaignsData",
-					data: { errorMessage: getErrorMessageForLog(error), statusFilter: status },
-				})
-				return {
-					campaigns: [],
-					data: [],
-					total: 0,
-					skip: 0,
-					take: 50,
-					hasMore: false,
-				}
-			}
-
-			logSSRError(error, "getCampaignsData", "campaigns", {
-				data: { organizationId, statusFilter: status },
-			})
-
+		if (!session?.user) {
+			logWarn("User not authenticated, returning empty campaigns data", { source: "getCampaignsData" })
 			return {
 				campaigns: [],
 				data: [],
@@ -82,10 +30,55 @@ export const getCampaignsData = unstable_cache(
 				hasMore: false,
 			}
 		}
-	},
-	["campaigns"],
-	{ tags: ["campaigns"] }
-)
+
+		const params: {
+			organizationId: string
+			skip: number
+			take: number
+			status?: shared.CampaignStatus
+		} = {
+			organizationId,
+			skip: 0,
+			take: 50,
+		}
+
+		if (status && status !== "all") {
+			params.status = status as shared.CampaignStatus
+		}
+
+		const response = await client.campaigns.listCampaigns(params)
+		return { campaigns: response.data, ...response }
+	} catch (error) {
+		// Handle authentication errors gracefully
+		if (isAuthenticationError(error)) {
+			logWarn("Authentication error in getCampaignsData, returning empty data", {
+				source: "getCampaignsData",
+				data: { errorMessage: getErrorMessageForLog(error), statusFilter: status },
+			})
+			return {
+				campaigns: [],
+				data: [],
+				total: 0,
+				skip: 0,
+				take: 50,
+				hasMore: false,
+			}
+		}
+
+		logSSRError(error, "getCampaignsData", "campaigns", {
+			data: { organizationId, statusFilter: status },
+		})
+
+		return {
+			campaigns: [],
+			data: [],
+			total: 0,
+			skip: 0,
+			take: 50,
+			hasMore: false,
+		}
+	}
+}
 
 /**
  * Get campaign detail data

@@ -1,5 +1,4 @@
-import { getCampaignDetailData } from "@/features/campaigns"
-import { requireOrganization } from "@/lib/auth/server"
+import { getCampaignDetailData } from "@/features/campaigns/ssr"
 import { CampaignDetailClient } from "./campaign-detail-client"
 
 export default async function CampaignDetailPage({
@@ -7,10 +6,6 @@ export default async function CampaignDetailPage({
 }: {
 	params: Promise<{ id: string }>
 }) {
-	// Industry Standard: Session-based active organization (single source of truth)
-	// Check if user has organization
-	await requireOrganization()
-
 	const { id } = await params
 
 	// Direct server fetch - pure RSC

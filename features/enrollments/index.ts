@@ -30,5 +30,4 @@ export {
 // Server Actions
 export { updateEnrollmentStatus, bulkUpdateEnrollments } from "./actions/enrollments"
 
-// SSR Data Fetching
-export { getEnrollmentsData, getEnrollmentDetailData } from "./ssr"
+// SSR Data Fetching - Import directly from @/features/enrollments/ssr in server components

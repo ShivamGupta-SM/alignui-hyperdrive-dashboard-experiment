@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { getProductsData } from "@/features/products"
+import { getProductsData } from "@/features/products/ssr"
 import { ProductsClient } from "./products-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logSSRError } from "@/lib/logging/error-logger-simple"

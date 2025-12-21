@@ -5,18 +5,15 @@
  * Organized by feature for clean architecture.
  */
 
-import { getAuthClient, getOrganizationIdOrNull } from "@/lib/auth/server"
+import { getAuthClient } from "@/lib/auth/server"
 import { getErrorDetails } from "@/lib/api/encore"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
 
 /**
  * Get dashboard overview data
  */
-export async function getDashboardData() {
-	// Check for active organization BEFORE calling API
-	const activeOrgId = await getOrganizationIdOrNull()
-
-	if (!activeOrgId) {
+export async function getDashboardData(organizationId: string | null) {
+	if (!organizationId) {
 		// No active organization - return null gracefully
 		return null
 	}
@@ -24,7 +21,7 @@ export async function getDashboardData() {
 	try {
 		const client = await getAuthClient()
 		const response = await client.organizations.getDashboardOverview({
-			organizationId: activeOrgId,
+			organizationId,
 			days: 7,
 		})
 		return response
@@ -41,7 +38,7 @@ export async function getDashboardData() {
 				logSSRError(error, "getDashboardData", "dashboard-overview", {
 					data: {
 						errorType: "network",
-						activeOrgId,
+						organizationId,
 						message: "Backend connection failed",
 					},
 				})
@@ -53,7 +50,7 @@ export async function getDashboardData() {
 		const errorInfo = getErrorDetails(error)
 		logSSRError(error, "getDashboardData", "dashboard-overview", {
 			data: {
-				activeOrgId,
+				organizationId,
 				errorMessage: errorInfo.message,
 				errorCode: errorInfo.code,
 				errorStatus: errorInfo.status,

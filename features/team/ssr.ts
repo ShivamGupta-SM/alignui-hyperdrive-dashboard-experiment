@@ -5,21 +5,20 @@
  * Organized by feature for clean architecture.
  */
 
-import { getAuthClient, getOrganizationIdOrNull } from "@/lib/auth/server"
+import { getAuthClient } from "@/lib/auth/server"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
 
 /**
  * Get team data (members and invitations)
  */
-export async function getTeamData() {
+export async function getTeamData(organizationId: string | null) {
 	const client = await getAuthClient()
-	const activeOrgId = (await getOrganizationIdOrNull()) || undefined
 
 	try {
 		const results = await Promise.allSettled([
 			// listMembers was moved to Better Auth service
 			client.auth.listMembersAuth(),
-			activeOrgId ? client.organizations.listInvitations(activeOrgId) : Promise.resolve({ data: [] }),
+			organizationId ? client.organizations.listInvitations(organizationId) : Promise.resolve({ data: [] }),
 		])
 
 		const members = results[0].status === "fulfilled" ? results[0].value : { members: [] }
@@ -29,7 +28,7 @@ export async function getTeamData() {
 		results.forEach((result, index) => {
 			if (result.status === "rejected") {
 				const names = ["members", "invitations"]
-				logSSRError(result.reason, "getTeamData", names[index], { data: { activeOrgId } })
+				logSSRError(result.reason, "getTeamData", names[index], { data: { organizationId } })
 			}
 		})
 
@@ -38,7 +37,7 @@ export async function getTeamData() {
 			invitations: invitations.data || [],
 		}
 	} catch (error) {
-		logSSRError(error, "getTeamData", "team-data", { data: { activeOrgId } })
+		logSSRError(error, "getTeamData", "team-data", { data: { organizationId } })
 		return {
 			members: [],
 			invitations: [],

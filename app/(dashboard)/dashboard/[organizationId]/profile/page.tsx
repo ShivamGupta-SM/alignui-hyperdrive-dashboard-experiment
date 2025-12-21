@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { getProfileData } from "@/features/settings"
+import { getProfileData } from "@/features/settings/ssr"
 import { ProfileClient } from "./profile-client"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
 

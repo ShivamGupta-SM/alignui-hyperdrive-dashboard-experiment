@@ -23,5 +23,4 @@ export {
 // Server Actions
 export { inviteMember, removeMember, cancelInvitation, updateMemberRole } from "./actions/team"
 
-// SSR Data Fetching
-export { getTeamData } from "./ssr"
+// SSR Data Fetching - Import directly from @/features/team/ssr in server components

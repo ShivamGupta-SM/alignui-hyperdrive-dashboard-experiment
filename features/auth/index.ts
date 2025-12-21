@@ -40,3 +40,5 @@ export {
 
 // Legacy aliases for backward compatibility
 export { signInEmail as signIn, signUpEmail as signUp } from "./actions/auth-actions"
+
+

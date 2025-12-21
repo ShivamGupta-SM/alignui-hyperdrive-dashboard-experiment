@@ -5,8 +5,8 @@
  * Organized by feature for clean architecture.
  */
 
-import { getAuthClient, getOrganizationIdOrNull } from "@/lib/auth/server"
-import { requireAuth, isAuthenticationError } from "@/lib/auth-helpers"
+import { getAuthClient } from "@/lib/auth/server"
+import { isAuthenticationError } from "@/lib/errors/encore-error-handler"
 import { logSSRError, logWarn } from "@/lib/logging/error-logger-simple"
 import { getErrorMessageForLog } from "@/lib/utils/format"
 import type { shared } from "@/lib/api/encore-client"
@@ -14,18 +14,15 @@ import type { shared } from "@/lib/api/encore-client"
 /**
  * Get enrollments list
  */
-export async function getEnrollmentsData(status?: string, campaignId?: string) {
+export async function getEnrollmentsData(organizationId: string | null, status?: string, campaignId?: string) {
 	try {
-		// Check authentication before making API calls
-		const auth = await requireAuth()
+		const client = await getAuthClient()
+		const session = await client.auth.getSession()
 
-		if (!auth.success) {
+		if (!session?.user) {
 			logWarn("User not authenticated, returning empty enrollments data", { source: "getEnrollmentsData" })
 			return { enrollments: [], data: [], total: 0, skip: 0, take: 50, hasMore: false }
 		}
-
-		const client = await getAuthClient()
-		const orgId = await getOrganizationIdOrNull()
 
 		const params: {
 			organizationId?: string
@@ -49,8 +46,8 @@ export async function getEnrollmentsData(status?: string, campaignId?: string) {
 		// If user has active organization, use organization-level endpoint (for brands)
 		// Otherwise, use shopper endpoint (for shoppers)
 		let response
-		if (orgId) {
-			response = await client.enrollments.listOrganizationEnrollments({ ...params, organizationId: orgId })
+		if (organizationId) {
+			response = await client.enrollments.listOrganizationEnrollments({ ...params, organizationId })
 		} else {
 			response = await client.enrollments.listMyEnrollments(params)
 		}

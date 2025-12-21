@@ -91,3 +91,5 @@ await client.organizations.verifyGST({
 1. Verify GST in step 3
 2. Submit onboarding form
 3. Should succeed without "GST verification required" error
+
+

@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { getProductsData } from "@/features/products"
+import { getProductsData } from "@/features/products/ssr"
 import { CreateCampaignClient } from "./create-campaign-client"
 import type { ProductWithStats } from "@/features/products"
 import { logSSRError } from "@/lib/logging/error-logger-simple"

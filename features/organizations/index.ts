@@ -33,5 +33,4 @@ export { submitOrganizationForApproval, resubmitOrganizationForApproval } from "
 // Server Actions - Organizations
 export { createBasicOrganization, switchOrganization } from "./actions/organizations"
 
-// SSR Data Fetching
-export { getDashboardData } from "./ssr"
+// SSR Data Fetching - Import directly from @/features/organizations/ssr in server components

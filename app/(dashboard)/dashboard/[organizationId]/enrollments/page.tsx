@@ -3,8 +3,8 @@ import type { Metadata } from "next"
 // Prevent prerendering to avoid Button.Icon serialization issues
 export const dynamic = "force-dynamic"
 import { Suspense } from "react"
-import { getEnrollmentsData } from "@/features/enrollments"
-import { getCampaignsData } from "@/features/campaigns"
+import { getEnrollmentsData } from "@/features/enrollments/ssr"
+import { getCampaignsData } from "@/features/campaigns/ssr"
 import { EnrollmentsClient } from "./enrollments-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logSSRError, logError } from "@/lib/logging/error-logger-simple"
@@ -27,7 +27,7 @@ async function EnrollmentsData({ organizationId, statusFilter, campaignFilter }:
 	try {
 		// URL-based multi-tenancy: pass organizationId from URL params
 		const results = await Promise.allSettled([
-			getEnrollmentsData(statusFilter, campaignFilter),
+			getEnrollmentsData(organizationId, statusFilter, campaignFilter),
 			getCampaignsData(organizationId),
 		])
 

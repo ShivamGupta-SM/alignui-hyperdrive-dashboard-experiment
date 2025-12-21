@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { getCategoriesData } from "@/features/products"
+import { getCategoriesData } from "@/features/products/ssr"
 import { NewProductClient } from "./new-product-client"
 import type { products } from "@/lib/api/encore-client"
 import { logSSRError } from "@/lib/logging/error-logger-simple"

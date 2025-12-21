@@ -155,12 +155,12 @@ const ButtonRoot = React.forwardRef<HTMLButtonElement, ButtonRootProps>(
 		const extendedChildren = typeof window === "undefined"
 			? children // Skip processing during prerender - Button.Icon handles its own props safely
 			: recursiveCloneChildren(
-				children as React.ReactElement[],
-				sharedProps,
-				[BUTTON_ICON_NAME],
-				uniqueId,
-				asChild
-			)
+			children as React.ReactElement[],
+			sharedProps,
+			[BUTTON_ICON_NAME],
+			uniqueId,
+			asChild
+		)
 
 		return (
 			<Component

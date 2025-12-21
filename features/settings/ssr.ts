@@ -5,22 +5,20 @@
  * Organized by feature for clean architecture.
  */
 
-import { getAuthClient, getOrganizationIdOrNull } from "@/lib/auth/server"
+import { getAuthClient } from "@/lib/auth/server"
 import { logSSRError, logAPIError, logWarn } from "@/lib/logging/error-logger-simple"
-import { getSession } from "@/features/auth"
 
 /**
  * Get settings data (organization, bank accounts, user, GST details)
  */
-export async function getSettingsData() {
+export async function getSettingsData(organizationId: string | null) {
 	const client = await getAuthClient()
-	const activeOrgId = await getOrganizationIdOrNull()
 
 	// Fetch all data with individual error handling - never fail completely
 	const [organization, bankAccounts, userData] = await Promise.allSettled([
-		activeOrgId
-			? client.organizations.getOrganization(activeOrgId).catch((error) => {
-					logAPIError(error, "getSettingsData", `/organizations/${activeOrgId}`, { automaticScoping: true })
+		organizationId
+			? client.organizations.getOrganization(organizationId).catch((error) => {
+					logAPIError(error, "getSettingsData", `/organizations/${organizationId}`, { automaticScoping: true })
 					// Return minimal organization object so page can still render
 					return {
 						id: "",
@@ -90,9 +88,9 @@ export async function getSettingsData() {
 					updatedAt: new Date().toISOString(),
 				} as any),
 		// URL-based multi-tenancy: organizationId in URL path
-		activeOrgId
-			? client.organizations.listBankAccounts(activeOrgId).catch((error) => {
-					logAPIError(error, "getSettingsData", `/organizations/${activeOrgId}/bank-accounts`, { automaticScoping: true })
+		organizationId
+			? client.organizations.listBankAccounts(organizationId).catch((error) => {
+					logAPIError(error, "getSettingsData", `/organizations/${organizationId}/bank-accounts`, { automaticScoping: true })
 					return { data: [] }
 				})
 			: Promise.resolve({ data: [] }),
@@ -108,9 +106,9 @@ export async function getSettingsData() {
 	const userDataResult = userData.status === "fulfilled" ? userData.value : null
 
 	let gstDetails = null
-	if (activeOrgId) {
+	if (organizationId) {
 		try {
-			const gstResponse = await client.organizations.getGSTDetails(activeOrgId)
+			const gstResponse = await client.organizations.getGSTDetails(organizationId)
 			gstDetails = gstResponse.gstDetails
 		} catch (error) {
 			// GST not verified yet or error - continue without it
@@ -155,16 +153,18 @@ export async function getSettingsData() {
 
 /**
  * Get profile data
+ * Uses direct API call instead of server action to avoid unstable_cache conflict
  */
 export async function getProfileData() {
 	try {
-		const sessionResult = await getSession({})
+		const client = await getAuthClient()
+		const sessionResult = await client.auth.getSession()
 
-		if (!sessionResult?.data?.session || !sessionResult.data.user) {
+		if (!sessionResult?.session || !sessionResult.user) {
 			throw new Error("Session not found")
 		}
 
-		const user = sessionResult.data.user as unknown as {
+		const user = sessionResult.user as unknown as {
 			userID: string
 			name: string
 			email: string

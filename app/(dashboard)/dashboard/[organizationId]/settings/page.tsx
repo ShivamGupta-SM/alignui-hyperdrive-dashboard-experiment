@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { getSettingsData } from "@/features/settings"
+import { getSettingsData } from "@/features/settings/ssr"
 import { SettingsClient } from "./settings-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logError } from "@/lib/logging/error-logger-simple"
@@ -14,25 +14,26 @@ export const metadata: Metadata = {
 	},
 }
 
+interface PageProps {
+	params: Promise<{ organizationId: string }>
+}
 
-async function SettingsData() {
+async function SettingsData({ organizationId }: { organizationId: string }) {
 	try {
-		const data = await getSettingsData()
-		// Industry Standard: Don't pass hasOrganization prop - use context instead
+		const data = await getSettingsData(organizationId)
 		return <SettingsClient initialData={data} />
 	} catch (error) {
 		logError(error, { source: "SettingsPage", data: { action: "fetch settings data" } })
-		// Industry Standard: Return undefined, let context handle organization state
 		return <SettingsClient initialData={undefined} />
 	}
 }
 
-export default async function SettingsPage() {
-	// Industry Standard: Use OrganizationGuard for consistent UX
+export default async function SettingsPage({ params }: PageProps) {
+	const { organizationId } = await params
 	return (
 		<OrganizationGuard pageType="default">
 			<Suspense fallback={<div className="p-8">Loading settings...</div>}>
-				<SettingsData />
+				<SettingsData organizationId={organizationId} />
 			</Suspense>
 		</OrganizationGuard>
 	)

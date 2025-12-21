@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { getInvoicesData } from "@/features/invoices"
+import { getInvoicesData } from "@/features/invoices/ssr"
 import { InvoicesClient } from "./invoices-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logError } from "@/lib/logging/error-logger-simple"

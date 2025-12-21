@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { getTeamData } from "@/features/team"
+import { getTeamData } from "@/features/team/ssr"
 import { TeamClient } from "./team-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
@@ -14,24 +14,26 @@ export const metadata: Metadata = {
 	},
 }
 
-async function TeamData() {
+interface PageProps {
+	params: Promise<{ organizationId: string }>
+}
+
+async function TeamData({ organizationId }: { organizationId: string }) {
 	try {
-		const data = await getTeamData()
-		// Industry Standard: Don't pass hasOrganization prop - use context instead
+		const data = await getTeamData(organizationId)
 		return <TeamClient initialData={data || { members: [], invitations: [] }} />
 	} catch (error) {
 		logSSRError(error, "getTeamData", "team-data", {})
-		// Industry Standard: Return empty data, let context handle organization state
 		return <TeamClient initialData={{ members: [], invitations: [] }} />
 	}
 }
 
-export default async function TeamPage() {
-	// Industry Standard: Use OrganizationGuard for consistent UX
+export default async function TeamPage({ params }: PageProps) {
+	const { organizationId } = await params
 	return (
 		<OrganizationGuard pageType="default">
 			<Suspense fallback={<div className="p-8">Loading team...</div>}>
-				<TeamData />
+				<TeamData organizationId={organizationId} />
 			</Suspense>
 		</OrganizationGuard>
 	)

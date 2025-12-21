@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
-import { getWalletData } from "@/features/wallet"
+import { getWalletData } from "@/features/wallet/ssr"
 import { WalletClient } from "./wallet-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logSSRError } from "@/lib/logging/error-logger-simple"

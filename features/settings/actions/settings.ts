@@ -10,7 +10,6 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { authAction } from "@/lib/safe-action"
-import { getOrganizationIdOrNull } from "@/lib/auth/server"
 import { getErrorMessageForLog } from "@/lib/utils/format"
 import type { auth } from "@/lib/api/encore-client"
 
@@ -24,6 +23,7 @@ const updateProfileSchema = z.object({
 })
 
 const updateOrganizationSchema = z.object({
+	organizationId: z.string().min(1),
 	name: z.string().min(1),
 	website: z.string().optional(),
 	email: z.string().email().optional(),
@@ -48,6 +48,7 @@ const notificationSettingsSchema = z.object({
 })
 
 const bankAccountSchema = z.object({
+	organizationId: z.string().min(1),
 	accountHolderName: z.string().min(1),
 	accountNumber: z.string().min(1),
 	ifscCode: z.string().min(1),
@@ -56,6 +57,7 @@ const bankAccountSchema = z.object({
 })
 
 const accountIdSchema = z.object({
+	organizationId: z.string().min(1),
 	accountId: z.string().min(1),
 })
 
@@ -117,18 +119,14 @@ export const updateProfile = authAction
 export const updateOrganization = authAction
 	.inputSchema(updateOrganizationSchema)
 	.action(async ({ parsedInput, ctx }) => {
-		const orgId = await getOrganizationIdOrNull()
+		const { organizationId, ...data } = parsedInput
 
-		if (!orgId) {
-			throw new Error("Organization ID not found")
-		}
-
-		await ctx.client.organizations.updateOrganization(orgId, {
-			name: parsedInput.name,
-			website: parsedInput.website || undefined,
-			email: parsedInput.email || undefined,
-			phoneNumber: parsedInput.phone || undefined,
-			address: parsedInput.address || undefined,
+		await ctx.client.organizations.updateOrganization(organizationId, {
+			name: data.name,
+			website: data.website || undefined,
+			email: data.email || undefined,
+			phoneNumber: data.phone || undefined,
+			address: data.address || undefined,
 		})
 
 		revalidatePath("/dashboard/settings")
@@ -171,13 +169,9 @@ export const updateNotifications = authAction
 export const addBankAccount = authAction
 	.inputSchema(bankAccountSchema)
 	.action(async ({ parsedInput, ctx }) => {
-		const orgId = await getOrganizationIdOrNull()
+		const { organizationId, ...data } = parsedInput
 
-		if (!orgId) {
-			throw new Error("Organization ID not found")
-		}
-
-		const result = await ctx.client.organizations.addBankAccount(orgId, parsedInput)
+		const result = await ctx.client.organizations.addBankAccount(organizationId, data)
 
 		revalidatePath("/dashboard/settings")
 
@@ -194,13 +188,7 @@ export const addBankAccount = authAction
 export const removeBankAccount = authAction
 	.inputSchema(accountIdSchema)
 	.action(async ({ parsedInput, ctx }) => {
-		const orgId = await getOrganizationIdOrNull()
-
-		if (!orgId) {
-			throw new Error("Organization ID not found")
-		}
-
-		await ctx.client.organizations.deleteBankAccount(orgId, parsedInput.accountId)
+		await ctx.client.organizations.deleteBankAccount(parsedInput.organizationId, parsedInput.accountId)
 
 		revalidatePath("/dashboard/settings")
 
@@ -213,13 +201,7 @@ export const removeBankAccount = authAction
 export const setDefaultBankAccount = authAction
 	.inputSchema(accountIdSchema)
 	.action(async ({ parsedInput, ctx }) => {
-		const orgId = await getOrganizationIdOrNull()
-
-		if (!orgId) {
-			throw new Error("Organization ID not found")
-		}
-
-		await ctx.client.organizations.setDefaultBankAccount(orgId, parsedInput.accountId)
+		await ctx.client.organizations.setDefaultBankAccount(parsedInput.organizationId, parsedInput.accountId)
 
 		revalidatePath("/dashboard/settings")
 
@@ -232,14 +214,8 @@ export const setDefaultBankAccount = authAction
 export const verifyBankAccount = authAction
 	.inputSchema(accountIdSchema)
 	.action(async ({ parsedInput, ctx }) => {
-		const orgId = await getOrganizationIdOrNull()
-
-		if (!orgId) {
-			throw new Error("Organization ID not found")
-		}
-
 		try {
-			await ctx.client.organizations.verifyBankAccount(orgId, parsedInput.accountId)
+			await ctx.client.organizations.verifyBankAccount(parsedInput.organizationId, parsedInput.accountId)
 
 			revalidatePath("/dashboard/settings")
 

@@ -255,7 +255,7 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 			clearTimeout(timeoutRef.current)
 		}
 		try {
-			const result = await updateOrganization(data)
+			const result = await updateOrganization({ ...data, organizationId: organization.id })
 			if (result?.data?.success) {
 				setSaved(true)
 				toast.success("Organization updated successfully")
@@ -522,7 +522,7 @@ function BankAccountsSection({
 
 		try {
 			const { removeBankAccount } = await import("@/features/settings")
-			const result = await removeBankAccount({ accountId })
+			const result = await removeBankAccount({ organizationId, accountId })
 			if (result?.data?.success) {
 				toast.success("Bank account removed successfully")
 				queryClient.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
@@ -538,7 +538,7 @@ function BankAccountsSection({
 	const handleSetDefault = async (accountId: string) => {
 		try {
 			const { setDefaultBankAccount } = await import("@/features/settings")
-			const result = await setDefaultBankAccount({ accountId })
+			const result = await setDefaultBankAccount({ organizationId, accountId })
 			if (result?.data?.success) {
 				toast.success("Default bank account updated")
 				queryClient.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
@@ -726,7 +726,7 @@ function BankAccountCard({ account, organizationId }: BankAccountCardProps) {
 	const handleVerify = async () => {
 		setIsVerifying(true)
 		try {
-			const result = await verifyBankAccount({ accountId: account.id })
+			const result = await verifyBankAccount({ organizationId, accountId: account.id })
 			if (result?.data?.success) {
 				toast.success("Verification initiated successfully")
 				// Invalidate bank accounts query to refetch updated status
@@ -862,6 +862,7 @@ function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAcco
 		setIsPending(true)
 		try {
 			const result = await addBankAccount({
+				organizationId,
 				bankName: data.bankName,
 				accountNumber: data.accountNumber,
 				accountHolderName: data.accountHolderName,

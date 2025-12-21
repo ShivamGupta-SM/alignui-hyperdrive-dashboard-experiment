@@ -89,3 +89,5 @@
 2. Verify GST (Step 2) → Address auto-fills
 3. Complete business details (Step 2)
 4. Review and submit (Step 3)
+
+

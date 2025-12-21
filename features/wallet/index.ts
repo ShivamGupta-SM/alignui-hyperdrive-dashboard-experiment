@@ -24,5 +24,4 @@ export {
 // Server Actions
 export { requestWithdrawal, cancelWithdrawal, requestCredit } from "./actions/wallet"
 
-// SSR Data Fetching
-export { getWalletData } from "./ssr"
+// SSR Data Fetching - Import directly from @/features/wallet/ssr in server components

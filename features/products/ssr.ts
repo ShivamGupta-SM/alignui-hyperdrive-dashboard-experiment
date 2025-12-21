@@ -6,7 +6,7 @@
  */
 
 import { getAuthClient } from "@/lib/auth/server"
-import { requireAuth, isAuthenticationError } from "@/lib/auth-helpers"
+import { isAuthenticationError } from "@/lib/errors/encore-error-handler"
 import { logSSRError, logWarn } from "@/lib/logging/error-logger-simple"
 import { getErrorMessageForLog } from "@/lib/utils/format"
 
@@ -15,10 +15,10 @@ import { getErrorMessageForLog } from "@/lib/utils/format"
  */
 export async function getProductsData() {
 	try {
-		// Check authentication before making API calls
-		const auth = await requireAuth()
+		const client = await getAuthClient()
+		const session = await client.auth.getSession()
 
-		if (!auth.success) {
+		if (!session?.user) {
 			logWarn("User not authenticated, returning empty products data", { source: "getProductsData" })
 			return {
 				data: [],
@@ -27,8 +27,6 @@ export async function getProductsData() {
 				platforms: [],
 			}
 		}
-
-		const client = await getAuthClient()
 
 		const results = await Promise.allSettled([
 			client.products.listProducts({ skip: 0, take: 100 }),

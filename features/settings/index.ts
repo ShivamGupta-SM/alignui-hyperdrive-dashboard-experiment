@@ -57,5 +57,4 @@ export {
 	getUserSessions,
 } from "./actions/settings"
 
-// SSR Data Fetching
-export { getSettingsData, getProfileData } from "./ssr"
+// SSR Data Fetching - Import directly from @/features/settings/ssr in server components

@@ -65,5 +65,4 @@ export {
 	type CampaignStatus as CampaignStatusSchema,
 } from "./lib/validation"
 
-// SSR Data Fetching
-export { getCampaignsData, getCampaignDetailData } from "./ssr"
+// SSR Data Fetching - Import directly from @/features/campaigns/ssr in server components

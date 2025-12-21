@@ -118,3 +118,5 @@
 2. **Authenticated user:**
    - Visit onboarding page → Checks existing orgs
    - Continue onboarding → Works as expected
+
+

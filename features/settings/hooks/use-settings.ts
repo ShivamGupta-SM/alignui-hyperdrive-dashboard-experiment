@@ -175,7 +175,7 @@ export function useUpdateProfile() {
 export function useUpdateOrganizationSettings(organizationId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: (data: Partial<OrganizationSettings>) => actions.updateOrganization({ name: data.name || "", website: data.website, address: data.address }),
+		mutationFn: (data: Partial<OrganizationSettings>) => actions.updateOrganization({ organizationId, name: data.name || "", website: data.website, address: data.address }),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: settingsKeys.organization(organizationId) })
 		},
@@ -206,7 +206,7 @@ export function useUpdateNotifications() {
 export function useAddBankAccount(organizationId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: (data: AddBankAccountInput) => actions.addBankAccount(data),
+		mutationFn: (data: AddBankAccountInput) => actions.addBankAccount({ ...data, organizationId }),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
 		},
@@ -219,7 +219,7 @@ export function useAddBankAccount(organizationId: string) {
 export function useDeleteBankAccount(organizationId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: (id: string) => actions.removeBankAccount({ accountId: id }),
+		mutationFn: (id: string) => actions.removeBankAccount({ organizationId, accountId: id }),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
 		},
@@ -232,7 +232,7 @@ export function useDeleteBankAccount(organizationId: string) {
 export function useSetDefaultBankAccount(organizationId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: (id: string) => actions.setDefaultBankAccount({ accountId: id }),
+		mutationFn: (id: string) => actions.setDefaultBankAccount({ organizationId, accountId: id }),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
 		},
@@ -245,7 +245,7 @@ export function useSetDefaultBankAccount(organizationId: string) {
 export function useVerifyBankAccount(organizationId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: (bankAccountId: string) => actions.verifyBankAccount({ accountId: bankAccountId }),
+		mutationFn: (bankAccountId: string) => actions.verifyBankAccount({ organizationId, accountId: bankAccountId }),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
 		},
