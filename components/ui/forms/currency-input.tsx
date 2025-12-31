@@ -1,7 +1,7 @@
 "use client"
 
 import { NumericFormat, type NumericFormatProps } from "react-number-format"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 
 export interface CurrencyInputProps
 	extends Omit<NumericFormatProps, "value" | "onValueChange" | "size"> {

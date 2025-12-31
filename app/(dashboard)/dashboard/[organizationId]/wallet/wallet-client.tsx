@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, useRef, useTransition } from "react"
+import { useCallback, useMemo, useState, useTransition } from "react"
 import * as Button from "@/components/ui/primitives/button"
 import * as StatusBadge from "@/components/ui/data-display/status-badge"
 import * as Select from "@/components/ui/forms/select"
@@ -11,6 +11,9 @@ import * as Textarea from "@/components/ui/forms/textarea"
 import { ProgressCircle } from "@/components/ui/primitives/progress-circle"
 import * as Tooltip from "@/components/ui/layout/tooltip"
 import { Callout, CalloutWithActions } from "@/components/ui/feedback/callout"
+import { OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
+import { PageHeaderSkeleton, WalletBalanceSkeleton, TransactionListSkeleton } from "@/components/dashboard/loading-skeletons"
+import { WithdrawalRequestModal } from "@/components/dashboard/modals"
 import {
 	Plus,
 	DownloadSimple,
@@ -26,7 +29,6 @@ import {
 	Bank,
 	CheckCircle,
 	ArrowRight,
-	Warning,
 } from "@phosphor-icons/react"
 import {
 	VisaIcon,
@@ -36,34 +38,34 @@ import {
 	PaypalIcon,
 	UnionPayIcon,
 } from "@/components/ui/branding/payment-icons"
-import { cn } from "@/utils/cn"
-import { creditRequestSchema, type CreditRequestFormData } from "@/lib/utils/validations"
-import { useWalletSearchParams, useCopyWithField } from "@/hooks"
+import { cn } from "@/lib/utils"
+import { useWalletSearchParams, useCopyWithField, useMultiModal } from "@/hooks"
 import { useMediaQuery, useLocalStorage } from "usehooks-ts"
 import { useRouter } from "next/navigation"
-import { THRESHOLDS } from "@/lib/types/constants"
+import { routes } from "@/lib/routes"
+import { BALANCE_THRESHOLDS } from "@/lib/constants"
 import { exportTransactions } from "@/lib/utils/excel"
 import { TRANSACTION_TYPE_CONFIG } from "@/lib/constants"
 import { formatCurrency, formatCurrencyCompact, formatDateShort, getErrorMessage } from "@/lib/utils/format"
 import { toast } from "sonner"
-import { requestCredit, cancelWithdrawal } from "@/features/wallet"
-import { useActionState } from "react"
-import { useFormStatus } from "react-dom"
-import { useParams } from "next/navigation"
-import { useOrganizations } from "@/features/organizations"
+import { requestCredit, useDepositAccount } from "@/features/wallet"
+import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
 
 // Types
-import type { wallets } from "@/lib/api/encore-client"
-import type { WalletTransaction, Wallet as WalletData } from "@/features/wallet"
+import type { organizations, wallets } from "@/brand-client"
+import type { OrganizationWallet } from "@/features/wallet"
 
 // Default wallet - createdAt will be set when used
-const getDefaultWallet = (): WalletData => ({
+const getDefaultWallet = (): OrganizationWallet => ({
 	id: "",
 	organizationId: "",
 	currency: "INR",
 	balance: 0,
+	balanceDecimal: "0.00",
 	pendingBalance: 0,
+	pendingBalanceDecimal: "0.00",
 	availableBalance: 0,
+	availableBalanceDecimal: "0.00",
 	createdAt: new Date().toISOString(),
 	creditLimit: 0,
 	creditUtilized: 0,
@@ -71,10 +73,10 @@ const getDefaultWallet = (): WalletData => ({
 
 interface WalletClientProps {
 	initialData?: {
-		balance: wallets.OrganizationWalletResponse | null
-		withdrawals: wallets.Withdrawal[]
-		transactions: wallets.WalletTransaction[]
-		activeHolds: wallets.ActiveHold[]
+		balance: organizations.OrganizationWalletResponse | null
+		withdrawals: organizations.Withdrawal[]
+		transactions: organizations.WalletTransaction[]
+		activeHolds: organizations.ActiveHold[]
 		stats?: wallets.WithdrawalStats | null
 	} | null | undefined
 }
@@ -82,21 +84,16 @@ interface WalletClientProps {
 // URL-based multi-tenancy: Use URL params instead of context
 export function WalletClient({ initialData }: WalletClientProps) {
 	const router = useRouter()
-	const params = useParams<{ organizationId: string }>()
-	const { data: orgsData, isPending: isOrgLoading } = useOrganizations()
 
-	// URL-based multi-tenancy: verify organization from URL params
-	const organizations = orgsData?.organizations || []
-	const organization = organizations.find(org => org.id === params.organizationId)
+	// SSOT: Use centralized hook for organization lookup
+	const { organization, isLoading: isOrgLoading } = useCurrentOrganization()
 	const hasOrganization = !!organization
 
-	const [isFundModalOpen, setIsFundModalOpen] = useState(false)
-	const [isCreditRequestModalOpen, setIsCreditRequestModalOpen] = useState(false)
+	// SSOT: Centralized modal state management
+	const modals = useMultiModal(["fund", "creditRequest", "withdrawal"] as const)
 	const [activeSection, setActiveSection] = useState<"transactions" | "withdrawals">(
 		"transactions"
 	)
-	const [isPending, startTransition] = useTransition()
-
 	// Dismiss onboarding alert state (persisted in localStorage)
 	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
 		"wallet-onboarding-alert-dismissed",
@@ -111,10 +108,9 @@ export function WalletClient({ initialData }: WalletClientProps) {
 	if (isOrgLoading) {
 		return (
 			<div className="space-y-5 sm:space-y-6">
-				<div className="animate-pulse">
-					<div className="h-8 w-48 bg-bg-soft-200 rounded mb-4" />
-					<div className="h-40 bg-bg-soft-200 rounded-xl" />
-				</div>
+				<PageHeaderSkeleton />
+				<WalletBalanceSkeleton />
+				<TransactionListSkeleton count={5} />
 			</div>
 		)
 	}
@@ -123,7 +119,7 @@ export function WalletClient({ initialData }: WalletClientProps) {
 	const showOnboardingAlert = !hasOrganization && !dismissedOnboardingAlert
 
 	// Use server data directly
-	const wallet: WalletData = initialData?.balance
+	const wallet: OrganizationWallet = initialData?.balance
 		? {
 				...initialData.balance,
 			}
@@ -150,7 +146,7 @@ export function WalletClient({ initialData }: WalletClientProps) {
 								<Button.Root
 									variant="primary"
 									size="small"
-									onClick={() => router.push("/onboarding")}
+									onClick={() => router.push(routes.onboarding.root)}
 								>
 									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 									Start Onboarding
@@ -181,25 +177,9 @@ export function WalletClient({ initialData }: WalletClientProps) {
 
 				{/* EMPTY STATE */}
 				{dismissedOnboardingAlert && (
-					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
-						<div className="max-w-md mx-auto space-y-4">
-							<div className="flex justify-center">
-								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
-									<Warning weight="duotone" className="size-8 text-warning-base" />
-								</div>
-							</div>
-							<div>
-								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
-								<p className="text-paragraph-sm text-text-sub-600 mt-2">
-									Complete your organization setup to access wallet features, add funds, and manage transactions.
-								</p>
-							</div>
-							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
-								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-								Start Onboarding
-							</Button.Root>
-						</div>
-					</div>
+					<OrganizationSetupRequiredEmptyState
+						description="Complete your organization setup to access wallet features, add funds, and manage transactions."
+					/>
 				)}
 			</div>
 		)
@@ -266,26 +246,23 @@ export function WalletClient({ initialData }: WalletClientProps) {
 		return activeHolds.reduce((acc, h) => acc + (h.amount || 0), 0)
 	}, [activeHolds])
 
-	const handleCancelWithdrawal = useCallback((id: string) => {
-		startTransition(async () => {
-			try {
-				await cancelWithdrawal({ withdrawalId: id })
-				toast.success("Withdrawal cancelled successfully")
-				router.refresh()
-			} catch (e) {
-				toast.error(getErrorMessage(e, "Failed to cancel withdrawal"))
-			}
+	// Note: cancelWithdrawal is not available in current API
+	// Withdrawals can only be cancelled by admins through backend
+	const handleCancelWithdrawal = useCallback((_id: string) => {
+		toast.info("Withdrawal cancellation requires admin approval", {
+			description: "Please contact support at support@hypedrive.com to cancel this withdrawal request.",
+			duration: 5000,
 		})
-	}, [startTransition, router])
+	}, [])
 
 	// Stable callbacks for UI interactions
 	const handleOpenCreditRequest = useCallback(() => {
-		setIsCreditRequestModalOpen(true)
-	}, [])
+		modals.open("creditRequest")
+	}, [modals])
 
 	const handleOpenFundModal = useCallback(() => {
-		setIsFundModalOpen(true)
-	}, [])
+		modals.open("fund")
+	}, [modals])
 
 	const handleSetTransactionsSection = useCallback(() => {
 		setActiveSection("transactions")
@@ -295,10 +272,10 @@ export function WalletClient({ initialData }: WalletClientProps) {
 		setActiveSection("withdrawals")
 	}, [])
 
-	// Stable callback for closing credit request modal
-	const handleCloseCreditRequestModal = useCallback(() => {
-		setIsCreditRequestModalOpen(false)
-	}, [])
+	// Stable callbacks for withdrawal modal
+	const handleOpenWithdrawalModal = useCallback(() => {
+		modals.open("withdrawal")
+	}, [modals])
 
 	return (
 		<Tooltip.Provider>
@@ -334,10 +311,10 @@ export function WalletClient({ initialData }: WalletClientProps) {
 				</div>
 
 				{/* Low Balance Warning */}
-				{wallet.availableBalance < THRESHOLDS.LOW_BALANCE_WARNING && (
+				{wallet.availableBalance < BALANCE_THRESHOLDS.LOW_WARNING && (
 					<Callout variant="warning" dismissible>
 						<strong>Low Balance:</strong> Your wallet balance is below ₹
-						{THRESHOLDS.LOW_BALANCE_WARNING.toLocaleString("en-IN")}. Add funds to continue
+						{BALANCE_THRESHOLDS.LOW_WARNING.toLocaleString("en-IN")}. Add funds to continue
 						accepting enrollments.
 					</Callout>
 				)}
@@ -400,7 +377,7 @@ export function WalletClient({ initialData }: WalletClientProps) {
 							</p>
 							<button
 								type="button"
-								onClick={() => setIsCreditRequestModalOpen(true)}
+								onClick={() => modals.open("creditRequest")}
 								className="text-label-xs font-medium text-primary-base hover:text-primary-darker transition-all duration-200 shrink-0"
 							>
 								Increase →
@@ -460,7 +437,7 @@ export function WalletClient({ initialData }: WalletClientProps) {
 							>
 								Withdrawals
 								{withdrawals && Array.isArray(withdrawals) && withdrawals.filter((w) => w.status === "pending").length > 0 && (
-									<span className="ml-1.5 inline-flex items-center justify-center size-5 rounded-full bg-warning-base text-white text-[10px] font-medium">
+									<span className="ml-1.5 inline-flex items-center justify-center size-5 rounded-full bg-warning-base text-white text-label-xs font-medium">
 										{withdrawals.filter((w) => w.status === "pending").length}
 									</span>
 								)}
@@ -497,6 +474,7 @@ export function WalletClient({ initialData }: WalletClientProps) {
 													size="small"
 													onClick={handleExport}
 													className="shrink-0"
+													aria-label="Export transactions to Excel"
 												>
 													<Button.Icon><DownloadSimple className="size-5" /></Button.Icon>
 													<span className="hidden sm:inline">Export</span>
@@ -619,6 +597,20 @@ export function WalletClient({ initialData }: WalletClientProps) {
 						{/* Withdrawals Section */}
 						{activeSection === "withdrawals" && (
 							<>
+								{/* Withdrawals Header with Request Button */}
+								<div className="flex items-center justify-between mb-3 sm:mb-4">
+									<h2 className="text-label-md text-text-strong-950">Withdrawals</h2>
+									<Button.Root
+										variant="primary"
+										size="small"
+										onClick={handleOpenWithdrawalModal}
+									>
+										<Button.Icon><ArrowUp className="size-5" /></Button.Icon>
+										<span className="hidden sm:inline">Request Withdrawal</span>
+										<span className="sm:hidden">Withdraw</span>
+									</Button.Root>
+								</div>
+
 								{/* Withdrawal Stats Overview */}
 								{withdrawalStats &&
 									(() => {
@@ -735,14 +727,18 @@ export function WalletClient({ initialData }: WalletClientProps) {
 														variant="light"
 													/>
 													{withdrawal.status === "pending" && (
-														<Button.Root
-															variant="ghost"
-															size="small"
-															onClick={() => handleCancelWithdrawal(withdrawal.id)}
-															disabled={isPending}
-														>
-															Cancel
-														</Button.Root>
+														<Tooltip.Root>
+															<Tooltip.Trigger asChild>
+																<Button.Root
+																	variant="ghost"
+																	size="small"
+																	onClick={() => handleCancelWithdrawal(withdrawal.id)}
+																>
+																	Cancel
+																</Button.Root>
+															</Tooltip.Trigger>
+															<Tooltip.Content>Contact support to cancel</Tooltip.Content>
+														</Tooltip.Root>
 													)}
 												</div>
 											</div>
@@ -845,11 +841,16 @@ export function WalletClient({ initialData }: WalletClientProps) {
 					</div>
 				</div>
 
-				{/* Modals */}
-				<FundWalletModal open={isFundModalOpen} onOpenChange={setIsFundModalOpen} />
+				{/* Modals - using centralized modal state */}
+				<FundWalletModal {...modals.getProps("fund")} />
 				<CreditRequestModal
-					open={isCreditRequestModalOpen}
-					onOpenChange={setIsCreditRequestModalOpen}
+					{...modals.getProps("creditRequest")}
+					currentCreditLimit={wallet.creditLimit ?? 0}
+				/>
+				<WithdrawalRequestModal
+					{...modals.getProps("withdrawal")}
+					availableBalance={wallet.availableBalance}
+					onSuccess={modals.close}
 				/>
 			</div>
 		</Tooltip.Provider>
@@ -858,24 +859,56 @@ export function WalletClient({ initialData }: WalletClientProps) {
 
 // Shared Fund Wallet Content
 function FundWalletContent({ onClose }: { onClose: () => void }) {
-	const { copy, copiedField, isCopied } = useCopyWithField<"account" | "ifsc" | "accountName">({
-		onSuccess: (text) => {
+	const { organizationId } = useCurrentOrganization()
+	const { data: depositAccount, isPending, error } = useDepositAccount(organizationId)
+
+	const { copy, isCopied } = useCopyWithField<"account" | "ifsc" | "accountName">({
+		onSuccess: () => {
 			toast.success("Copied to clipboard", {
 				description: "Account details copied successfully",
 			})
 		},
-		onError: (error) => {
+		onError: (err) => {
 			toast.error("Failed to copy", {
-				description: error.message || "Unable to copy to clipboard",
+				description: err.message || "Unable to copy to clipboard",
 			})
 		},
 	})
 
-	const bankDetails = {
-		accountName: "Nike India - Hypedrive VA",
-		accountNumber: "9876543210123456",
-		ifscCode: "RATN0VAAPIS",
-		bank: "RBL Bank (via RazorpayX)",
+	// Extract bank details from API response
+	// DepositAccountResponse has { found: boolean, account?: DepositAccountDetails }
+	const bankDetails = depositAccount?.account
+	const accountName = bankDetails?.beneficiaryName || "—"
+	const accountNumber = bankDetails?.accountNumber || "—"
+	const ifscCode = bankDetails?.ifsc || "—"
+	const bankName = bankDetails?.bankName || "Virtual Account"
+
+	if (isPending) {
+		return (
+			<div className="space-y-4">
+				<p className="text-paragraph-sm text-text-sub-600">Loading account details...</p>
+				<div className="animate-pulse space-y-3">
+					<div className="h-4 bg-bg-soft-200 rounded w-3/4" />
+					<div className="h-4 bg-bg-soft-200 rounded w-1/2" />
+					<div className="h-4 bg-bg-soft-200 rounded w-2/3" />
+				</div>
+			</div>
+		)
+	}
+
+	if (error || !depositAccount) {
+		return (
+			<>
+				<Callout variant="error" size="sm">
+					Unable to load deposit account details. Please try again later or contact support.
+				</Callout>
+				<div className="flex justify-end mt-4">
+					<Button.Root variant="ghost" onClick={onClose}>
+						Close
+					</Button.Root>
+				</div>
+			</>
+		)
 	}
 
 	return (
@@ -894,10 +927,10 @@ function FundWalletContent({ onClose }: { onClose: () => void }) {
 					<div className="flex justify-between items-center">
 						<span className="text-paragraph-xs text-text-sub-600">Account Name</span>
 						<div className="flex items-center gap-2">
-							<span className="text-label-sm text-text-strong-950">{bankDetails.accountName}</span>
+							<span className="text-label-sm text-text-strong-950">{accountName}</span>
 							<button
 								type="button"
-								onClick={() => copy(bankDetails.accountName, "accountName")}
+								onClick={() => copy(accountName, "accountName")}
 								className="text-text-soft-400 hover:text-text-sub-600 transition-colors"
 								aria-label="Copy account name"
 							>
@@ -914,11 +947,11 @@ function FundWalletContent({ onClose }: { onClose: () => void }) {
 						<span className="text-paragraph-xs text-text-sub-600">Account Number</span>
 						<div className="flex items-center gap-2">
 							<span className="text-label-sm text-text-strong-950 font-mono">
-								{bankDetails.accountNumber}
+								{accountNumber}
 							</span>
 							<button
 								type="button"
-								onClick={() => copy(bankDetails.accountNumber, "account")}
+								onClick={() => copy(accountNumber, "account")}
 								className="text-text-soft-400 hover:text-text-sub-600 transition-colors"
 								aria-label="Copy account number"
 							>
@@ -935,11 +968,11 @@ function FundWalletContent({ onClose }: { onClose: () => void }) {
 						<span className="text-paragraph-xs text-text-sub-600">IFSC Code</span>
 						<div className="flex items-center gap-2">
 							<span className="text-label-sm text-text-strong-950 font-mono">
-								{bankDetails.ifscCode}
+								{ifscCode}
 							</span>
 							<button
 								type="button"
-								onClick={() => copy(bankDetails.ifscCode, "ifsc")}
+								onClick={() => copy(ifscCode, "ifsc")}
 								className="text-text-soft-400 hover:text-text-sub-600 transition-colors"
 								aria-label="Copy IFSC code"
 							>
@@ -954,7 +987,7 @@ function FundWalletContent({ onClose }: { onClose: () => void }) {
 
 					<div className="flex justify-between items-center">
 						<span className="text-paragraph-xs text-text-sub-600">Bank</span>
-						<span className="text-label-sm text-text-strong-950">{bankDetails.bank}</span>
+						<span className="text-label-sm text-text-strong-950">{bankName}</span>
 					</div>
 				</div>
 			</div>
@@ -1015,116 +1048,100 @@ function FundWalletModal({
 	)
 }
 
-// Submit Button Component (uses useFormStatus)
-function CreditSubmitButton({ onClose }: { onClose: () => void }) {
-	const { pending } = useFormStatus()
-	return (
-		<>
-			<Button.Root type="button" variant="ghost" onClick={onClose} disabled={pending}>
-				Cancel
-			</Button.Root>
-			<Button.Root type="submit" variant="primary" disabled={pending}>
-				{pending ? "Submitting..." : "Submit Request"}
-			</Button.Root>
-		</>
-	)
-}
-
-// Shared Credit Request Content (React 19 useActionState)
+// Shared Credit Request Content (useTransition pattern)
 function CreditRequestContent({
 	onClose,
 	onSuccess,
+	currentCreditLimit,
 }: {
 	onClose: () => void
 	onSuccess: () => void
+	currentCreditLimit: number
 }) {
-	const params = useParams<{ organizationId: string }>()
-	const organizationId = params.organizationId
+	const { organizationId } = useCurrentOrganization()
 
-	// Action state type
-	type CreditRequestState = { success: true; requestId: string } | { success: false; error: string } | null
+	// Controlled form state
+	const [amount, setAmount] = useState("")
+	const [reason, setReason] = useState("")
+	const [error, setError] = useState<string | null>(null)
+	const [isPending, startTransition] = useTransition()
 
-	// Wrapper action for useActionState (accepts FormData)
-	const requestCreditAction = async (
-		prevState: CreditRequestState,
-		formData: FormData
-	): Promise<CreditRequestState> => {
-		const amount = Number(formData.get("amount"))
-		const reason = formData.get("reason") as string
-		if (!amount || !reason) {
-			return { success: false, error: "Amount and reason are required" }
+	const handleSubmit = (e: React.FormEvent) => {
+		e.preventDefault()
+		setError(null)
+
+		const numAmount = Number(amount)
+		if (!numAmount || !reason.trim()) {
+			setError("Amount and reason are required")
+			return
 		}
-		try {
-			const result = await requestCredit({ amount, reason, organizationId })
-			return { success: true, requestId: result?.data?.requestId || "" }
-		} catch (error) {
-			return { success: false, error: getErrorMessage(error, "Failed to submit request") }
-		}
+
+		startTransition(async () => {
+			try {
+				await requestCredit({ amount: numAmount, reason: reason.trim(), organizationId })
+				toast.success("Credit request submitted successfully")
+				onSuccess()
+			} catch (err) {
+				setError(getErrorMessage(err, "Failed to submit request"))
+			}
+		})
 	}
-
-	// React 19 useActionState hook
-	const [state, formAction, pending] = useActionState(requestCreditAction, null)
-
-	// Handle success/error from state - use ref to prevent multiple calls
-	const hasHandledState = useRef<string | null>(null)
-
-	useEffect(() => {
-		if (!state) return
-
-		// Create a unique key for this state to prevent duplicate handling
-		const stateKey = state.success ? `success-${state.requestId}` : `error-${state.error}`
-		if (!stateKey || hasHandledState.current === stateKey) return
-
-		hasHandledState.current = stateKey
-
-		if (state.success) {
-			toast.success("Credit request submitted successfully")
-			onSuccess()
-		} else if (state.error) {
-			toast.error(state.error)
-		}
-	}, [state, onSuccess])
 
 	return (
 		<>
 			<div className="flex items-center justify-between p-3 rounded-lg bg-bg-weak-50 mb-4">
 				<span className="text-paragraph-sm text-text-sub-600">Current Credit Limit</span>
-				<span className="text-label-md text-text-strong-950 font-semibold">₹5,00,000</span>
+				<span className="text-label-md text-text-strong-950 font-semibold">{formatCurrency(currentCreditLimit)}</span>
 			</div>
 
-			<form action={formAction}>
+			<form onSubmit={handleSubmit}>
 				<div className="space-y-4">
 					<div>
-						<label className="block text-label-sm text-text-strong-950 mb-1.5">
+						<label htmlFor="credit-amount" className="block text-label-sm text-text-strong-950 mb-1.5">
 							Requested Credit Limit <span className="text-error-base">*</span>
 						</label>
 						<Input.Root>
 							<Input.Wrapper>
 								<span className="text-text-sub-600">₹</span>
-								<Input.El name="amount" type="number" placeholder="2,50,000" required min="1" />
+								<Input.El
+									id="credit-amount"
+									type="number"
+									placeholder="2,50,000"
+									required
+									min="1"
+									value={amount}
+									onChange={(e) => setAmount(e.target.value)}
+								/>
 							</Input.Wrapper>
 						</Input.Root>
-						{state && !state.success && state.error && (
+						{error && (
 							<p className="mt-1 text-paragraph-xs text-error-base">
-								{state.error}
+								{error}
 							</p>
 						)}
 					</div>
 
 					<div>
-						<label className="block text-label-sm text-text-strong-950 mb-1.5">
+						<label htmlFor="credit-reason" className="block text-label-sm text-text-strong-950 mb-1.5">
 							Reason for Request <span className="text-error-base">*</span>
 						</label>
 						<Textarea.Root
-							name="reason"
+							id="credit-reason"
 							placeholder="Explain why you need a higher credit limit..."
 							rows={3}
 							required
+							value={reason}
+							onChange={(e) => setReason(e.target.value)}
 						/>
 					</div>
 
 					<div className="flex justify-end gap-3 pt-2">
-						<CreditSubmitButton onClose={onClose} />
+						<Button.Root type="button" variant="ghost" onClick={onClose} disabled={isPending}>
+							Cancel
+						</Button.Root>
+						<Button.Root type="submit" variant="primary" disabled={isPending}>
+							{isPending ? "Submitting..." : "Submit Request"}
+						</Button.Root>
 					</div>
 				</div>
 			</form>
@@ -1135,10 +1152,11 @@ function CreditRequestContent({
 function CreditRequestModal({
 	open,
 	onOpenChange,
-}: { open: boolean; onOpenChange: (open: boolean) => void }) {
+	currentCreditLimit,
+}: { open: boolean; onOpenChange: (open: boolean) => void; currentCreditLimit: number }) {
 	const isMobile = useMediaQuery("(max-width: 639px)")
-	
-	// Memoize callbacks to prevent infinite loops
+
+	// Close handler
 	const handleClose = useCallback(() => {
 		onOpenChange(false)
 	}, [onOpenChange])
@@ -1152,7 +1170,7 @@ function CreditRequestModal({
 							Request Credit Increase
 						</h2>
 					<BottomSheet.Close asChild>
-						<Button.Root variant="ghost" size="xsmall" aria-label="Close fund wallet dialog">
+						<Button.Root variant="ghost" size="xsmall" aria-label="Close credit request dialog">
 							<Button.Icon><X className="size-5" /></Button.Icon>
 						</Button.Root>
 					</BottomSheet.Close>
@@ -1161,6 +1179,7 @@ function CreditRequestModal({
 						<CreditRequestContent
 							onClose={handleClose}
 							onSuccess={handleClose}
+							currentCreditLimit={currentCreditLimit}
 						/>
 					</div>
 				</BottomSheet.Content>
@@ -1178,9 +1197,11 @@ function CreditRequestModal({
 					<CreditRequestContent
 						onClose={handleClose}
 						onSuccess={handleClose}
+						currentCreditLimit={currentCreditLimit}
 					/>
 				</Modal.Body>
 			</Modal.Content>
 		</Modal.Root>
 	)
 }
+

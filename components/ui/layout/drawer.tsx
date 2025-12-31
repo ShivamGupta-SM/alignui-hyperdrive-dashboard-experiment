@@ -8,7 +8,7 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 import { X } from "@phosphor-icons/react"
 
 import * as CompactButton from "@/components/ui/primitives/compact-button"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 
 const DrawerRoot = DialogPrimitive.Root
 DrawerRoot.displayName = "Drawer"

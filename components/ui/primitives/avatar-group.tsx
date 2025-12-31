@@ -4,8 +4,8 @@
 "use client"
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 const AVATAR_GROUP_ROOT_NAME = "AvatarGroupRoot"
 const AVATAR_GROUP_OVERFLOW_NAME = "AvatarGroupOverflow"

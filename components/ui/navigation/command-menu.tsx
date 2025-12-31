@@ -4,9 +4,9 @@
 
 import * as React from "react"
 import { Command } from "cmdk"
-import { cn } from "@/utils/cn"
-import { tv, type VariantProps } from "@/utils/tv"
-import { PolymorphicComponentProps } from "@/utils/polymorphic"
+import { cn } from "@/lib/utils"
+import { tv, type VariantProps } from "@/lib/utils"
+import { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 import * as Modal from "@/components/ui/layout/modal"
 import { type DialogProps } from "@radix-ui/react-dialog"
 

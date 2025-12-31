@@ -1,8 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import * as Drawer from "@/components/ui/layout/drawer"
+import * as Button from "@/components/ui/primitives/button"
+import * as CompactButton from "@/components/ui/primitives/compact-button"
+import * as LinkButton from "@/components/ui/primitives/link-button"
 import {
 	Check,
 	Wallet,
@@ -18,7 +21,8 @@ import {
 	Megaphone,
 } from "@phosphor-icons/react"
 import { useRouter, useParams } from "next/navigation"
-import type { NotificationType } from "@/hooks/shared/use-notifications"
+import type { NotificationType } from "@/features/notifications/types"
+import { isValidInternalUrl, routes, SETTINGS_TABS } from "@/lib/routes"
 
 interface Notification {
 	id: string
@@ -246,61 +250,55 @@ export function NotificationsDrawer({
 							</p>
 						</div>
 					</div>
-					<button
-						type="button"
+					<CompactButton.Root
+						variant="ghost"
+						size="large"
 						onClick={() => onOpenChange(false)}
-						className="size-8 rounded-lg flex items-center justify-center text-text-sub-600 hover:bg-bg-weak-50 hover:text-text-strong-950 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"
+						aria-label="Close notifications"
 					>
-						<X className="size-5" weight="bold" />
-					</button>
+						<CompactButton.Icon><X weight="bold" /></CompactButton.Icon>
+					</CompactButton.Root>
 				</div>
 
 				<Drawer.Body className="flex flex-col p-0">
 					{/* Filter Pills */}
 					<div className="flex items-center gap-2 px-5 py-3 border-b border-stroke-soft-200">
-						<button
-							type="button"
+						<Button.Root
+							variant={filter === "all" ? "neutral" : "ghost"}
+							size="xsmall"
 							onClick={() => setFilter("all")}
-							className={cn(
-								"px-3 py-1.5 rounded-full text-label-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base",
-								filter === "all"
-									? "bg-text-strong-950 text-white"
-									: "bg-bg-weak-50 text-text-sub-600 hover:bg-bg-soft-200"
-							)}
+							className="rounded-full"
 						>
 							All
-						</button>
-						<button
-							type="button"
+						</Button.Root>
+						<Button.Root
+							variant={filter === "unread" ? "neutral" : "ghost"}
+							size="xsmall"
 							onClick={() => setFilter("unread")}
-							className={cn(
-								"px-3 py-1.5 rounded-full text-label-sm transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base",
-								filter === "unread"
-									? "bg-text-strong-950 text-white"
-									: "bg-bg-weak-50 text-text-sub-600 hover:bg-bg-soft-200"
-							)}
+							className="rounded-full"
 						>
 							Unread
 							{unreadCount > 0 && (
 								<span
 									className={cn(
-										"size-5 rounded-full text-label-xs font-medium flex items-center justify-center",
+										"size-5 rounded-full text-label-xs font-medium flex items-center justify-center ml-1",
 										filter === "unread" ? "bg-white/20 text-white" : "bg-error-base text-white"
 									)}
 								>
 									{unreadCount}
 								</span>
 							)}
-						</button>
+						</Button.Root>
 
 						{unreadCount > 0 && (
-							<button
-								type="button"
+							<LinkButton.Root
+								variant="primary"
+								size="small"
 								onClick={onMarkAllRead}
-								className="ml-auto text-label-xs text-primary-base hover:text-primary-dark transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2 rounded"
+								className="ml-auto"
 							>
 								Mark all read
-							</button>
+							</LinkButton.Root>
 						)}
 					</div>
 
@@ -350,27 +348,25 @@ export function NotificationsDrawer({
 												}
 												// Call custom click handler
 												onNotificationClick?.(notification)
-												// Navigate if there's an action URL
-												if (notification.actionUrl) {
-													router.push(notification.actionUrl)
+												// Navigate only if action URL is valid internal path (security)
+												if (isValidInternalUrl(notification.actionUrl)) {
+													router.push(notification.actionUrl!)
 													onOpenChange(false)
 												}
 											}
 
 											return (
-												<button
-													type="button"
+												<Button.Root
+													variant="ghost"
+													size="medium"
 													key={notification.id}
 													onClick={handleClick}
 													className={cn(
-														"w-full text-left p-3 rounded-xl mb-1 last:mb-0",
-														"transition-all duration-200",
-														"hover:bg-bg-weak-50 active:scale-[0.99]",
-														"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base",
+														"w-full text-left p-3 rounded-xl mb-1 last:mb-0 h-auto justify-start",
 														!notification.isRead && "bg-primary-alpha-5 hover:bg-primary-alpha-10"
 													)}
 												>
-													<div className="flex gap-3">
+													<div className="flex gap-3 w-full">
 														{/* Icon */}
 														<div
 															className={cn(
@@ -415,7 +411,7 @@ export function NotificationsDrawer({
 															)}
 														</div>
 													</div>
-												</button>
+												</Button.Root>
 											)
 										})}
 									</div>
@@ -430,16 +426,20 @@ export function NotificationsDrawer({
 					className="border-t border-stroke-soft-200 px-5 py-3"
 					style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
 				>
-					<button
-						type="button"
+					<Button.Root
+						variant="ghost"
+						size="medium"
 						onClick={() => {
-							router.push(params.organizationId ? `/dashboard/${params.organizationId}/settings?tab=notifications` : "/dashboard/settings?tab=notifications")
+							const settingsUrl = params.organizationId
+								? routes.dashboard.settings(params.organizationId, "notifications")
+								: routes.dashboard.root
+							router.push(settingsUrl)
 							onOpenChange(false)
 						}}
-						className="w-full text-center text-label-sm text-text-sub-600 hover:text-text-strong-950 transition-colors py-2 min-h-11 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"
+						className="w-full min-h-11 rounded-xl"
 					>
 						Notification Settings
-					</button>
+					</Button.Root>
 				</div>
 			</Drawer.Content>
 		</Drawer.Root>

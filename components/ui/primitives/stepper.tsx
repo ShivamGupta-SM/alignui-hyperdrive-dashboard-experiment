@@ -4,10 +4,10 @@
 "use client"
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { Check } from "@phosphor-icons/react"
-import { recursiveCloneChildren } from "@/utils/recursive-clone-children"
+import { recursiveCloneChildren } from "@/lib/utils"
 
 const STEPPER_ROOT_NAME = "StepperRoot"
 const STEPPER_ITEM_NAME = "StepperItem"

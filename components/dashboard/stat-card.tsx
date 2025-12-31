@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import { formatCurrencyCompact, formatCurrency } from "@/lib/utils/format"
 
 import { Wallet } from "@phosphor-icons/react"
@@ -38,7 +38,7 @@ export const SimpleStatCard = React.memo(function SimpleStatCard({
 			{/* Icon */}
 			<div
 				className={cn(
-					"flex size-10 items-center justify-center rounded-full mb-3",
+					"flex size-8 sm:size-10 items-center justify-center rounded-full mb-2 sm:mb-3 [&>svg]:size-4 [&>svg]:sm:size-5",
 					iconColorStyles[iconColor]
 				)}
 			>
@@ -46,17 +46,17 @@ export const SimpleStatCard = React.memo(function SimpleStatCard({
 			</div>
 
 			{/* Value */}
-			<div className="text-title-h4 text-text-strong-950 font-semibold">
+			<div className="text-title-h5 sm:text-title-h4 text-text-strong-950 font-semibold">
 				{typeof value === "number" ? formatCurrencyCompact(value) : value}
 			</div>
 
 			{/* Label */}
-			<div className="text-paragraph-sm text-text-sub-600 mt-0.5">{label}</div>
+			<div className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">{label}</div>
 		</>
 	)
 
 	const cardClass = cn(
-		"flex flex-col rounded-20 p-4 h-full",
+		"flex flex-col rounded-16 sm:rounded-20 p-3 sm:p-4",
 		"bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200",
 		"transition-all duration-200",
 		href && "hover:ring-stroke-strong-950 hover:shadow-regular cursor-pointer",
@@ -150,7 +150,7 @@ export const WalletCard = React.memo(function WalletCard({
 	)
 })
 
-import { tv, type VariantProps } from "@/utils/tv"
+import { tv, type VariantProps } from "@/lib/utils"
 import * as Button from "@/components/ui/primitives/button"
 
 const statCardVariants = tv({
@@ -327,24 +327,15 @@ export function WalletStatCard({
 	onAddFunds,
 	...props
 }: WalletStatCardProps) {
-	const formatCurrency = (amount: number) => {
-		if (amount >= 100000) {
-			return `₹${(amount / 100000).toFixed(2)}L`
-		} else if (amount >= 1000) {
-			return `₹${(amount / 1000).toFixed(1)}K`
-		}
-		return `₹${amount.toLocaleString("en-IN")}`
-	}
-
 	const isLowBalance = availableBalance < lowBalanceThreshold
 
 	return (
 		<StatCard
 			variant={isLowBalance ? "warning" : "default"}
 			icon={<Wallet className="size-5" />}
-			value={formatCurrency(availableBalance)}
+			value={formatCurrencyCompact(availableBalance)}
 			label={isLowBalance ? "Low Balance" : "Wallet Balance"}
-			secondaryText={heldAmount ? `${formatCurrency(heldAmount)} held` : undefined}
+			secondaryText={heldAmount ? `${formatCurrencyCompact(heldAmount)} held` : undefined}
 			badge={isLowBalance ? { text: "Low Balance", variant: "warning" } : undefined}
 			action={onAddFunds ? { label: "Add Funds", onClick: onAddFunds } : undefined}
 			{...props}

@@ -1,8 +1,8 @@
 // AlignUI ProgressBar v0.1.0 - Enhanced with indeterminate, sizes, and labels
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 export const progressBarVariants = tv({
 	slots: {

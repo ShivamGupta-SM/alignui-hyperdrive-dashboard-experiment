@@ -1,7 +1,7 @@
 "use client"
 
 import { AvatarWithFallback } from "@/components/ui/primitives/avatar"
-import type { auth } from "@/lib/api/encore-client"
+import type { auth } from "@/brand-client"
 
 interface UserAvatarProps {
 	user?: auth.MeResponse | null

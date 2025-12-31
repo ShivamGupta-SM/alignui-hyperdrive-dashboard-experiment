@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import * as Alert from "@/components/ui/feedback/alert"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import * as NotificationPrimitives from "@radix-ui/react-toast"
 import { Warning, CheckCircle, WarningCircle, Info, MagicWand } from "@phosphor-icons/react"
 

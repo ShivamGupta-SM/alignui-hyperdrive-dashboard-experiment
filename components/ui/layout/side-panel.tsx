@@ -3,7 +3,7 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import { X } from "@phosphor-icons/react"
 import * as Button from "@/components/ui/primitives/button"
 
@@ -73,16 +73,76 @@ interface SidePanelContentProps {
 
 function SidePanelContent({ children, className, side = "right" }: SidePanelContentProps) {
 	const { open, onOpenChange } = useSidePanelContext()
+	const panelRef = React.useRef<HTMLDivElement>(null)
+	const previousActiveElement = React.useRef<HTMLElement | null>(null)
 
+	// Handle body overflow and focus management
 	React.useEffect(() => {
 		if (open) {
+			// Store the previously focused element
+			previousActiveElement.current = document.activeElement as HTMLElement
 			document.body.style.overflow = "hidden"
+
+			// Focus the panel after it opens
+			requestAnimationFrame(() => {
+				panelRef.current?.focus()
+			})
 		} else {
 			document.body.style.overflow = ""
+
+			// Return focus to the previously focused element
+			previousActiveElement.current?.focus()
 		}
 		return () => {
 			document.body.style.overflow = ""
 		}
+	}, [open])
+
+	// Handle Escape key to close
+	React.useEffect(() => {
+		if (!open) return
+
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape") {
+				onOpenChange(false)
+			}
+		}
+
+		document.addEventListener("keydown", handleKeyDown)
+		return () => document.removeEventListener("keydown", handleKeyDown)
+	}, [open, onOpenChange])
+
+	// Focus trap - keep focus within the panel
+	React.useEffect(() => {
+		if (!open || !panelRef.current) return
+
+		const panel = panelRef.current
+		const focusableElements = panel.querySelectorAll<HTMLElement>(
+			'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+		)
+		const firstFocusable = focusableElements[0]
+		const lastFocusable = focusableElements[focusableElements.length - 1]
+
+		const handleTabKey = (e: KeyboardEvent) => {
+			if (e.key !== "Tab") return
+
+			if (e.shiftKey) {
+				// Shift + Tab
+				if (document.activeElement === firstFocusable) {
+					e.preventDefault()
+					lastFocusable?.focus()
+				}
+			} else {
+				// Tab
+				if (document.activeElement === lastFocusable) {
+					e.preventDefault()
+					firstFocusable?.focus()
+				}
+			}
+		}
+
+		panel.addEventListener("keydown", handleTabKey)
+		return () => panel.removeEventListener("keydown", handleTabKey)
 	}, [open])
 
 	if (!open) return null
@@ -96,12 +156,17 @@ function SidePanelContent({ children, className, side = "right" }: SidePanelCont
 					open ? "opacity-100" : "opacity-0"
 				)}
 				onClick={() => onOpenChange(false)}
+				aria-hidden="true"
 			/>
 
 			{/* Panel */}
 			<div
+				ref={panelRef}
+				role="dialog"
+				aria-modal="true"
+				tabIndex={-1}
 				className={cn(
-					"fixed top-0 z-50 h-full w-full bg-bg-white-0 shadow-xl transition-transform duration-300 ease-out sm:w-[480px]",
+					"fixed top-0 z-50 h-full w-[calc(100%-1rem)] max-w-full mx-2 bg-bg-white-0 shadow-xl transition-transform duration-300 ease-out sm:w-[480px] sm:mx-0 outline-none",
 					side === "right" && "right-0 sm:rounded-l-2xl",
 					side === "left" && "left-0 sm:rounded-r-2xl",
 					open ? "translate-x-0" : side === "right" ? "translate-x-full" : "-translate-x-full",
@@ -131,7 +196,7 @@ function SidePanelHeader({ children, className }: SidePanelHeaderProps) {
 		>
 			<div className="flex-1">{children}</div>
 			<Button.Root variant="ghost" size="small" onClick={() => onOpenChange(false)} aria-label="Close side panel">
-				<Button.Icon><X className="size-5" /></Button.Icon>
+				<Button.Icon><X className="size-5" aria-hidden="true" /></Button.Icon>
 			</Button.Root>
 		</div>
 	)

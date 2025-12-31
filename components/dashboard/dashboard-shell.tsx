@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useRouter, usePathname, useParams } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { Sidebar } from "@/components/dashboard/sidebar"
@@ -9,13 +10,14 @@ import { NotificationsDrawer } from "@/components/dashboard/notifications-drawer
 import { CommandMenu } from "@/components/dashboard/command-menu"
 import { SettingsPanel } from "@/components/dashboard/settings-panel"
 import { StatusBanner } from "@/components/dashboard/status-banner"
-import { useBreadcrumbs, useIsDesktop } from "@/hooks/ui"
+import { useBreadcrumbs, useIsDesktop, useKeyboardShortcut } from "@/hooks/ui"
 import { useSignOut, useSession } from "@/features/auth"
-import { useOrganization } from "@/features/organizations"
+import type { Notification as NotificationItem } from "@/lib/types/notification"
 import { useUIStore } from "@/lib/stores/ui-store"
 import { useNotifications as useBackendNotifications, useUnreadNotificationCount as useBackendUnreadCount, useMarkAllNotificationsRead as useBackendMarkAllRead, useMarkNotificationRead as useBackendMarkRead, useDashboard } from "@/hooks/shared"
 import { useTheme } from "next-themes"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
+import { isValidInternalUrl } from "@/lib/routes"
 
 interface DashboardShellProps {
 	children: React.ReactNode
@@ -42,16 +44,6 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 		settingsPanelOpen,
 		setSettingsPanelOpen,
 	} = useUIStore()
-
-	// ✅ Organization check - redirect to onboarding if not approved
-	const { organization, needsOnboarding, isDraft, isPending: isOrgPending } = useOrganization()
-
-	React.useEffect(() => {
-		// Wait for org data to load, then redirect if needed
-		if (!isOrgPending && needsOnboarding) {
-			router.replace("/onboarding")
-		}
-	}, [isOrgPending, needsOnboarding, router])
 
 	// Mobile menu uses local state (as per UIState design)
 	const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
@@ -114,15 +106,19 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 		}
 	}, [isDesktop, setMobileMenuOpen])
 
-	// Command menu keyboard shortcut - TODO: implement useKeyboardShortcut hook
-	// useKeyboardShortcut({ key: "k", modifiers: ["ctrl", "meta"], preventDefault: true }, () => {
-	// 	setCommandMenuOpen(true)
-	// }, { enabled: true })
+	// Command menu keyboard shortcut (Ctrl/Cmd + K)
+	useKeyboardShortcut(
+		{ key: "k", modifiers: ["ctrl", "meta"] },
+		() => setCommandMenuOpen(true),
+		{ enabled: true, preventDefault: true }
+	)
 
-	// Close mobile sidebar on Escape - TODO: implement useKeyboardShortcut hook
-	// useKeyboardShortcut("Escape", () => {
-	// 	setMobileMenuOpen(false)
-	// }, { enabled: mobileSidebarOpen })
+	// Close mobile sidebar on Escape
+	useKeyboardShortcut(
+		"Escape",
+		() => setMobileMenuOpen(false),
+		{ enabled: mobileSidebarOpen }
+	)
 
 	// Sign out - single source of truth
 	const { signOut: handleSignOut } = useSignOut("/sign-in")
@@ -164,7 +160,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 						<div className="h-14 sm:h-16" />
 					</div>
 					{/* Content Area */}
-					<div className="flex-1 relative overflow-hidden p-2 pt-2">
+					<div className="flex-1 relative overflow-hidden px-2 pb-2">
 						<div className="relative z-10 flex flex-col h-full bg-bg-white-0 rounded-2xl border border-stroke-soft-200 shadow-md ring-1 ring-black/3 dark:ring-white/3">
 							<main className="flex-1 overflow-y-auto">
 								<div
@@ -226,12 +222,12 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 												<span className="text-paragraph-xs mx-1 text-text-soft-400">/</span>
 											)}
 											{item.href && !isLast ? (
-												<a
+												<Link
 													href={item.href}
 													className="text-paragraph-xs text-text-sub-600 hover:text-primary-base transition-colors duration-150"
 												>
 													{item.label}
-												</a>
+												</Link>
 											) : (
 												<span
 													className={cn(
@@ -281,11 +277,11 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 				</div>
 
 				{/* Content Area - Relative container for basement reveal */}
-				<div className="flex-1 relative overflow-hidden p-2 pt-2">
+				<div className="flex-1 relative overflow-hidden px-2 pb-2">
 					{/* Basement Layer - Sidebar (underneath content) */}
 					<div
 						className={cn(
-							"absolute inset-2 z-0",
+							"absolute inset-x-2 top-0 bottom-2 z-0",
 							"transition-opacity duration-300",
 							mobileSidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
 						)}
@@ -331,7 +327,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 					{mobileSidebarOpen && (
 						<button
 							type="button"
-							className="absolute inset-x-2 bottom-2 z-20 h-[35%] cursor-pointer"
+							className="absolute inset-x-2 bottom-2 z-20 h-[30%] cursor-pointer"
 							onClick={(e) => {
 								e.preventDefault()
 								e.stopPropagation()
@@ -355,21 +351,22 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 			<NotificationsDrawer
 				open={notificationsDrawerOpen}
 				onOpenChange={setNotificationsDrawerOpen}
-				notifications={notificationsData?.data?.map((n: any) => ({
+				notifications={notificationsData?.data?.map((n) => ({
 					id: n.id,
-					userId: n.userId || "1",
+					userId: "1",
 					type: n.type,
 					title: n.title,
-					message: n.message,
-					actionUrl: n.actionUrl,
+					message: n.body || "",
+					actionUrl: undefined,
 					isRead: n.isRead,
 					createdAt: n.createdAt,
 				}))}
 				onMarkAllRead={markAllRead}
 				onNotificationClick={(notification) => {
 					markRead(notification.id)
-					if (notification.actionUrl) {
-						router.push(notification.actionUrl)
+					// Only navigate to valid internal URLs (security)
+					if (isValidInternalUrl(notification.actionUrl)) {
+						router.push(notification.actionUrl!)
 					}
 					setNotificationsDrawerOpen(false)
 				}}

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useVirtualizer, type VirtualizerOptions } from "@tanstack/react-virtual"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 
 export interface VirtualizedListProps<T> {
 	/** Array of items to render */

@@ -6,6 +6,7 @@
 
 import { http } from "msw"
 import { db } from "@/mocks/db"
+import type { Product } from "@/mocks/db/schemas"
 import {
 	getAuthContext,
 	encoreUrl,
@@ -17,13 +18,14 @@ import {
 import { delay, DELAY } from "@/mocks/utils/delay"
 
 // Product already in Encore format from database, just add stats
-function toProductWithStats(product: any) {
+function toProductWithStats(product: Product) {
 	const campaigns = db.campaigns.findMany((q) => q.where({ productId: product.id }))
 
 	return {
+		...product,
+		// Override fields after spread
 		isActive: product.isActive ?? true,
 		campaignCount: campaigns.length,
-		...product, // All other fields already in Encore format
 	}
 }
 
@@ -98,18 +100,21 @@ export const productsHandlers = [
 			return encoreErrorResponse("Product name is required", 400)
 		}
 
-		const newProduct = {
+		const now = new Date().toISOString()
+		const newProduct: Product = {
 			id: `prod-${Date.now()}`,
 			organizationId: auth.organizationId,
 			name: body.name,
 			description: body.description || "",
-			category: body.categoryId,
-			platform: body.platformId,
-			image: undefined,
-			productUrl: undefined,
-			campaignCount: 0,
-			createdAt: new Date(),
-			updatedAt: new Date(),
+			sku: `SKU-${Date.now()}`,
+			price: 0,
+			productLink: "",
+			productImages: [],
+			categoryId: body.categoryId,
+			platformId: body.platformId,
+			isActive: true,
+			createdAt: now,
+			updatedAt: now,
 		}
 
 		return encoreResponse(toProductWithStats(newProduct))

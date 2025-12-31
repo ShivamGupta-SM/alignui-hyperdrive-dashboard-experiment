@@ -1,12 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import * as Button from "@/components/ui/primitives/button"
-import * as Card from "@/components/ui/data-display/card"
 import { Logo } from "@/components/ui/branding/logo"
-import { MetallicLogo } from "@/components/dashboard/metallic-logo"
 import {
 	ArrowRight,
 	CheckCircle,
@@ -24,11 +21,9 @@ import {
 	XCircle,
 	ShieldCheck,
 	Megaphone,
-	ArrowUpRight,
 	Play,
 	Lightning,
 	Scan,
-	CurrencyInr,
 } from "@phosphor-icons/react"
 import { useState } from "react"
 
@@ -208,19 +203,12 @@ function HeroSection() {
 								</div>
 							</div>
 
-							{/* Metallic logo */}
+							{/* Dashboard preview */}
 							<div className="aspect-[4/3] flex items-center justify-center p-8 bg-gradient-to-br from-bg-strong-950 to-neutral-900">
-								<MetallicLogo
-									className="w-40 h-40 sm:w-48 sm:h-48 lg:w-56 lg:h-56"
-									params={{
-										patternScale: 2,
-										refraction: 0.02,
-										edge: 2,
-										patternBlur: 0.005,
-										liquid: 0.08,
-										speed: 0.4,
-									}}
-								/>
+								<div className="flex flex-col items-center justify-center gap-4">
+									<Logo width={160} height={40} forceTheme="dark" />
+									<p className="text-white/60 text-paragraph-sm">Dashboard Preview</p>
+								</div>
 							</div>
 						</div>
 
@@ -720,7 +708,7 @@ function PricingSection() {
 				</div>
 
 				{/* Pricing cards */}
-				<div className="grid md:grid-cols-3 gap-6 items-stretch">
+				<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 items-stretch">
 					{plans.map((plan) => (
 						<div
 							key={plan.name}
@@ -802,23 +790,23 @@ function TestimonialsSection() {
 	const testimonials = [
 		{
 			quote:
-				"Hypedrive reduced our campaign management time by 80%. The OCR verification is a game-changer.",
-			author: "Priya Sharma",
-			role: "Marketing Head",
-			company: "Fashion Brand",
+				"Hypedrive reduced our campaign management time by 80%. The OCR verification is a game-changer for our team.",
+			author: "Marketing Head",
+			role: "",
+			company: "Leading Fashion Brand",
 		},
 		{
 			quote:
 				"Finally, a platform that understands B2B influencer marketing. The wallet system is incredibly intuitive.",
-			author: "Rahul Mehta",
-			role: "Brand Manager",
-			company: "Electronics Co.",
+			author: "Brand Manager",
+			role: "",
+			company: "Consumer Electronics",
 		},
 		{
 			quote:
-				"We processed over ₹1Cr in payouts last quarter. The automation saved us countless hours.",
-			author: "Ananya Reddy",
-			role: "Growth Lead",
+				"We processed over ₹1Cr in payouts last quarter. The automation saved us countless hours of manual work.",
+			author: "Growth Lead",
+			role: "",
 			company: "D2C Startup",
 		},
 	]
@@ -840,7 +828,7 @@ function TestimonialsSection() {
 				</div>
 
 				{/* Testimonial cards */}
-				<div className="grid md:grid-cols-3 gap-6">
+				<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
 					{testimonials.map((testimonial) => (
 						<div
 							key={testimonial.author}
@@ -871,7 +859,7 @@ function TestimonialsSection() {
 								<div>
 									<div className="text-label-sm text-text-strong-950">{testimonial.author}</div>
 									<div className="text-paragraph-xs text-text-sub-600">
-										{testimonial.role}, {testimonial.company}
+										{testimonial.company}
 									</div>
 								</div>
 							</div>
@@ -937,7 +925,7 @@ function Footer() {
 			{ label: "Dashboard", href: "/dashboard" },
 		],
 		Resources: [
-			{ label: "Help Center", href: "/help" },
+			{ label: "Help Center", href: "/contact" },
 			{ label: "API Docs", href: "/docs" },
 			{ label: "Blog", href: "/blog" },
 		],

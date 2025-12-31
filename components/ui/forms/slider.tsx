@@ -4,8 +4,8 @@
 
 import * as React from "react"
 import * as SliderPrimitive from "@radix-ui/react-slider"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 const SLIDER_ROOT_NAME = "SliderRoot"
 const SLIDER_THUMB_NAME = "SliderThumb"

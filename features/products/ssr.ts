@@ -2,79 +2,61 @@
  * Products SSR Data Fetching
  *
  * Server-side data fetching for product pages.
- * Organized by feature for clean architecture.
+ * Uses ssrFetch helper for standardized error handling.
  */
 
+import { ssrFetch } from "@/lib/api/server"
 import { getAuthClient } from "@/lib/auth/server"
-import { isAuthenticationError } from "@/lib/errors/encore-error-handler"
-import { logSSRError, logWarn } from "@/lib/logging/error-logger-simple"
-import { getErrorMessageForLog } from "@/lib/utils/format"
+import { logSSRError } from "@/lib/logging/error-logger-simple"
+import { SSR_PAGE_SIZE } from "@/lib/utils/query-config"
+
+// Default fallback for products data
+const EMPTY_PRODUCTS_RESPONSE = {
+	data: [],
+	total: 0,
+	categories: [],
+	platforms: [],
+}
 
 /**
  * Get products list with categories and platforms
+ * Uses ssrFetch for standardized error handling
  */
-export async function getProductsData() {
-	try {
-		const client = await getAuthClient()
-		const session = await client.auth.getSession()
+export async function getProductsData(organizationId: string) {
+	return ssrFetch(
+		{
+			source: "getProductsData",
+			feature: "products",
+			context: { organizationId },
+		},
+		async (client) => {
+			const results = await Promise.allSettled([
+				client.organizations.listOrganizationProducts(organizationId, { skip: 0, take: SSR_PAGE_SIZE.LARGE }),
+				client.products.listAllCategories(),
+				client.platforms.listActivePlatforms(),
+			])
 
-		if (!session?.user) {
-			logWarn("User not authenticated, returning empty products data", { source: "getProductsData" })
-			return {
-				data: [],
-				total: 0,
-				categories: [],
-				platforms: [],
-			}
-		}
+			const products = results[0].status === "fulfilled" ? results[0].value : { data: [], total: 0 }
+			const categories = results[1].status === "fulfilled" ? results[1].value : { categories: [] }
+			const platforms = results[2].status === "fulfilled" ? results[2].value : { platforms: [] }
 
-		const results = await Promise.allSettled([
-			client.products.listProducts({ skip: 0, take: 100 }),
-			client.products.listAllCategories(),
-			client.integrations.listActivePlatforms(),
-		])
-
-		const products = results[0].status === "fulfilled" ? results[0].value : { data: [], total: 0 }
-		const categories = results[1].status === "fulfilled" ? results[1].value : { categories: [] }
-		const platforms = results[2].status === "fulfilled" ? results[2].value : { platforms: [] }
-
-		// Log errors for failed promises
-		results.forEach((result, index) => {
-			if (result.status === "rejected") {
-				const names = ["products", "categories", "platforms"]
-				logSSRError(result.reason, "getProductsData", `products-${names[index]}`, {})
-			}
-		})
-
-		return {
-			data: products.data || [],
-			total: products.total || 0,
-			categories: categories.categories || [],
-			platforms: platforms.platforms || [],
-		}
-	} catch (error) {
-		// Handle authentication errors gracefully
-		if (isAuthenticationError(error)) {
-			logWarn("Authentication error in getProductsData, returning empty data", {
-				source: "getProductsData",
-				data: { errorMessage: getErrorMessageForLog(error) },
+			// Log errors for failed promises
+			results.forEach((result, index) => {
+				if (result.status === "rejected") {
+					const names = ["products", "categories", "platforms"]
+					logSSRError(result.reason, "getProductsData", `products-${names[index]}`, {})
+				}
 			})
-			return {
-				data: [],
-				total: 0,
-				categories: [],
-				platforms: [],
-			}
-		}
 
-		logSSRError(error, "getProductsData", "products-data", {})
-		return {
-			data: [],
-			total: 0,
-			categories: [],
-			platforms: [],
-		}
-	}
+			return {
+				data: products.data || [],
+				total: products.total || 0,
+				categories: categories.categories || [],
+				platforms: platforms.platforms || [],
+			}
+		},
+		EMPTY_PRODUCTS_RESPONSE
+	)
 }
 
 /**
@@ -84,4 +66,55 @@ export async function getCategoriesData() {
 	const client = await getAuthClient()
 	const result = await client.products.listAllCategories()
 	return result.categories || []
+}
+
+// Default fallback for single product
+const EMPTY_PRODUCT_RESPONSE = {
+	product: null,
+	campaigns: [],
+	categories: [],
+	platforms: [],
+}
+
+/**
+ * Get single product with campaigns
+ * Uses ssrFetch for standardized error handling
+ */
+export async function getProductDetailData(organizationId: string, productId: string) {
+	return ssrFetch(
+		{
+			source: "getProductDetailData",
+			feature: "products",
+			context: { organizationId, productId },
+		},
+		async (client) => {
+			const results = await Promise.allSettled([
+				client.organizations.getOrganizationProduct(organizationId, productId),
+				client.organizations.listProductCampaigns(organizationId, productId, { skip: 0, take: 50 }),
+				client.products.listAllCategories(),
+				client.platforms.listActivePlatforms(),
+			])
+
+			const product = results[0].status === "fulfilled" ? results[0].value : null
+			const campaignsRes = results[1].status === "fulfilled" ? results[1].value : { data: [] }
+			const categories = results[2].status === "fulfilled" ? results[2].value : { categories: [] }
+			const platforms = results[3].status === "fulfilled" ? results[3].value : { platforms: [] }
+
+			// Log errors for failed promises
+			results.forEach((result, index) => {
+				if (result.status === "rejected") {
+					const names = ["product", "campaigns", "categories", "platforms"]
+					logSSRError(result.reason, "getProductDetailData", `product-${names[index]}`, {})
+				}
+			})
+
+			return {
+				product,
+				campaigns: campaignsRes.data || [],
+				categories: categories.categories || [],
+				platforms: platforms.platforms || [],
+			}
+		},
+		EMPTY_PRODUCT_RESPONSE
+	)
 }

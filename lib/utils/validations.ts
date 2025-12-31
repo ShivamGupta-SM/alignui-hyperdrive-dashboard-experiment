@@ -1,12 +1,86 @@
 import { z } from "zod"
+import { ENROLLMENT_STATUSES } from "@/lib/constants"
 
 /**
  * Form Validation Schemas
  * Centralized Zod schemas for form validation
- * 
+ *
  * ⚠️ SINGLE SOURCE OF TRUTH: All validation constants are defined here
  * Import these constants instead of hardcoding values elsewhere
+ *
+ * Note: Status arrays (ENROLLMENT_STATUSES, CAMPAIGN_STATUSES, etc.) are centralized in @/lib/constants
  */
+
+// Re-export for backward compatibility - actual SSOT is in @/lib/constants
+export { ENROLLMENT_STATUSES }
+
+// ==========================================
+// BUSINESS TYPE VALUES (SINGLE SOURCE OF TRUTH)
+// ==========================================
+
+/**
+ * Business type values - SSOT for all forms and validations
+ * Import this instead of hardcoding values
+ */
+export const BUSINESS_TYPES = [
+	"pvt_ltd",
+	"public_ltd",
+	"llp",
+	"partnership",
+	"proprietorship",
+	"trust",
+	"society",
+	"other",
+] as const
+
+export type BusinessTypeValue = (typeof BUSINESS_TYPES)[number]
+
+/**
+ * Industry category values - SSOT
+ */
+export const INDUSTRY_CATEGORIES = [
+	"electronics",
+	"fashion",
+	"fmcg",
+	"beauty",
+	"home_appliances",
+	"sports",
+	"automotive",
+	"other",
+] as const
+
+export type IndustryCategoryValue = (typeof INDUSTRY_CATEGORIES)[number]
+
+/**
+ * Campaign type values - SSOT for all forms and validations
+ * Import this instead of hardcoding values
+ */
+export const CAMPAIGN_TYPES = ["cashback", "barter", "hybrid"] as const
+
+export type CampaignTypeValue = (typeof CAMPAIGN_TYPES)[number]
+
+// ==========================================
+// APPROVAL STATUS HELPERS (SSOT)
+// ==========================================
+
+export type ApprovalStatusValue = "draft" | "pending" | "approved" | "rejected" | "banned"
+
+/**
+ * Status check utilities - SSOT to avoid duplication
+ * Use these instead of inline status === "approved" checks
+ */
+export const STATUS_CHECKS = {
+	isDraft: (status: string | undefined | null): boolean => status === "draft",
+	isPending: (status: string | undefined | null): boolean => status === "pending",
+	isApproved: (status: string | undefined | null): boolean => status === "approved",
+	isRejected: (status: string | undefined | null): boolean => status === "rejected",
+	isBanned: (status: string | undefined | null): boolean => status === "banned",
+	/** Check if status requires action (not approved) */
+	needsAction: (status: string | undefined | null): boolean =>
+		status === "draft" || status === "pending" || status === "rejected",
+	/** Check if organization can operate (approved only) */
+	canOperate: (status: string | undefined | null): boolean => status === "approved",
+} as const
 
 // ==========================================
 // VALIDATION CONSTANTS (SINGLE SOURCE OF TRUTH)
@@ -177,41 +251,8 @@ export const changePasswordSchema = z
 	})
 
 // ==========================================
-// ORGANIZATION SCHEMAS
-// ==========================================
-
-/**
- * @deprecated Use `updateOrganizationBodySchema` or `onboardingFormSchema.basicInfo` instead
- * This schema is kept for backward compatibility but is not actively used
- */
-export const organizationSchema = z.object({
-	name: z
-		.string()
-		.min(1, "Organization name is required")
-		.min(VALIDATION_CONSTANTS.ORG_NAME_MIN_LENGTH, `Organization name must be at least ${VALIDATION_CONSTANTS.ORG_NAME_MIN_LENGTH} characters`)
-		.max(VALIDATION_CONSTANTS.ORG_NAME_MAX_LENGTH, `Organization name must be less than ${VALIDATION_CONSTANTS.ORG_NAME_MAX_LENGTH} characters`),
-	website: z.string().url("Please enter a valid URL").max(VALIDATION_CONSTANTS.URL_MAX_LENGTH, `URL must be less than ${VALIDATION_CONSTANTS.URL_MAX_LENGTH} characters`).optional().or(z.literal("")),
-})
-
-// ==========================================
 // PRODUCT SCHEMAS
 // ==========================================
-
-/**
- * @deprecated Use `productFormSchema` instead
- * This schema is kept for backward compatibility but is not actively used
- */
-export const productSchema = z.object({
-	name: z
-		.string()
-		.min(1, "Product name is required")
-		.min(VALIDATION_CONSTANTS.PRODUCT_NAME_MIN_LENGTH, `Product name must be at least ${VALIDATION_CONSTANTS.PRODUCT_NAME_MIN_LENGTH} characters`)
-		.max(VALIDATION_CONSTANTS.PRODUCT_NAME_MAX_LENGTH, `Product name must be less than ${VALIDATION_CONSTANTS.PRODUCT_NAME_MAX_LENGTH} characters`),
-	description: z.string().max(VALIDATION_CONSTANTS.PRODUCT_DESCRIPTION_MAX_LENGTH, `Description must be less than ${VALIDATION_CONSTANTS.PRODUCT_DESCRIPTION_MAX_LENGTH} characters`).optional(),
-	category: z.string().min(1, "Category is required"),
-	platform: z.string().min(1, "Platform is required"),
-	productUrl: z.string().url("Please enter a valid URL").max(VALIDATION_CONSTANTS.URL_MAX_LENGTH, `URL must be less than ${VALIDATION_CONSTANTS.URL_MAX_LENGTH} characters`).optional().or(z.literal("")),
-})
 
 // Product form schema for create/update (matches API)
 export const productFormSchema = z.object({
@@ -251,7 +292,7 @@ export const campaignSchema = z
 			.max(VALIDATION_CONSTANTS.CAMPAIGN_TITLE_MAX_LENGTH, `Campaign title must be less than ${VALIDATION_CONSTANTS.CAMPAIGN_TITLE_MAX_LENGTH} characters`),
 		description: z.string().max(VALIDATION_CONSTANTS.CAMPAIGN_DESCRIPTION_MAX_LENGTH, `Description must be less than ${VALIDATION_CONSTANTS.CAMPAIGN_DESCRIPTION_MAX_LENGTH} characters`).optional(),
 		productId: z.string().min(1, "Product is required"),
-		type: z.enum(["cashback", "barter", "hybrid"]),
+		type: z.enum(CAMPAIGN_TYPES),
 		startDate: z.date({ message: "Start date is required" }),
 		endDate: z.date({ message: "End date is required" }),
 		maxEnrollments: z
@@ -283,7 +324,7 @@ export const campaignFormSchema = z
 			.max(VALIDATION_CONSTANTS.CAMPAIGN_DESCRIPTION_MAX_LENGTH, `Description must be less than ${VALIDATION_CONSTANTS.CAMPAIGN_DESCRIPTION_MAX_LENGTH} characters`)
 			.optional()
 			.or(z.literal("")),
-		type: z.enum(["cashback", "barter", "hybrid"], {
+		type: z.enum(CAMPAIGN_TYPES, {
 			message: "Please select a campaign type",
 		}),
 		isPublic: z.boolean(),
@@ -360,16 +401,11 @@ export const campaignStatusSchema = z.enum([
 	"archived",
 ])
 
-export const enrollmentStatusSchema = z.enum([
-	"enrolled",
-	"awaiting_submission",
-	"awaiting_review",
-	"changes_requested",
-	"approved",
-	"rejected",
-	"withdrawn",
-	"expired",
-])
+// SSOT: ENROLLMENT_STATUSES is centralized in @/lib/constants (imported and re-exported at top of file)
+
+export type EnrollmentStatusValue = (typeof ENROLLMENT_STATUSES)[number]
+
+export const enrollmentStatusSchema = z.enum(ENROLLMENT_STATUSES)
 
 export const createCampaignBodySchema = z.object({
 	title: z
@@ -379,7 +415,7 @@ export const createCampaignBodySchema = z.object({
 		.max(VALIDATION_CONSTANTS.MESSAGE_MAX_LENGTH, `Campaign title must be less than ${VALIDATION_CONSTANTS.MESSAGE_MAX_LENGTH} characters`),
 	description: z.string().max(VALIDATION_CONSTANTS.REASON_MAX_LENGTH, `Description must be less than ${VALIDATION_CONSTANTS.REASON_MAX_LENGTH} characters`).optional(),
 	productId: z.string().min(1, "Product is required"),
-	type: z.enum(["cashback", "barter", "hybrid"]),
+	type: z.enum(CAMPAIGN_TYPES),
 	isPublic: z.boolean(),
 	maxEnrollments: z
 		.number()
@@ -446,19 +482,24 @@ export const updateProfileBodySchema = z.object({
 	image: z.string().url().max(VALIDATION_CONSTANTS.URL_MAX_LENGTH, `URL must be less than ${VALIDATION_CONSTANTS.URL_MAX_LENGTH} characters`).optional().or(z.literal("")),
 })
 
+// Matches organizations.UpdateOrganizationRequest from brand-client
 export const updateOrganizationBodySchema = z.object({
 	name: z
 		.string()
 		.min(VALIDATION_CONSTANTS.ORG_NAME_MIN_LENGTH, `Name must be at least ${VALIDATION_CONSTANTS.ORG_NAME_MIN_LENGTH} characters`)
 		.max(VALIDATION_CONSTANTS.ORG_NAME_MAX_LENGTH, `Name must be less than ${VALIDATION_CONSTANTS.ORG_NAME_MAX_LENGTH} characters`),
+	description: z.string().max(VALIDATION_CONSTANTS.ORG_DESCRIPTION_MAX_LENGTH, `Description must be less than ${VALIDATION_CONSTANTS.ORG_DESCRIPTION_MAX_LENGTH} characters`).optional(),
 	website: z.string().url("Invalid URL").max(VALIDATION_CONSTANTS.URL_MAX_LENGTH, `URL must be less than ${VALIDATION_CONSTANTS.URL_MAX_LENGTH} characters`).optional().or(z.literal("")),
 	email: z.string().email("Invalid email").optional(),
 	phone: z
 		.string()
 		.regex(VALIDATION_CONSTANTS.PHONE_REGEX, "Please enter a valid 10-digit phone number (with or without +91)")
 		.optional(),
+	contactPerson: z.string().max(VALIDATION_CONSTANTS.CONTACT_PERSON_MAX_LENGTH, `Contact person must be less than ${VALIDATION_CONSTANTS.CONTACT_PERSON_MAX_LENGTH} characters`).optional(),
 	address: z.string().max(VALIDATION_CONSTANTS.ADDRESS_MAX_LENGTH, `Address must be less than ${VALIDATION_CONSTANTS.ADDRESS_MAX_LENGTH} characters`).optional(),
-	industry: z.string().max(VALIDATION_CONSTANTS.INDUSTRY_CATEGORY_MAX_LENGTH, `Industry must be less than ${VALIDATION_CONSTANTS.INDUSTRY_CATEGORY_MAX_LENGTH} characters`).optional(),
+	city: z.string().max(VALIDATION_CONSTANTS.CITY_MAX_LENGTH, `City must be less than ${VALIDATION_CONSTANTS.CITY_MAX_LENGTH} characters`).optional(),
+	state: z.string().max(VALIDATION_CONSTANTS.STATE_MAX_LENGTH, `State must be less than ${VALIDATION_CONSTANTS.STATE_MAX_LENGTH} characters`).optional(),
+	postalCode: z.string().regex(VALIDATION_CONSTANTS.PIN_CODE_REGEX, "Invalid PIN code").optional().or(z.literal("")),
 })
 
 export const updatePasswordBodySchema = z.object({
@@ -530,13 +571,10 @@ export const onboardingFormSchema = z.object({
 		website: z.string().url("Please enter a valid URL").max(VALIDATION_CONSTANTS.URL_MAX_LENGTH, `URL must be less than ${VALIDATION_CONSTANTS.URL_MAX_LENGTH} characters`).optional().or(z.literal("")),
 	}),
 	businessDetails: z.object({
-		// Uses backend values directly - no mapping needed
-		businessType: z.enum(
-			["pvt_ltd", "public_ltd", "llp", "partnership", "proprietorship"],
-			{
-				message: "Please select a business type",
-			}
-		),
+		// SSOT: Uses BUSINESS_TYPES constant - matches backend values
+		businessType: z.enum(BUSINESS_TYPES, {
+			message: "Please select a business type",
+		}),
 		industryCategory: z.string().min(1, "Industry category is required").max(VALIDATION_CONSTANTS.INDUSTRY_CATEGORY_MAX_LENGTH, `Industry category must be less than ${VALIDATION_CONSTANTS.INDUSTRY_CATEGORY_MAX_LENGTH} characters`),
 		contactPerson: z
 			.string()
@@ -573,7 +611,10 @@ export const onboardingFormSchema = z.object({
 				"Invalid GST number format (15 characters: 2 digits + 10 char PAN + 1 entity + 1 char + 1 checksum)"
 			),
 		gstVerified: z.boolean(),
-		// ❌ REMOVED: PAN validation - PAN is only for shoppers, not organizations
+		gstLegalName: z.string().optional(),
+		gstTradeName: z.string().optional(),
+		gstStatus: z.string().optional(),
+		gstAddress: z.string().optional(),
 		cinNumber: z.string().max(VALIDATION_CONSTANTS.CIN_NUMBER_MAX_LENGTH, `CIN number must be less than ${VALIDATION_CONSTANTS.CIN_NUMBER_MAX_LENGTH} characters`).optional(),
 		})
 		.refine((data) => data.gstVerified === true, {
@@ -603,7 +644,8 @@ export const creditRequestSchema = z.object({
 
 export const inviteMemberSchema = z.object({
 	email: emailSchema,
-	role: z.enum(["owner", "admin", "manager", "viewer", "member"], {
+	// API only supports: owner, admin, member
+	role: z.enum(["owner", "admin", "member"], {
 		message: "Please select a role",
 	}),
 	message: z
@@ -635,12 +677,44 @@ export type SignUpFormData = z.infer<typeof signUpSchema>
 export type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>
 export type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>
 export type ChangePasswordFormData = z.infer<typeof changePasswordSchema>
-export type OrganizationFormData = z.infer<typeof organizationSchema>
-export type ProductFormData = z.infer<typeof productSchema>
 export type ProductFormInput = z.infer<typeof productFormSchema>
 export type CampaignFormData = z.infer<typeof campaignSchema>
 export type CampaignFormInput = z.infer<typeof campaignFormSchema>
 export type OnboardingFormInput = z.infer<typeof onboardingFormSchema>
+
+/**
+ * Lenient schema for validating localStorage draft data
+ * Allows partial data since drafts may be incomplete
+ */
+export const onboardingDraftSchema = z.object({
+	basicInfo: z.object({
+		name: z.string().optional().default(""),
+		description: z.string().optional().default(""),
+		website: z.string().optional().default(""),
+	}).optional().default({ name: "", description: "", website: "" }),
+	businessDetails: z.object({
+		businessType: z.string().optional().default("pvt_ltd"),
+		industryCategory: z.string().optional().default("electronics"),
+		contactPerson: z.string().optional().default(""),
+		phone: z.string().optional().default(""),
+		address: z.string().optional().default(""),
+		city: z.string().optional().default(""),
+		state: z.string().optional().default(""),
+		pinCode: z.string().optional().default(""),
+	}).optional().default({ businessType: "pvt_ltd", industryCategory: "electronics", contactPerson: "", phone: "", address: "", city: "", state: "", pinCode: "" }),
+	verification: z.object({
+		gstNumber: z.string().optional().default(""),
+		gstVerified: z.boolean().optional().default(false),
+		gstLegalName: z.string().optional(),
+		gstTradeName: z.string().optional(),
+		gstStatus: z.string().optional(),
+		gstAddress: z.string().optional(),
+		cinNumber: z.string().optional(),
+	}).optional().default({ gstNumber: "", gstVerified: false }),
+}).passthrough()
+
+export type OnboardingDraftData = z.infer<typeof onboardingDraftSchema>
+
 export type CreditRequestFormData = z.infer<typeof creditRequestSchema>
 export type ProfileFormData = z.infer<typeof profileSchema>
 export type InviteMemberFormData = z.infer<typeof inviteMemberSchema>
@@ -675,17 +749,11 @@ export const campaignQuerySchema = paginationSchema.extend({
 })
 
 export const enrollmentQuerySchema = paginationSchema.extend({
+	// Uses ENROLLMENT_STATUSES SSOT + "all" for filtering
 	status: z
 		.enum([
 			"all",
-			"enrolled",
-			"awaiting_submission",
-			"awaiting_review",
-			"changes_requested",
-			"approved",
-			"rejected",
-			"withdrawn",
-			"expired",
+			...ENROLLMENT_STATUSES,
 		])
 		.optional(),
 	campaignId: z.string().optional(),

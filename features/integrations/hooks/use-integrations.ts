@@ -2,18 +2,14 @@
  * Integrations React Query Hooks
  *
  * Clean pattern: Direct client usage for queries
+ * Platform endpoints are in the 'platforms' namespace
  */
 
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { getEncoreBrowserClient } from "@/lib/api/encore-browser"
-import { STALE_TIME } from "@/lib/utils/query-config"
-
-// ============================================
-// Client Instance
-// ============================================
-const client = getEncoreBrowserClient()
+import { client } from "@/lib/api/client"
+import { STALE_TIME, PAGE_SIZE, DEFAULT_RETRY_CONFIG } from "@/lib/utils/query-config"
 
 // ============================================
 // Query Keys
@@ -24,25 +20,27 @@ export const integrationKeys = {
 	platformsList: () => [...integrationKeys.platforms(), "list"] as const,
 	platformsActive: () => [...integrationKeys.platforms(), "active"] as const,
 	platform: (id: string) => [...integrationKeys.platforms(), "detail", id] as const,
-	platformByName: (name: string) => [...integrationKeys.platforms(), "name", name] as const,
 }
 
 // ============================================
 // QUERIES - Direct Client Usage
+// Platform endpoints are in client.platforms namespace
 // ============================================
 
 /**
  * Get all platforms
+ * SSOT: Uses PAGE_SIZE.MEDIUM for consistent pagination
  */
-export function usePlatforms(page = 1, limit = 50) {
+export function usePlatforms(page = 1, limit = PAGE_SIZE.MEDIUM) {
 	return useQuery({
 		queryKey: integrationKeys.platformsList(),
 		queryFn: () =>
-			client.integrations.listPlatforms({
+			client.platforms.listPlatforms({
 				skip: (page - 1) * limit,
 				take: limit,
 			}),
 		staleTime: STALE_TIME.LONG,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
@@ -53,10 +51,11 @@ export function useActivePlatforms() {
 	return useQuery({
 		queryKey: integrationKeys.platformsActive(),
 		queryFn: async () => {
-			const result = await client.integrations.listActivePlatforms()
+			const result = await client.platforms.listActivePlatforms()
 			return result.platforms
 		},
 		staleTime: STALE_TIME.LONG,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
@@ -66,20 +65,10 @@ export function useActivePlatforms() {
 export function usePlatform(id: string) {
 	return useQuery({
 		queryKey: integrationKeys.platform(id),
-		queryFn: () => client.integrations.getPlatform(id),
+		queryFn: () => client.platforms.getPlatform(id),
 		enabled: !!id,
 		staleTime: STALE_TIME.LONG,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
-/**
- * Get platform by name/slug
- */
-export function usePlatformByName(name: string) {
-	return useQuery({
-		queryKey: integrationKeys.platformByName(name),
-		queryFn: () => client.integrations.getPlatformByName(name),
-		enabled: !!name,
-		staleTime: STALE_TIME.LONG,
-	})
-}

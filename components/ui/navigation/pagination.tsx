@@ -1,10 +1,10 @@
 // AlignUI Pagination v0.0.0
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import type { PolymorphicComponentProps } from "@/utils/polymorphic"
-import { recursiveCloneChildren } from "@/utils/recursive-clone-children"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import type { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
+import { recursiveCloneChildren } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { Slot } from "@radix-ui/react-slot"
 
 const PAGINATION_ROOT_NAME = "PaginationRoot"
@@ -76,14 +76,16 @@ const paginationVariants = tv({
 
 type PaginationSharedProps = VariantProps<typeof paginationVariants>
 
-type PaginationRootProps = React.HTMLAttributes<HTMLDivElement> &
+type PaginationRootProps = React.HTMLAttributes<HTMLElement> &
 	VariantProps<typeof paginationVariants> & {
 		asChild?: boolean
+		/** Accessible label for the pagination navigation */
+		"aria-label"?: string
 	}
 
-function PaginationRoot({ asChild, children, className, variant, ...rest }: PaginationRootProps) {
+function PaginationRoot({ asChild, children, className, variant, "aria-label": ariaLabel = "Pagination", ...rest }: PaginationRootProps) {
 	const uniqueId = React.useId()
-	const Component = asChild ? Slot : "div"
+	const Component = asChild ? Slot : "nav"
 	const { root } = paginationVariants({ variant })
 
 	const sharedProps: PaginationSharedProps = {
@@ -99,7 +101,7 @@ function PaginationRoot({ asChild, children, className, variant, ...rest }: Pagi
 	)
 
 	return (
-		<Component className={root({ class: className })} {...rest}>
+		<Component className={root({ class: className })} aria-label={ariaLabel} {...rest}>
 			{extendedChildren}
 		</Component>
 	)
@@ -123,6 +125,7 @@ const PaginationItem = React.forwardRef<HTMLButtonElement, PaginationItemProps>(
 				className={cn(item({ class: className }), {
 					"text-text-strong-950": current,
 				})}
+				aria-current={current ? "page" : undefined}
 				{...rest}
 			>
 				{children}
@@ -160,7 +163,7 @@ function PaginationNavIcon<T extends React.ElementType>({
 	const Component = as || "div"
 	const { navIcon } = paginationVariants({ variant })
 
-	return <Component className={navIcon({ class: className })} {...rest} />
+	return <Component className={navIcon({ class: className })} aria-hidden="true" {...rest} />
 }
 PaginationNavIcon.displayName = PAGINATION_NAV_ICON_NAME
 

@@ -1,9 +1,7 @@
 import Link from "next/link"
 import { Logo } from "@/components/ui/branding/logo"
-import { Sparkle, ChartLineUp, Users, ShieldCheck, Rocket } from "@phosphor-icons/react/dist/ssr"
+import { ChartLineUp, Users, ShieldCheck, Rocket } from "@phosphor-icons/react/dist/ssr"
 import { AuthHeader } from "@/components/auth/auth-header"
-
-// Auth pages require dynamic rendering due to client-side providers
 
 export default function AuthLayout({
 	children,
@@ -11,18 +9,12 @@ export default function AuthLayout({
 	children: React.ReactNode
 }) {
 	return (
-		<div 
-			className="flex min-h-screen bg-bg-white-0"
-			suppressHydrationWarning
-		>
+		<div className="flex min-h-screen bg-bg-white-0">
 			{/* Left Pane - Visual/Branding (Hidden on mobile, visible on lg+) */}
 			<div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-linear-to-br from-primary-base via-primary-darker to-primary-darkest">
 				{/* Animated background pattern */}
 				<div className="absolute inset-0 opacity-10">
-					<div className="absolute inset-0" style={{
-						backgroundImage: `radial-gradient(circle at 2px 2px, white 1px, transparent 0)`,
-						backgroundSize: '40px 40px'
-					}} />
+					<div className="absolute inset-0 bg-dot-pattern" />
 				</div>
 				
 				{/* Floating gradient orbs */}
@@ -33,7 +25,7 @@ export default function AuthLayout({
 				{/* Content */}
 				<div className="relative z-10 flex flex-col justify-between p-12 xl:p-16 text-white">
 					{/* Logo */}
-					<Link href="/" className="transition-opacity hover:opacity-90" suppressHydrationWarning>
+					<Link href="/" className="transition-opacity hover:opacity-90">
 						<Logo width={160} height={40} forceTheme="dark" />
 					</Link>
 					
@@ -99,54 +91,40 @@ export default function AuthLayout({
 			{/* Right Pane - Form Content */}
 			<div className="flex-1 lg:w-1/2 flex flex-col min-h-screen">
 				{/* Mobile Header */}
-				<header 
-					className="lg:hidden flex items-center justify-between px-4 sm:px-6 py-4 backdrop-blur-sm bg-bg-white-0/80 border-b border-stroke-soft-200/50"
-					suppressHydrationWarning
-				>
-					<Link href="/" className="transition-opacity hover:opacity-80" suppressHydrationWarning>
+				<header className="lg:hidden flex items-center justify-between px-4 sm:px-6 py-4 backdrop-blur-sm bg-bg-white-0/80 border-b border-stroke-soft-200/50">
+					<Link href="/" className="transition-opacity hover:opacity-80">
 						<Logo width={130} height={32} />
 					</Link>
 					<AuthHeader isMobile />
 				</header>
 
 				{/* Desktop Header */}
-				<header 
-					className="hidden lg:flex items-center justify-between px-8 xl:px-12 py-6"
-					suppressHydrationWarning
-				>
+				<header className="hidden lg:flex items-center justify-between px-8 xl:px-12 py-6">
 					<div className="w-40" /> {/* Spacer */}
 					<AuthHeader />
 				</header>
 
 				{/* Main Content */}
-				<main 
-					className="flex flex-1 items-center justify-center px-4 sm:px-6 py-8 sm:py-12 lg:px-8 xl:px-12 lg:py-16"
-					suppressHydrationWarning
-				>
+				<main className="flex flex-1 items-center justify-center px-4 sm:px-6 py-8 sm:py-12 lg:px-8 xl:px-12 lg:py-16">
 					<div className="w-full max-w-md">
 						{children}
 					</div>
 				</main>
 
 				{/* Footer */}
-				<footer 
-					className="py-4 sm:py-6 text-center px-4 sm:px-6 lg:px-8 xl:px-12 border-t border-stroke-soft-200/50 bg-bg-weak-50/30"
-					suppressHydrationWarning
-				>
+				<footer className="py-4 sm:py-6 text-center px-4 sm:px-6 lg:px-8 xl:px-12 border-t border-stroke-soft-200/50 bg-bg-weak-50/30">
 					<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600">
 						By continuing, you agree to our{" "}
-						<Link 
-							href="/terms" 
+						<Link
+							href="/terms"
 							className="text-primary-base hover:text-primary-darker font-medium hover:underline transition-colors"
-							suppressHydrationWarning
 						>
 							Terms of Service
 						</Link>{" "}
 						and{" "}
-						<Link 
-							href="/privacy" 
+						<Link
+							href="/privacy"
 							className="text-primary-base hover:text-primary-darker font-medium hover:underline transition-colors"
-							suppressHydrationWarning
 						>
 							Privacy Policy
 						</Link>

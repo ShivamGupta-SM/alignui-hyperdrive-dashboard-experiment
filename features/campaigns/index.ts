@@ -22,6 +22,10 @@ export {
 	useDeliverableTypes,
 	useDeliverableType,
 	useCampaignDeliverables,
+	useCampaignDeliverable,
+	useDeliverableSubmission,
+	useEnrollmentSubmissions,
+	usePendingSubmissions,
 	// Mutations
 	useCreateCampaign,
 	useUpdateCampaign,
@@ -36,6 +40,13 @@ export {
 	useAddCampaignDeliverablesBatch,
 	useUpdateCampaignDeliverable,
 	useRemoveCampaignDeliverable,
+	// Direct client mutations
+	useActivateCampaign,
+	useArchiveCampaign,
+	useUnarchiveCampaign,
+	useSubmitForApproval,
+	useUpdateCampaignPricing,
+	useValidateCampaign,
 } from "./hooks/use-campaigns"
 
 // Server Actions (for direct use in components)
@@ -45,13 +56,15 @@ export {
 	deleteCampaign,
 	duplicateCampaign,
 	updateCampaignStatus,
-	pauseCampaign,
-	resumeCampaign,
-	endCampaign,
 	exportCampaignEnrollments,
+	updateCampaignPricing,
+	validateCampaign,
 } from "./actions/campaigns"
 
-// Validation Schemas
+// SSOT: Campaign status action type - from types
+export { CAMPAIGN_STATUS_ACTIONS, type CampaignStatusAction } from "./types"
+
+// Validation Schemas - Re-export from centralized validation file
 export {
 	campaignFormSchema,
 	campaignSchema,
@@ -62,7 +75,6 @@ export {
 	type CampaignFormData,
 	type CreateCampaignBody,
 	type UpdateCampaignBody,
-	type CampaignStatus as CampaignStatusSchema,
-} from "./lib/validation"
+} from "@/lib/utils/validations"
 
 // SSR Data Fetching - Import directly from @/features/campaigns/ssr in server components

@@ -2,32 +2,28 @@
  * Invoices React Query Hooks
  *
  * Clean pattern: Direct client usage for queries
+ * URL-based multi-tenancy: organizationId from URL params
  */
 
 "use client"
 
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { getEncoreBrowserClient } from "@/lib/api/encore-browser"
-import { STALE_TIME } from "@/lib/utils/query-config"
-import type { shared } from "@/lib/api/encore-client"
+import { client } from "@/lib/api/client"
+import { STALE_TIME, GC_TIME, PAGE_SIZE, DEFAULT_RETRY_CONFIG, createMutationErrorHandler, createQueryKeyFactory } from "@/lib/utils/query-config"
 import * as actions from "../actions/invoices"
 import type { InvoiceFilters } from "../types"
 
 // ============================================
-// Client Instance
+// Query Keys - Using factory + custom extensions
 // ============================================
-const client = getEncoreBrowserClient()
+const baseKeys = createQueryKeyFactory("invoices")
 
-// ============================================
-// Query Keys
-// ============================================
 export const invoiceKeys = {
-	all: (orgId: string) => ["invoices", orgId] as const,
-	lists: (orgId: string) => [...invoiceKeys.all(orgId), "list"] as const,
-	list: (orgId: string, filters: InvoiceFilters) => [...invoiceKeys.lists(orgId), filters] as const,
-	details: (orgId: string) => [...invoiceKeys.all(orgId), "detail"] as const,
-	detail: (id: string) => ["invoices", "detail", id] as const,
-	lineItems: (id: string) => ["invoices", "lineItems", id] as const,
+	...baseKeys,
+	// Override list to include invoice-specific filters
+	list: (orgId: string, filters: InvoiceFilters) =>
+		[...baseKeys.lists(orgId), filters?.status ?? "all", filters?.skip ?? 0, filters?.take ?? 10] as const,
+	lineItems: (orgId: string, id: string) => [...baseKeys.detail(orgId, id), "lineItems"] as const,
 }
 
 // ============================================
@@ -41,36 +37,43 @@ export function useInvoices(organizationId: string, filters: InvoiceFilters = {}
 	return useQuery({
 		queryKey: invoiceKeys.list(organizationId, filters),
 		queryFn: () =>
-			client.invoices.listInvoices({
-				organizationId,
+			client.organizations.listInvoices(organizationId, {
 				skip: filters.skip ?? 0,
-				take: filters.take ?? 10,
-				status: filters.status as shared.InvoiceStatus | undefined,
+				take: filters.take ?? PAGE_SIZE.DEFAULT,
+				status: filters.status,
 			}),
 		enabled: !!organizationId,
 		staleTime: STALE_TIME.SHORT,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
 /**
  * Get single invoice
  */
-export function useInvoice(id: string) {
+export function useInvoice(orgId: string, id: string) {
 	return useQuery({
-		queryKey: invoiceKeys.detail(id),
-		queryFn: () => client.invoices.getInvoice(id),
-		enabled: !!id,
+		queryKey: invoiceKeys.detail(orgId, id),
+		queryFn: () => client.organizations.getInvoice(orgId, id),
+		enabled: !!orgId && !!id,
+		staleTime: STALE_TIME.SHORT,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
 /**
  * Get invoice line items
  */
-export function useInvoiceLineItems(id: string) {
+export function useInvoiceLineItems(orgId: string, id: string) {
 	return useQuery({
-		queryKey: invoiceKeys.lineItems(id),
-		queryFn: () => client.invoices.getInvoiceLineItems(id),
-		enabled: !!id,
+		queryKey: invoiceKeys.lineItems(orgId, id),
+		queryFn: () => client.organizations.getInvoiceLineItems(orgId, id),
+		enabled: !!orgId && !!id,
+		staleTime: STALE_TIME.SHORT,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
@@ -81,38 +84,54 @@ export function useInvoiceLineItems(id: string) {
 /**
  * Generate invoice PDF
  */
-export function useGenerateInvoicePDF() {
+export function useGenerateInvoicePDF(orgId: string) {
 	return useMutation({
-		mutationFn: (invoiceId: string) => actions.generateInvoicePDF({ invoiceId }),
+		mutationFn: (invoiceId: string) => actions.generateInvoicePDF({ organizationId: orgId, invoiceId }),
+		onError: createMutationErrorHandler("generate invoice PDF"),
 	})
 }
 
 /**
  * Download invoice PDF
+ * Requires both invoiceId and pdfUrl (get pdfUrl from useGenerateInvoicePDF first)
  */
-export function useDownloadInvoicePDF() {
+export function useDownloadInvoicePDF(orgId: string) {
 	return useMutation({
-		mutationFn: (invoiceId: string) => actions.downloadInvoicePDF({ invoiceId }),
+		mutationFn: ({ invoiceId, pdfUrl }: { invoiceId: string; pdfUrl: string }) =>
+			actions.downloadInvoicePDF({ organizationId: orgId, invoiceId, pdfUrl }),
+		onError: createMutationErrorHandler("download invoice PDF"),
 	})
 }
 
 /**
  * Get invoice enrollment IDs for export
  */
-export function useGetInvoiceEnrollmentIds() {
+export function useGetInvoiceEnrollmentIds(orgId: string) {
 	return useMutation({
-		mutationFn: (invoiceId: string) => actions.getInvoiceEnrollmentIds({ invoiceId }),
+		mutationFn: (invoiceId: string) => actions.getInvoiceEnrollmentIds({ organizationId: orgId, invoiceId }),
+		onError: createMutationErrorHandler("get invoice enrollment IDs"),
 	})
 }
 
 /**
  * Get enrollments by IDs
  */
-export function useGetEnrollmentsByIds() {
+export function useGetEnrollmentsByIds(orgId: string) {
 	return useMutation({
-		mutationFn: (enrollmentIds: string[]) => actions.getEnrollmentsByIds({ enrollmentIds }),
+		mutationFn: (enrollmentIds: string[]) => actions.getEnrollmentsByIds({ organizationId: orgId, enrollmentIds }),
+		onError: createMutationErrorHandler("get enrollments by IDs"),
 	})
 }
 
-// Re-export types
-export type * from "../types"
+/**
+ * Mark invoice as viewed
+ * Tracks when brand views an invoice - uses server action for consistency
+ */
+export function useMarkInvoiceViewed(orgId: string) {
+	return useMutation({
+		mutationFn: (invoiceId: string) => actions.markInvoiceViewed({ organizationId: orgId, invoiceId }),
+		onError: createMutationErrorHandler("mark invoice as viewed"),
+	})
+}
+
+// Types are exported from @/features/invoices (feature index)

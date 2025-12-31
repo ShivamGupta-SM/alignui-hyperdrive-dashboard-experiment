@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { useCurrentOrganization } from '@/hooks/shared/use-current-organization'
 import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import * as Modal from "@/components/ui/layout/modal"
@@ -19,17 +20,26 @@ import {
   X,
   SpinnerGap,
 } from '@phosphor-icons/react'
-import { cn } from '@/utils/cn'
+import { cn } from '@/lib/utils'
 import { useInvoiceSearchParams } from '@/hooks'
+import { useStableTime } from '@/hooks/ui'
 import { useDebounceValue, useMediaQuery } from 'usehooks-ts'
 import { exportInvoices } from '@/lib/utils/excel'
 import { toast } from 'sonner'
-import type { invoices } from "@/lib/api/encore-browser"
+import type { organizations } from "@/brand-client"
 import { formatCurrency, formatCurrencyCompact, formatDateShort, formatDateMedium, getErrorMessage } from "@/lib/utils/format"
 import { logError } from "@/lib/logging/error-logger-simple"
-import { TIMEOUTS } from '@/lib/constants'
+import { TIMEOUTS, PLATFORM_INFO } from '@/lib/constants'
 
-type Invoice = invoices.Invoice
+type Invoice = organizations.Invoice
+
+// Organization info for invoice display (passed from SSR)
+interface OrganizationInfo {
+  id: string
+  name: string
+  gstNumber?: string | null
+  gstLegalName?: string | null
+}
 
 const periodFilters = [
   { value: 'all', label: 'All' },
@@ -41,6 +51,7 @@ const periodFilters = [
 interface InvoicesClientProps {
   initialData?: {
     invoices: Invoice[]
+    organization?: OrganizationInfo | null
     stats?: {
       count: number
       totalAmount: number
@@ -51,16 +62,15 @@ interface InvoicesClientProps {
 }
 
 export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
+  const { organizationId } = useCurrentOrganization()
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [isExportingEnrollments, setIsExportingEnrollments] = useState(false)
   const downloadLinkRef = useRef<HTMLAnchorElement>(null)
 
   // Hydration-safe: Reference date for period filtering (set after mount to avoid SSR mismatch)
-  const [referenceDate, setReferenceDate] = useState<Date | null>(null)
-  useEffect(() => {
-    setReferenceDate(new Date())
-  }, [])
+  const referenceTime = useStableTime()
+  const referenceDate = referenceTime ? new Date(referenceTime) : null
 
   // nuqs: URL state management for filters
   const [searchParams, setSearchParams] = useInvoiceSearchParams()
@@ -68,50 +78,62 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
   const [search, setSearch] = useState(searchParams.search)
 
   // Use initialData directly - type-safe with Encore types
-  const invoicesList: invoices.Invoice[] = (initialData?.invoices ?? [])
+  const invoicesList: Invoice[] = (initialData?.invoices ?? [])
   const allInvoices = invoicesList
-  const initialStats = initialData?.stats ?? {
-    count: invoicesList.length,
-    totalAmount: 0,
-    totalGst: 0,
-    totalEnrollments: 0,
-  }
+  const organization = initialData?.organization ?? null
 
   // usehooks-ts: Debounce search input to avoid excessive URL updates
   const [debouncedSearch] = useDebounceValue(search, 300)
 
-  // Sync debounced search to URL - Industry Standard: Simple, one-way sync
-  // Only update URL when debounced value changes (not on every keystroke)
+  // Bidirectional URL <-> local state sync
+  // Uses refs to prevent infinite loops and unnecessary updates
+  const isUpdatingFromUrl = useRef(false)
+  const isUpdatingToUrl = useRef(false)
+
   useEffect(() => {
-    // Only update if debounced value differs from current URL param
+    // Skip if we're currently updating from URL
+    if (isUpdatingFromUrl.current) {
+      isUpdatingFromUrl.current = false
+      return
+    }
+
+    // Update URL when debounced value changes
     if (debouncedSearch !== searchParams.search) {
+      isUpdatingToUrl.current = true
       setSearchParams({ search: debouncedSearch, page: 1 })
     }
-  }, [debouncedSearch]) // Only depend on debouncedSearch, not searchParams
-  
-  // Sync local search state when URL changes externally (browser back/forward)
+  }, [debouncedSearch, searchParams.search, setSearchParams])
+
   useEffect(() => {
+    // Skip if we're currently updating to URL
+    if (isUpdatingToUrl.current) {
+      isUpdatingToUrl.current = false
+      return
+    }
+
+    // Sync local state when URL changes (browser back/forward)
     if (searchParams.search !== search) {
+      isUpdatingFromUrl.current = true
       setSearch(searchParams.search || "")
     }
-  }, [searchParams.search]) // Only depend on searchParams.search
+  }, [searchParams.search, search])
 
   // Excel export handler
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     try {
       exportInvoices(allInvoices)
       toast.success('Invoices exported to Excel')
     } catch {
       toast.error('Failed to export invoices')
     }
-  }
+  }, [allInvoices])
 
   // Export invoice enrollments handler
-  const handleExportEnrollments = async (invoiceId: string) => {
+  const handleExportEnrollments = useCallback(async (invoiceId: string) => {
     setIsExportingEnrollments(true)
     try {
       const { getInvoiceEnrollmentIds } = await import('@/app/actions')
-      const invoiceResult = await getInvoiceEnrollmentIds({ invoiceId })
+      const invoiceResult = await getInvoiceEnrollmentIds({ organizationId, invoiceId })
 
       if (!invoiceResult?.data?.enrollmentIds || invoiceResult.data.enrollmentIds.length === 0) {
         toast.error('No enrollments found for this invoice')
@@ -122,7 +144,7 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
 
       // Fetch enrollments using server action (batch fetch)
       const { getEnrollmentsByIds } = await import('@/features/invoices')
-      const enrollmentsResult = await getEnrollmentsByIds({ enrollmentIds: invoiceData.enrollmentIds })
+      const enrollmentsResult = await getEnrollmentsByIds({ organizationId, enrollmentIds: invoiceData.enrollmentIds })
 
       if (!enrollmentsResult?.data || enrollmentsResult.data.length === 0) {
         toast.error('Failed to fetch enrollment data')
@@ -196,22 +218,22 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
           { key: 'createdAt', header: 'Created At' },
         ]
       )
-      
+
       toast.success(`Exported ${enrollments.length} enrollments to CSV`)
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, 'Failed to export enrollments'))
     } finally {
       setIsExportingEnrollments(false)
     }
-  }
+  }, [organizationId, referenceDate])
 
   // PDF download handler - direct fetch for one-time downloads
-  const handleDownloadPDF = async (invoice: Invoice, e?: React.MouseEvent) => {
+  const handleDownloadPDF = useCallback(async (invoice: Invoice, e?: React.MouseEvent) => {
     e?.stopPropagation()
     setDownloadingId(invoice.id)
     try {
       const { generateInvoicePDF } = await import('@/app/actions')
-      const result = await generateInvoicePDF({ invoiceId: invoice.id })
+      const result = await generateInvoicePDF({ organizationId, invoiceId: invoice.id })
       const pdfUrl = result?.data?.pdfUrl
       if (!pdfUrl) {
         throw new Error('PDF not yet generated')
@@ -228,21 +250,21 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
         // Add error handling
         signal: AbortSignal.timeout(30000), // 30 second timeout
       })
-      
+
       if (!response.ok) {
         throw new Error(`Failed to download PDF: ${response.status} ${response.statusText}`)
       }
-      
+
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
-      
+
       // Use React ref instead of direct DOM manipulation
       if (downloadLinkRef.current) {
         downloadLinkRef.current.href = url
         downloadLinkRef.current.download = `${invoice.invoiceNumber}.pdf`
         downloadLinkRef.current.click()
       }
-      
+
       // Clean up object URL after a short delay to ensure download starts
       setTimeout(() => {
         URL.revokeObjectURL(url)
@@ -254,12 +276,12 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
     } finally {
       setDownloadingId(null)
     }
-  }
+  }, [organizationId])
 
   // nuqs: Update URL when period filter changes
-  const handlePeriodChange = (value: string) => {
-    setSearchParams({ period: value as typeof periodFilter, page: 1 })
-  }
+  const handlePeriodChange = useCallback((value: string) => {
+    setSearchParams({ period: value as "all" | "this_month" | "last_month" | "last_3_months", page: 1 })
+  }, [setSearchParams])
 
   // Formatting functions - directly use lib functions
   const formatDate = (date: Date | string | undefined): string => {
@@ -310,8 +332,17 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
   return (
     <Tooltip.Provider>
     <div className="space-y-5 sm:space-y-6">
-      {/* Hidden download link for PDF downloads */}
-      <a ref={downloadLinkRef} className="hidden" aria-hidden="true" />
+      {/* Hidden download link for PDF downloads - programmatically triggered */}
+      <a
+        ref={downloadLinkRef}
+        href="about:blank"
+        download
+        style={{ position: 'absolute', left: '-9999px' }}
+        aria-label="Download invoice PDF"
+        tabIndex={-1}
+      >
+        Download
+      </a>
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
@@ -344,7 +375,7 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
               key={stat.label}
               className="flex flex-col rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 px-3 py-2.5 min-w-[95px] sm:min-w-0"
             >
-              <span className="text-[10px] sm:text-paragraph-xs text-text-soft-400 uppercase tracking-wide">{stat.label}</span>
+              <span className="text-label-xs text-text-soft-400 uppercase tracking-wide">{stat.label}</span>
               <span className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold mt-0.5">{stat.value}</span>
             </div>
           ))}
@@ -411,6 +442,7 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
       {/* Modal */}
       <InvoiceModal
         invoice={selectedInvoice}
+        organization={organization}
         onClose={() => setSelectedInvoice(null)}
         formatCurrency={formatCurrency}
         formatDate={formatDateFull}
@@ -478,7 +510,11 @@ function InvoiceItem({
       </button>
 
       {/* Desktop: Row layout */}
-      <div className="hidden sm:flex items-center gap-4 p-4 hover:bg-bg-weak-50 transition-all duration-200 cursor-pointer group" onClick={onView}>
+      <button
+        type="button"
+        className="hidden sm:flex w-full items-center gap-4 p-4 hover:bg-bg-weak-50 transition-all duration-200 cursor-pointer group text-left"
+        onClick={onView}
+      >
         <div className="size-11 rounded-xl bg-bg-weak-50 flex items-center justify-center shrink-0 transition-colors group-hover:bg-primary-lighter">
           <FileText weight="duotone" className="size-6 text-text-soft-400 transition-colors group-hover:text-primary-base" />
         </div>
@@ -507,7 +543,7 @@ function InvoiceItem({
         <Button.Root variant="ghost" size="xsmall" onClick={(e) => { e.stopPropagation() }} aria-label="Download invoice">
           <Button.Icon><DownloadSimple className="size-5" /></Button.Icon>
         </Button.Root>
-      </div>
+      </button>
     </>
   )
 }
@@ -515,6 +551,7 @@ function InvoiceItem({
 // Shared Invoice Content Component
 function InvoiceContent({
   invoice,
+  organization,
   formatCurrency,
   formatDate,
   onDownloadPDF,
@@ -523,6 +560,7 @@ function InvoiceContent({
   isExportingEnrollments,
 }: {
   invoice: Invoice
+  organization: OrganizationInfo | null
   formatCurrency: (n: number) => string
   formatDate: (d: Date | string | undefined) => string
   onDownloadPDF: (invoice: Invoice) => Promise<void>
@@ -530,56 +568,60 @@ function InvoiceContent({
   onExportEnrollments: (invoiceId: string) => Promise<void>
   isExportingEnrollments: boolean
 }) {
+  // Organization display name (prefer legal name for invoices)
+  const orgDisplayName = organization?.gstLegalName || organization?.name || "—"
+  const orgGstin = organization?.gstNumber || "—"
+
   return (
     <>
       {/* Invoice Content */}
       <div className="px-4 py-4 space-y-4">
         {/* Tax Invoice Title */}
         <div className="text-center">
-          <p className="text-[10px] text-text-soft-400 uppercase tracking-widest mb-0.5">Tax Invoice</p>
+          <p className="text-label-xs text-text-soft-400 uppercase tracking-widest mb-0.5">Tax Invoice</p>
           <p className="text-sm font-semibold text-text-strong-950 font-mono">{invoice.invoiceNumber}</p>
         </div>
 
         {/* From / To Section */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-0.5">
-            <p className="text-[9px] text-text-soft-400 uppercase tracking-wide">From</p>
-            <p className="text-xs font-medium text-text-strong-950">Hypedrive Technologies</p>
-            <p className="text-[10px] text-text-sub-600">GSTIN: 27AABCH1234A1Z5</p>
+            <p className="text-label-xs text-text-soft-400 uppercase tracking-wide">From</p>
+            <p className="text-xs font-medium text-text-strong-950">{PLATFORM_INFO.name}</p>
+            <p className="text-label-xs text-text-sub-600">GSTIN: {PLATFORM_INFO.gstin}</p>
           </div>
           <div className="space-y-0.5">
-            <p className="text-[9px] text-text-soft-400 uppercase tracking-wide">Bill To</p>
-            <p className="text-xs font-medium text-text-strong-950">Nike India Pvt. Ltd.</p>
-            <p className="text-[10px] text-text-sub-600">GSTIN: 27AAACN1234A1Z5</p>
+            <p className="text-label-xs text-text-soft-400 uppercase tracking-wide">Bill To</p>
+            <p className="text-xs font-medium text-text-strong-950">{orgDisplayName}</p>
+            <p className="text-label-xs text-text-sub-600">GSTIN: {orgGstin}</p>
           </div>
         </div>
 
         {/* Dates - 2x2 grid to prevent wrapping */}
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 py-2.5 px-3 bg-bg-weak-50 rounded-md">
           <div>
-            <p className="text-[9px] text-text-soft-400 mb-0.5">Invoice Date</p>
+            <p className="text-label-xs text-text-soft-400 mb-0.5">Invoice Date</p>
             <p className="text-[11px] font-medium text-text-strong-950">{formatDate(invoice.createdAt)}</p>
           </div>
           <div>
-            <p className="text-[9px] text-text-soft-400 mb-0.5">Due Date</p>
+            <p className="text-label-xs text-text-soft-400 mb-0.5">Due Date</p>
             <p className="text-[11px] font-medium text-text-strong-950">{formatDate(invoice.dueDate)}</p>
           </div>
           <div className="col-span-2">
-            <p className="text-[9px] text-text-soft-400 mb-0.5">Billing Period</p>
+            <p className="text-label-xs text-text-soft-400 mb-0.5">Billing Period</p>
             <p className="text-[11px] font-medium text-text-strong-950">{formatDate(invoice.periodStart)} – {formatDate(invoice.periodEnd)}</p>
           </div>
         </div>
 
         {/* Line Items */}
         <div>
-          <div className="flex justify-between text-[9px] text-text-soft-400 uppercase tracking-wide pb-1.5 border-b border-stroke-soft-200">
+          <div className="flex justify-between text-label-xs text-text-soft-400 uppercase tracking-wide pb-1.5 border-b border-stroke-soft-200">
             <span>Description</span>
             <span>Amount</span>
           </div>
           <div className="flex justify-between items-center py-2">
             <div>
               <p className="text-xs text-text-strong-950">Campaign Enrollments</p>
-              <p className="text-[10px] text-text-sub-600">{invoice.enrollmentCount} enrollments</p>
+              <p className="text-label-xs text-text-sub-600">{invoice.enrollmentCount} enrollments</p>
             </div>
             <p className="text-xs font-medium text-text-strong-950">{formatCurrency(invoice.subtotal)}</p>
           </div>
@@ -611,7 +653,7 @@ function InvoiceContent({
             <Check weight="bold" className="size-3.5 text-success-base" />
             <span className="text-[11px] font-medium text-success-base">Paid via Wallet</span>
             {invoice.paidAt && (
-              <span className="text-[10px] text-success-base">• {formatDate(invoice.paidAt)}</span>
+              <span className="text-label-xs text-success-base">• {formatDate(invoice.paidAt)}</span>
             )}
           </div>
         )}
@@ -657,8 +699,8 @@ function InvoiceContent({
             </Button.Root>
           )}
         </div>
-        <p className="text-[10px] text-text-sub-600 text-center">Thank you for your business!</p>
-        <p className="text-[9px] text-text-soft-400 mt-0.5 text-center">support@hypedrive.io • hypedrive.io</p>
+        <p className="text-label-xs text-text-sub-600 text-center">Thank you for your business!</p>
+        <p className="text-label-xs text-text-soft-400 mt-0.5 text-center">{PLATFORM_INFO.email} • {PLATFORM_INFO.website}</p>
       </div>
     </>
   )
@@ -667,6 +709,7 @@ function InvoiceContent({
 // Responsive Invoice Modal - Bottom Sheet on mobile, Modal on desktop
 function InvoiceModal({
   invoice,
+  organization,
   onClose,
   formatCurrency,
   formatDate,
@@ -676,6 +719,7 @@ function InvoiceModal({
   isExportingEnrollments,
 }: {
   invoice: Invoice | null
+  organization: OrganizationInfo | null
   onClose: () => void
   formatCurrency: (n: number) => string
   formatDate: (d: Date | string | undefined) => string
@@ -706,6 +750,7 @@ function InvoiceModal({
           </div>
           <InvoiceContent
             invoice={invoice}
+            organization={organization}
             formatCurrency={formatCurrency}
             formatDate={formatDate}
             onDownloadPDF={onDownloadPDF}
@@ -736,6 +781,7 @@ function InvoiceModal({
         </div>
         <InvoiceContent
           invoice={invoice}
+          organization={organization}
           formatCurrency={formatCurrency}
           formatDate={formatDate}
           onDownloadPDF={onDownloadPDF}

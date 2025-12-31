@@ -7,14 +7,10 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { getEncoreBrowserClient } from "@/lib/api/encore-browser"
-import type { organizations } from "@/lib/api/encore-browser"
+import { client } from "@/lib/api/client"
+import type { organizations } from "@/brand-client"
 import { logWarn, logError } from "@/lib/logging/error-logger-simple"
-
-// ============================================
-// Client Instance
-// ============================================
-const client = getEncoreBrowserClient()
+import { STALE_TIME } from "@/lib/utils/query-config"
 
 // ============================================
 // Query Keys
@@ -48,7 +44,7 @@ export function useDashboard(options: { organizationId: string; days?: number; e
 					return null
 				}
 
-				return await client.organizations.getDashboardOverview({ organizationId, days })
+				return await client.organizations.getDashboardOverview(organizationId, { days })
 			} catch (error: unknown) {
 				logError(error, {
 					source: "useDashboard",
@@ -58,9 +54,10 @@ export function useDashboard(options: { organizationId: string; days?: number; e
 			}
 		},
 		enabled: enabled && !!organizationId,
-		staleTime: 60 * 1000,
-		gcTime: 5 * 60 * 1000,
-		retry: false,
-		refetchOnWindowFocus: false,
+		staleTime: STALE_TIME.SHORT,
+		gcTime: STALE_TIME.MEDIUM,
+		retry: 2, // Allow retries for transient network errors
+		retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+		refetchOnWindowFocus: true, // Refresh when user returns to tab
 	})
 }

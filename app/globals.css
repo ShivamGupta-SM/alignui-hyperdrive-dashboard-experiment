@@ -896,3 +896,19 @@ nextjs-portal {
 	left: 0px;
 }
 
+/* Background pattern utilities */
+.bg-dot-pattern {
+	background-image: radial-gradient(circle at 2px 2px, white 1px, transparent 0);
+	background-size: 40px 40px;
+}
+
+.bg-dot-pattern-sm {
+	background-image: radial-gradient(circle at 2px 2px, white 1px, transparent 0);
+	background-size: 32px 32px;
+}
+
+.bg-dot-pattern-dark {
+	background-image: radial-gradient(circle at 2px 2px, rgb(0 0 0 / 0.1) 1px, transparent 0);
+	background-size: 40px 40px;
+}
+

@@ -2,72 +2,73 @@
  * Wallet SSR Data Fetching
  *
  * Server-side data fetching for wallet pages.
- * Organized by feature for clean architecture.
+ * Uses ssrFetch helper for standardized error handling.
  */
 
-import { getAuthClient } from "@/lib/auth/server"
-import { isAuthenticationError } from "@/lib/errors/encore-error-handler"
-import { logSSRError, logWarn } from "@/lib/logging/error-logger-simple"
-import { getErrorMessageForLog } from "@/lib/utils/format"
+import { ssrFetch } from "@/lib/api/server"
+import { logSSRError } from "@/lib/logging/error-logger-simple"
+import { SSR_PAGE_SIZE } from "@/lib/utils/query-config"
+
+// SSOT: Default wallet data structure for fallback
+// Note: 'balance' field matches WalletClientProps interface
+const EMPTY_WALLET_RESPONSE = {
+	balance: null,
+	withdrawals: [],
+	transactions: [],
+	activeHolds: [],
+}
 
 /**
  * Get wallet data for organization
+ * Uses ssrFetch for standardized error handling
+ *
+ * SSOT: Returns consistent structure with proper null handling
  */
 export async function getWalletData(organizationId: string) {
-	try {
-		const client = await getAuthClient()
-		const session = await client.auth.getSession()
+	return ssrFetch(
+		{
+			source: "getWalletData",
+			feature: "wallet",
+			context: { organizationId },
+		},
+		async (client) => {
+			const results = await Promise.allSettled([
+				client.organizations.getOrganizationWallet(organizationId),
+				client.organizations.listOrganizationWithdrawals(organizationId, { skip: 0, take: SSR_PAGE_SIZE.DEFAULT }),
+				client.organizations.getOrganizationWalletTransactions(organizationId, { skip: 0, take: SSR_PAGE_SIZE.DEFAULT }),
+				client.organizations.getWalletHolds(organizationId),
+			])
 
-		if (!session?.user) {
-			logWarn("User not authenticated, returning null wallet data", { source: "getWalletData" })
-			return null
-		}
+			// SSOT: Extract data with consistent null handling
+			const walletResult = results[0]
+			const withdrawalsResult = results[1]
+			const transactionsResult = results[2]
+			const holdsResult = results[3]
 
-		// URL-based multi-tenancy: pass organizationId to all wallet endpoints
-		const results = await Promise.allSettled([
-			client.wallets.getOrganizationWallet({ organizationId }),
-			client.wallets.listOrganizationWithdrawals({ organizationId, skip: 0, take: 50 }),
-			client.wallets.getOrganizationWalletTransactions({ organizationId, skip: 0, take: 50 }),
-			client.wallets.getWalletHolds({ organizationId }),
-			client.wallets.getWithdrawalStats({ holderType: "organization" }),
-		])
+			const wallet = walletResult.status === "fulfilled" ? walletResult.value : null
+			const withdrawalsData = withdrawalsResult.status === "fulfilled" ? withdrawalsResult.value : null
+			const transactionsData = transactionsResult.status === "fulfilled" ? transactionsResult.value : null
+			const holdsData = holdsResult.status === "fulfilled" ? holdsResult.value : null
 
-		const wallet = results[0].status === "fulfilled" ? results[0].value : null
-		const withdrawals = results[1].status === "fulfilled" ? results[1].value : { data: [] }
-		const transactions = results[2].status === "fulfilled" ? results[2].value : { data: [] }
-		const holds = results[3].status === "fulfilled" ? results[3].value : { holds: [] }
-		const stats = results[4].status === "fulfilled" ? results[4].value : null
-
-		// Log errors for failed promises
-		results.forEach((result, index) => {
-			if (result.status === "rejected") {
-				const names = ["wallet", "withdrawals", "transactions", "holds", "stats"]
-				logSSRError(result.reason, "getWalletData", `wallet-${names[index]}`, {
-					data: { organizationId },
-				})
-			}
-		})
-
-		return {
-			balance: wallet,
-			withdrawals: withdrawals.data || [],
-			transactions: transactions.data || [],
-			activeHolds: holds.holds || [],
-			stats,
-		}
-	} catch (error) {
-		// Handle authentication errors gracefully
-		if (isAuthenticationError(error)) {
-			logWarn("Authentication error in getWalletData, returning null", {
-				source: "getWalletData",
-				data: { errorMessage: getErrorMessageForLog(error) },
+			// Log errors for failed promises
+			const names = ["wallet", "withdrawals", "transactions", "holds"]
+			results.forEach((result, index) => {
+				if (result.status === "rejected") {
+					logSSRError(result.reason, "getWalletData", `wallet-${names[index]}`, {
+						data: { organizationId },
+					})
+				}
 			})
-			return null
-		}
 
-		logSSRError(error, "getWalletData", "wallet-data", {
-			data: { organizationId },
-		})
-		return null
-	}
+			// SSOT: Return consistent structure matching WalletClientProps
+			// 'balance' field matches the client interface
+			return {
+				balance: wallet,
+				withdrawals: withdrawalsData?.data ?? [],
+				transactions: transactionsData?.data ?? [],
+				activeHolds: holdsData?.holds ?? [],
+			}
+		},
+		EMPTY_WALLET_RESPONSE
+	)
 }

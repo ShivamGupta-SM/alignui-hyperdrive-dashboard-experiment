@@ -6,7 +6,7 @@
  */
 
 import { HttpResponse } from "msw"
-import type { products, organizations, campaigns, enrollments, invoices, auth } from "@/lib/api/encore-client"
+import type { products, organizations, campaigns, auth } from "@/brand-client"
 
 // =============================================================================
 // ENCORE API RESPONSE TYPES
@@ -83,7 +83,8 @@ export function typedEncoreError(
 
 export type ProductWithStats = products.ProductWithStats
 export type ProductCategory = products.ProductCategory
-export type CreateProductRequest = products.CreateProductRequest
+// CreateProductRequest is in organizations namespace
+export type CreateProductRequest = organizations.CreateProductRequest
 
 /**
  * Type-safe product response
@@ -135,7 +136,8 @@ export function memberListResponse(
 // =============================================================================
 
 export type Campaign = campaigns.Campaign
-export type CampaignWithStats = campaigns.CampaignWithStats
+// CampaignWithStats is in organizations namespace
+export type CampaignWithStats = organizations.CampaignWithStats
 
 /**
  * Type-safe campaign response
@@ -160,7 +162,8 @@ export function campaignListResponse(
 // ENROLLMENT TYPED HELPERS
 // =============================================================================
 
-export type Enrollment = enrollments.EnrollmentWithRelations
+// EnrollmentWithRelations is in organizations namespace
+export type Enrollment = organizations.EnrollmentWithRelations
 
 /**
  * Type-safe enrollment response
@@ -185,7 +188,8 @@ export function enrollmentListResponse(
 // INVOICE TYPED HELPERS
 // =============================================================================
 
-export type Invoice = invoices.Invoice
+// Invoice is in organizations namespace in brand-client
+export type Invoice = organizations.Invoice
 
 /**
  * Type-safe invoice response

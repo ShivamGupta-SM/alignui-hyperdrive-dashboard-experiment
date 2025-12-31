@@ -3,9 +3,9 @@
 "use client"
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { recursiveCloneChildren } from "@/utils/recursive-clone-children"
-import { PolymorphicComponentProps } from "@/utils/polymorphic"
+import { tv, type VariantProps } from "@/lib/utils"
+import { recursiveCloneChildren } from "@/lib/utils"
+import { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 import { Slot } from "@radix-ui/react-slot"
 
 const BUTTON_GROUP_ROOT_NAME = "ButtonGroupRoot"

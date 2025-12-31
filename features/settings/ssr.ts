@@ -2,153 +2,137 @@
  * Settings SSR Data Fetching
  *
  * Server-side data fetching for settings pages.
- * Organized by feature for clean architecture.
+ * Uses ssrFetch helper for standardized error handling.
  */
 
+import { ssrFetch } from "@/lib/api/server"
 import { getAuthClient } from "@/lib/auth/server"
-import { logSSRError, logAPIError, logWarn } from "@/lib/logging/error-logger-simple"
+import { logSSRError, logWarn } from "@/lib/logging/error-logger-simple"
+import type { Organization } from "@/features/organizations/types"
+
+/**
+ * Creates a fallback organization object with default values
+ * Used when API call fails to allow page to still render
+ */
+function createFallbackOrganization(): Organization {
+	return {
+		id: "",
+		name: "Organization",
+		slug: "",
+		logo: undefined,
+		description: undefined,
+		website: undefined,
+		gstNumber: undefined,
+		gstVerified: false,
+		gstLegalName: undefined,
+		gstTradeName: undefined,
+		cinNumber: undefined,
+		businessType: undefined,
+		industryCategory: undefined,
+		contactPerson: undefined,
+		phoneNumber: undefined,
+		email: undefined,
+		approvalStatus: "draft",
+		accountTier: "standard",
+		creditLimit: undefined,
+		creditLimitDecimal: undefined,
+		paymentInReady: false,
+		payoutReady: false,
+		address: undefined,
+		city: undefined,
+		state: undefined,
+		country: "IN",
+		postalCode: undefined,
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+	}
+}
+
+// Default fallback for settings data - using null to indicate no data
+// This avoids type inference issues with ssrFetch generic
+const EMPTY_SETTINGS_RESPONSE = null
 
 /**
  * Get settings data (organization, bank accounts, user, GST details)
+ * Uses ssrFetch for standardized error handling
  */
 export async function getSettingsData(organizationId: string | null) {
-	const client = await getAuthClient()
-
-	// Fetch all data with individual error handling - never fail completely
-	const [organization, bankAccounts, userData] = await Promise.allSettled([
-		organizationId
-			? client.organizations.getOrganization(organizationId).catch((error) => {
-					logAPIError(error, "getSettingsData", `/organizations/${organizationId}`, { automaticScoping: true })
-					// Return minimal organization object so page can still render
-					return {
-						id: "",
-						name: "Organization",
-						slug: "",
-						logo: undefined,
-						description: undefined,
-						website: undefined,
-						gstNumber: undefined,
-						gstVerified: false,
-						gstLegalName: undefined,
-						gstTradeName: undefined,
-						panNumber: undefined,
-						panVerified: false,
-						panHolderName: undefined,
-						cinNumber: undefined,
-						businessType: undefined,
-						industryCategory: undefined,
-						contactPerson: undefined,
-						phoneNumber: undefined,
-						email: undefined,
-						phone: undefined,
-						industry: undefined,
-						approvalStatus: "draft" as const,
-						accountTier: "standard" as const,
-						creditLimit: undefined,
-						address: undefined,
-						city: undefined,
-						state: undefined,
-						country: "IN",
-						postalCode: undefined,
-						createdAt: new Date().toISOString(),
-						updatedAt: new Date().toISOString(),
-					} as any
-				})
-			: Promise.resolve({
-					id: "",
-					name: "Organization",
-					slug: "",
-					logo: undefined,
-					description: undefined,
-					website: undefined,
-					gstNumber: undefined,
-					gstVerified: false,
-					gstLegalName: undefined,
-					gstTradeName: undefined,
-					panNumber: undefined,
-					panVerified: false,
-					panHolderName: undefined,
-					cinNumber: undefined,
-					businessType: undefined,
-					industryCategory: undefined,
-					contactPerson: undefined,
-					phoneNumber: undefined,
-					email: undefined,
-					phone: undefined,
-					industry: undefined,
-					approvalStatus: "draft" as const,
-					accountTier: "standard" as const,
-					creditLimit: undefined,
-					address: undefined,
-					city: undefined,
-					state: undefined,
-					country: "IN",
-					postalCode: undefined,
-					createdAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
-				} as any),
-		// URL-based multi-tenancy: organizationId in URL path
-		organizationId
-			? client.organizations.listBankAccounts(organizationId).catch((error) => {
-					logAPIError(error, "getSettingsData", `/organizations/${organizationId}/bank-accounts`, { automaticScoping: true })
-					return { data: [] }
-				})
-			: Promise.resolve({ data: [] }),
-		client.auth.me().catch((error) => {
-			logSSRError(error, "getSettingsData", "user-data", { data: { automaticScoping: true } })
-			return null
-		}),
-	])
-
-	// Extract values from Promise.allSettled results
-	const orgResult = organization.status === "fulfilled" ? organization.value : organization.reason
-	const bankAccountsResult = bankAccounts.status === "fulfilled" ? bankAccounts.value : { data: [] }
-	const userDataResult = userData.status === "fulfilled" ? userData.value : null
-
-	let gstDetails = null
-	if (organizationId) {
-		try {
-			const gstResponse = await client.organizations.getGSTDetails(organizationId)
-			gstDetails = gstResponse.gstDetails
-		} catch (error) {
-			// GST not verified yet or error - continue without it
-			logSSRError(error, "getSettingsData", "gst-details", {
-				data: { automaticScoping: true, fallbackUsed: true },
-			})
-		}
+	if (!organizationId) {
+		logWarn("No organizationId provided for settings query", { source: "getSettingsData" })
+		return EMPTY_SETTINGS_RESPONSE
 	}
 
-	// Map backend fields to frontend expected format
-	return {
-		user: userDataResult
-			? {
-					id: userDataResult.userID,
-					name: userDataResult.name || "",
-					email: userDataResult.email || "",
-					phone: userDataResult.phone || "",
-					avatar: (userDataResult as { avatar?: string }).avatar || userDataResult.image || undefined,
-					role: "owner",
-					emailVerified: userDataResult.emailVerified || false,
-					twoFactorEnabled: userDataResult.twoFactorEnabled ?? false,
-				}
-			: {
-					id: "",
-					name: "",
-					email: "",
-					phone: "",
-					role: "owner",
-					emailVerified: false,
-				},
-		organization: {
-			id: orgResult.id || "",
-			...orgResult,
-			phone: orgResult.phone || orgResult.phoneNumber || "",
-			industry: orgResult.industry || orgResult.industryCategory || "",
-			email: orgResult.email || "",
+	return ssrFetch(
+		{
+			source: "getSettingsData",
+			feature: "settings",
+			context: { organizationId },
 		},
-		bankAccounts: bankAccountsResult.data || [],
-		gstDetails,
-	}
+		async (client) => {
+			const results = await Promise.allSettled([
+				client.auth.getFullOrganization(organizationId, {}),
+				client.organizations.listBankAccounts(organizationId, {}),
+				client.auth.getSession(),
+				client.organizations.getGSTDetails(organizationId),
+			])
+
+			const orgResult = results[0].status === "fulfilled" ? results[0].value : createFallbackOrganization()
+			const bankAccountsResult = results[1].status === "fulfilled" ? results[1].value : { data: [] }
+			const sessionResult = results[2].status === "fulfilled" ? results[2].value : null
+			const gstResult = results[3].status === "fulfilled" ? results[3].value : null
+
+			// Log errors for failed promises
+			results.forEach((result, index) => {
+				if (result.status === "rejected") {
+					const names = ["organization", "bank-accounts", "session", "gst-details"]
+					logSSRError(result.reason, "getSettingsData", `settings-${names[index]}`, {
+						data: { organizationId },
+					})
+				}
+			})
+
+			const userDataResult = sessionResult?.user || null
+
+			// SSOT: Normalize organization fields (null -> undefined for optional fields)
+			const normalizedOrg = {
+				id: orgResult.id,
+				name: orgResult.name,
+				slug: orgResult.slug,
+				website: orgResult.website ?? undefined,
+				logo: orgResult.logo ?? undefined,
+				email: orgResult.email ?? undefined,
+				phone: orgResult.phoneNumber ?? undefined,
+				address: orgResult.address ?? undefined,
+				industry: orgResult.industryCategory ?? undefined,
+			}
+
+			return {
+				user: userDataResult
+					? {
+							id: userDataResult.id,
+							name: userDataResult.name || "",
+							email: userDataResult.email || "",
+							phone: "",
+							avatar: userDataResult.image || undefined,
+							role: "owner" as const,
+							emailVerified: userDataResult.emailVerified || false,
+							twoFactorEnabled: userDataResult.twoFactorEnabled ?? false,
+						}
+					: {
+							id: "",
+							name: "",
+							email: "",
+							phone: "",
+							role: "owner" as const,
+							emailVerified: false,
+						},
+				organization: normalizedOrg,
+				bankAccounts: bankAccountsResult.data || [],
+				gstDetails: gstResult?.gstDetails || null,
+			}
+		},
+		EMPTY_SETTINGS_RESPONSE
+	)
 }
 
 /**
@@ -164,32 +148,47 @@ export async function getProfileData() {
 			throw new Error("Session not found")
 		}
 
-		const user = sessionResult.user as unknown as {
-			userID: string
-			name: string
-			email: string
+		// Define expected user shape from session
+		interface SessionUser {
+			userID?: string
+			id?: string
+			name?: string
+			email?: string
 			phone?: string
 			organizationRole?: string
 			role?: string
 			image?: string
 			emailVerified?: boolean
 			twoFactorEnabled?: boolean
-			activeOrganizationId?: string
 		}
+		const user = sessionResult.user as SessionUser
 
+		const userData = {
+			id: user.userID || user.id || "",
+			name: user.name || "",
+			email: user.email || "",
+			phone: user.phone || "",
+			role: user.organizationRole || user.role || "user",
+			image: user.image || undefined,
+			emailVerified: user.emailVerified || false,
+			twoFactorEnabled: user.twoFactorEnabled ?? false,
+		}
+		// Ensure required fields are non-empty strings for type safety
+		if (!userData.id || !userData.name || !userData.email) {
+			throw new Error("User profile is missing required fields")
+		}
 		return {
-			user: {
-				id: user.userID,
-				name: user.name,
-				email: user.email,
-				phone: user.phone || "",
-				role: user.organizationRole || user.role || "user",
-				image: user.image,
-				emailVerified: user.emailVerified || false,
-				twoFactorEnabled: user.twoFactorEnabled ?? false,
+			user: userData as {
+				id: string
+				name: string
+				email: string
+				phone: string
+				role: string
+				image?: string
+				emailVerified: boolean
+				twoFactorEnabled: boolean
 			},
-			sessions: [],
-			activeOrganizationId: user.activeOrganizationId,
+			sessions: [] as { id: string; device: string; browser: string; location: string; lastActive: string; current: boolean; iconType: 'computer' | 'smartphone' | 'mac'; userAgent?: string }[],
 		}
 	} catch (error) {
 		// In production, should redirect to sign-in or show error
@@ -202,8 +201,11 @@ export async function getProfileData() {
 					email: "admin@hypedrive.io",
 					phone: "+91 98765 43210",
 					role: "admin",
+					image: undefined,
+					emailVerified: true,
+					twoFactorEnabled: false,
 				},
-				sessions: [],
+				sessions: [] as { id: string; device: string; browser: string; location: string; lastActive: string; current: boolean; iconType: 'computer' | 'smartphone' | 'mac'; userAgent?: string }[],
 			}
 		}
 		throw error

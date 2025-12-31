@@ -1,47 +1,54 @@
 "use client"
 
-import { memo, useState, useEffect, useCallback, useMemo, type ChangeEvent } from "react"
-import { useRouter } from "next/navigation"
-import { toast } from "sonner"
-import * as Button from "@/components/ui/primitives/button"
+import type { organizations } from "@/brand-client"
 import * as Badge from "@/components/ui/data-display/badge"
 import * as StatusBadge from "@/components/ui/data-display/status-badge"
-import * as Avatar from "@/components/ui/primitives/avatar"
-import * as Checkbox from "@/components/ui/forms/checkbox"
-import * as Tooltip from "@/components/ui/layout/tooltip"
+import * as Table from "@/components/ui/data-display/table"
 import { Tracker } from "@/components/ui/data-display/tracker"
-import { getAvatarColor } from "@/utils/avatar-color"
-import { THRESHOLDS } from "@/lib/types/constants"
+import { CalloutWithActions } from "@/components/ui/feedback/callout"
+import * as Checkbox from "@/components/ui/forms/checkbox"
+import * as Select from "@/components/ui/forms/select"
+import * as Tooltip from "@/components/ui/layout/tooltip"
+import * as Pagination from "@/components/ui/navigation/pagination"
+import * as Avatar from "@/components/ui/primitives/avatar"
+import * as Button from "@/components/ui/primitives/button"
+import { OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
+import { PageHeaderSkeleton, ListSkeleton } from "@/components/dashboard/loading-skeletons"
+import type { Enrollment } from "@/features/enrollments"
+import { useBulkApproveEnrollments, useBulkRejectEnrollments } from "@/features/enrollments"
+import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
+import { useEnrollmentSearchParams } from "@/hooks"
 import {
-	MagnifyingGlass,
-	Check,
-	X,
-	DownloadSimple,
-	ListChecks,
-	SquaresFour,
+	ENROLLMENT_STATUS_TABS,
+	getEnrollmentStatusLabel,
+	getEnrollmentStatusBadgeStatus,
+} from "@/lib/constants"
+import { exportEnrollments } from "@/lib/utils/excel"
+import { formatCurrency, formatDateMedium, getErrorMessage } from "@/lib/utils/format"
+import { getInitial } from "@/lib/utils/string"
+import { getTimeAgo, isOverdue } from "@/lib/utils/date"
+import { getAvatarColor } from "@/lib/utils"
+import { cn } from "@/lib/utils"
+import {
 	ArrowRight,
-	Warning,
-	CaretUp,
-	CaretDown,
 	ArrowsDownUp,
+	CaretDown,
 	CaretLeft,
 	CaretRight,
+	CaretUp,
+	Check,
+	DownloadSimple,
+	ListChecks,
+	MagnifyingGlass,
+	SpinnerGap,
+	SquaresFour,
+	Warning,
+	X,
 } from "@phosphor-icons/react"
-import { cn } from "@/utils/cn"
-import { formatCurrency, formatDateMedium, getErrorMessage } from "@/lib/utils/format"
-import { useEnrollmentSearchParams } from "@/hooks"
-import { type Enrollment, type EnrollmentStatus } from "@/features/enrollments"
-import { useDebounceValue, useLocalStorage } from "usehooks-ts"
-import { exportEnrollments } from "@/lib/utils/excel"
-import { bulkUpdateEnrollments } from "@/features/enrollments"
-import { useParams } from "next/navigation"
-import { useOrganizations } from "@/features/organizations"
-import type { enrollments } from "@/lib/api/encore-client"
-import { CalloutWithActions } from "@/components/ui/feedback/callout"
 import {
 	type ColumnDef,
-	type SortingState,
 	type ColumnFiltersState,
+	type SortingState,
 	type VisibilityState,
 	flexRender,
 	getCoreRowModel,
@@ -50,71 +57,12 @@ import {
 	getSortedRowModel,
 	useReactTable,
 } from "@tanstack/react-table"
-import * as Table from "@/components/ui/data-display/table"
-import * as Select from "@/components/ui/forms/select"
-import type { campaigns } from "@/lib/api/encore-client"
-
-// Helper functions - use stable date reference to avoid re-renders
-const getTimeAgo = (date: Date | string, referenceTime: number): string => {
-	const diffMs = referenceTime - new Date(date).getTime()
-	const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-	if (diffHours < 1) return "Just now"
-	if (diffHours < 24) return `${diffHours}h ago`
-	const diffDays = Math.floor(diffHours / 24)
-	if (diffDays === 1) return "1 day ago"
-	return `${diffDays} days ago`
-}
-
-const isOverdue = (date: Date | string, referenceTime: number): boolean => {
-	const diffMs = referenceTime - new Date(date).getTime()
-	return diffMs > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS * 60 * 60 * 1000
-}
-
-const statusTabs = [
-	{ value: "all", label: "All" },
-	{ value: "awaiting_review", label: "Pending" },
-	{ value: "changes_requested", label: "Changes" },
-	{ value: "approved", label: "Approved" },
-	{ value: "rejected", label: "Rejected" },
-]
-
-const getStatusBadgeStatus = (status: EnrollmentStatus) => {
-	switch (status) {
-		case "approved":
-			return "completed" as const
-		case "awaiting_review":
-		case "awaiting_submission":
-		case "changes_requested":
-			return "pending" as const
-		case "permanently_rejected":
-		case "withdrawn":
-		case "expired":
-			return "failed" as const
-		default:
-			return "disabled" as const
-	}
-}
-
-const getStatusLabel = (status: EnrollmentStatus) => {
-	switch (status) {
-		case "awaiting_review":
-			return "Pending"
-		case "awaiting_submission":
-			return "Awaiting"
-		case "changes_requested":
-			return "Changes"
-		case "approved":
-			return "Approved"
-		case "permanently_rejected":
-			return "Rejected"
-		case "withdrawn":
-			return "Withdrawn"
-		case "expired":
-			return "Expired"
-		default:
-			return status
-	}
-}
+import { useRouter } from "next/navigation"
+import { type ChangeEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
+import { useDebounceValue } from "usehooks-ts"
+import { useHydratedLocalStorage } from "@/hooks/ui"
+import { routes } from "@/lib/routes"
 
 /**
  * Props for the EnrollmentsClient component
@@ -139,15 +87,15 @@ export interface EnrollmentsClientProps {
 		}
 	}
 	/** Available campaigns for filtering */
-	campaigns?: campaigns.CampaignWithStats[]
+	campaigns?: organizations.CampaignWithStats[]
 }
 
 /**
  * EnrollmentsClient Component
- * 
+ *
  * Displays and manages enrollments with filtering, searching, and bulk actions.
  * Supports status filtering, campaign filtering, search, export, and bulk approval/rejection.
- * 
+ *
  * @param props - Component props
  * @param props.initialStatus - Initial status filter (default: "all")
  * @param props.initialCampaign - Initial campaign filter (default: "")
@@ -162,23 +110,25 @@ export function EnrollmentsClient({
 	campaigns = [],
 }: EnrollmentsClientProps) {
 	const router = useRouter()
-	const params = useParams<{ organizationId: string }>()
-	const { data: orgsData, isPending: isOrgLoading } = useOrganizations()
 
-	// URL-based multi-tenancy: verify organization from URL params
-	const organizations = orgsData?.organizations || []
-	const organization = organizations.find(org => org.id === params.organizationId)
+	// SSOT: Use centralized hook for organization lookup
+	const { organization, organizationId, isLoading: isOrgLoading } = useCurrentOrganization()
 	const hasOrganization = !!organization
 
-	// Stable reference time to avoid re-renders from Date.now()
-	const referenceTime = useMemo(() => Date.now(), [])
-	
+	// Stable reference time to avoid re-renders (using ref instead of useMemo for primitives)
+	const referenceTimeRef = useRef(Date.now())
+	const referenceTime = referenceTimeRef.current
+
 	const [selectedIds, setSelectedIds] = useState<string[]>([])
 	const [viewMode, setViewMode] = useState<"list" | "compact">("list")
 	const [isBulkLoading, setIsBulkLoading] = useState(false)
 
-	// Dismiss onboarding alert state (persisted in localStorage)
-	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
+	// Bulk action mutations
+	const bulkApprove = useBulkApproveEnrollments(organizationId)
+	const bulkReject = useBulkRejectEnrollments(organizationId)
+
+	// Dismiss onboarding alert state (persisted in localStorage with hydration guard)
+	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useHydratedLocalStorage<boolean>(
 		"enrollments-onboarding-alert-dismissed",
 		false
 	)
@@ -193,10 +143,8 @@ export function EnrollmentsClient({
 	if (isOrgLoading) {
 		return (
 			<div className="space-y-5 sm:space-y-6">
-				<div className="animate-pulse">
-					<div className="h-8 w-48 bg-bg-soft-200 rounded mb-4" />
-					<div className="h-40 bg-bg-soft-200 rounded-xl" />
-				</div>
+				<PageHeaderSkeleton />
+				<ListSkeleton count={5} />
 			</div>
 		)
 	}
@@ -210,7 +158,7 @@ export function EnrollmentsClient({
 	}, [setDismissedOnboardingAlert])
 
 	const handleStartOnboarding = useCallback(() => {
-		router.push("/onboarding")
+		router.push(routes.onboarding.root)
 	}, [router])
 
 	// If no organization, show alert
@@ -226,25 +174,20 @@ export function EnrollmentsClient({
 						onDismiss={handleDismissOnboardingAlert}
 						actions={
 							<>
-								<Button.Root
-									variant="primary"
-									size="small"
-									onClick={handleStartOnboarding}
-								>
-									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
+								<Button.Root variant="primary" size="small" onClick={handleStartOnboarding}>
+									<Button.Icon>
+										<ArrowRight className="size-5" />
+									</Button.Icon>
 									Start Onboarding
 								</Button.Root>
-								<Button.Root
-									variant="ghost"
-									size="small"
-									onClick={handleDismissOnboardingAlert}
-								>
+								<Button.Root variant="ghost" size="small" onClick={handleDismissOnboardingAlert}>
 									Maybe Later
 								</Button.Root>
 							</>
 						}
 					>
-						To view and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
+						To view and manage enrollments, you need to complete your organization setup. This will
+						only take a few minutes.
 					</CalloutWithActions>
 				)}
 
@@ -260,35 +203,16 @@ export function EnrollmentsClient({
 
 				{/* EMPTY STATE */}
 				{dismissedOnboardingAlert && (
-					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
-						<div className="max-w-md mx-auto space-y-4">
-							<div className="flex justify-center">
-								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
-									<Warning weight="duotone" className="size-8 text-warning-base" />
-								</div>
-							</div>
-							<div>
-								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
-								<p className="text-paragraph-sm text-text-sub-600 mt-2">
-									Complete your organization setup to view and manage enrollments.
-								</p>
-							</div>
-							<Button.Root variant="primary" size="medium" onClick={handleStartOnboarding}>
-								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-								Start Onboarding
-							</Button.Root>
-						</div>
-					</div>
+					<OrganizationSetupRequiredEmptyState
+						description="Complete your organization setup to view and manage enrollments."
+					/>
 				)}
 			</div>
 		)
 	}
 
-	// React Query hook removed - using server data via initialData
-	// const { data } = useEnrollmentsData(statusFilter)
-
 	// Use server data directly - type-safe with Encore types
-	const enrollmentsList: enrollments.EnrollmentWithRelations[] =
+	const enrollmentsList: organizations.EnrollmentWithRelations[] =
 		initialData?.enrollments ?? initialData?.data ?? []
 	const allEnrollments = enrollmentsList
 	const stats = initialData?.stats ?? {
@@ -333,40 +257,38 @@ export function EnrollmentsClient({
 		}
 	}, [allEnrollments])
 
-	// Bulk action handlers
+	// Bulk action handlers using mutation hooks
 	const handleBulkApprove = useCallback(async () => {
 		if (selectedIds.length === 0) return
 		setIsBulkLoading(true)
 		try {
-			const result = await bulkUpdateEnrollments({ ids: selectedIds, status: "approved" })
+			await bulkApprove.mutateAsync({ enrollmentIds: selectedIds })
 			toast.success(
-				`${result?.data?.updatedCount ?? selectedIds.length} enrollment${(result?.data?.updatedCount ?? selectedIds.length) !== 1 ? "s" : ""} approved`
+				`${selectedIds.length} enrollment${selectedIds.length !== 1 ? "s" : ""} approved`
 			)
 			setSelectedIds([])
-			router.refresh()
 		} catch (error) {
 			toast.error(getErrorMessage(error, "Failed to approve enrollments"))
 		} finally {
 			setIsBulkLoading(false)
 		}
-	}, [selectedIds, router])
+	}, [selectedIds, bulkApprove])
 
 	const handleBulkReject = useCallback(async () => {
 		if (selectedIds.length === 0) return
 		setIsBulkLoading(true)
 		try {
-			const result = await bulkUpdateEnrollments({ ids: selectedIds, status: "rejected" })
+			await bulkReject.mutateAsync({ enrollmentIds: selectedIds, reason: "Bulk rejected" })
 			toast.success(
-				`${result?.data?.updatedCount ?? selectedIds.length} enrollment${(result?.data?.updatedCount ?? selectedIds.length) !== 1 ? "s" : ""} rejected`
+				`${selectedIds.length} enrollment${selectedIds.length !== 1 ? "s" : ""} rejected`
 			)
 			setSelectedIds([])
-			router.refresh()
 		} catch (error) {
 			toast.error(getErrorMessage(error, "Failed to reject enrollments"))
 		} finally {
 			setIsBulkLoading(false)
 		}
-	}, [selectedIds, router])
+	}, [selectedIds, bulkReject])
 
 	// Filter enrollments by status
 	const statusFilteredEnrollments = useMemo(() => {
@@ -394,7 +316,7 @@ export function EnrollmentsClient({
 
 	// Tracker data
 	const trackerData = useMemo(() => {
-		return allEnrollments.map((e: enrollments.EnrollmentWithRelations) => {
+		return allEnrollments.map((e: organizations.EnrollmentWithRelations) => {
 			switch (e.status) {
 				case "approved":
 					return { status: "success" as const, tooltip: e.orderId || e.shopperId }
@@ -413,14 +335,22 @@ export function EnrollmentsClient({
 	}, [allEnrollments])
 
 	// nuqs: Update URL when tab changes
-	const handleTabChange = useCallback((value: string) => {
-		setSearchParams({ status: value as typeof statusFilter, page: 1 })
-	}, [setSearchParams, statusFilter])
+	const handleTabChange = useCallback(
+		(value: string) => {
+			setSearchParams({ status: value as typeof statusFilter, page: 1 })
+		},
+		[setSearchParams, statusFilter]
+	)
 
 	// Handle campaign filter change
-	const handleCampaignChange = useCallback((value: string) => {
-		setSearchParams({ campaign: value || "", page: 1 })
-	}, [setSearchParams])
+	// Note: "all" value is used as a workaround for Select.Item requiring non-empty values
+	const handleCampaignChange = useCallback(
+		(value: string) => {
+			const campaignValue = value === "all" ? "" : value
+			setSearchParams({ campaign: campaignValue, page: 1 })
+		},
+		[setSearchParams]
+	)
 
 	const getStatusCount = (status: string) => {
 		if (status === "all") return allEnrollments.length
@@ -431,7 +361,7 @@ export function EnrollmentsClient({
 	const formatDate = (date: Date | string): string => formatDateMedium(date)
 
 	// Table columns definition
-	const columns: ColumnDef<enrollments.EnrollmentWithRelations>[] = useMemo(
+	const columns: ColumnDef<organizations.EnrollmentWithRelations>[] = useMemo(
 		() => [
 			{
 				id: "select",
@@ -500,18 +430,20 @@ export function EnrollmentsClient({
 				},
 				cell: ({ row }) => {
 					const enrollment = row.original
-					const displayName = enrollment.orderId || enrollment.shopperId.slice(0, 8)
+					// UI Fix: Add null checks to prevent crash on undefined values
+					const shopperId = enrollment.shopperId || ""
+					const displayName = enrollment.orderId || shopperId.slice(0, 8)
 					return (
 						<div className="flex items-center gap-3">
 							<Avatar.Root size="32" color={getAvatarColor(displayName)}>
-								{displayName.charAt(0).toUpperCase()}
+								{getInitial(displayName)}
 							</Avatar.Root>
 							<div>
 								<div className="text-label-sm text-text-strong-950 font-medium">
-									{enrollment.orderId || `#${enrollment.shopperId.slice(0, 8)}`}
+									{enrollment.orderId || `#${shopperId.slice(0, 8)}`}
 								</div>
 								<div className="text-paragraph-xs text-text-sub-600">
-									{enrollment.shopperId.slice(0, 8)}...
+									{shopperId.slice(0, 8)}...
 								</div>
 							</div>
 						</div>
@@ -555,11 +487,12 @@ export function EnrollmentsClient({
 				cell: ({ row }) => {
 					const enrollment = row.original
 					const enrollmentOverdue =
-						enrollment.status === "awaiting_review" && isOverdue(enrollment.createdAt, referenceTime)
+						enrollment.status === "awaiting_review" &&
+						isOverdue(enrollment.createdAt, referenceTime)
 					return (
 						<div className="flex items-center gap-2">
-							<StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="light">
-								{getStatusLabel(enrollment.status)}
+							<StatusBadge.Root status={getEnrollmentStatusBadgeStatus(enrollment.status)} variant="light">
+								{getEnrollmentStatusLabel(enrollment.status)}
 							</StatusBadge.Root>
 							{enrollmentOverdue && (
 								<Badge.Root color="red" variant="light" size="small">
@@ -643,10 +576,14 @@ export function EnrollmentsClient({
 						<Button.Root
 							variant="ghost"
 							size="xsmall"
-							onClick={() => router.push(`/dashboard/${params.organizationId}/enrollments/${row.original.id}`)}
+							onClick={() =>
+								router.push(`/dashboard/${params.organizationId}/enrollments/${row.original.id}`)
+							}
 						>
 							View
-							<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
+							<Button.Icon>
+								<ArrowRight className="size-5" />
+							</Button.Icon>
 						</Button.Root>
 					)
 				},
@@ -654,7 +591,13 @@ export function EnrollmentsClient({
 				size: 100,
 			},
 		],
-		[selectedIds, filteredEnrollments, router, formatCurrency, formatDate, getTimeAgo, referenceTime, params.organizationId]
+		[
+			selectedIds,
+			filteredEnrollments,
+			router,
+			referenceTime,
+			organizationId,
+		]
 	)
 
 	// Table state
@@ -729,7 +672,9 @@ export function EnrollmentsClient({
 								onClick={handleExport}
 								className="shrink-0"
 							>
-								<Button.Icon><DownloadSimple className="size-5" /></Button.Icon>
+								<Button.Icon>
+									<DownloadSimple className="size-5" />
+								</Button.Icon>
 								<span className="hidden sm:inline">Export</span>
 							</Button.Root>
 						</Tooltip.Trigger>
@@ -793,7 +738,7 @@ export function EnrollmentsClient({
 					{/* Status Tabs */}
 					<div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible scrollbar-hide">
 						<div className="flex gap-2 min-w-max sm:min-w-0 sm:flex-wrap pb-1">
-							{statusTabs.map((tab) => {
+							{ENROLLMENT_STATUS_TABS.map((tab) => {
 								const count = getStatusCount(tab.value)
 								const isActive = statusFilter === tab.value
 								return (
@@ -811,7 +756,7 @@ export function EnrollmentsClient({
 										{tab.label}
 										<span
 											className={cn(
-												"inline-flex items-center justify-center size-4 sm:size-5 rounded-full text-[10px] sm:text-label-xs font-medium",
+												"inline-flex items-center justify-center size-4 sm:size-5 rounded-full text-label-xs font-medium",
 												isActive ? "bg-white/20 text-white" : "bg-bg-soft-200 text-text-sub-600"
 											)}
 										>
@@ -826,12 +771,12 @@ export function EnrollmentsClient({
 					{/* Campaign Filter + Search + View Toggle */}
 					<div className="flex items-center gap-2">
 						{/* Campaign Filter */}
-						<Select.Root value={campaignFilter || ""} onValueChange={handleCampaignChange}>
+						<Select.Root value={campaignFilter || "all"} onValueChange={handleCampaignChange}>
 							<Select.Trigger className="w-[180px] sm:w-[200px]">
 								<Select.Value placeholder="All Campaigns" />
 							</Select.Trigger>
 							<Select.Content>
-								<Select.Item value="">All Campaigns</Select.Item>
+								<Select.Item value="all">All Campaigns</Select.Item>
 								{campaigns.map((campaign) => (
 									<Select.Item key={campaign.id} value={campaign.id}>
 										{campaign.title}
@@ -854,6 +799,8 @@ export function EnrollmentsClient({
 							<button
 								type="button"
 								onClick={handleSetViewModeList}
+								aria-label="List view"
+								aria-pressed={viewMode === "list"}
 								className={cn(
 									"p-1.5 rounded transition-all duration-200",
 									viewMode === "list"
@@ -861,11 +808,13 @@ export function EnrollmentsClient({
 										: "hover:bg-bg-soft-200 active:scale-95"
 								)}
 							>
-								<ListChecks className="size-4 text-text-sub-600" />
+								<ListChecks className="size-4 text-text-sub-600" aria-hidden="true" />
 							</button>
 							<button
 								type="button"
 								onClick={handleSetViewModeCompact}
+								aria-label="Card view"
+								aria-pressed={viewMode === "compact"}
 								className={cn(
 									"p-1.5 rounded transition-all duration-200",
 									viewMode === "compact"
@@ -873,7 +822,7 @@ export function EnrollmentsClient({
 										: "hover:bg-bg-soft-200 active:scale-95"
 								)}
 							>
-								<SquaresFour className="size-4 text-text-sub-600" />
+								<SquaresFour className="size-4 text-text-sub-600" aria-hidden="true" />
 							</button>
 						</div>
 					</div>
@@ -890,7 +839,13 @@ export function EnrollmentsClient({
 								onClick={handleBulkApprove}
 								disabled={isBulkLoading}
 							>
-								<Button.Icon><Check className="size-5" /></Button.Icon>
+								<Button.Icon>
+									{isBulkLoading ? (
+										<SpinnerGap className="size-5 animate-spin" />
+									) : (
+										<Check className="size-5" />
+									)}
+								</Button.Icon>
 								{isBulkLoading ? "Processing..." : "Approve All"}
 							</Button.Root>
 							<Button.Root
@@ -899,8 +854,14 @@ export function EnrollmentsClient({
 								onClick={handleBulkReject}
 								disabled={isBulkLoading}
 							>
-								<Button.Icon><X className="size-5" /></Button.Icon>
-								Reject All
+								<Button.Icon>
+									{isBulkLoading ? (
+										<SpinnerGap className="size-5 animate-spin" />
+									) : (
+										<X className="size-5" />
+									)}
+								</Button.Icon>
+								{isBulkLoading ? "Processing..." : "Reject All"}
 							</Button.Root>
 						</div>
 					</div>
@@ -918,16 +879,18 @@ export function EnrollmentsClient({
 												<Table.Head
 													key={header.id}
 													className={cn(
-												header.getSize() !== 150 && "w-[var(--column-width)]",
+														header.getSize() !== 150 && "w-[var(--column-width)]",
 														header.id === "select" && "w-12 px-4",
 														header.id === "actions" && "w-24",
 														"first:pl-6 last:pr-6"
-											)}
-											style={
-												header.getSize() !== 150
-													? ({ "--column-width": `${header.getSize()}px` } as React.CSSProperties)
-													: undefined
-											}
+													)}
+													style={
+														header.getSize() !== 150
+															? ({
+																	"--column-width": `${header.getSize()}px`,
+																} as React.CSSProperties)
+															: undefined
+													}
 												>
 													{header.isPlaceholder
 														? null
@@ -951,7 +914,11 @@ export function EnrollmentsClient({
 														"bg-error-lighter/20",
 													"hover:bg-bg-weak-50"
 												)}
-												onClick={() => router.push(`/dashboard/${params.organizationId}/enrollments/${row.original.id}`)}
+												onClick={() =>
+													router.push(
+														`/dashboard/${params.organizationId}/enrollments/${row.original.id}`
+													)
+												}
 											>
 												{row.getVisibleCells().map((cell) => (
 													<Table.Cell
@@ -998,34 +965,48 @@ export function EnrollmentsClient({
 									</span>{" "}
 									enrollments
 								</div>
-								<div className="flex items-center gap-2">
-									<Button.Root
-										variant="ghost"
-										size="xsmall"
+								<Pagination.Root variant="rounded">
+									<Pagination.NavButton
 										onClick={() => table.previousPage()}
 										disabled={!table.getCanPreviousPage()}
+										aria-label="Previous page"
 									>
-										<Button.Icon><CaretLeft className="size-5" /></Button.Icon>
-										Previous
-									</Button.Root>
-									<div className="text-paragraph-sm text-text-sub-600 px-3">
-										Page{" "}
-										<span className="font-medium text-text-strong-950">
-											{table.getState().pagination.pageIndex + 1}
-										</span>{" "}
-										of{" "}
-										<span className="font-medium text-text-strong-950">{table.getPageCount()}</span>
-									</div>
-									<Button.Root
-										variant="ghost"
-										size="xsmall"
+										<Pagination.NavIcon as={CaretLeft} />
+									</Pagination.NavButton>
+									{Array.from({ length: Math.min(table.getPageCount(), 5) }, (_, i) => {
+										const pageCount = table.getPageCount()
+										const currentPage = table.getState().pagination.pageIndex
+										let pageIndex: number
+
+										// Show pages around current page
+										if (pageCount <= 5) {
+											pageIndex = i
+										} else if (currentPage < 3) {
+											pageIndex = i
+										} else if (currentPage >= pageCount - 3) {
+											pageIndex = pageCount - 5 + i
+										} else {
+											pageIndex = currentPage - 2 + i
+										}
+
+										return (
+											<Pagination.Item
+												key={pageIndex}
+												current={pageIndex === currentPage}
+												onClick={() => table.setPageIndex(pageIndex)}
+											>
+												{pageIndex + 1}
+											</Pagination.Item>
+										)
+									})}
+									<Pagination.NavButton
 										onClick={() => table.nextPage()}
 										disabled={!table.getCanNextPage()}
+										aria-label="Next page"
 									>
-										Next
-										<Button.Icon><CaretRight className="size-5" /></Button.Icon>
-									</Button.Root>
-								</div>
+										<Pagination.NavIcon as={CaretRight} />
+									</Pagination.NavButton>
+								</Pagination.Root>
 							</div>
 						)}
 					</div>
@@ -1053,7 +1034,7 @@ export function EnrollmentsClient({
 											size="medium"
 											onClick={() => {
 												setSearch("")
-												handleCampaignChange("")
+												handleCampaignChange("all")
 												handleTabChange("all")
 											}}
 										>
@@ -1069,7 +1050,11 @@ export function EnrollmentsClient({
 										key={enrollment.id}
 										enrollment={enrollment}
 										formatCurrency={formatCurrency}
-										onClick={() => router.push(`/dashboard/${params.organizationId}/enrollments/${enrollment.id}`)}
+										onClick={() =>
+											router.push(
+												`/dashboard/${params.organizationId}/enrollments/${enrollment.id}`
+											)
+										}
 									/>
 								))}
 							</div>
@@ -1103,7 +1088,9 @@ const EnrollmentListItem = memo(function EnrollmentListItem({
 	const enrollmentOverdue =
 		enrollment.status === "awaiting_review" && isOverdue(enrollment.createdAt, referenceTime)
 	// Display ID or orderId as the primary identifier
-	const displayName = enrollment.orderId || enrollment.shopperId.slice(0, 8)
+	// UI Fix: Add null check to prevent crash on undefined shopperId
+	const shopperId = enrollment.shopperId || ""
+	const displayName = enrollment.orderId || shopperId.slice(0, 8)
 
 	return (
 		<div
@@ -1134,7 +1121,7 @@ const EnrollmentListItem = memo(function EnrollmentListItem({
 				{/* Avatar */}
 				<div className="relative shrink-0">
 					<Avatar.Root size="40" color={getAvatarColor(displayName)}>
-						{displayName.charAt(0).toUpperCase()}
+						{getInitial(displayName)}
 					</Avatar.Root>
 				</div>
 
@@ -1142,8 +1129,8 @@ const EnrollmentListItem = memo(function EnrollmentListItem({
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center gap-2 mb-0.5 flex-wrap">
 						<span className="text-label-sm text-text-strong-950 truncate">{displayName}</span>
-						<StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="light">
-							{getStatusLabel(enrollment.status)}
+						<StatusBadge.Root status={getEnrollmentStatusBadgeStatus(enrollment.status)} variant="light">
+							{getEnrollmentStatusLabel(enrollment.status)}
 						</StatusBadge.Root>
 						{enrollmentOverdue && (
 							<Badge.Root color="red" variant="light" size="small">
@@ -1155,7 +1142,9 @@ const EnrollmentListItem = memo(function EnrollmentListItem({
 					<div className="flex items-center gap-2 text-paragraph-xs text-text-sub-600">
 						<span className="truncate">Campaign: {enrollment.campaignId.slice(0, 8)}...</span>
 						<span className="text-text-soft-400">•</span>
-						<span className="text-text-soft-400">{getTimeAgo(enrollment.createdAt, referenceTime)}</span>
+						<span className="text-text-soft-400">
+							{getTimeAgo(enrollment.createdAt, referenceTime)}
+						</span>
 					</div>
 				</div>
 
@@ -1166,7 +1155,7 @@ const EnrollmentListItem = memo(function EnrollmentListItem({
 							{formatCurrency(enrollment.orderValue)}
 						</span>
 						<span className="text-paragraph-xs text-text-sub-600 hidden sm:block">
-							{enrollment.orderId.slice(0, 12)}...
+							{enrollment.orderId ? `${enrollment.orderId.slice(0, 12)}...` : "—"}
 						</span>
 					</div>
 					<ArrowRight className="size-4 text-text-soft-400 group-hover:text-text-sub-600 transition-colors" />
@@ -1183,8 +1172,14 @@ interface EnrollmentCardItemProps {
 	onClick: () => void
 }
 
-const EnrollmentCardItem = memo(function EnrollmentCardItem({ enrollment, formatCurrency, onClick }: EnrollmentCardItemProps) {
-	const displayName = enrollment.orderId || enrollment.shopperId.slice(0, 8)
+const EnrollmentCardItem = memo(function EnrollmentCardItem({
+	enrollment,
+	formatCurrency,
+	onClick,
+}: EnrollmentCardItemProps) {
+	// UI Fix: Add null check to prevent crash on undefined shopperId
+	const shopperId = enrollment.shopperId || ""
+	const displayName = enrollment.orderId || shopperId.slice(0, 8)
 
 	return (
 		<button
@@ -1195,7 +1190,7 @@ const EnrollmentCardItem = memo(function EnrollmentCardItem({ enrollment, format
 			<div className="flex items-center justify-between mb-3">
 				<div className="flex items-center gap-3">
 					<Avatar.Root size="40" color={getAvatarColor(displayName)} className="shrink-0">
-						{displayName.charAt(0).toUpperCase()}
+						{getInitial(displayName)}
 					</Avatar.Root>
 					<div>
 						<span className="text-label-sm text-text-strong-950 block truncate">{displayName}</span>
@@ -1204,8 +1199,8 @@ const EnrollmentCardItem = memo(function EnrollmentCardItem({ enrollment, format
 						</span>
 					</div>
 				</div>
-				<StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="light">
-					{getStatusLabel(enrollment.status)}
+				<StatusBadge.Root status={getEnrollmentStatusBadgeStatus(enrollment.status)} variant="light">
+					{getEnrollmentStatusLabel(enrollment.status)}
 				</StatusBadge.Root>
 			</div>
 			<div className="grid grid-cols-2 gap-2">
@@ -1218,7 +1213,7 @@ const EnrollmentCardItem = memo(function EnrollmentCardItem({ enrollment, format
 				<div className="rounded-lg bg-bg-weak-50 p-2">
 					<span className="text-paragraph-xs text-text-soft-400 block">Order ID</span>
 					<span className="text-label-sm text-text-strong-950">
-						{enrollment.orderId.slice(0, 12)}...
+						{enrollment.orderId ? `${enrollment.orderId.slice(0, 12)}...` : "—"}
 					</span>
 				</div>
 			</div>

@@ -1,8 +1,8 @@
 // AlignUI Metric v0.1.0 - Large KPI display component
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { ArrowUp, ArrowDown, Minus } from "@phosphor-icons/react"
 
 type DeltaType = "increase" | "decrease" | "unchanged" | "moderateIncrease" | "moderateDecrease"

@@ -1,26 +1,36 @@
 /**
  * Auth Feature - Public API
+ *
+ * IMPORTANT: This file exports both client hooks and server actions.
+ * When importing for server actions only (like in app/actions/index.ts),
+ * import directly from "./actions/auth-actions" instead of this file
+ * to avoid the "use server can only export async functions" error.
  */
 
 // Types
 export type * from "./types"
 
-// Hooks
+// =============================================================================
+// CLIENT-SIDE EXPORTS (Hooks, Query Keys, etc.)
+// These should NOT be imported by files that re-export server actions
+// =============================================================================
 export {
-	// Query Keys
+	// Query Keys (object - not a function!)
 	authKeys,
 	// Queries
 	useSession,
 	useUser,
 	useSessionData,
 	useIsAuthenticated,
-	useOrganizations,
+	useActiveMemberRole,
+	useHasPermission,
 	// Mutations
-	useSwitchOrganization,
 	useSignOut,
 } from "./hooks/use-auth"
 
-// Server Actions
+// =============================================================================
+// SERVER ACTIONS
+// =============================================================================
 export {
 	signInEmail,
 	signUpEmail,
@@ -35,10 +45,11 @@ export {
 	verify2FATotp,
 	verify2FAOtp,
 	send2FAOtp,
-	ensureActiveOrgAfterOAuth,
+	listLinkedAccounts,
+	unlinkAccount,
+	leaveOrganization,
+	deleteUser,
+	listDeviceSessions,
+	revokeDeviceSession,
 } from "./actions/auth-actions"
-
-// Legacy aliases for backward compatibility
-export { signInEmail as signIn, signUpEmail as signUp } from "./actions/auth-actions"
-
 

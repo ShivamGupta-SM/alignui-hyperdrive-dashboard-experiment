@@ -4,7 +4,7 @@ import { Inbox } from "@novu/nextjs"
 import { useTheme } from "next-themes"
 import { Bell } from "@phosphor-icons/react"
 import { useSession } from "@/features/auth"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 
 /**
  * Bell Button - Matches header iconButtonStyles

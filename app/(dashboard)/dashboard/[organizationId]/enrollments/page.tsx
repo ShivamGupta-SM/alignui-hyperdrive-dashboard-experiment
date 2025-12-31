@@ -42,7 +42,7 @@ async function EnrollmentsData({ organizationId, statusFilter, campaignFilter }:
 			}
 		})
 
-		return <EnrollmentsClient initialData={data} initialStatus={statusFilter} initialCampaign={campaignFilter} campaigns={campaignsData?.campaigns || campaignsData?.data || []} />
+		return <EnrollmentsClient initialData={data} initialStatus={statusFilter} initialCampaign={campaignFilter} campaigns={campaignsData?.data || []} />
 	} catch (error) {
 		logError(error, { source: "EnrollmentsPage", data: { action: "fetch enrollments data", statusFilter, campaignFilter } })
 		return <EnrollmentsClient initialData={{ enrollments: [], data: [], total: 0 }} initialStatus={statusFilter} initialCampaign={campaignFilter} />

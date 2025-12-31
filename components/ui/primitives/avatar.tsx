@@ -1,11 +1,12 @@
 // AlignUI Avatar v0.1.0 - Enhanced with avatar groups and clickable avatars
 
 import * as React from "react"
+import NextImage from "next/image"
 import { Slot } from "@radix-ui/react-slot"
 
-import { cn } from "@/utils/cn"
-import { recursiveCloneChildren } from "@/utils/recursive-clone-children"
-import { tv, type VariantProps } from "@/utils/tv"
+import { cn } from "@/lib/utils"
+import { recursiveCloneChildren } from "@/lib/utils"
+import { tv, type VariantProps } from "@/lib/utils"
 import { IconEmptyCompany, IconEmptyUser } from "@/components/ui/primitives/avatar-empty-icons"
 
 export const AVATAR_ROOT_NAME = "AvatarRoot"
@@ -182,16 +183,65 @@ const AvatarRoot = React.forwardRef<HTMLDivElement, AvatarRootProps>(
 AvatarRoot.displayName = AVATAR_ROOT_NAME
 
 type AvatarImageProps = AvatarSharedProps &
-	Omit<React.ImgHTMLAttributes<HTMLImageElement>, "color"> & {
+	Omit<React.ImgHTMLAttributes<HTMLImageElement>, "color" | "width" | "height"> & {
 		asChild?: boolean
+		/** Use next/image for optimization (default: true for remote URLs) */
+		optimized?: boolean
 	}
 
-const AvatarImage = React.forwardRef<HTMLImageElement, AvatarImageProps>(
-	({ asChild, className, size, color, ...rest }, forwardedRef) => {
-		const Component = asChild ? Slot : "img"
-		const { image } = avatarVariants({ size, color })
+// Size mapping for next/image
+const sizeToPixelsMap: Record<string, number> = {
+	"80": 80,
+	"72": 72,
+	"64": 64,
+	"56": 56,
+	"48": 48,
+	"40": 40,
+	"32": 32,
+	"24": 24,
+	"20": 20,
+}
 
-		return <Component ref={forwardedRef} className={image({ class: className })} {...rest} />
+const AvatarImage = React.forwardRef<HTMLImageElement, AvatarImageProps>(
+	({ asChild, className, size, color, src, alt, optimized = true, ...rest }, forwardedRef) => {
+		const { image } = avatarVariants({ size, color })
+		const pixelSize = sizeToPixelsMap[size || "80"] || 80
+
+		// Use Slot for asChild pattern
+		if (asChild) {
+			return <Slot ref={forwardedRef} className={image({ class: className })} {...rest} />
+		}
+
+		// Use next/image for remote URLs when optimized is true
+		const srcString = typeof src === "string" ? src : undefined
+		const isRemoteUrl = srcString?.startsWith("http://") || srcString?.startsWith("https://")
+		const isDataUrl = srcString?.startsWith("data:")
+
+		if (optimized && isRemoteUrl && !isDataUrl && srcString) {
+			return (
+				<NextImage
+					ref={forwardedRef as React.Ref<HTMLImageElement>}
+					src={srcString}
+					alt={alt || "Avatar"}
+					width={pixelSize}
+					height={pixelSize}
+					className={image({ class: className })}
+					unoptimized={false}
+					{...rest}
+				/>
+			)
+		}
+
+		// Fallback to regular img for data URLs, local images, or when not optimized
+		return (
+			<img
+				ref={forwardedRef}
+				src={srcString}
+				alt={alt || "Avatar"}
+				className={image({ class: className })}
+				{...rest}
+			/>
+		)
 	}
 )
 AvatarImage.displayName = AVATAR_IMAGE_NAME
@@ -284,18 +334,6 @@ interface AvatarGroupProps extends React.HTMLAttributes<HTMLDivElement> {
 	renderOverflow?: (count: number) => React.ReactNode
 }
 
-const sizeToPixels: Record<string, number> = {
-	"80": 80,
-	"72": 72,
-	"64": 64,
-	"56": 56,
-	"48": 48,
-	"40": 40,
-	"32": 32,
-	"24": 24,
-	"20": 20,
-}
-
 function AvatarGroup({
 	children,
 	max,
@@ -311,7 +349,7 @@ function AvatarGroup({
 		loose: -0.2,
 	}
 
-	const pixelSize = sizeToPixels[size] || 40
+	const pixelSize = sizeToPixelsMap[size] || 40
 	const offset = pixelSize * spacingOffset[spacing]
 
 	const childArray = React.Children.toArray(children)
@@ -412,30 +450,30 @@ interface AvatarWithFallbackProps extends Omit<AvatarRootProps, "children"> {
 	name?: string
 }
 
-const DEFAULT_AVATAR_DATA_URL =
-	"data:image/svg+xml;utf8," +
-	encodeURIComponent(
-		`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'>
+const DEFAULT_AVATAR_DATA_URL = `data:image/svg+xml;utf8,${encodeURIComponent(
+	`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'>
       <rect width='64' height='64' rx='16' fill='%23EEF2FF'/>
       <circle cx='32' cy='26' r='12' fill='%23C7D2FE'/>
       <path d='M32 38c-8.8 0-16 5-16 11v3h32v-3c0-6-7.2-11-16-11Z' fill='%2399A8FF'/>
     </svg>`
-	)
+)}`
+
+/**
+ * Get initials from a name string
+ */
+function getInitials(name: string): string {
+	const parts = name.trim().split(/\s+/)
+	if (parts.length === 1) {
+		return parts[0].charAt(0).toUpperCase()
+	}
+	return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
+}
 
 const AvatarWithFallback = React.forwardRef<HTMLDivElement, AvatarWithFallbackProps>(
 	({ src, alt, name, size, color, ...rest }, forwardedRef) => {
 		const [hasError, setHasError] = React.useState(false)
 
-		const getInitials = (name: string): string => {
-			const parts = name.trim().split(/\s+/)
-			if (parts.length === 1) {
-				return parts[0].charAt(0).toUpperCase()
-			}
-			return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
-		}
-
-		const fallbackSrc = DEFAULT_AVATAR_DATA_URL
-
+		// Show image if available and no error
 		if (src && !hasError) {
 			return (
 				<AvatarRoot ref={forwardedRef} size={size} color={color} {...rest}>
@@ -444,15 +482,21 @@ const AvatarWithFallback = React.forwardRef<HTMLDivElement, AvatarWithFallbackPr
 			)
 		}
 
-		if (fallbackSrc) {
+		// Show initials if name is provided
+		if (name) {
 			return (
 				<AvatarRoot ref={forwardedRef} size={size} color={color} {...rest}>
-					<AvatarImage src={fallbackSrc} alt={alt || name} onError={() => setHasError(true)} />
+					{getInitials(name)}
 				</AvatarRoot>
 			)
 		}
 
-		return <AvatarRoot ref={forwardedRef} size={size} color={color} {...rest} />
+		// Show default fallback image
+		return (
+			<AvatarRoot ref={forwardedRef} size={size} color={color} {...rest}>
+				<AvatarImage src={DEFAULT_AVATAR_DATA_URL} alt={alt || "Avatar"} optimized={false} />
+			</AvatarRoot>
+		)
 	}
 )
 AvatarWithFallback.displayName = "AvatarWithFallback"

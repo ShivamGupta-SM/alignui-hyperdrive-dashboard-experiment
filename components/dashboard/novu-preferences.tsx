@@ -3,7 +3,7 @@
 import * as React from "react"
 import { usePreferences, useNovu } from "@novu/react"
 import * as Switch from "@/components/ui/forms/switch"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import { Bell, Envelope, DeviceMobile, ChatCircle, Info, Spinner } from "@phosphor-icons/react"
 import { isNovuEnabled } from "@/hooks/shared/use-novu"
 

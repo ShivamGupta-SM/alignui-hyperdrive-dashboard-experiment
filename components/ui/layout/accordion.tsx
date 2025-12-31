@@ -4,8 +4,8 @@
 
 import * as React from "react"
 import * as AccordionPrimitive from "@radix-ui/react-accordion"
-import { cn } from "@/utils/cn"
-import type { PolymorphicComponentProps } from "@/utils/polymorphic"
+import { cn } from "@/lib/utils"
+import type { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 import { Plus, Minus } from "@phosphor-icons/react"
 
 const ACCORDION_ITEM_NAME = "AccordionItem"
@@ -102,6 +102,7 @@ function AccordionArrow({
 					"group-data-[state=open]/accordion:hidden",
 					className
 				)}
+				aria-hidden="true"
 				{...rest}
 			/>
 			<CloseIcon
@@ -111,6 +112,7 @@ function AccordionArrow({
 					"hidden group-data-[state=open]/accordion:block",
 					className
 				)}
+				aria-hidden="true"
 				{...rest}
 			/>
 		</>

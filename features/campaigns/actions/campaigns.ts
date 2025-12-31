@@ -4,23 +4,23 @@
  * Campaign Server Actions
  *
  * Uses next-safe-action for type-safe, error-handled server actions
+ * URL-based multi-tenancy: organizationId from URL params passed to all actions
  */
 
 import { revalidateTag } from "next/cache"
 import { z } from "zod"
 
 import { authAction } from "@/lib/safe-action"
-import type { campaigns } from "@/lib/api/encore-client"
 
 // =============================================================================
-// Schemas
+// Schemas - All actions require organizationId for URL-based multi-tenancy
 // =============================================================================
 
 const createCampaignSchema = z.object({
 	organizationId: z.string().min(1),
 	productId: z.string().min(1),
 	title: z.string().min(1),
-	description: z.string(),
+	description: z.string().optional(),
 	startDate: z.string(),
 	endDate: z.string(),
 	maxEnrollments: z.number().int().positive(),
@@ -29,6 +29,7 @@ const createCampaignSchema = z.object({
 })
 
 const updateCampaignSchema = z.object({
+	organizationId: z.string().min(1),
 	id: z.string().min(1),
 	data: z.object({
 		title: z.string().optional(),
@@ -36,32 +37,44 @@ const updateCampaignSchema = z.object({
 		startDate: z.string().optional(),
 		endDate: z.string().optional(),
 		maxEnrollments: z.number().int().positive().optional(),
-		campaignType: z.enum(["cashback", "barter", "hybrid"]).optional(),
 		isPublic: z.boolean().optional(),
+		termsAndConditions: z.string().optional(),
 	}),
 })
 
 const campaignIdSchema = z.object({
+	organizationId: z.string().min(1),
 	id: z.string().min(1),
 })
 
 const duplicateCampaignSchema = z.object({
-	id: z.string().min(1),
 	organizationId: z.string().min(1),
+	id: z.string().min(1),
+	newTitle: z.string().optional(),
 })
 
+// Note: CAMPAIGN_STATUS_ACTIONS is defined in types/index.ts as SSOT
+// We inline the enum here because "use server" files can only export async functions
+// and importing const arrays causes issues with Next.js server actions bundler
 const updateStatusSchema = z.object({
+	organizationId: z.string().min(1),
 	id: z.string().min(1),
-	action: z.enum(["submit", "activate", "cancel", "end", "complete", "archive", "unarchive"]),
-})
-
-const pauseCampaignSchema = z.object({
-	id: z.string().min(1),
-	reason: z.string().default("Paused by user"),
+	action: z.enum([
+		"submit",
+		"activate",
+		"cancel",
+		"pause",
+		"resume",
+		"end",
+		"complete",
+		"archive",
+		"unarchive",
+	]),
+	reason: z.string().optional(), // For pause action
 })
 
 // =============================================================================
-// Actions
+// Actions - Use organization-scoped endpoints for multi-tenancy
 // =============================================================================
 
 /**
@@ -70,7 +83,8 @@ const pauseCampaignSchema = z.object({
 export const createCampaign = authAction
 	.inputSchema(createCampaignSchema)
 	.action(async ({ parsedInput, ctx }) => {
-		const result = await ctx.client.campaigns.createCampaign(parsedInput)
+		const { organizationId, ...campaignData } = parsedInput
+		const result = await ctx.client.organizations.createCampaign(organizationId, campaignData)
 		revalidateTag("campaigns")
 		revalidateTag("dashboard")
 		return result
@@ -82,8 +96,8 @@ export const createCampaign = authAction
 export const updateCampaign = authAction
 	.inputSchema(updateCampaignSchema)
 	.action(async ({ parsedInput, ctx }) => {
-		const { id, data } = parsedInput
-		const result = await ctx.client.campaigns.updateCampaign(id, data)
+		const { organizationId, id, data } = parsedInput
+		const result = await ctx.client.organizations.updateCampaign(organizationId, id, data)
 		revalidateTag("campaigns")
 		revalidateTag(`campaign-${id}`)
 		return result
@@ -95,112 +109,78 @@ export const updateCampaign = authAction
 export const deleteCampaign = authAction
 	.inputSchema(campaignIdSchema)
 	.action(async ({ parsedInput, ctx }) => {
-		await ctx.client.campaigns.deleteCampaign(parsedInput.id)
+		const { organizationId, id } = parsedInput
+		await ctx.client.organizations.deleteCampaign(organizationId, id)
 		revalidateTag("campaigns")
-		revalidateTag(`campaign-${parsedInput.id}`)
+		revalidateTag(`campaign-${id}`)
 		revalidateTag("dashboard")
 		return { success: true }
 	})
 
 /**
- * Duplicate campaign
+ * Duplicate campaign - uses API's native duplicate endpoint
  */
 export const duplicateCampaign = authAction
 	.inputSchema(duplicateCampaignSchema)
 	.action(async ({ parsedInput, ctx }) => {
-		const { id, organizationId } = parsedInput
-		const original = await ctx.client.campaigns.getCampaign(id)
-
-		const newCampaign = await ctx.client.campaigns.createCampaign({
-			organizationId,
-			productId: original.productId,
-			title: `${original.title} (Copy)`,
-			description: original.description || "",
-			startDate: original.startDate,
-			endDate: original.endDate,
-			maxEnrollments: original.maxEnrollments,
-			campaignType: original.campaignType,
-			isPublic: original.isPublic,
-		})
-
+		const { organizationId, id, newTitle } = parsedInput
+		const newCampaign = await ctx.client.organizations.duplicateCampaign(organizationId, id, { newTitle })
 		revalidateTag("campaigns")
 		return newCampaign
 	})
 
 /**
  * Update campaign status
+ * Note: API returns Campaign type for all status change operations
  */
 export const updateCampaignStatus = authAction
 	.inputSchema(updateStatusSchema)
 	.action(async ({ parsedInput, ctx }) => {
-		const { id, action } = parsedInput
-		let result
+		const { organizationId, id, action, reason } = parsedInput
 
 		switch (action) {
 			case "submit":
-				result = await ctx.client.campaigns.submitForApproval(id)
+				// Submit for approval (draft → pending_approval)
+				await ctx.client.organizations.submitCampaign(organizationId, id)
 				break
 			case "activate":
-				result = await ctx.client.campaigns.activateCampaign(id)
+				// Activate campaign (approved → active)
+				await ctx.client.organizations.activateCampaign(organizationId, id)
 				break
 			case "cancel":
-				await ctx.client.campaigns.updateCampaignStatus(id, { targetStatus: "cancelled" })
-				result = await ctx.client.campaigns.getCampaign(id)
+				// Cancel campaign (draft/pending_approval → cancelled)
+				await ctx.client.organizations.cancelCampaign(organizationId, id, {})
+				break
+			case "pause":
+				// Pause campaign (active → paused)
+				await ctx.client.organizations.pauseCampaign(organizationId, id, { reason: reason ?? "Paused by user" })
+				break
+			case "resume":
+				// Resume campaign (paused → active)
+				await ctx.client.organizations.resumeCampaign(organizationId, id)
 				break
 			case "end":
-				result = await ctx.client.campaigns.endCampaign(id)
+				// End campaign (active/paused → ended)
+				await ctx.client.organizations.endCampaign(organizationId, id, {})
 				break
 			case "complete":
-				await ctx.client.campaigns.updateCampaignStatus(id, { targetStatus: "completed" })
-				result = await ctx.client.campaigns.getCampaign(id)
+				// Complete is same as end for now (no separate completeCampaign method)
+				await ctx.client.organizations.endCampaign(organizationId, id, { reason: "Campaign completed" })
 				break
 			case "archive":
-				result = await ctx.client.campaigns.archiveCampaign(id)
+				// Archive campaign (completed/ended → archived)
+				await ctx.client.organizations.archiveCampaign(organizationId, id)
 				break
 			case "unarchive":
-				result = await ctx.client.campaigns.unarchiveCampaign(id)
+				// Unarchive campaign (archived → previous state)
+				await ctx.client.organizations.unarchiveCampaign(organizationId, id)
 				break
+			default:
+				throw new Error(`Unknown action: ${action}`)
 		}
 
 		revalidateTag("campaigns")
 		revalidateTag(`campaign-${id}`)
-		return result
-	})
-
-/**
- * Pause campaign
- */
-export const pauseCampaign = authAction
-	.inputSchema(pauseCampaignSchema)
-	.action(async ({ parsedInput, ctx }) => {
-		const { id, reason } = parsedInput
-		await ctx.client.campaigns.pauseCampaign(id, { reason })
-		revalidateTag("campaigns")
-		revalidateTag(`campaign-${id}`)
-		return { success: true }
-	})
-
-/**
- * Resume campaign
- */
-export const resumeCampaign = authAction
-	.inputSchema(campaignIdSchema)
-	.action(async ({ parsedInput, ctx }) => {
-		await ctx.client.campaigns.resumeCampaign(parsedInput.id)
-		revalidateTag("campaigns")
-		revalidateTag(`campaign-${parsedInput.id}`)
-		return { success: true }
-	})
-
-/**
- * End campaign
- */
-export const endCampaign = authAction
-	.inputSchema(campaignIdSchema)
-	.action(async ({ parsedInput, ctx }) => {
-		await ctx.client.campaigns.endCampaign(parsedInput.id)
-		revalidateTag("campaigns")
-		revalidateTag(`campaign-${parsedInput.id}`)
 		return { success: true }
 	})
 
@@ -208,7 +188,134 @@ export const endCampaign = authAction
  * Export campaign enrollments
  */
 export const exportCampaignEnrollments = authAction
-	.inputSchema(z.object({ campaignId: z.string().min(1) }))
+	.inputSchema(z.object({
+		organizationId: z.string().min(1),
+		campaignId: z.string().min(1)
+	}))
 	.action(async ({ parsedInput, ctx }) => {
-		return ctx.client.enrollments.exportEnrollments(parsedInput.campaignId, {})
+		const { organizationId, campaignId } = parsedInput
+		return ctx.client.organizations.exportEnrollments(organizationId, campaignId, {})
+	})
+
+/**
+ * Update campaign pricing
+ */
+export const updateCampaignPricing = authAction
+	.inputSchema(
+		z.object({
+			organizationId: z.string().min(1),
+			campaignId: z.string().min(1),
+			rebatePercentage: z.number().min(0).max(100).optional(),
+			billRate: z.number().min(0).max(100).optional(),
+			platformFee: z.number().min(0).optional(),
+			bonusAmount: z.number().min(0).optional(),
+		})
+	)
+	.action(async ({ parsedInput, ctx }) => {
+		const { organizationId, campaignId, ...pricingData } = parsedInput
+		const result = await ctx.client.organizations.updateCampaignPricing(organizationId, campaignId, pricingData)
+		revalidateTag("campaigns")
+		revalidateTag(`campaign-${campaignId}`)
+		return result
+	})
+
+/**
+ * Validate campaign before submission
+ */
+export const validateCampaign = authAction
+	.inputSchema(z.object({
+		organizationId: z.string().min(1),
+		id: z.string().min(1)
+	}))
+	.action(async ({ parsedInput, ctx }) => {
+		const { organizationId, id } = parsedInput
+		return ctx.client.organizations.validateCampaign(organizationId, id)
+	})
+
+// =============================================================================
+// Deliverable Actions - URL-based multi-tenancy
+// =============================================================================
+
+/**
+ * Add deliverable to campaign
+ */
+export const addCampaignDeliverable = authAction
+	.inputSchema(z.object({
+		organizationId: z.string().min(1),
+		campaignId: z.string().min(1),
+		deliverableId: z.string().min(1),
+		quantity: z.number().int().positive().optional(),
+		isRequired: z.boolean().optional(),
+		instructions: z.string().optional(),
+	}))
+	.action(async ({ parsedInput, ctx }) => {
+		const { organizationId, campaignId, deliverableId, quantity, isRequired, instructions } = parsedInput
+		const result = await ctx.client.organizations.addCampaignDeliverable(organizationId, {
+			campaignId,
+			deliverableId,
+			quantity,
+			isRequired,
+			instructions,
+		})
+		revalidateTag("campaigns")
+		revalidateTag(`campaign-${campaignId}`)
+		return result
+	})
+
+/**
+ * Add multiple deliverables to campaign (batch)
+ */
+export const addCampaignDeliverablesBatch = authAction
+	.inputSchema(z.object({
+		organizationId: z.string().min(1),
+		campaignId: z.string().min(1),
+		deliverables: z.array(z.object({
+			deliverableId: z.string().min(1),
+			quantity: z.number().int().positive().optional(),
+			payout: z.number().optional(),
+		})),
+	}))
+	.action(async ({ parsedInput, ctx }) => {
+		const { organizationId, campaignId, deliverables } = parsedInput
+		const result = await ctx.client.organizations.addCampaignDeliverablesBatch(organizationId, campaignId, { deliverables })
+		revalidateTag("campaigns")
+		revalidateTag(`campaign-${campaignId}`)
+		return result
+	})
+
+/**
+ * Update campaign deliverable
+ */
+export const updateCampaignDeliverable = authAction
+	.inputSchema(z.object({
+		organizationId: z.string().min(1),
+		campaignId: z.string().min(1),
+		id: z.string().min(1),
+		quantity: z.number().int().positive().optional(),
+		isRequired: z.boolean().optional(),
+		instructions: z.string().optional(),
+	}))
+	.action(async ({ parsedInput, ctx }) => {
+		const { organizationId, campaignId, id, ...data } = parsedInput
+		const result = await ctx.client.organizations.updateCampaignDeliverable(organizationId, id, data)
+		revalidateTag("campaigns")
+		revalidateTag(`campaign-${campaignId}`)
+		return result
+	})
+
+/**
+ * Remove deliverable from campaign
+ */
+export const removeCampaignDeliverable = authAction
+	.inputSchema(z.object({
+		organizationId: z.string().min(1),
+		campaignId: z.string().min(1),
+		id: z.string().min(1),
+	}))
+	.action(async ({ parsedInput, ctx }) => {
+		const { organizationId, campaignId, id } = parsedInput
+		await ctx.client.organizations.removeCampaignDeliverable(organizationId, id)
+		revalidateTag("campaigns")
+		revalidateTag(`campaign-${campaignId}`)
+		return { success: true }
 	})

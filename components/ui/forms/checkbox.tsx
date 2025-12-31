@@ -1,10 +1,19 @@
 "use client"
 
-// AlignUI Checkbox v0.1.0 - Enhanced with labels and groups
+// AlignUI Checkbox v0.2.0 - Enhanced with error states and accessibility
+// Improvements: hasError prop, aria-invalid, aria-describedby, errorId support, focus ring
 
 import * as React from "react"
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
+
+/** Shared props for checkbox error states */
+export interface CheckboxSharedProps {
+	/** Whether the checkbox has an error */
+	hasError?: boolean
+	/** ID of the error message element for aria-describedby */
+	errorId?: string
+}
 
 function IconCheck({ ...rest }: React.SVGProps<SVGSVGElement>) {
 	return (
@@ -36,10 +45,25 @@ function IconIndeterminate({ ...rest }: React.SVGProps<SVGSVGElement>) {
 	)
 }
 
+export interface CheckboxProps
+	extends React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>,
+		CheckboxSharedProps {}
+
+/**
+ * Checkbox - Base checkbox component with error state support
+ * @example
+ * <Checkbox.Root
+ *   checked={checked}
+ *   onCheckedChange={setChecked}
+ *   hasError={!!error}
+ *   errorId="checkbox-error"
+ * />
+ * {error && <span id="checkbox-error">{error}</span>}
+ */
 const Checkbox = React.forwardRef<
 	React.ComponentRef<typeof CheckboxPrimitive.Root>,
-	React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
->(({ className, checked, ...rest }, forwardedRef) => {
+	CheckboxProps
+>(({ className, checked, hasError, errorId, ...rest }, forwardedRef) => {
 	const filterId = React.useId()
 
 	// precalculated by .getTotalLength()
@@ -50,9 +74,13 @@ const Checkbox = React.forwardRef<
 		<CheckboxPrimitive.Root
 			ref={forwardedRef}
 			checked={checked}
+			aria-invalid={hasError || undefined}
+			aria-describedby={errorId}
 			className={cn(
 				"group/checkbox relative flex size-5 shrink-0 items-center justify-center outline-none",
 				"focus:outline-none",
+				// Focus ring
+				"focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-base focus-visible:rounded-md",
 				className
 			)}
 			{...rest}
@@ -89,7 +117,11 @@ const Checkbox = React.forwardRef<
 						"group-data-[state=indeterminate]/checkbox:fill-primary-base",
 						// disabled checked
 						"group-disabled/checkbox:group-data-[state=checked]/checkbox:fill-bg-soft-200",
-						"group-disabled/checkbox:group-data-[state=indeterminate]/checkbox:fill-bg-soft-200"
+						"group-disabled/checkbox:group-data-[state=indeterminate]/checkbox:fill-bg-soft-200",
+						// error state
+						hasError && "fill-error-lighter group-hover/checkbox:fill-error-light",
+						hasError && "group-data-[state=checked]/checkbox:fill-error-base group-hover/checkbox:group-data-[state=checked]/checkbox:fill-error-dark",
+						hasError && "group-data-[state=indeterminate]/checkbox:fill-error-base group-hover/checkbox:group-data-[state=indeterminate]/checkbox:fill-error-dark"
 					)}
 				/>
 				<g filter={`url(#${filterId})`}>
@@ -184,24 +216,50 @@ const Checkbox = React.forwardRef<
 })
 Checkbox.displayName = CheckboxPrimitive.Root.displayName
 
-// Checkbox with label and description
-interface LabeledCheckboxProps
-	extends React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root> {
+// ============================================
+// Labeled Checkbox with description
+// ============================================
+
+export interface LabeledCheckboxProps
+	extends React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>,
+		CheckboxSharedProps {
+	/** Label text for the checkbox */
 	label: string
+	/** Optional description text */
 	description?: string
-	hasError?: boolean
 }
 
+/**
+ * LabeledCheckbox - Checkbox with built-in label and optional description
+ * @example
+ * <LabeledCheckbox
+ *   checked={accepted}
+ *   onCheckedChange={setAccepted}
+ *   label="I accept the terms"
+ *   description="Please read the terms carefully"
+ *   hasError={!accepted}
+ *   errorId="terms-error"
+ * />
+ */
 const LabeledCheckbox = React.forwardRef<
 	React.ComponentRef<typeof CheckboxPrimitive.Root>,
 	LabeledCheckboxProps
->(({ label, description, hasError, disabled, id, className, ...rest }, forwardedRef) => {
+>(({ label, description, hasError, errorId, disabled, id, className, ...rest }, forwardedRef) => {
 	const generatedId = React.useId()
+	const descriptionId = React.useId()
 	const checkboxId = id || generatedId
 
 	return (
 		<div className={cn("flex items-start gap-3", className)}>
-			<Checkbox ref={forwardedRef} id={checkboxId} disabled={disabled} {...rest} />
+			<Checkbox
+				ref={forwardedRef}
+				id={checkboxId}
+				disabled={disabled}
+				hasError={hasError}
+				errorId={errorId}
+				aria-describedby={description ? descriptionId : errorId}
+				{...rest}
+			/>
 			<div className="flex flex-col gap-0.5 pt-0.5">
 				<label
 					htmlFor={checkboxId}
@@ -209,6 +267,187 @@ const LabeledCheckbox = React.forwardRef<
 						"text-label-sm text-text-strong-950 cursor-pointer select-none",
 						disabled && "cursor-not-allowed text-text-disabled-300",
 						hasError && "text-error-base"
+					)}
+				>
+					{label}
+				</label>
+				{description && (
+					<span
+						id={descriptionId}
+						className={cn(
+							"text-paragraph-xs text-text-sub-600",
+							disabled && "text-text-disabled-300"
+						)}
+					>
+						{description}
+					</span>
+				)}
+			</div>
+		</div>
+	)
+})
+LabeledCheckbox.displayName = "LabeledCheckbox"
+
+// ============================================
+// Checkbox Group
+// ============================================
+
+export interface CheckboxGroupProps {
+	/** Group label */
+	label?: string
+	/** Group description */
+	description?: string
+	/** Layout orientation */
+	orientation?: "horizontal" | "vertical"
+	/** Whether the group has an error */
+	hasError?: boolean
+	/** Error message to display */
+	errorMessage?: string
+	/** ID for the error message (auto-generated if not provided) */
+	errorId?: string
+	/** Additional class name */
+	className?: string
+	/** Children */
+	children?: React.ReactNode
+}
+
+/**
+ * CheckboxGroup - Container for multiple checkboxes with error state support
+ * @example
+ * <CheckboxGroup
+ *   label="Select options"
+ *   hasError={!hasSelection}
+ *   errorMessage="Please select at least one option"
+ * >
+ *   <LabeledCheckbox value="a" label="Option A" />
+ *   <LabeledCheckbox value="b" label="Option B" />
+ * </CheckboxGroup>
+ */
+function CheckboxGroup({
+	children,
+	label,
+	description,
+	orientation = "vertical",
+	hasError,
+	errorMessage,
+	errorId,
+	className,
+}: CheckboxGroupProps) {
+	const generatedErrorId = React.useId()
+	const descriptionId = React.useId()
+	const actualErrorId = errorId || generatedErrorId
+
+	return (
+		<fieldset
+			className={cn("flex flex-col gap-2 border-0 p-0 m-0", className)}
+			aria-describedby={cn(
+				description ? descriptionId : undefined,
+				hasError && errorMessage ? actualErrorId : undefined
+			) || undefined}
+			aria-invalid={hasError || undefined}
+		>
+			{(label || description) && (
+				<div className="flex flex-col gap-0.5">
+					{label && (
+						<legend
+							className={cn(
+								"text-label-sm text-text-strong-950",
+								hasError && "text-error-base"
+							)}
+						>
+							{label}
+						</legend>
+					)}
+					{description && (
+						<span id={descriptionId} className="text-paragraph-xs text-text-sub-600">
+							{description}
+						</span>
+					)}
+				</div>
+			)}
+			<div
+				className={cn("flex gap-3", orientation === "vertical" ? "flex-col" : "flex-row flex-wrap")}
+			>
+				{children}
+			</div>
+			{hasError && errorMessage && (
+				<span id={actualErrorId} className="text-paragraph-xs text-error-base" role="alert">
+					{errorMessage}
+				</span>
+			)}
+		</fieldset>
+	)
+}
+CheckboxGroup.displayName = "CheckboxGroup"
+
+// ============================================
+// Checkbox Card - Card-style checkbox option
+// ============================================
+
+export interface CheckboxCardProps
+	extends React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>,
+		CheckboxSharedProps {
+	/** Label text */
+	label: string
+	/** Optional description */
+	description?: string
+}
+
+/**
+ * CheckboxCard - Card-style checkbox option
+ * @example
+ * <CheckboxCard
+ *   checked={selected}
+ *   onCheckedChange={setSelected}
+ *   label="Premium Plan"
+ *   description="$20/month"
+ *   hasError={!selected}
+ * />
+ */
+const CheckboxCard = React.forwardRef<
+	React.ComponentRef<typeof CheckboxPrimitive.Root>,
+	CheckboxCardProps
+>(({ label, description, disabled, checked, hasError, errorId, id, className, ...rest }, forwardedRef) => {
+	const generatedId = React.useId()
+	const checkboxId = id || generatedId
+
+	return (
+		<div
+			className={cn(
+				"flex cursor-pointer items-start gap-3 rounded-xl border p-4",
+				"transition-all duration-200 ease-out",
+				"hover:border-stroke-sub-300 hover:bg-bg-weak-50",
+				checked && "border-primary-base bg-primary-alpha-10",
+				disabled && "cursor-not-allowed opacity-50",
+				// Error state
+				hasError
+					? "border-error-base"
+					: "border-stroke-soft-200",
+				className
+			)}
+			onClick={() => {
+				if (!disabled) {
+					const checkbox = document.getElementById(checkboxId) as HTMLButtonElement | null
+					checkbox?.click()
+				}
+			}}
+		>
+			<Checkbox
+				ref={forwardedRef}
+				id={checkboxId}
+				disabled={disabled}
+				checked={checked}
+				hasError={hasError}
+				errorId={errorId}
+				{...rest}
+			/>
+			<div className="flex flex-col gap-0.5">
+				<label
+					htmlFor={checkboxId}
+					className={cn(
+						"text-label-sm cursor-pointer",
+						disabled && "cursor-not-allowed text-text-disabled-300",
+						hasError ? "text-error-base" : "text-text-strong-950"
 					)}
 				>
 					{label}
@@ -225,102 +464,6 @@ const LabeledCheckbox = React.forwardRef<
 				)}
 			</div>
 		</div>
-	)
-})
-LabeledCheckbox.displayName = "LabeledCheckbox"
-
-// Checkbox Group
-interface CheckboxGroupProps extends React.HTMLAttributes<HTMLDivElement> {
-	label?: string
-	description?: string
-	orientation?: "horizontal" | "vertical"
-	hasError?: boolean
-	errorMessage?: string
-}
-
-function CheckboxGroup({
-	children,
-	label,
-	description,
-	orientation = "vertical",
-	hasError,
-	errorMessage,
-	className,
-	...rest
-}: CheckboxGroupProps) {
-	return (
-		<div className={cn("flex flex-col gap-2", className)} role="group" aria-label={label} {...rest}>
-			{(label || description) && (
-				<div className="flex flex-col gap-0.5">
-					{label && <span className="text-label-sm text-text-strong-950">{label}</span>}
-					{description && (
-						<span className="text-paragraph-xs text-text-sub-600">{description}</span>
-					)}
-				</div>
-			)}
-			<div
-				className={cn("flex gap-3", orientation === "vertical" ? "flex-col" : "flex-row flex-wrap")}
-			>
-				{children}
-			</div>
-			{hasError && errorMessage && (
-				<span className="text-paragraph-xs text-error-base">{errorMessage}</span>
-			)}
-		</div>
-	)
-}
-CheckboxGroup.displayName = "CheckboxGroup"
-
-// Checkbox Card - Checkbox inside a card-like container
-interface CheckboxCardProps extends React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root> {
-	label: string
-	description?: string
-}
-
-const CheckboxCard = React.forwardRef<
-	React.ComponentRef<typeof CheckboxPrimitive.Root>,
-	CheckboxCardProps
->(({ label, description, disabled, checked, id, className, ...rest }, forwardedRef) => {
-	const generatedId = React.useId()
-	const checkboxId = id || generatedId
-
-	return (
-		<label
-			htmlFor={checkboxId}
-			className={cn(
-				"flex cursor-pointer items-start gap-3 rounded-xl border border-stroke-soft-200 p-4",
-				"transition-all duration-200 ease-out",
-				"hover:border-stroke-sub-300 hover:bg-bg-weak-50",
-				checked && "border-primary-base bg-primary-alpha-10",
-				disabled && "cursor-not-allowed opacity-50",
-				className
-			)}
-		>
-			<Checkbox
-				ref={forwardedRef}
-				id={checkboxId}
-				disabled={disabled}
-				checked={checked}
-				{...rest}
-			/>
-			<div className="flex flex-col gap-0.5">
-				<span
-					className={cn("text-label-sm text-text-strong-950", disabled && "text-text-disabled-300")}
-				>
-					{label}
-				</span>
-				{description && (
-					<span
-						className={cn(
-							"text-paragraph-xs text-text-sub-600",
-							disabled && "text-text-disabled-300"
-						)}
-					>
-						{description}
-					</span>
-				)}
-			</div>
-		</label>
 	)
 })
 CheckboxCard.displayName = "CheckboxCard"

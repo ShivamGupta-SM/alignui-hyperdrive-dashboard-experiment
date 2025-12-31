@@ -5,9 +5,8 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { CircleNotch } from "@phosphor-icons/react"
-import type { PolymorphicComponentProps } from "@/utils/polymorphic"
-import { recursiveCloneChildren } from "@/utils/recursive-clone-children"
-import { tv, type VariantProps } from "@/utils/tv"
+import { recursiveCloneChildren } from "@/lib/utils"
+import { tv, type VariantProps } from "@/lib/utils"
 
 const BUTTON_ROOT_NAME = "ButtonRoot"
 const BUTTON_ICON_NAME = "ButtonIcon"
@@ -67,8 +66,8 @@ export const buttonVariants = tv({
 				root: [
 					// base
 					"bg-transparent text-text-sub-600 shadow-none",
-					// hover
-					"hover:bg-bg-weak-50 hover:text-text-strong-950",
+					// hover - improved contrast
+					"hover:bg-bg-soft-200 hover:text-text-strong-950",
 					// focus
 					"focus-visible:bg-bg-white-0 focus-visible:text-text-strong-950 focus-visible:shadow-button-important-focus",
 				],
@@ -148,13 +147,8 @@ const ButtonRoot = React.forwardRef<HTMLButtonElement, ButtonRootProps>(
 			size,
 		}
 
-		// CRITICAL FIX: During prerendering, Next.js tries to serialize ALL props including children
-		// If children contain Button.Icon with `as={Component}`, it will fail
-		// Solution: Skip recursiveCloneChildren during prerender to avoid processing Button.Icon
-		// The Button.Icon component itself handles the `as` prop safely during prerender
-		const extendedChildren = typeof window === "undefined"
-			? children // Skip processing during prerender - Button.Icon handles its own props safely
-			: recursiveCloneChildren(
+		// Process children consistently on both server and client to avoid hydration mismatch
+		const extendedChildren = recursiveCloneChildren(
 			children as React.ReactElement[],
 			sharedProps,
 			[BUTTON_ICON_NAME],

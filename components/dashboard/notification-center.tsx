@@ -35,7 +35,11 @@ import {
 import * as Drawer from "@/components/ui/layout/drawer"
 import * as BottomSheet from "@/components/ui/layout/bottom-sheet"
 import * as Dropdown from "@/components/ui/layout/dropdown"
-import { cn } from "@/utils/cn"
+import * as Button from "@/components/ui/primitives/button"
+import * as CompactButton from "@/components/ui/primitives/compact-button"
+import * as LinkButton from "@/components/ui/primitives/link-button"
+import { cn } from "@/lib/utils"
+import { routes } from "@/lib/routes"
 
 // ============================================
 // Notification Sound Utility
@@ -429,8 +433,9 @@ function NotificationItem({
 					{(notification.primaryAction || notification.secondaryAction) && (
 						<div className="flex items-center gap-2 mt-2">
 							{notification.primaryAction && (
-								<button
-									type="button"
+								<LinkButton.Root
+									variant={notification.primaryAction.isCompleted ? "gray" : "primary"}
+									size="small"
 									onClick={(e) => {
 										e.stopPropagation()
 										if (notification.primaryAction?.isCompleted) {
@@ -441,24 +446,22 @@ function NotificationItem({
 										}
 									}}
 									className={cn(
-										"inline-flex items-center gap-1 text-label-xs transition-colors",
-										notification.primaryAction.isCompleted
-											? "text-success-base line-through opacity-70"
-											: "text-primary-base hover:text-primary-dark"
+										notification.primaryAction.isCompleted && "line-through opacity-70"
 									)}
 								>
 									{notification.primaryAction.isCompleted && (
-										<CheckCircle className="size-3" weight="fill" />
+										<LinkButton.Icon as={CheckCircle} weight="fill" />
 									)}
 									{notification.primaryAction.label}
 									{!notification.primaryAction.isCompleted && (
-										<ArrowRight className="size-3" weight="bold" />
+										<LinkButton.Icon as={ArrowRight} weight="bold" />
 									)}
-								</button>
+								</LinkButton.Root>
 							)}
 							{notification.secondaryAction && (
-								<button
-									type="button"
+								<LinkButton.Root
+									variant="gray"
+									size="small"
 									onClick={(e) => {
 										e.stopPropagation()
 										if (notification.secondaryAction?.isCompleted) {
@@ -468,17 +471,14 @@ function NotificationItem({
 										}
 									}}
 									className={cn(
-										"inline-flex items-center gap-1 text-label-xs transition-colors",
-										notification.secondaryAction.isCompleted
-											? "text-success-base line-through opacity-70"
-											: "text-text-sub-600 hover:text-text-strong-950 dark:text-neutral-400 dark:hover:text-neutral-50"
+										notification.secondaryAction.isCompleted && "line-through opacity-70"
 									)}
 								>
 									{notification.secondaryAction.isCompleted && (
-										<CheckCircle className="size-3" weight="fill" />
+										<LinkButton.Icon as={CheckCircle} weight="fill" />
 									)}
 									{notification.secondaryAction.label}
-								</button>
+								</LinkButton.Root>
 							)}
 						</div>
 					)}
@@ -488,29 +488,33 @@ function NotificationItem({
 				{showActions && !isSnoozed && !isArchived && (
 					<div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-bg-white-0 dark:bg-neutral-900 rounded-lg shadow-custom-sm ring-1 ring-stroke-soft-200 dark:ring-neutral-700 p-1 animate-in fade-in zoom-in-95 duration-150">
 						{notification.read ? (
-							<button
-								type="button"
+							<CompactButton.Root
+								variant="ghost"
+								size="medium"
 								onClick={(e) => {
 									e.stopPropagation()
 									onUnread()
 								}}
-								className="size-8 rounded-md flex items-center justify-center text-text-soft-400 hover:text-primary-base hover:bg-primary-alpha-10 dark:hover:bg-primary-base/20 transition-colors"
+								className="size-8 text-text-soft-400 hover:text-primary-base hover:bg-primary-alpha-10 dark:hover:bg-primary-base/20"
 								title="Mark as unread"
+								aria-label="Mark as unread"
 							>
-								<Envelope className="size-4" weight="duotone" />
-							</button>
+								<CompactButton.Icon><Envelope weight="duotone" /></CompactButton.Icon>
+							</CompactButton.Root>
 						) : (
-							<button
-								type="button"
+							<CompactButton.Root
+								variant="ghost"
+								size="medium"
 								onClick={(e) => {
 									e.stopPropagation()
 									onRead()
 								}}
-								className="size-8 rounded-md flex items-center justify-center text-text-soft-400 hover:text-success-base hover:bg-success-lighter dark:hover:bg-success-base/20 transition-colors"
+								className="size-8 text-text-soft-400 hover:text-success-base hover:bg-success-lighter dark:hover:bg-success-base/20"
 								title="Mark as read"
+								aria-label="Mark as read"
 							>
-								<Check className="size-4" weight="bold" />
-							</button>
+								<CompactButton.Icon><Check weight="bold" /></CompactButton.Icon>
+							</CompactButton.Root>
 						)}
 						{/* Snooze Dropdown */}
 						<Dropdown.Root
@@ -521,14 +525,16 @@ function NotificationItem({
 							}}
 						>
 							<Dropdown.Trigger asChild>
-								<button
-									type="button"
+								<CompactButton.Root
+									variant="ghost"
+									size="medium"
 									onClick={(e) => e.stopPropagation()}
-									className="size-8 rounded-md flex items-center justify-center text-text-soft-400 hover:text-warning-base hover:bg-warning-lighter dark:hover:bg-warning-base/20 transition-colors"
+									className="size-8 text-text-soft-400 hover:text-warning-base hover:bg-warning-lighter dark:hover:bg-warning-base/20"
 									title="Snooze"
+									aria-label="Snooze notification"
 								>
-									<Clock className="size-4" weight="duotone" />
-								</button>
+									<CompactButton.Icon><Clock weight="duotone" /></CompactButton.Icon>
+								</CompactButton.Root>
 							</Dropdown.Trigger>
 							<Dropdown.Content align="end" width="sm">
 								{!showCustomSnooze ? (
@@ -599,13 +605,15 @@ function NotificationItem({
 											<span className="text-label-sm text-text-strong-950 dark:text-neutral-50">
 												Custom snooze
 											</span>
-											<button
-												type="button"
+											<CompactButton.Root
+												variant="ghost"
+												size="medium"
 												onClick={() => setShowCustomSnooze(false)}
-												className="size-6 rounded flex items-center justify-center text-text-soft-400 hover:text-text-strong-950 dark:hover:text-neutral-50 hover:bg-bg-weak-50 dark:hover:bg-neutral-800 transition-colors"
+												className="size-6"
+												aria-label="Close custom snooze"
 											>
-												<X className="size-4" weight="bold" />
-											</button>
+												<CompactButton.Icon><X weight="bold" /></CompactButton.Icon>
+											</CompactButton.Root>
 										</div>
 										<div className="space-y-2">
 											<div>
@@ -641,77 +649,83 @@ function NotificationItem({
 											</div>
 										</div>
 										<div className="flex gap-2 mt-3">
-											<button
-												type="button"
+											<Button.Root
+												variant="neutral"
+												size="small"
 												onClick={() => {
 													setShowCustomSnooze(false)
 													setCustomSnoozeDate("")
 													setCustomSnoozeTime("")
 												}}
-												className="flex-1 px-3 py-2 rounded-lg text-label-sm text-text-sub-600 dark:text-neutral-400 bg-bg-weak-50 dark:bg-neutral-800 hover:bg-bg-soft-200 dark:hover:bg-neutral-700 transition-colors"
+												className="flex-1"
 											>
 												Cancel
-											</button>
-											<button
-												type="button"
+											</Button.Root>
+											<Button.Root
+												variant="primary"
+												size="small"
 												onClick={handleCustomSnoozeApply}
 												disabled={!customSnoozeDate || !customSnoozeTime}
-												className="flex-1 px-3 py-2 rounded-lg text-label-sm text-white bg-primary-base hover:bg-primary-darker disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+												className="flex-1"
 											>
 												Apply
-											</button>
+											</Button.Root>
 										</div>
 									</div>
 								)}
 							</Dropdown.Content>
 						</Dropdown.Root>
-						<button
-							type="button"
+						<CompactButton.Root
+							variant="ghost"
+							size="medium"
 							onClick={(e) => {
 								e.stopPropagation()
 								onArchive()
 							}}
-							className="size-8 rounded-md flex items-center justify-center text-text-soft-400 hover:text-text-strong-950 dark:hover:text-neutral-50 hover:bg-bg-weak-50 dark:hover:bg-neutral-800 transition-colors"
+							className="size-8 text-text-soft-400 hover:text-text-strong-950 dark:hover:text-neutral-50 hover:bg-bg-weak-50 dark:hover:bg-neutral-800"
 							title="Archive"
+							aria-label="Archive notification"
 						>
-							<Archive className="size-4" weight="duotone" />
-						</button>
+							<CompactButton.Icon><Archive weight="duotone" /></CompactButton.Icon>
+						</CompactButton.Root>
 					</div>
 				)}
 
 				{/* Unsnooze Action - shown for snoozed notifications */}
 				{showActions && isSnoozed && !isArchived && (
 					<div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-bg-white-0 dark:bg-neutral-900 rounded-lg shadow-custom-sm ring-1 ring-stroke-soft-200 dark:ring-neutral-700 p-1 animate-in fade-in zoom-in-95 duration-150">
-						<button
-							type="button"
+						<Button.Root
+							variant="ghost"
+							size="xsmall"
 							onClick={(e) => {
 								e.stopPropagation()
 								onUnsnooze()
 							}}
-							className="px-3 py-1.5 rounded-md flex items-center gap-1.5 text-label-xs text-text-sub-600 hover:text-primary-base hover:bg-primary-alpha-10 dark:hover:bg-primary-base/20 transition-colors"
+							className="gap-1.5"
 							title="Unsnooze"
 						>
-							<Bell className="size-4" weight="duotone" />
+							<Button.Icon><Bell weight="duotone" /></Button.Icon>
 							Unsnooze
-						</button>
+						</Button.Root>
 					</div>
 				)}
 
 				{/* Unarchive Action - shown for archived notifications */}
 				{showActions && isArchived && (
 					<div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-bg-white-0 dark:bg-neutral-900 rounded-lg shadow-custom-sm ring-1 ring-stroke-soft-200 dark:ring-neutral-700 p-1 animate-in fade-in zoom-in-95 duration-150">
-						<button
-							type="button"
+						<Button.Root
+							variant="ghost"
+							size="xsmall"
 							onClick={(e) => {
 								e.stopPropagation()
 								onUnarchive()
 							}}
-							className="px-3 py-1.5 rounded-md flex items-center gap-1.5 text-label-xs text-text-sub-600 hover:text-primary-base hover:bg-primary-alpha-10 dark:hover:bg-primary-base/20 transition-colors"
+							className="gap-1.5"
 							title="Unarchive"
 						>
-							<Archive className="size-4" weight="duotone" />
+							<Button.Icon><Archive weight="duotone" /></Button.Icon>
 							Unarchive
-						</button>
+						</Button.Root>
 					</div>
 				)}
 			</div>
@@ -731,17 +745,13 @@ interface NotificationBellProps {
 
 export function NotificationBell({ onClick, count = 0, isOpen = false }: NotificationBellProps) {
 	return (
-		<button
-			type="button"
+		<CompactButton.Root
+			variant="stroke"
+			size="xlarge"
+			fullRadius
 			onClick={onClick}
 			className={cn(
-				"relative flex items-center justify-center rounded-full",
-				"shadow-sm ring-1 transition-all duration-200",
-				"hover:shadow-md active:scale-95",
-				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2",
-				"bg-bg-white-0 text-text-sub-600 ring-stroke-soft-200 hover:text-text-strong-950",
-				"dark:bg-neutral-900 dark:text-neutral-400 dark:ring-neutral-700 dark:hover:text-neutral-50",
-				"size-11 sm:size-10 group",
+				"relative group",
 				isOpen && "ring-primary-base ring-2 text-primary-base"
 			)}
 			aria-label={`Notifications${count > 0 ? ` (${count} unread)` : ""}`}
@@ -774,7 +784,7 @@ export function NotificationBell({ onClick, count = 0, isOpen = false }: Notific
 					{count > 99 ? "99+" : count > 9 ? "9+" : count}
 				</span>
 			)}
-		</button>
+		</CompactButton.Root>
 	)
 }
 
@@ -831,16 +841,20 @@ function NotificationPanelEmpty({ onOpenChange }: { onOpenChange: (open: boolean
 				className="border-t border-stroke-soft-200 dark:border-neutral-800 px-4 py-3"
 				style={{ "--safe-bottom": "env(safe-area-inset-bottom, 0px)", paddingBottom: "calc(0.75rem + var(--safe-bottom))" } as React.CSSProperties}
 			>
-				<button
-					type="button"
+				<Button.Root
+					variant="ghost"
+					size="medium"
 					onClick={() => {
-						router.push(params.organizationId ? `/dashboard/${params.organizationId}/settings?tab=notifications` : "/dashboard/settings?tab=notifications")
+						const settingsUrl = params.organizationId
+							? routes.dashboard.settings(params.organizationId, "notifications")
+							: routes.dashboard.root
+						router.push(settingsUrl)
 						onOpenChange(false)
 					}}
-					className="w-full text-center text-label-sm text-text-sub-600 dark:text-neutral-400 hover:text-text-strong-950 dark:hover:text-neutral-50 transition-colors py-2 min-h-11 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"
+					className="w-full min-h-11 rounded-xl"
 				>
 					Notification Settings
-				</button>
+				</Button.Root>
 			</div>
 		</div>
 	)
@@ -956,18 +970,12 @@ export function FallbackNotificationBell({
 	onClick?: () => void
 }) {
 	return (
-		<button
-			type="button"
+		<CompactButton.Root
+			variant="stroke"
+			size="xlarge"
+			fullRadius
 			onClick={onClick}
-			className={cn(
-				"relative flex items-center justify-center rounded-full",
-				"shadow-sm ring-1 transition-all duration-200",
-				"hover:shadow-md active:scale-95",
-				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2",
-				"bg-bg-white-0 text-text-sub-600 ring-stroke-soft-200 hover:text-text-strong-950",
-				"dark:bg-neutral-900 dark:text-neutral-400 dark:ring-neutral-700 dark:hover:text-neutral-50",
-				"size-11 sm:size-10 group"
-			)}
+			className="relative group"
 			aria-label={`Notifications${count > 0 ? ` (${count} unread)` : ""}`}
 		>
 			<Bell
@@ -979,6 +987,6 @@ export function FallbackNotificationBell({
 					{count > 9 ? "9+" : count}
 				</span>
 			)}
-		</button>
+		</CompactButton.Root>
 	)
 }

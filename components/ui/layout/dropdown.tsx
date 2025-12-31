@@ -5,10 +5,10 @@
 
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
-import { cn } from "@/utils/cn"
-import { tv, type VariantProps } from "@/utils/tv"
+import { cn } from "@/lib/utils"
+import { tv, type VariantProps } from "@/lib/utils"
 import { CaretRight, Check } from "@phosphor-icons/react"
-import { PolymorphicComponentProps } from "@/utils/polymorphic"
+import { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 
 const DropdownMenu = DropdownMenuPrimitive.Root
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger

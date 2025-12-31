@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import {
 	useOrganizationActivity,
 	type OrganizationActivity,
@@ -25,6 +25,7 @@ import {
 	Spinner,
 	CaretDown,
 } from "@phosphor-icons/react"
+import { getTimeAgo } from "@/lib/utils/date"
 
 interface ActivityFeedProps {
 	organizationId: string
@@ -75,28 +76,11 @@ const activityConfig: Record<
 	settings_updated: { icon: Gear, color: "text-text-sub-600", bgColor: "bg-bg-weak-50" },
 }
 
-function formatTimeAgo(dateString: string): string {
-	const date = new Date(dateString)
-	const now = new Date()
-	const diffMs = now.getTime() - date.getTime()
-	const diffMins = Math.floor(diffMs / (1000 * 60))
-	const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-	const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-	if (diffMins < 1) return "Just now"
-	if (diffMins < 60) return `${diffMins}m ago`
-	if (diffHours < 24) return `${diffHours}h ago`
-	if (diffDays < 7) return `${diffDays}d ago`
-	if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
-
-	return date.toLocaleDateString("en-IN", {
-		day: "numeric",
-		month: "short",
-	})
-}
+// Use centralized getTimeAgo from @/lib/utils/date
+const formatTimeAgo = (dateString: string): string => getTimeAgo(dateString)
 
 function ActivityItem({ activity }: { activity: OrganizationActivity }) {
-	const config = activityConfig[activity.type] || {
+	const config = (activity.type && activityConfig[activity.type]) || {
 		icon: Gear,
 		color: "text-text-sub-600",
 		bgColor: "bg-bg-weak-50",
@@ -148,10 +132,10 @@ export function ActivityFeed({
 	limit = 10,
 	showLoadMore = true,
 }: ActivityFeedProps) {
-	const [page, setPage] = React.useState(0)
-	const { data, isPending, error } = useOrganizationActivity(organizationId, page * limit, limit)
+	const [cursor, setCursor] = React.useState<string | undefined>(undefined)
+	const { data, isPending, error } = useOrganizationActivity(organizationId, cursor, limit)
 
-	if (isPending && page === 0) {
+	if (isPending && !cursor) {
 		return (
 			<div className={cn("flex items-center justify-center py-8", className)}>
 				<Spinner className="size-6 text-primary-base animate-spin" />
@@ -189,7 +173,7 @@ export function ActivityFeed({
 						variant="neutral"
 						size="small"
 						className="w-full"
-						onClick={() => setPage((p) => p + 1)}
+						onClick={() => setCursor(data.nextCursor ?? undefined)}
 						disabled={isPending}
 					>
 						{isPending ? (
@@ -213,7 +197,7 @@ export function ActivityFeedCompact({
 	className,
 	limit = 5,
 }: Omit<ActivityFeedProps, "showLoadMore">) {
-	const { data, isPending } = useOrganizationActivity(organizationId, 0, limit)
+	const { data, isPending } = useOrganizationActivity(organizationId, undefined, limit)
 
 	if (isPending) {
 		return (

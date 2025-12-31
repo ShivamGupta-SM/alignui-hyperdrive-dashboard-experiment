@@ -2,7 +2,7 @@
 // SVG illustrations for empty states, onboarding, etc. - zero dependencies
 
 import * as React from "react"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 
 type IllustrationProps = React.SVGProps<SVGSVGElement> & {
 	/** Size of the illustration */

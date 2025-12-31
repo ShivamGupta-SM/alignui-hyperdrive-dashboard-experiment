@@ -4,6 +4,7 @@
  * Wallet Server Actions
  *
  * Uses next-safe-action for type-safe, error-handled server actions
+ * URL-based multi-tenancy: organizationId from URL params passed to all actions
  */
 
 import { revalidateTag } from "next/cache"
@@ -12,7 +13,7 @@ import { z } from "zod"
 import { authAction } from "@/lib/safe-action"
 
 // =============================================================================
-// Schemas
+// Schemas - All actions require organizationId for URL-based multi-tenancy
 // =============================================================================
 
 const withdrawalSchema = z.object({
@@ -21,18 +22,14 @@ const withdrawalSchema = z.object({
 	notes: z.string().optional(),
 })
 
-const cancelWithdrawalSchema = z.object({
-	withdrawalId: z.string().min(1),
-})
-
 const creditRequestSchema = z.object({
 	organizationId: z.string().min(1),
 	amount: z.number().positive(),
-	reason: z.string().min(1),
+	reason: z.string().optional(),
 })
 
 // =============================================================================
-// Actions
+// Actions - Use organization-scoped endpoints for multi-tenancy
 // =============================================================================
 
 /**
@@ -43,27 +40,17 @@ export const requestWithdrawal = authAction
 	.action(async ({ parsedInput, ctx }) => {
 		const { organizationId, amount, notes } = parsedInput
 
-		const result = await ctx.client.wallets.createOrganizationWithdrawal(organizationId, {
+		const result = await ctx.client.organizations.createOrganizationWithdrawal(organizationId, {
 			amount,
 			notes,
 		})
 
 		revalidateTag("wallet")
 		revalidateTag("withdrawals")
+		// Also revalidate dashboard since wallet balance affects dashboard stats
+		revalidateTag("dashboard")
 
-		return { withdrawalId: result.id }
-	})
-
-/**
- * Cancel withdrawal
- */
-export const cancelWithdrawal = authAction
-	.inputSchema(cancelWithdrawalSchema)
-	.action(async ({ parsedInput, ctx }) => {
-		await ctx.client.wallets.cancelWithdrawal(parsedInput.withdrawalId)
-		revalidateTag("wallet")
-		revalidateTag("withdrawals")
-		return { success: true }
+		return { withdrawalId: result.id, success: true }
 	})
 
 /**
@@ -74,11 +61,11 @@ export const requestCredit = authAction
 	.action(async ({ parsedInput, ctx }) => {
 		const { organizationId, amount, reason } = parsedInput
 
-		await ctx.client.organizations.requestCreditIncrease(organizationId, {
+		const result = await ctx.client.organizations.requestCreditIncrease(organizationId, {
 			requestedAmount: amount,
 			reason,
 		})
 
 		revalidateTag("wallet")
-		return { requestId: "submitted" }
+		return { requestId: result.requestId, success: result.success }
 	})

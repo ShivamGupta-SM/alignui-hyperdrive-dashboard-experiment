@@ -21,7 +21,8 @@ interface PageProps {
 async function SettingsData({ organizationId }: { organizationId: string }) {
 	try {
 		const data = await getSettingsData(organizationId)
-		return <SettingsClient initialData={data} />
+		// SSOT: Convert null to undefined to match SettingsClient interface
+		return <SettingsClient initialData={data ?? undefined} />
 	} catch (error) {
 		logError(error, { source: "SettingsPage", data: { action: "fetch settings data" } })
 		return <SettingsClient initialData={undefined} />

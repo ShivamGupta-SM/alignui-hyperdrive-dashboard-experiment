@@ -1,24 +1,46 @@
-// Re-export all server actions
-// All actions are now in features/ folders
+/**
+ * Re-export all server actions
+ *
+ * IMPORTANT: Import directly from action files, NOT from feature index files!
+ * Feature index files export hooks (with objects like queryKeys) which cause
+ * "use server" errors: "A use server file can only export async functions"
+ */
 
-// Campaign actions
-export * from "@/features/campaigns"
+// Campaign actions - Direct import to avoid client hooks (campaignKeys object)
+export {
+	createCampaign,
+	updateCampaign,
+	deleteCampaign,
+	duplicateCampaign,
+	updateCampaignStatus,
+	exportCampaignEnrollments,
+	updateCampaignPricing,
+	validateCampaign,
+	addCampaignDeliverable,
+	addCampaignDeliverablesBatch,
+	updateCampaignDeliverable,
+	removeCampaignDeliverable,
+} from "@/features/campaigns/actions/campaigns"
 
 // Organization actions
 export {
-	createBasicOrganization,
-	switchOrganization,
+	getExistingDraftOrganization,
+} from "@/features/organizations/actions/organizations"
+export {
 	resubmitOrganizationForApproval,
-	submitOnboarding,
-	saveOnboardingDraft,
-	loadOnboardingDraft,
-} from "@/features/organizations"
+} from "@/features/organizations/actions/approval"
+
+export {
+	completeOnboarding,
+	verifyGST,
+} from "@/features/organizations/actions/onboarding"
 
 // Enrollments actions
 export {
 	updateEnrollmentStatus,
-	bulkUpdateEnrollments,
-} from "@/features/enrollments"
+	requestChanges,
+	exportEnrollments,
+} from "@/features/enrollments/actions/enrollments"
 
 // Products actions
 export {
@@ -26,30 +48,32 @@ export {
 	updateProduct,
 	deleteProduct,
 	bulkImportProducts,
-} from "@/features/products"
+} from "@/features/products/actions/products"
 
 // Wallet actions
 export {
 	requestWithdrawal,
 	requestCredit,
-} from "@/features/wallet"
+} from "@/features/wallet/actions/wallet"
 
 // Invoices actions
 export {
 	generateInvoicePDF,
 	downloadInvoicePDF,
 	getInvoiceEnrollmentIds,
-} from "@/features/invoices"
+	getEnrollmentsByIds,
+} from "@/features/invoices/actions/invoices"
 
 // Team actions
 export {
 	inviteMember,
 	removeMember,
-} from "@/features/team"
+	cancelInvitation,
+	updateMemberRole,
+} from "@/features/team/actions/team"
 
 // Settings actions
 export {
-	updateProfile,
 	updateOrganization,
 	updatePassword,
 	updateNotifications,
@@ -57,23 +81,39 @@ export {
 	removeBankAccount,
 	setDefaultBankAccount,
 	verifyBankAccount,
-	enable2FA,
-	disable2FA,
-	revokeSession,
-	revokeAllSessions,
-} from "@/features/settings"
+	getUserSessions,
+	deleteOrganization,
+	updateOrganizationLogo,
+	removeOrganizationLogo,
+} from "@/features/settings/actions/settings"
 
 // Auth actions
 export {
+	updateProfile,
+	changeEmail,
+	deleteUser as deleteUserAccount,
+	sendVerificationEmail,
+	revokeSession,
+	revokeOtherSessions as revokeAllSessions,
+	enable2FA,
+	disable2FA,
 	signInEmail,
 	signInSocial,
 	signUpEmail,
 	verify2FATotp,
+	verify2FAOtp,
 	send2FAOtp,
 	forgotPassword,
 	resetPassword,
 	resetPasswordCallback,
 	getSession,
-	ensureActiveOrgAfterOAuth,
+	getCurrentUser,
+	signOut,
 	verifyEmail,
-} from "@/features/auth"
+	listLinkedAccounts,
+	unlinkAccount,
+	leaveOrganization,
+	deleteUser,
+	listDeviceSessions,
+	revokeDeviceSession,
+} from "@/features/auth/actions/auth-actions"

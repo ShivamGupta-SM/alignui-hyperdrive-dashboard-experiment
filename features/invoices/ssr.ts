@@ -2,32 +2,69 @@
  * Invoices SSR Data Fetching
  *
  * Server-side data fetching for invoice pages.
- * Organized by feature for clean architecture.
+ * Uses ssrFetch helper for standardized error handling.
  */
 
-import { getAuthClient } from "@/lib/auth/server"
-import { logError } from "@/lib/logging/error-logger-simple"
+import { ssrFetch } from "@/lib/api/server"
+import { logSSRError } from "@/lib/logging/error-logger-simple"
+import { SSR_PAGE_SIZE } from "@/lib/utils/query-config"
 
-const DEFAULT_INVOICE_PAGE_SIZE = 50
+// Default fallback for invoices data
+const EMPTY_INVOICES_RESPONSE = {
+	invoices: [],
+	data: [],
+	total: 0,
+	organization: null,
+}
 
 /**
  * Get invoices list for organization
+ * Uses ssrFetch for standardized error handling
  */
 export async function getInvoicesData(organizationId: string) {
-	try {
-		const client = await getAuthClient()
+	return ssrFetch(
+		{
+			source: "getInvoicesData",
+			feature: "invoices",
+			context: { organizationId },
+		},
+		async (client) => {
+			const results = await Promise.allSettled([
+				client.organizations.listInvoices(organizationId, {
+					skip: 0,
+					take: SSR_PAGE_SIZE.DEFAULT,
+				}),
+				client.auth.getFullOrganization(organizationId, {}),
+				client.organizations.getGSTDetails(organizationId),
+			])
 
-		// URL-based multi-tenancy: pass organizationId to backend
-		const response = await client.invoices.listInvoices({
-			organizationId,
-			skip: 0,
-			take: DEFAULT_INVOICE_PAGE_SIZE,
-		})
+			const invoicesResponse = results[0].status === "fulfilled" ? results[0].value : { data: [], total: 0 }
+			const orgResult = results[1].status === "fulfilled" ? results[1].value : null
+			const gstResult = results[2].status === "fulfilled" ? results[2].value : null
 
-		// Return with 'invoices' key for InvoicesClient compatibility
-		return { invoices: response.data || [], ...response }
-	} catch (error) {
-		logError(error, { source: "getInvoicesData", data: { action: "fetch invoices", organizationId } })
-		return { invoices: [], data: [], total: 0 }
-	}
+			// Log errors for failed promises
+			results.forEach((result, index) => {
+				if (result.status === "rejected") {
+					const names = ["invoices", "organization", "gst-details"]
+					logSSRError(result.reason, "getInvoicesData", `invoices-${names[index]}`, {
+						data: { organizationId },
+					})
+				}
+			})
+
+			return {
+				invoices: invoicesResponse.data || [],
+				...invoicesResponse,
+				organization: orgResult
+					? {
+							id: orgResult.id,
+							name: orgResult.name,
+							gstNumber: gstResult?.gstDetails?.gstNumber,
+							gstLegalName: gstResult?.gstDetails?.legalName,
+						}
+					: null,
+			}
+		},
+		EMPTY_INVOICES_RESPONSE
+	)
 }

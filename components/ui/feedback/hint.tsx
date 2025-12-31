@@ -1,9 +1,9 @@
 // AlignUI Hint v0.0.0
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { recursiveCloneChildren } from "@/utils/recursive-clone-children"
-import { PolymorphicComponentProps } from "@/utils/polymorphic"
+import { tv, type VariantProps } from "@/lib/utils"
+import { recursiveCloneChildren } from "@/lib/utils"
+import { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 
 const HINT_ROOT_NAME = "HintRoot"
 const HINT_ICON_NAME = "HintIcon"

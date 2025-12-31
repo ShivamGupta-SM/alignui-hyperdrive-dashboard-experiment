@@ -3,7 +3,7 @@
 import * as React from "react"
 import Image from "next/image"
 import { useTheme } from "next-themes"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 
 interface LogoProps {
 	/** Width of the logo */

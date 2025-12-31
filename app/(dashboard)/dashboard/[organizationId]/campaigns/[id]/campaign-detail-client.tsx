@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
 import { useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import * as Button from "@/components/ui/primitives/button"
-import { InlineBackButton } from "@/components/ui/navigation/back-button"
+import * as Breadcrumb from "@/components/ui/navigation/breadcrumb"
 import * as StatusBadge from "@/components/ui/data-display/status-badge"
 import * as TabMenu from "@/components/ui/navigation/tab-menu-horizontal"
 import * as Dropdown from "@/components/ui/layout/dropdown"
@@ -20,7 +21,7 @@ import * as Table from "@/components/ui/data-display/table"
 import * as Checkbox from "@/components/ui/forms/checkbox"
 import * as Avatar from "@/components/ui/primitives/avatar"
 import * as Badge from "@/components/ui/data-display/badge"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import {
 	PauseCircle,
 	PlayCircle,
@@ -49,15 +50,14 @@ import {
 	CaretLeft,
 	CaretRight,
 	Warning,
+	Plus,
 } from "@phosphor-icons/react"
 import type { Enrollment, EnrollmentStatus } from "@/features/enrollments"
-import type { DeliverableType } from "@/lib/types"
-import { CAMPAIGN_STATUS_CONFIG } from "@/lib/constants"
+import { CAMPAIGN_STATUS_CONFIG, getCampaignStatusBadgeStatus, getEnrollmentStatusBadgeStatus, getEnrollmentStatusLabel } from "@/lib/constants"
 import { THRESHOLDS } from "@/lib/types/constants"
 import {
-	pauseCampaign,
-	resumeCampaign,
-	endCampaign,
+	updateCampaignStatus,
+	duplicateCampaign,
 	exportCampaignEnrollments,
 	campaignKeys,
 	type CampaignWithStats,
@@ -65,10 +65,10 @@ import {
 	type CampaignPricing,
 	type CampaignStatus,
 } from "@/features/campaigns"
-import type { campaigns, enrollments } from "@/lib/api/encore-client"
-import type { integrations } from "@/lib/api/encore-client"
+import type { platforms, organizations } from "@/brand-client"
 import { toast } from "sonner"
-import { getErrorMessage } from "@/lib/utils/format"
+import { getErrorMessage, formatCurrency, formatDateMedium } from "@/lib/utils/format"
+import { getTimeAgo, isOverdue } from "@/lib/utils/date"
 import {
 	type ColumnDef,
 	type SortingState,
@@ -81,40 +81,41 @@ import {
 	getSortedRowModel,
 	useReactTable,
 } from "@tanstack/react-table"
-import { getAvatarColor } from "@/utils/avatar-color"
-import { SettingsTab } from "./settings-tab" // Assuming this is where SettingsTab is
+import { getAvatarColor } from "@/lib/utils"
+import { getInitial } from "@/lib/utils/string"
+import { SettingsTab } from "./settings-tab"
+import { DeliverablesTab } from "./deliverables-tab"
+import { InlineBackButton } from "@/components/ui/navigation/back-button"
 
-type TabValue = "overview" | "enrollments" | "statistics" | "settings"
+type TabValue = "overview" | "enrollments" | "deliverables" | "statistics" | "settings"
 
 interface CampaignDetailClientProps {
 	campaignId: string
-	initialData?: campaigns.CampaignWithStats & {
-		stats?: campaigns.CampaignStats
-		pricing?: campaigns.CampaignPricing
-		deliverables?: campaigns.CampaignDeliverableResponse[]
-		performance?: campaigns.CampaignPerformance[]
-		enrollments?: enrollments.EnrollmentWithRelations[]
-		platforms?: integrations.Platform[]
+	initialData?: organizations.CampaignWithStats & {
+		stats?: organizations.CampaignStats
+		pricing?: organizations.CampaignPricing
+		deliverables?: organizations.CampaignDeliverableResponse[]
+		performance?: organizations.CampaignPerformance[]
+		enrollments?: organizations.EnrollmentWithRelations[]
+		platforms?: platforms.Platform[]
 	}
 }
 
 export function CampaignDetailClient({ campaignId, initialData }: CampaignDetailClientProps) {
 	const router = useRouter()
-	const params = useParams<{ organizationId: string }>()
-	const organizationId = params.organizationId
+	const { organizationId } = useCurrentOrganization()
 	const queryClient = useQueryClient()
-	// Data from RSC
-	const campaign = initialData as CampaignWithStats
-	const stats = initialData?.stats as CampaignStats
-	const pricing = initialData?.pricing as CampaignPricing
-	const deliverables = (initialData?.deliverables ?? []) as campaigns.CampaignDeliverableResponse[]
-	const performanceData = (initialData?.performance ?? []) as campaigns.CampaignPerformance[]
+	// Data from RSC - use optional chaining with defaults for safety
+	// Convert null to undefined for type safety (API may return null for missing data)
+	const campaign = initialData
+	const stats = initialData?.stats ?? undefined
+	const pricing = initialData?.pricing ?? undefined
+	const deliverables = initialData?.deliverables ?? []
+	const performanceData = initialData?.performance ?? []
 
-	// Enrollments from initialData
-	const enrollments: enrollments.EnrollmentWithRelations[] = (initialData?.enrollments ??
-		[]) as enrollments.EnrollmentWithRelations[]
-	const platforms: integrations.Platform[] = (initialData?.platforms ??
-		[]) as integrations.Platform[]
+	// Enrollments and platforms from initialData
+	const campaignEnrollments = initialData?.enrollments ?? []
+	const platforms = initialData?.platforms ?? []
 
 	const [activeTab, setActiveTab] = React.useState<TabValue>("overview")
 	const [confirmModal, setConfirmModal] = React.useState<{
@@ -128,18 +129,6 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 	const [isPending, startTransition] = React.useTransition()
 
 	const statusConfig = campaign ? CAMPAIGN_STATUS_CONFIG[campaign.status] : null
-
-	const formatCurrency = (amount: number) => {
-		return `₹${amount.toLocaleString("en-IN")}`
-	}
-
-	const formatDate = (date: Date | string) => {
-		return new Date(date).toLocaleDateString("en-IN", {
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-		})
-	}
 
 	const getDaysRemaining = () => {
 		if (!campaign) return 0
@@ -174,13 +163,12 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 			action: () => {
 				startTransition(async () => {
 					try {
-						await pauseCampaign({ id: campaignId, reason: "Paused by user" })
+						await updateCampaignStatus({ organizationId, id: campaignId, action: "pause", reason: "Paused by user" })
 						toast.success("Campaign paused successfully")
 						setConfirmModal(null)
 						// Invalidate campaigns queries to refetch updated status
 						queryClient.invalidateQueries({ queryKey: campaignKeys.lists(organizationId) })
 						queryClient.invalidateQueries({ queryKey: campaignKeys.detail(organizationId, campaignId) })
-						router.refresh()
 					} catch (error) {
 						toast.error(getErrorMessage(error, "Failed to pause campaign"))
 					}
@@ -192,12 +180,11 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 	const handleResume = () => {
 		startTransition(async () => {
 			try {
-				await resumeCampaign({ id: campaignId })
+				await updateCampaignStatus({ organizationId, id: campaignId, action: "resume" })
 				toast.success("Campaign resumed successfully")
 				// Invalidate campaigns queries to refetch updated status
 				queryClient.invalidateQueries({ queryKey: campaignKeys.lists(organizationId) })
 				queryClient.invalidateQueries({ queryKey: campaignKeys.detail(organizationId, campaignId) })
-				router.refresh()
 			} catch (error) {
 				toast.error(getErrorMessage(error, "Failed to resume campaign"))
 			}
@@ -213,13 +200,12 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 			action: () => {
 				startTransition(async () => {
 					try {
-						await endCampaign({ id: campaignId })
+						await updateCampaignStatus({ organizationId, id: campaignId, action: "end" })
 						toast.success("Campaign ended successfully")
 						setConfirmModal(null)
 						// Invalidate campaigns queries to refetch updated status
 						queryClient.invalidateQueries({ queryKey: campaignKeys.lists(organizationId) })
 						queryClient.invalidateQueries({ queryKey: campaignKeys.detail(organizationId, campaignId) })
-						router.refresh()
 					} catch (error) {
 						toast.error(getErrorMessage(error, "Failed to end campaign"))
 					}
@@ -228,25 +214,23 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 		})
 	}
 
-	// Get status badge status
-	const getStatusBadgeStatus = (status: string) => {
-		switch (status) {
-			case "active":
-			case "approved":
-			case "completed":
-				return "completed" as const
-			case "draft":
-			case "pending_approval":
-			case "paused":
-				return "pending" as const
-			case "rejected":
-			case "ended":
-			case "cancelled":
-			case "expired":
-				return "failed" as const
-			default:
-				return "disabled" as const
-		}
+	const handleDuplicate = () => {
+		startTransition(async () => {
+			try {
+				const result = await duplicateCampaign({ id: campaignId, organizationId })
+				if (result?.data?.id) {
+					toast.success("Campaign duplicated successfully")
+					// Invalidate campaigns list to show the new campaign
+					queryClient.invalidateQueries({ queryKey: campaignKeys.lists(organizationId) })
+					// Navigate to the new campaign
+					router.push(`/dashboard/${organizationId}/campaigns/${result.data.id}`)
+				} else {
+					toast.error("Failed to duplicate campaign")
+				}
+			} catch (error) {
+				toast.error(getErrorMessage(error, "Failed to duplicate campaign"))
+			}
+		})
 	}
 
 	if (!campaign) {
@@ -271,9 +255,19 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 		<div className="space-y-6">
 			{/* Campaign Header Card */}
 			<div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-6">
-				{/* Top row: Back + Actions */}
+				{/* Top row: Breadcrumb + Actions */}
 				<div className="flex items-center justify-between gap-4 mb-4">
-					<InlineBackButton />
+					<Breadcrumb.Root>
+						<Breadcrumb.Item asChild>
+							<Link href={`/dashboard/${organizationId}`}>Dashboard</Link>
+						</Breadcrumb.Item>
+						<Breadcrumb.ArrowIcon as={CaretRight} />
+						<Breadcrumb.Item asChild>
+							<Link href={`/dashboard/${organizationId}/campaigns`}>Campaigns</Link>
+						</Breadcrumb.Item>
+						<Breadcrumb.ArrowIcon as={CaretRight} />
+						<Breadcrumb.Item active>{campaign.title}</Breadcrumb.Item>
+					</Breadcrumb.Root>
 
 					{/* Actions */}
 					<div className="flex items-center gap-2">
@@ -306,7 +300,7 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 						{(campaign.status === "active" || campaign.status === "paused") && (
 							<>
 								<Button.Root variant="neutral" size="xsmall" asChild>
-									<Link href={`/dashboard/${organizationId}/campaigns/${campaign.id}/edit`}>
+									<Link href={`/dashboard/${organizationId}/campaigns/${campaign.id}?mode=edit`}>
 										<Button.Icon>
 											<PencilSimple className="size-5" />
 										</Button.Icon>
@@ -315,16 +309,16 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 								</Button.Root>
 								<Dropdown.Root>
 									<Dropdown.Trigger asChild>
-										<Button.Root variant="ghost" size="xsmall">
+										<Button.Root variant="ghost" size="xsmall" aria-label="More actions">
 											<Button.Icon>
 												<DotsThree className="size-5" />
 											</Button.Icon>
 										</Button.Root>
 									</Dropdown.Trigger>
 									<Dropdown.Content align="end">
-										<Dropdown.Item>
+										<Dropdown.Item onClick={handleDuplicate} disabled={isPending}>
 											<Dropdown.ItemIcon as={Copy} />
-											Duplicate
+											{isPending ? "Duplicating..." : "Duplicate"}
 										</Dropdown.Item>
 										<Dropdown.Separator />
 										<Dropdown.Item onClick={handleEnd} className="text-error-base">
@@ -341,7 +335,7 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 				{/* Title + Status */}
 				<div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
 					<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">{campaign.title}</h1>
-					<StatusBadge.Root status={getStatusBadgeStatus(campaign.status)} variant="light">
+					<StatusBadge.Root status={getCampaignStatusBadgeStatus(campaign.status)} variant="light">
 						<StatusBadge.Dot />
 						{statusConfig?.label || campaign.status}
 					</StatusBadge.Root>
@@ -360,7 +354,7 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 					</span>
 					<span className="flex items-center gap-1.5">
 						<CalendarBlank weight="duotone" className="size-4 shrink-0" />
-						{formatDate(campaign.startDate)} - {formatDate(campaign.endDate)}
+						{formatDateMedium(campaign.startDate)} - {formatDateMedium(campaign.endDate)}
 					</span>
 					<span className="flex items-center gap-1.5">
 						<Clock weight="duotone" className="size-4 shrink-0" />
@@ -374,6 +368,7 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 				<TabMenu.List>
 					<TabMenu.Trigger value="overview">Overview</TabMenu.Trigger>
 					<TabMenu.Trigger value="enrollments">Enrollments</TabMenu.Trigger>
+					<TabMenu.Trigger value="deliverables">Deliverables</TabMenu.Trigger>
 					<TabMenu.Trigger value="statistics">Statistics</TabMenu.Trigger>
 					<TabMenu.Trigger value="settings">Settings</TabMenu.Trigger>
 				</TabMenu.List>
@@ -387,7 +382,6 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 					pricing={pricing}
 					deliverables={deliverables}
 					platforms={platforms}
-					formatCurrency={formatCurrency}
 					getDaysRemaining={getDaysRemaining}
 					getProgressPercentage={getProgressPercentage}
 					getEnrollmentPercentage={getEnrollmentPercentage}
@@ -395,7 +389,17 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 			)}
 
 			{activeTab === "enrollments" && (
-				<EnrollmentsTab campaignId={campaign.id} enrollments={enrollments} organizationId={organizationId} />
+				<EnrollmentsTab campaignId={campaign.id} enrollments={campaignEnrollments} organizationId={organizationId} />
+			)}
+
+			{activeTab === "deliverables" && (
+				<DeliverablesTab
+					organizationId={organizationId}
+					campaignId={campaign.id}
+					deliverables={deliverables}
+					platforms={platforms}
+					canEdit={campaign.status === "draft" || campaign.status === "active" || campaign.status === "paused"}
+				/>
 			)}
 
 			{activeTab === "statistics" && (
@@ -441,11 +445,10 @@ function getDeliverableIcon(type: string) {
 // Overview Tab Component
 interface OverviewTabProps {
 	campaign: CampaignWithStats
-	stats: CampaignStats | undefined
+	stats: CampaignStats | null | undefined
 	pricing: CampaignPricing | undefined
-	deliverables: campaigns.CampaignDeliverableResponse[] | undefined
-	platforms: integrations.Platform[]
-	formatCurrency: (amount: number) => string
+	deliverables: organizations.CampaignDeliverableResponse[] | undefined
+	platforms: platforms.Platform[]
 	getDaysRemaining: () => number
 	getProgressPercentage: () => number
 	getEnrollmentPercentage: () => number
@@ -457,7 +460,6 @@ function OverviewTab({
 	pricing,
 	deliverables,
 	platforms,
-	formatCurrency,
 	getDaysRemaining,
 	getProgressPercentage,
 	getEnrollmentPercentage,
@@ -621,7 +623,7 @@ function OverviewTab({
 							</List.ItemContent>
 							<List.ItemAction>
 								<span className="text-label-sm sm:text-label-md text-text-strong-950">
-									{formatCurrency(pricing?.platformFee ?? campaign.platformFee ?? 50)}
+									{formatCurrency(pricing?.platformFee ?? campaign.platformFee ?? 0)}
 								</span>
 							</List.ItemAction>
 						</List.Item>
@@ -632,7 +634,7 @@ function OverviewTab({
 							</List.ItemContent>
 							<List.ItemAction>
 								<span className="text-label-sm sm:text-label-md text-text-strong-950">
-									{pricing?.gstRate ?? 18}%
+									{pricing?.gstRate ?? 0}%
 								</span>
 							</List.ItemAction>
 						</List.Item>
@@ -774,7 +776,7 @@ function OverviewTab({
 												{platformName}
 											</h4>
 											<div className="space-y-2 pl-4 border-l-2 border-stroke-soft-200">
-												{platformDeliverables.map((campaignDeliverable: campaigns.CampaignDeliverableResponse, index: number) => {
+												{platformDeliverables.map((campaignDeliverable: organizations.CampaignDeliverableResponse, index: number) => {
 													const DeliverableIcon = getDeliverableIcon(
 														campaignDeliverable.deliverable?.category as string
 													)
@@ -796,11 +798,11 @@ function OverviewTab({
 																		{campaignDeliverable.deliverable?.name ?? "Deliverable"}
 																	</span>
 																	{campaignDeliverable.isRequired ? (
-																		<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error-lighter text-error-base text-[10px] sm:text-xs font-medium">
+																		<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error-lighter text-error-base text-label-xs font-medium">
 																			Required
 																		</span>
 																	) : (
-																		<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-soft-200 text-text-sub-600 text-[10px] sm:text-xs font-medium">
+																		<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-soft-200 text-text-sub-600 text-label-xs font-medium">
 																			Optional
 																		</span>
 																	)}
@@ -835,7 +837,7 @@ function OverviewTab({
 					})()
 				) : (
 					<div className="text-center py-8 text-text-sub-600">
-						<ListChecks weight="duotone" className="size-12 mx-auto mb-2 text-gray-300" />
+						<ListChecks weight="duotone" className="size-12 mx-auto mb-2 text-text-soft-400" />
 						<p className="text-paragraph-sm">No deliverables configured</p>
 						<p className="text-paragraph-xs text-text-soft-400 mt-1">
 							Add deliverables to define what shoppers need to submit
@@ -850,65 +852,11 @@ function OverviewTab({
 // Enrollments Tab Component
 interface EnrollmentsTabProps {
 	campaignId: string
-	enrollments: enrollments.EnrollmentWithRelations[]
+	enrollments: organizations.EnrollmentWithRelations[]
 	organizationId: string
 }
 
-// Helper functions for enrollments tab
-const getTimeAgo = (date: Date | string): string => {
-	const now = new Date()
-	const diffMs = now.getTime() - new Date(date).getTime()
-	const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-	if (diffHours < 1) return "Just now"
-	if (diffHours < 24) return `${diffHours}h ago`
-	const diffDays = Math.floor(diffHours / 24)
-	if (diffDays === 1) return "1 day ago"
-	return `${diffDays} days ago`
-}
-
-const isOverdue = (date: Date | string): boolean => {
-	const now = new Date()
-	const diffMs = now.getTime() - new Date(date).getTime()
-	return diffMs > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS * 60 * 60 * 1000
-}
-
-const getStatusBadgeStatusForTab = (status: string) => {
-	switch (status) {
-		case "approved":
-			return "completed" as const
-		case "awaiting_review":
-		case "awaiting_submission":
-		case "changes_requested":
-			return "pending" as const
-		case "rejected":
-		case "withdrawn":
-		case "expired":
-			return "failed" as const
-		default:
-			return "disabled" as const
-	}
-}
-
-const getStatusLabelForTab = (status: string) => {
-	switch (status) {
-		case "awaiting_review":
-			return "Pending"
-		case "awaiting_submission":
-			return "Awaiting"
-		case "changes_requested":
-			return "Changes"
-		case "approved":
-			return "Approved"
-		case "rejected":
-			return "Rejected"
-		case "withdrawn":
-			return "Withdrawn"
-		case "expired":
-			return "Expired"
-		default:
-			return status
-	}
-}
+// Helper functions imported from @/lib/utils/date
 
 function EnrollmentsTab({ campaignId, enrollments, organizationId }: EnrollmentsTabProps) {
 	const router = useRouter()
@@ -917,23 +865,18 @@ function EnrollmentsTab({ campaignId, enrollments, organizationId }: Enrollments
 	const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
 	const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
 
-	const formatCurrency = (amount: number) => `₹${amount.toLocaleString("en-IN")}`
-	const formatDate = (date: Date | string) => {
-		return new Date(date).toLocaleDateString("en-IN", {
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-		})
-	}
-
 	const handleExport = () => {
 		startTransition(async () => {
 			try {
-				const exportData = await exportCampaignEnrollments({ campaignId })
-				// Server action returns data directly or throws
+				const result = await exportCampaignEnrollments({ organizationId, campaignId })
+				// Server action returns {data: ExportResponse} where ExportResponse.data is EnrollmentExportRow[]
+				if (!result?.data?.data) {
+					throw new Error("No export data received")
+				}
 				const { exportToCSV } = await import("@/lib/utils/excel")
+				const exportData = result.data.data as unknown as Record<string, unknown>[]
 				exportToCSV(
-					exportData as unknown as Record<string, unknown>[],
+					exportData,
 					`campaign-${campaignId}-enrollments-${new Date().toISOString().split("T")[0]}`,
 					[
 						{ key: "enrollmentId", header: "Enrollment ID" },
@@ -959,7 +902,7 @@ function EnrollmentsTab({ campaignId, enrollments, organizationId }: Enrollments
 	}
 
 	// Table columns definition (same as enrollments page)
-	const columns: ColumnDef<enrollments.EnrollmentWithRelations>[] = React.useMemo(
+	const columns: ColumnDef<organizations.EnrollmentWithRelations>[] = React.useMemo(
 		() => [
 			{
 				accessorKey: "orderId",
@@ -983,18 +926,19 @@ function EnrollmentsTab({ campaignId, enrollments, organizationId }: Enrollments
 				},
 				cell: ({ row }) => {
 					const enrollment = row.original
-					const displayName = enrollment.orderId || enrollment.shopperId.slice(0, 8)
+					const shopperId = enrollment.shopperId || ""
+					const displayName = enrollment.orderId || shopperId.slice(0, 8)
 					return (
 						<div className="flex items-center gap-3">
 							<Avatar.Root size="32" color={getAvatarColor(displayName)}>
-								{displayName.charAt(0).toUpperCase()}
+								{getInitial(displayName)}
 							</Avatar.Root>
 							<div>
 								<div className="text-label-sm text-text-strong-950 font-medium">
-									{enrollment.orderId || `#${enrollment.shopperId.slice(0, 8)}`}
+									{enrollment.orderId || `#${shopperId.slice(0, 8)}`}
 								</div>
 								<div className="text-paragraph-xs text-text-sub-600">
-									{enrollment.shopperId.slice(0, 8)}...
+									{shopperId.slice(0, 8)}...
 								</div>
 							</div>
 						</div>
@@ -1029,10 +973,10 @@ function EnrollmentsTab({ campaignId, enrollments, organizationId }: Enrollments
 					return (
 						<div className="flex items-center gap-2">
 							<StatusBadge.Root
-								status={getStatusBadgeStatusForTab(enrollment.status)}
+								status={getEnrollmentStatusBadgeStatus(enrollment.status)}
 								variant="light"
 							>
-								{getStatusLabelForTab(enrollment.status)}
+								{getEnrollmentStatusLabel(enrollment.status)}
 							</StatusBadge.Root>
 							{enrollmentOverdue && (
 								<Badge.Root color="red" variant="lighter" size="small">
@@ -1098,7 +1042,7 @@ function EnrollmentsTab({ campaignId, enrollments, organizationId }: Enrollments
 					return (
 						<div>
 							<div className="text-paragraph-sm text-text-strong-950">
-								{formatDate(row.original.createdAt)}
+								{formatDateMedium(row.original.createdAt)}
 							</div>
 							<div className="text-paragraph-xs text-text-sub-600">
 								{getTimeAgo(row.original.createdAt)}
@@ -1132,7 +1076,7 @@ function EnrollmentsTab({ campaignId, enrollments, organizationId }: Enrollments
 				size: 100,
 			},
 		],
-		[router, formatCurrency, formatDate, organizationId]
+		[router, organizationId]
 	)
 
 	// Initialize table
@@ -1297,8 +1241,8 @@ function EnrollmentsTab({ campaignId, enrollments, organizationId }: Enrollments
 // Statistics Tab Component
 interface StatisticsTabProps {
 	campaign: CampaignWithStats
-	stats: CampaignStats | undefined
-	performanceData: campaigns.CampaignPerformance[] | undefined
+	stats: CampaignStats | null | undefined
+	performanceData: organizations.CampaignPerformance[] | undefined
 }
 
 function StatisticsTab({ stats, performanceData }: StatisticsTabProps) {
@@ -1341,3 +1285,5 @@ function StatisticsTab({ stats, performanceData }: StatisticsTabProps) {
 		</div>
 	)
 }
+
+// DeliverablesTab is now imported from ./deliverables-tab.tsx

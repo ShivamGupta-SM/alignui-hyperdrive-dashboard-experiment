@@ -1,6 +1,18 @@
 /**
  * Integrations Feature - Public API
+ *
+ * NOTE: Platform admin operations are not available in the brand client.
+ * Only read operations (list, get) are available.
  */
+
+// Types - Note: Using 'platforms' namespace (not 'integrations')
+export type {
+	Platform,
+	PlatformType,
+	PlatformStatus,
+	ListPlatformsParams,
+	PlatformsResponse,
+} from "./types"
 
 // Hooks
 export {
@@ -10,5 +22,7 @@ export {
 	usePlatforms,
 	useActivePlatforms,
 	usePlatform,
-	usePlatformByName,
 } from "./hooks/use-integrations"
+
+// NOTE: Admin actions (createPlatform, updatePlatform, deletePlatform, etc.)
+// are not available in the brand client

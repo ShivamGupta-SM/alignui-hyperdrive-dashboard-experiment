@@ -51,7 +51,6 @@ export const organizationsHandlers = [
 			cinNumber: org.cinNumber || undefined,
 			gstNumber: org.gstNumber || undefined,
 			gstVerified: org.gstVerified || false,
-			// ❌ REMOVED: PAN fields - PAN is only for shoppers, not organizations
 			approvalStatus: org.approvalStatus || "draft",
 			createdAt: new Date().toISOString(), // Not in schema, use current time
 			updatedAt: new Date().toISOString(), // Not in schema, use current time
@@ -201,12 +200,25 @@ export const organizationsHandlers = [
 			return encoreErrorResponse("Invalid GST number format", 400)
 		}
 
-		// Mock GST verification response
+		// Mock GST verification response (simulating SurePass API response)
+		const stateCode = body.gstNumber.substring(0, 2)
+		const stateNames: Record<string, string> = {
+			"01": "Jammu & Kashmir", "02": "Himachal Pradesh", "03": "Punjab",
+			"04": "Chandigarh", "05": "Uttarakhand", "06": "Haryana", "07": "Delhi",
+			"08": "Rajasthan", "09": "Uttar Pradesh", "10": "Bihar", "27": "Maharashtra",
+			"29": "Karnataka", "32": "Kerala", "33": "Tamil Nadu", "36": "Telangana",
+		}
 		const gstDetails = {
-			legalName: body.gstNumber.substring(0, 10).toUpperCase() + " Legal",
-			tradeName: body.gstNumber.substring(0, 10).toLowerCase(),
-			status: "Active",
-			address: "123 Business Street, City, State - 123456",
+			legalName: "SHIVAM GUPTA",
+			tradeName: "SHARKS MARKETING",
+			gstStatus: "Active",
+			address: "286/1, Kanti Factory Road, Near Anjali Gas Agency, Mahatma Gandhi Nagar",
+			city: "Bengaluru",
+			state: stateNames[stateCode] || "Karnataka",
+			stateCode: stateCode,
+			pinCode: "560001",
+			phone: "+91 9876543210",
+			contactPerson: "Shivam Gupta",
 			gstNumber: body.gstNumber,
 			verifiedAt: new Date().toISOString(),
 		}
@@ -222,8 +234,6 @@ export const organizationsHandlers = [
 
 		return encoreResponse(gstDetails)
 	}),
-
-	// ❌ REMOVED: PAN verification endpoint - PAN is only for shoppers, not organizations
 
 	// POST /organizations/:id/submit-for-approval - Submit organization for approval
 	http.post(encoreUrl("/organizations/:id/submit-for-approval"), async ({ params }) => {

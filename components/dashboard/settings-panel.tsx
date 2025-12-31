@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useTheme } from "next-themes"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import * as Avatar from "@/components/ui/primitives/avatar"
 import * as Switch from "@/components/ui/forms/switch"
 import * as Button from "@/components/ui/primitives/button"
@@ -29,9 +29,16 @@ import {
 	Plus,
 } from "@phosphor-icons/react"
 import { useParams } from "next/navigation"
-import { useSession } from "@/features/auth"
-import { useOrganizations } from "@/features/organizations"
-import { useSignOut } from "@/features/auth"
+import { useSession, useSignOut } from "@/features/auth"
+import { useUpdateOrganization } from "@/features/organizations"
+import { useCurrentOrganization } from "@/hooks"
+import { useTeamMembers, useInviteMember } from "@/features/team"
+import { useNotificationPreferences, useUpdateNotificationPreferences } from "@/features/notifications"
+import { useUpdateProfile, useUpdatePassword } from "@/features/settings"
+import { DISPLAY_LIMITS } from "@/lib/constants"
+import { getInitial } from "@/lib/utils/string"
+import { routes } from "@/lib/routes"
+import { toast } from "sonner"
 
 interface SettingsPanelProps {
 	open: boolean
@@ -50,22 +57,6 @@ type SubPanelType =
 	| null
 
 export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
-	const { theme, setTheme, resolvedTheme } = useTheme()
-	const { data: session } = useSession()
-	const user = session?.user
-	// URL-based multi-tenancy: get organization from URL params
-	const params = useParams<{ organizationId?: string }>()
-	const { data: orgsData } = useOrganizations()
-	const organizations = orgsData?.organizations || []
-	const currentOrganization = organizations.find(org => org.id === params.organizationId)
-	const { signOut: handleSignOut } = useSignOut()
-
-	const isDarkMode = resolvedTheme === "dark"
-	const onToggleDarkMode = React.useCallback(() => {
-		setTheme(resolvedTheme === "dark" ? "light" : "dark")
-	}, [resolvedTheme, setTheme])
-	const onSignOut = handleSignOut
-	const organization = currentOrganization ? { name: currentOrganization.name } : undefined
 	const [activeSubPanel, setActiveSubPanel] = React.useState<SubPanelType>(null)
 
 	// Close panel handler
@@ -125,7 +116,6 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
 						type={activeSubPanel}
 						onBack={handleBack}
 						onClose={handleClose}
-						isDarkMode={isDarkMode}
 					/>
 				)}
 			</div>
@@ -142,20 +132,16 @@ interface MainSettingsPanelProps {
 }
 
 function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
-	const { theme, setTheme, resolvedTheme } = useTheme()
+	const { setTheme, resolvedTheme } = useTheme()
 	const { data: session } = useSession()
 	const user = session?.user
-	// URL-based multi-tenancy: get organization from URL params
-	const params = useParams<{ organizationId?: string }>()
-	const { data: orgsData } = useOrganizations()
-	const organizations = orgsData?.organizations || []
-	const currentOrganization = organizations.find(org => org.id === params.organizationId)
+	// SSOT: useCurrentOrganization auto-extracts organizationId from URL params
+	const { organization, organizationId } = useCurrentOrganization()
 	const { signOut: handleSignOut } = useSignOut()
 
 	const isDarkMode = resolvedTheme === "dark"
 	const onToggleDarkMode = () => setTheme(resolvedTheme === "dark" ? "light" : "dark")
 	const onSignOut = handleSignOut
-	const organization = currentOrganization ? { name: currentOrganization.name } : undefined
 	return (
 		<div className="flex h-full flex-col">
 			{/* Header - Consistent with notifications drawer */}
@@ -168,7 +154,7 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 									<Avatar.Image src={user.image} alt={user.name || ""} />
 								) : (
 									<span className="text-label-md font-semibold">
-										{(user.name || user.email || "U").charAt(0).toUpperCase()}
+										{getInitial(user.name || user.email)}
 									</span>
 								)}
 							</Avatar.Root>
@@ -219,19 +205,19 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 						<MenuItem
 							icon={User}
 							label="My Profile"
-							href={`/dashboard/${params.organizationId}/profile`}
+							href={organizationId ? routes.dashboard.profile(organizationId) : routes.dashboard.root}
 							onClick={onClose}
 						/>
 						<MenuItem
 							icon={Lock}
 							label="Change Password"
-							href={`/dashboard/${params.organizationId}/profile#security`}
+							href={organizationId ? routes.dashboard.profile(organizationId, "security") : routes.dashboard.root}
 							onClick={onClose}
 						/>
 						<MenuItem
 							icon={Bell}
 							label="Notifications"
-							href={`/dashboard/${params.organizationId}/profile#notifications`}
+							href={organizationId ? routes.dashboard.profile(organizationId, "notifications") : routes.dashboard.root}
 							onClick={onClose}
 						/>
 						<div className="flex items-center justify-between rounded-10 px-3 py-2.5">
@@ -257,13 +243,13 @@ function MainSettingsPanel({ onClose, onMenuClick }: MainSettingsPanelProps) {
 						<MenuItem
 							icon={Buildings}
 							label="Organization Settings"
-							href={`/dashboard/${params.organizationId}/settings`}
+							href={organizationId ? routes.dashboard.settings(organizationId) : routes.dashboard.root}
 							onClick={onClose}
 						/>
 						<MenuItem
 							icon={UsersThree}
 							label="Team Members"
-							href={`/dashboard/${params.organizationId}/team`}
+							href={organizationId ? routes.dashboard.team(organizationId) : routes.dashboard.root}
 							onClick={onClose}
 						/>
 					</div>
@@ -315,7 +301,6 @@ interface SubPanelProps {
 	type: SubPanelType
 	onBack: () => void
 	onClose: () => void
-	isDarkMode?: boolean
 }
 
 function SubPanel({ type, onBack, onClose }: SubPanelProps) {
@@ -369,85 +354,41 @@ function SubPanel({ type, onBack, onClose }: SubPanelProps) {
 
 // ===========================================
 // NOTIFICATIONS SUB-PANEL
+// Uses useNotificationPreferences and useUpdateNotificationPreferences hooks
 // ===========================================
 function NotificationsSubPanel() {
-	const [isLoading, setIsLoading] = React.useState(true)
-	const [isSaving, setIsSaving] = React.useState(false)
+	const { data: preferences, isPending: isLoading } = useNotificationPreferences()
+	const updatePreferences = useUpdateNotificationPreferences()
 	const [saved, setSaved] = React.useState(false)
 
-	const [emailSettings, setEmailSettings] = React.useState({
-		newEnrollments: true,
-		campaignApprovals: true,
-		walletUpdates: false,
-		weeklySummary: true,
-	})
+	// Local state for form - initialized from API data
+	const [emailEnabled, setEmailEnabled] = React.useState(true)
+	const [pushEnabled, setPushEnabled] = React.useState(true)
+	const [inAppEnabled, setInAppEnabled] = React.useState(true)
 
-	const [pushSettings, setPushSettings] = React.useState({
-		instantAlerts: true,
-		dailyDigest: false,
-	})
-
-	const [quietHours, setQuietHours] = React.useState({
-		enabled: false,
-		from: "22:00",
-		to: "07:00",
-	})
-
-	// Fetch notification settings on mount
+	// Sync local state when preferences load
 	React.useEffect(() => {
-		async function fetchSettings() {
-			try {
-				const response = await fetch("/api/user/notifications")
-				if (response.ok) {
-					const data = await response.json()
-					const settings = data.data || data
-					setEmailSettings({
-						newEnrollments: settings.enrollmentAlerts ?? true,
-						campaignApprovals: settings.campaignUpdates ?? true,
-						walletUpdates: settings.walletAlerts ?? false,
-						weeklySummary: settings.weeklyDigest ?? true,
-					})
-					setPushSettings({
-						instantAlerts: settings.pushNotifications ?? true,
-						dailyDigest: settings.marketingEmails ?? false,
-					})
-					setQuietHours({
-						enabled: settings.quietHoursEnabled ?? false,
-						from: settings.quietHoursStart ?? "22:00",
-						to: settings.quietHoursEnd ?? "07:00",
-					})
-				}
-			} finally {
-				setIsLoading(false)
-			}
+		if (preferences?.global) {
+			setEmailEnabled(preferences.global.email ?? true)
+			setPushEnabled(preferences.global.push ?? true)
+			setInAppEnabled(preferences.global.inApp ?? true)
 		}
-		fetchSettings()
-	}, [])
+	}, [preferences])
 
 	const handleSave = async () => {
-		setIsSaving(true)
 		try {
-			const response = await fetch("/api/user/notifications", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					enrollmentAlerts: emailSettings.newEnrollments,
-					campaignUpdates: emailSettings.campaignApprovals,
-					walletAlerts: emailSettings.walletUpdates,
-					weeklyDigest: emailSettings.weeklySummary,
-					pushNotifications: pushSettings.instantAlerts,
-					marketingEmails: pushSettings.dailyDigest,
-					quietHoursEnabled: quietHours.enabled,
-					quietHoursStart: quietHours.from,
-					quietHoursEnd: quietHours.to,
-				}),
+			await updatePreferences.mutateAsync({
+				channels: {
+					email: emailEnabled,
+					push: pushEnabled,
+					inApp: inAppEnabled,
+				},
 			})
-			if (response.ok) {
-				setSaved(true)
-				setTimeout(() => setSaved(false), 2000)
-			}
-		} finally {
-			setIsSaving(false)
+			setSaved(true)
+			toast.success("Notification preferences saved")
+			setTimeout(() => setSaved(false), 2000)
+		} catch {
+			toast.error("Failed to save preferences")
 		}
 	}
 
@@ -468,24 +409,9 @@ function NotificationsSubPanel() {
 				<SectionHeader>Email Notifications</SectionHeader>
 				<div className="space-y-1 mt-3">
 					<ToggleRow
-						label="New Enrollments"
-						checked={emailSettings.newEnrollments}
-						onChange={(v) => setEmailSettings({ ...emailSettings, newEnrollments: v })}
-					/>
-					<ToggleRow
-						label="Campaign Approvals"
-						checked={emailSettings.campaignApprovals}
-						onChange={(v) => setEmailSettings({ ...emailSettings, campaignApprovals: v })}
-					/>
-					<ToggleRow
-						label="Wallet Updates"
-						checked={emailSettings.walletUpdates}
-						onChange={(v) => setEmailSettings({ ...emailSettings, walletUpdates: v })}
-					/>
-					<ToggleRow
-						label="Weekly Summary"
-						checked={emailSettings.weeklySummary}
-						onChange={(v) => setEmailSettings({ ...emailSettings, weeklySummary: v })}
+						label="Email Notifications"
+						checked={emailEnabled}
+						onChange={setEmailEnabled}
 					/>
 				</div>
 			</div>
@@ -497,70 +423,42 @@ function NotificationsSubPanel() {
 				<SectionHeader>Push Notifications</SectionHeader>
 				<div className="space-y-1 mt-3">
 					<ToggleRow
-						label="Instant Alerts"
-						checked={pushSettings.instantAlerts}
-						onChange={(v) => setPushSettings({ ...pushSettings, instantAlerts: v })}
-					/>
-					<ToggleRow
-						label="Daily Digest"
-						checked={pushSettings.dailyDigest}
-						onChange={(v) => setPushSettings({ ...pushSettings, dailyDigest: v })}
+						label="Push Notifications"
+						checked={pushEnabled}
+						onChange={setPushEnabled}
 					/>
 				</div>
 			</div>
 
 			<Divider.Root />
 
-			{/* Quiet Hours */}
+			{/* In-App Notifications */}
 			<div>
-				<SectionHeader>Quiet Hours</SectionHeader>
-				<div className="space-y-3 mt-3">
+				<SectionHeader>In-App Notifications</SectionHeader>
+				<div className="space-y-1 mt-3">
 					<ToggleRow
-						label="Enable"
-						checked={quietHours.enabled}
-						onChange={(v) => setQuietHours({ ...quietHours, enabled: v })}
+						label="In-App Notifications"
+						checked={inAppEnabled}
+						onChange={setInAppEnabled}
 					/>
-					{quietHours.enabled && (
-						<div className="grid grid-cols-2 gap-3 pl-3">
-							<div>
-								<label className="text-label-xs text-text-sub-600 mb-1.5 block">From</label>
-								<Input.Root>
-									<Input.Wrapper>
-										<Input.El
-											type="time"
-											value={quietHours.from}
-											onChange={(e) => setQuietHours({ ...quietHours, from: e.target.value })}
-										/>
-									</Input.Wrapper>
-								</Input.Root>
-							</div>
-							<div>
-								<label className="text-label-xs text-text-sub-600 mb-1.5 block">To</label>
-								<Input.Root>
-									<Input.Wrapper>
-										<Input.El
-											type="time"
-											value={quietHours.to}
-											onChange={(e) => setQuietHours({ ...quietHours, to: e.target.value })}
-										/>
-									</Input.Wrapper>
-								</Input.Root>
-							</div>
-						</div>
-					)}
 				</div>
 			</div>
 
 			<Divider.Root />
 
 			{/* Save Button */}
-			<Button.Root variant="primary" className="w-full" onClick={handleSave} disabled={isSaving}>
+			<Button.Root
+				variant="primary"
+				className="w-full"
+				onClick={handleSave}
+				disabled={updatePreferences.isPending}
+			>
 				{saved ? (
 					<>
 						<Check className="size-4" weight="bold" />
 						Saved!
 					</>
-				) : isSaving ? (
+				) : updatePreferences.isPending ? (
 					"Saving..."
 				) : (
 					"Save Changes"
@@ -572,27 +470,30 @@ function NotificationsSubPanel() {
 
 // ===========================================
 // PROFILE SUB-PANEL
+// Uses useSession for current user and useUpdateProfile hook
 // ===========================================
 function ProfileSubPanel() {
+	const { data: session } = useSession()
+	const user = session?.user
+	const updateProfile = useUpdateProfile()
 	const [name, setName] = React.useState("")
-	const [phone, setPhone] = React.useState("")
-	const [isLoading, setIsLoading] = React.useState(false)
 	const [saved, setSaved] = React.useState(false)
 
+	// Initialize from session
+	React.useEffect(() => {
+		if (user?.name) {
+			setName(user.name)
+		}
+	}, [user])
+
 	const handleSave = async () => {
-		setIsLoading(true)
 		try {
-			const response = await fetch("/api/profile/data", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name, phone }),
-			})
-			if (response.ok) {
-				setSaved(true)
-				setTimeout(() => setSaved(false), 2000)
-			}
-		} finally {
-			setIsLoading(false)
+			await updateProfile.mutateAsync({ name })
+			setSaved(true)
+			toast.success("Profile updated")
+			setTimeout(() => setSaved(false), 2000)
+		} catch {
+			toast.error("Failed to update profile")
 		}
 	}
 
@@ -600,7 +501,11 @@ function ProfileSubPanel() {
 		<div className="space-y-5">
 			<div className="flex flex-col items-center py-4">
 				<Avatar.Root size="80" color="blue" className="ring-4 ring-bg-weak-50">
-					<span className="text-title-h4">{name ? name.charAt(0).toUpperCase() : "U"}</span>
+					{user?.image ? (
+						<Avatar.Image src={user.image} alt={user.name || ""} />
+					) : (
+						<span className="text-title-h4">{getInitial(name || user?.name || user?.email)}</span>
+					)}
 				</Avatar.Root>
 				<Button.Root variant="ghost" size="small" className="mt-3">
 					Change Photo
@@ -609,10 +514,11 @@ function ProfileSubPanel() {
 
 			<div className="space-y-4">
 				<div>
-					<label className="text-label-sm text-text-strong-950 mb-2 block">Full Name</label>
+					<label htmlFor="profile-full-name" className="text-label-sm text-text-strong-950 mb-2 block">Full Name</label>
 					<Input.Root>
 						<Input.Wrapper>
 							<Input.El
+								id="profile-full-name"
 								placeholder="Enter your name"
 								value={name}
 								onChange={(e) => setName(e.target.value)}
@@ -621,35 +527,33 @@ function ProfileSubPanel() {
 					</Input.Root>
 				</div>
 				<div>
-					<label className="text-label-sm text-text-strong-950 mb-2 block">Email</label>
-					<Input.Root>
-						<Input.Wrapper>
-							<Input.El type="email" placeholder="your@email.com" disabled />
-						</Input.Wrapper>
-					</Input.Root>
-				</div>
-				<div>
-					<label className="text-label-sm text-text-strong-950 mb-2 block">Phone</label>
+					<label htmlFor="profile-email" className="text-label-sm text-text-strong-950 mb-2 block">Email</label>
 					<Input.Root>
 						<Input.Wrapper>
 							<Input.El
-								type="tel"
-								placeholder="+91 XXXXX XXXXX"
-								value={phone}
-								onChange={(e) => setPhone(e.target.value)}
+								id="profile-email"
+								type="email"
+								placeholder="your@email.com"
+								value={user?.email || ""}
+								disabled
 							/>
 						</Input.Wrapper>
 					</Input.Root>
 				</div>
 			</div>
 
-			<Button.Root variant="primary" className="w-full" onClick={handleSave} disabled={isLoading}>
+			<Button.Root
+				variant="primary"
+				className="w-full"
+				onClick={handleSave}
+				disabled={updateProfile.isPending || !name}
+			>
 				{saved ? (
 					<>
 						<Check className="size-4" weight="bold" />
 						Saved!
 					</>
-				) : isLoading ? (
+				) : updateProfile.isPending ? (
 					"Saving..."
 				) : (
 					"Save Changes"
@@ -661,12 +565,13 @@ function ProfileSubPanel() {
 
 // ===========================================
 // PASSWORD SUB-PANEL
+// Uses useUpdatePassword hook
 // ===========================================
 function PasswordSubPanel() {
+	const updatePassword = useUpdatePassword()
 	const [currentPassword, setCurrentPassword] = React.useState("")
 	const [newPassword, setNewPassword] = React.useState("")
 	const [confirmPassword, setConfirmPassword] = React.useState("")
-	const [isLoading, setIsLoading] = React.useState(false)
 	const [saved, setSaved] = React.useState(false)
 	const [error, setError] = React.useState("")
 
@@ -680,25 +585,24 @@ function PasswordSubPanel() {
 			setError("Password must be at least 8 characters")
 			return
 		}
-		setIsLoading(true)
 		try {
-			const response = await fetch("/api/user/password", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ currentPassword, newPassword, confirmPassword: newPassword }),
+			const result = await updatePassword.mutateAsync({
+				currentPassword,
+				newPassword,
 			})
-			if (response.ok) {
+			if (result?.data?.success) {
 				setSaved(true)
 				setCurrentPassword("")
 				setNewPassword("")
 				setConfirmPassword("")
+				toast.success("Password updated")
 				setTimeout(() => setSaved(false), 2000)
 			} else {
-				const data = await response.json()
-				setError(data.error || "Failed to update password")
+				setError("Failed to update password")
 			}
-		} finally {
-			setIsLoading(false)
+		} catch {
+			setError("Failed to update password")
+			toast.error("Failed to update password")
 		}
 	}
 
@@ -706,10 +610,11 @@ function PasswordSubPanel() {
 		<div className="space-y-5">
 			<div className="space-y-4">
 				<div>
-					<label className="text-label-sm text-text-strong-950 mb-2 block">Current Password</label>
+					<label htmlFor="current-password" className="text-label-sm text-text-strong-950 mb-2 block">Current Password</label>
 					<Input.Root>
 						<Input.Wrapper>
 							<Input.El
+								id="current-password"
 								type="password"
 								placeholder="Enter current password"
 								value={currentPassword}
@@ -719,10 +624,11 @@ function PasswordSubPanel() {
 					</Input.Root>
 				</div>
 				<div>
-					<label className="text-label-sm text-text-strong-950 mb-2 block">New Password</label>
+					<label htmlFor="new-password" className="text-label-sm text-text-strong-950 mb-2 block">New Password</label>
 					<Input.Root>
 						<Input.Wrapper>
 							<Input.El
+								id="new-password"
 								type="password"
 								placeholder="Enter new password"
 								value={newPassword}
@@ -732,10 +638,11 @@ function PasswordSubPanel() {
 					</Input.Root>
 				</div>
 				<div>
-					<label className="text-label-sm text-text-strong-950 mb-2 block">Confirm Password</label>
+					<label htmlFor="confirm-password" className="text-label-sm text-text-strong-950 mb-2 block">Confirm Password</label>
 					<Input.Root>
 						<Input.Wrapper>
 							<Input.El
+								id="confirm-password"
 								type="password"
 								placeholder="Confirm new password"
 								value={confirmPassword}
@@ -751,14 +658,14 @@ function PasswordSubPanel() {
 				variant="primary"
 				className="w-full"
 				onClick={handleUpdate}
-				disabled={isLoading || !currentPassword || !newPassword || !confirmPassword}
+				disabled={updatePassword.isPending || !currentPassword || !newPassword || !confirmPassword}
 			>
 				{saved ? (
 					<>
 						<Check className="size-4" weight="bold" />
 						Updated!
 					</>
-				) : isLoading ? (
+				) : updatePassword.isPending ? (
 					"Updating..."
 				) : (
 					"Update Password"
@@ -812,9 +719,9 @@ function ContactSubPanel() {
 
 			<div className="space-y-4">
 				<div>
-					<label className="text-label-sm text-text-strong-950 mb-2 block">Subject</label>
+					<label htmlFor="contact-subject" className="text-label-sm text-text-strong-950 mb-2 block">Subject</label>
 					<Select.Root>
-						<Select.Trigger className="w-full">
+						<Select.Trigger id="contact-subject" className="w-full">
 							<Select.Value placeholder="Select a topic" />
 						</Select.Trigger>
 						<Select.Content>
@@ -825,8 +732,9 @@ function ContactSubPanel() {
 					</Select.Root>
 				</div>
 				<div>
-					<label className="text-label-sm text-text-strong-950 mb-2 block">Message</label>
+					<label htmlFor="contact-message" className="text-label-sm text-text-strong-950 mb-2 block">Message</label>
 					<textarea
+						id="contact-message"
 						className="w-full rounded-10 border border-stroke-soft-200 bg-bg-white-0 px-3 py-2.5 text-paragraph-sm text-text-strong-950 placeholder:text-text-soft-400 focus:outline-none focus:ring-2 focus:ring-primary-alpha-30 resize-none"
 						rows={4}
 						placeholder="Describe your issue..."
@@ -852,99 +760,102 @@ function ContactSubPanel() {
 
 // ===========================================
 // ORG SETTINGS SUB-PANEL
+// Uses useCurrentOrganization and useUpdateOrganization hooks
+// URL-based multi-tenancy: organizationId from URL params
 // ===========================================
 function OrgSettingsSubPanel() {
+	// SSOT: useCurrentOrganization auto-extracts organizationId from URL params
+	const { organization, organizationId, isLoading } = useCurrentOrganization()
+	const updateOrganization = useUpdateOrganization(organizationId)
+
 	const [name, setName] = React.useState("")
-	const [email, setEmail] = React.useState("")
-	const [website, setWebsite] = React.useState("")
-	const [industry, setIndustry] = React.useState("")
-	const [isLoading, setIsLoading] = React.useState(false)
 	const [saved, setSaved] = React.useState(false)
 
-	const handleSave = async () => {
-		setIsLoading(true)
-		try {
-			const response = await fetch("/api/settings/organization", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name, email, website, industry }),
-			})
-			if (response.ok) {
-				setSaved(true)
-				setTimeout(() => setSaved(false), 2000)
-			}
-		} finally {
-			setIsLoading(false)
+	// Initialize from organization data
+	// Note: auth.updateOrganizationAuth only supports name, slug, logo
+	React.useEffect(() => {
+		if (organization) {
+			setName(organization.name || "")
 		}
+	}, [organization])
+
+	const handleSave = async () => {
+		if (!organizationId) {
+			toast.error("No organization selected")
+			return
+		}
+		try {
+			// updateOrganizationAuth only supports: name, slug, logo
+			await updateOrganization.mutateAsync({
+				name,
+			})
+			setSaved(true)
+			toast.success("Organization settings saved")
+			setTimeout(() => setSaved(false), 2000)
+		} catch {
+			toast.error("Failed to save settings")
+		}
+	}
+
+	if (isLoading) {
+		return (
+			<div className="space-y-4">
+				{[1, 2, 3].map((i) => (
+					<div key={i} className="h-16 rounded-12 bg-bg-weak-50 animate-pulse" />
+				))}
+			</div>
+		)
+	}
+
+	if (!organizationId) {
+		return (
+			<div className="text-center py-8 text-text-sub-600">
+				<p className="text-paragraph-sm">No organization selected</p>
+			</div>
+		)
 	}
 
 	return (
 		<div className="space-y-5">
 			<div className="flex items-center gap-4 rounded-12 bg-bg-weak-50 p-4">
 				<div className="flex size-14 items-center justify-center rounded-12 bg-primary-base text-white font-semibold text-title-h5">
-					{name ? name.charAt(0).toUpperCase() : "O"}
+					{getInitial(name || organization?.name, "O")}
 				</div>
 				<div className="flex-1">
-					<h4 className="text-label-md text-text-strong-950">{name || "Your Organization"}</h4>
+					<h4 className="text-label-md text-text-strong-950">{name || organization?.name || "Your Organization"}</h4>
 					<p className="text-paragraph-xs text-text-sub-600">Business Account</p>
 				</div>
 			</div>
 
 			<div className="space-y-4">
 				<div>
-					<label className="text-label-sm text-text-strong-950 mb-2 block">Organization Name</label>
+					<label htmlFor="org-name" className="text-label-sm text-text-strong-950 mb-2 block">Organization Name</label>
 					<input
+						id="org-name"
 						type="text"
 						placeholder="Enter organization name"
 						value={name}
 						onChange={(e) => setName(e.target.value)}
 						className="w-full rounded-10 border border-stroke-soft-200 bg-bg-white-0 px-3 py-2.5 text-paragraph-sm text-text-strong-950 placeholder:text-text-soft-400 focus:outline-none focus:ring-2 focus:ring-primary-base focus:border-primary-base"
 					/>
-				</div>
-				<div>
-					<label className="text-label-sm text-text-strong-950 mb-2 block">Business Email</label>
-					<input
-						type="email"
-						placeholder="business@example.com"
-						value={email}
-						onChange={(e) => setEmail(e.target.value)}
-						className="w-full rounded-10 border border-stroke-soft-200 bg-bg-white-0 px-3 py-2.5 text-paragraph-sm text-text-strong-950 placeholder:text-text-soft-400 focus:outline-none focus:ring-2 focus:ring-primary-base focus:border-primary-base"
-					/>
-				</div>
-				<div>
-					<label className="text-label-sm text-text-strong-950 mb-2 block">Website</label>
-					<input
-						type="url"
-						placeholder="https://example.com"
-						value={website}
-						onChange={(e) => setWebsite(e.target.value)}
-						className="w-full rounded-10 border border-stroke-soft-200 bg-bg-white-0 px-3 py-2.5 text-paragraph-sm text-text-strong-950 placeholder:text-text-soft-400 focus:outline-none focus:ring-2 focus:ring-primary-base focus:border-primary-base"
-					/>
-				</div>
-				<div>
-					<label className="text-label-sm text-text-strong-950 mb-2 block">Industry</label>
-					<Select.Root value={industry} onValueChange={setIndustry}>
-						<Select.Trigger className="w-full">
-							<Select.Value placeholder="Select industry" />
-						</Select.Trigger>
-						<Select.Content>
-							<Select.Item value="ecommerce">E-Commerce</Select.Item>
-							<Select.Item value="retail">Retail</Select.Item>
-							<Select.Item value="technology">Technology</Select.Item>
-							<Select.Item value="fashion">Fashion</Select.Item>
-							<Select.Item value="other">Other</Select.Item>
-						</Select.Content>
-					</Select.Root>
+					<p className="text-paragraph-xs text-text-soft-400 mt-1.5">
+						This is your organization's display name.
+					</p>
 				</div>
 			</div>
 
-			<Button.Root variant="primary" className="w-full" onClick={handleSave} disabled={isLoading}>
+			<Button.Root
+				variant="primary"
+				className="w-full"
+				onClick={handleSave}
+				disabled={updateOrganization.isPending || !name}
+			>
 				{saved ? (
 					<>
 						<Check className="size-4" weight="bold" />
 						Saved!
 					</>
-				) : isLoading ? (
+				) : updateOrganization.isPending ? (
 					"Saving..."
 				) : (
 					"Save Changes"
@@ -958,56 +869,39 @@ function OrgSettingsSubPanel() {
 // TEAM SUB-PANEL
 // ===========================================
 function TeamSubPanel() {
-	const [teamMembers, setTeamMembers] = React.useState<
-		Array<{
-			id: string
-			name: string
-			email: string
-			role: string
-			avatar?: string
-		}>
-	>([])
-	const [isLoading, setIsLoading] = React.useState(true)
+	// URL-based multi-tenancy: organizationId from URL params
+	const params = useParams<{ organizationId?: string }>()
+	const orgId = params.organizationId ?? ""
+
+	// Use proper hooks instead of raw fetch
+	const { data: teamData, isLoading } = useTeamMembers(orgId)
+	const inviteMember = useInviteMember(orgId)
+
 	const [inviteEmail, setInviteEmail] = React.useState("")
-	const [isInviting, setIsInviting] = React.useState(false)
 	const [showInviteForm, setShowInviteForm] = React.useState(false)
 
-	React.useEffect(() => {
-		async function fetchTeam() {
-			try {
-				const response = await fetch("/api/team/members")
-				if (response.ok) {
-					const data = await response.json()
-					setTeamMembers(data.data || [])
-				}
-			} finally {
-				setIsLoading(false)
-			}
-		}
-		fetchTeam()
-	}, [])
+	// Transform team data to display format
+	const teamMembers = React.useMemo(() => {
+		if (!teamData?.members) return []
+		return teamData.members.map((member) => ({
+			id: member.id,
+			name: member.user?.name || member.user?.email || "Unknown",
+			email: member.user?.email || "",
+			role: member.role || "member",
+			avatar: member.user?.image || undefined,
+		}))
+	}, [teamData])
 
 	const handleInvite = async () => {
-		if (!inviteEmail) return
-		setIsInviting(true)
+		if (!inviteEmail || !orgId) return
+
 		try {
-			const response = await fetch("/api/team/members", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ email: inviteEmail, role: "viewer" }),
-			})
-			if (response.ok) {
-				setInviteEmail("")
-				setShowInviteForm(false)
-				// Refresh team list
-				const res = await fetch("/api/team/members")
-				if (res.ok) {
-					const data = await res.json()
-					setTeamMembers(data.data || [])
-				}
-			}
-		} finally {
-			setIsInviting(false)
+			await inviteMember.mutateAsync({ email: inviteEmail, role: "member" })
+			setInviteEmail("")
+			setShowInviteForm(false)
+			toast.success("Invitation sent successfully")
+		} catch {
+			toast.error("Failed to send invitation")
 		}
 	}
 
@@ -1017,7 +911,7 @@ function TeamSubPanel() {
 			.map((n) => n[0])
 			.join("")
 			.toUpperCase()
-			.slice(0, 2)
+			.slice(0, DISPLAY_LIMITS.INITIALS_LENGTH)
 	}
 
 	if (isLoading) {
@@ -1063,9 +957,9 @@ function TeamSubPanel() {
 						size="small"
 						className="w-full"
 						onClick={handleInvite}
-						disabled={isInviting || !inviteEmail}
+						disabled={inviteMember.isPending || !inviteEmail}
 					>
-						{isInviting ? "Sending..." : "Send Invitation"}
+						{inviteMember.isPending ? "Sending..." : "Send Invitation"}
 					</Button.Root>
 				</div>
 			)}

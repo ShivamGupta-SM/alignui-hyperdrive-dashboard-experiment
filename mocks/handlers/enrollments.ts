@@ -6,6 +6,7 @@
 
 import { http } from "msw"
 import { db } from "@/mocks/db"
+import type { Enrollment } from "@/mocks/db/schemas"
 import {
   getAuthContext,
   encoreUrl,
@@ -17,7 +18,7 @@ import {
 import { delay, DELAY } from "@/mocks/utils/delay"
 
 // Enrollment already in Encore format from database - return as-is
-function toEnrollmentWithRelations(enrollment: any) {
+function toEnrollmentWithRelations(enrollment: Enrollment) {
   return enrollment
 }
 

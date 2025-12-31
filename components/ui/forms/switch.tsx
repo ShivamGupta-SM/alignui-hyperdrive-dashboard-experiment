@@ -1,10 +1,18 @@
-// AlignUI Switch v0.3.0
-// Clean iOS-style toggle switch design
+// AlignUI Switch v0.4.0 - Enhanced with error states and accessibility
+// Improvements: errorId prop, aria-describedby, enhanced error styling
 
 import * as React from "react"
 import * as SwitchPrimitives from "@radix-ui/react-switch"
-import { cn } from "@/utils/cn"
-import { tv, type VariantProps } from "@/utils/tv"
+import { cn } from "@/lib/utils"
+import { tv, type VariantProps } from "@/lib/utils"
+
+/** Shared props for switch error states */
+export interface SwitchSharedProps {
+	/** Whether the switch has an error state */
+	hasError?: boolean
+	/** ID of the error message element for aria-describedby */
+	errorId?: string
+}
 
 const switchVariants = tv({
 	slots: {
@@ -38,14 +46,23 @@ const switchVariants = tv({
 	},
 })
 
-type SwitchProps = React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root> &
-	VariantProps<typeof switchVariants> & {
-		/** Whether the switch has an error state */
-		hasError?: boolean
-	}
+export type SwitchProps = React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root> &
+	VariantProps<typeof switchVariants> &
+	SwitchSharedProps
 
+/**
+ * Switch - Toggle switch with error state support
+ * @example
+ * <Switch.Root
+ *   checked={enabled}
+ *   onCheckedChange={setEnabled}
+ *   hasError={!!error}
+ *   errorId="switch-error"
+ * />
+ * {error && <span id="switch-error">{error}</span>}
+ */
 const Switch = React.forwardRef<React.ComponentRef<typeof SwitchPrimitives.Root>, SwitchProps>(
-	({ className, disabled, size, hasError, ...rest }, forwardedRef) => {
+	({ className, disabled, size, hasError, errorId, ...rest }, forwardedRef) => {
 		const { root, thumb } = switchVariants({ size })
 
 		return (
@@ -60,12 +77,17 @@ const Switch = React.forwardRef<React.ComponentRef<typeof SwitchPrimitives.Root>
 					"hover:data-[state=unchecked]:bg-bg-sub-300",
 					"hover:data-[state=checked]:bg-primary-darker",
 					// Error state
-					hasError && "ring-2 ring-error-base",
+					hasError && [
+						"ring-2 ring-error-base",
+						"data-[state=checked]:bg-error-base",
+						"hover:data-[state=checked]:bg-error-dark",
+					],
 					className
 				)}
 				ref={forwardedRef}
 				disabled={disabled}
 				aria-invalid={hasError || undefined}
+				aria-describedby={errorId}
 				{...rest}
 			>
 				<SwitchPrimitives.Thumb
@@ -83,14 +105,33 @@ const Switch = React.forwardRef<React.ComponentRef<typeof SwitchPrimitives.Root>
 )
 Switch.displayName = SwitchPrimitives.Root.displayName
 
-// Switch with label and description
-interface LabeledSwitchProps extends SwitchProps {
+// ============================================
+// Labeled Switch with description
+// ============================================
+
+export interface LabeledSwitchProps extends SwitchProps {
+	/** Label text for the switch */
 	label: string
+	/** Optional description text */
 	description?: string
+	/** Position of the label relative to switch */
 	labelPosition?: "left" | "right"
+	/** Element ID (auto-generated if not provided) */
 	id?: string
 }
 
+/**
+ * LabeledSwitch - Switch with built-in label and optional description
+ * @example
+ * <LabeledSwitch
+ *   checked={notifications}
+ *   onCheckedChange={setNotifications}
+ *   label="Enable notifications"
+ *   description="Receive email updates"
+ *   hasError={required && !notifications}
+ *   errorId="notifications-error"
+ * />
+ */
 function LabeledSwitch({
 	label,
 	description,
@@ -98,10 +139,13 @@ function LabeledSwitch({
 	id,
 	disabled,
 	size = "md",
+	hasError,
+	errorId,
 	className,
 	...rest
 }: LabeledSwitchProps) {
 	const generatedId = React.useId()
+	const descriptionId = React.useId()
 	const switchId = id || generatedId
 
 	const labelContent = (
@@ -109,14 +153,16 @@ function LabeledSwitch({
 			<label
 				htmlFor={switchId}
 				className={cn(
-					"text-label-sm text-text-strong-950 cursor-pointer select-none",
-					disabled && "cursor-not-allowed text-text-disabled-300"
+					"text-label-sm cursor-pointer select-none",
+					disabled && "cursor-not-allowed text-text-disabled-300",
+					hasError ? "text-error-base" : "text-text-strong-950"
 				)}
 			>
 				{label}
 			</label>
 			{description && (
 				<span
+					id={descriptionId}
 					className={cn(
 						"text-paragraph-xs text-text-sub-600",
 						disabled && "text-text-disabled-300"
@@ -136,37 +182,93 @@ function LabeledSwitch({
 				className
 			)}
 		>
-			<Switch id={switchId} disabled={disabled} size={size} {...rest} />
+			<Switch
+				id={switchId}
+				disabled={disabled}
+				size={size}
+				hasError={hasError}
+				errorId={errorId}
+				aria-describedby={description ? descriptionId : errorId}
+				{...rest}
+			/>
 			{labelContent}
 		</div>
 	)
 }
 LabeledSwitch.displayName = "LabeledSwitch"
 
+// ============================================
 // Switch Group for multiple switches
-interface SwitchGroupProps extends React.HTMLAttributes<HTMLDivElement> {
+// ============================================
+
+export interface SwitchGroupProps extends React.HTMLAttributes<HTMLFieldSetElement> {
+	/** Group label */
 	label?: string
+	/** Layout orientation */
 	orientation?: "horizontal" | "vertical"
+	/** Whether the group has an error */
+	hasError?: boolean
+	/** Error message to display */
+	errorMessage?: string
+	/** ID for the error message (auto-generated if not provided) */
+	errorId?: string
 }
 
+/**
+ * SwitchGroup - Container for multiple switches with error state support
+ * @example
+ * <SwitchGroup
+ *   label="Notification Settings"
+ *   hasError={!hasAnyEnabled}
+ *   errorMessage="Enable at least one notification type"
+ * >
+ *   <LabeledSwitch label="Email" checked={email} onCheckedChange={setEmail} />
+ *   <LabeledSwitch label="SMS" checked={sms} onCheckedChange={setSms} />
+ * </SwitchGroup>
+ */
 function SwitchGroup({
 	children,
 	label,
 	orientation = "vertical",
+	hasError,
+	errorMessage,
+	errorId,
 	className,
 	...rest
 }: SwitchGroupProps) {
+	const generatedErrorId = React.useId()
+	const actualErrorId = errorId || generatedErrorId
+
 	return (
-		<div className={cn("flex flex-col gap-2", className)} role="group" aria-label={label} {...rest}>
-			{label && <span className="text-label-sm text-text-strong-950">{label}</span>}
+		<fieldset
+			className={cn("flex flex-col gap-2 border-0 p-0 m-0", className)}
+			aria-describedby={hasError && errorMessage ? actualErrorId : undefined}
+			aria-invalid={hasError || undefined}
+			{...rest}
+		>
+			{label && (
+				<legend
+					className={cn(
+						"text-label-sm",
+						hasError ? "text-error-base" : "text-text-strong-950"
+					)}
+				>
+					{label}
+				</legend>
+			)}
 			<div
 				className={cn("flex gap-4", orientation === "vertical" ? "flex-col" : "flex-row flex-wrap")}
 			>
 				{children}
 			</div>
-		</div>
+			{hasError && errorMessage && (
+				<span id={actualErrorId} className="text-paragraph-xs text-error-base" role="alert">
+					{errorMessage}
+				</span>
+			)}
+		</fieldset>
 	)
 }
 SwitchGroup.displayName = "SwitchGroup"
 
-export { Switch as Root, LabeledSwitch, SwitchGroup, switchVariants, type SwitchProps }
+export { Switch as Root, LabeledSwitch, SwitchGroup, switchVariants }

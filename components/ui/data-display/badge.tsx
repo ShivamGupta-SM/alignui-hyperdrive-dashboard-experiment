@@ -3,12 +3,12 @@
 "use client"
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { recursiveCloneChildren } from "@/utils/recursive-clone-children"
-import type { PolymorphicComponentProps } from "@/utils/polymorphic"
+import { tv, type VariantProps } from "@/lib/utils"
+import { recursiveCloneChildren } from "@/lib/utils"
+import type { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 import { Slot } from "@radix-ui/react-slot"
 import { X } from "@phosphor-icons/react"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 
 const BADGE_ROOT_NAME = "BadgeRoot"
 const BADGE_ICON_NAME = "BadgeIcon"

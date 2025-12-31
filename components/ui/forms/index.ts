@@ -1,4 +1,7 @@
 // Form components
+// Shared types
+export type { FormErrorProps, FormGroupErrorProps } from "./types"
+
 // Input exports Root, Icon, NumberInput - export with prefix
 export {
 	Root as InputRoot,
@@ -35,10 +38,12 @@ export {
 	CheckboxGroup,
 	CheckboxCard,
 } from "./checkbox"
-// Radio exports Group, Item - export with prefix
+// Radio exports Group, Item, LabeledItem, Card - export with prefix
 export {
 	Group as RadioGroup,
 	Item as RadioItem,
+	LabeledItem as RadioLabeledItem,
+	Card as RadioCard,
 } from "./radio"
 // Switch exports Root - export with prefix
 export {

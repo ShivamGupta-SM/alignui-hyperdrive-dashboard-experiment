@@ -18,6 +18,7 @@ export {
 	useDownloadInvoicePDF,
 	useGetInvoiceEnrollmentIds,
 	useGetEnrollmentsByIds,
+	useMarkInvoiceViewed,
 } from "./hooks/use-invoices"
 
 // Server Actions

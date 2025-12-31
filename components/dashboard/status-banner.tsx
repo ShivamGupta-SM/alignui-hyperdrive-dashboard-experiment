@@ -4,6 +4,11 @@
  * Shows contextual banner based on organization approval status.
  * Auto-hides when organization is approved.
  *
+ * URL-based multi-tenancy: Uses useCurrentOrganization which auto-extracts
+ * organizationId from URL params via useParams().
+ *
+ * SSOT: Uses STATUS_CHECKS from @/lib/utils/validations
+ *
  * Usage:
  * ```tsx
  * <StatusBanner />
@@ -12,9 +17,9 @@
 
 "use client"
 
-import React from "react"
+import type React from "react"
 import Link from "next/link"
-import { useOrganization } from "@/features/organizations"
+import { useCurrentOrganization } from "@/hooks"
 import * as Button from "@/components/ui/primitives/button"
 import {
   Clock,
@@ -25,7 +30,8 @@ import {
   Pencil,
   Info,
 } from "@phosphor-icons/react"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
+import { STATUS_CHECKS } from "@/lib/utils/validations"
 
 // =============================================================================
 // Types
@@ -91,40 +97,41 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
     iconColor: "text-error-700",
     icon: <Warning className="size-5" weight="duotone" />,
     title: "Account Suspended",
-    message: "Your organization has been suspended. Please contact support.",
+    message: "Your organization has been suspended. Please contact support at support@hypedrive.com",
     action: {
-      label: "Contact Support",
-      href: "/support",
+      label: "Email Support",
+      href: "mailto:support@hypedrive.com?subject=Account%20Suspended%20-%20Support%20Request",
     },
   },
 }
 
 // =============================================================================
-// Component
+// Component - URL-based multi-tenancy
 // =============================================================================
 
 export function StatusBanner() {
-  const { organization, isDraft, isPending, isApproved, isRejected, isBanned, isLoading } =
-    useOrganization()
+  // SSOT: useCurrentOrganization auto-extracts organizationId from URL params
+  const { organization, isLoading, isApproved } = useCurrentOrganization()
+  const approvalStatus = organization?.approvalStatus
 
   // Don't show banner for approved orgs or while loading
   if (isLoading || isApproved || !organization) {
     return null
   }
 
-  // Get config based on status
+  // Get config based on status - SSOT: Uses STATUS_CHECKS
   let config: StatusConfig | null = null
 
-  if (isDraft) {
+  if (STATUS_CHECKS.isDraft(approvalStatus)) {
     config = STATUS_CONFIG.draft
-  } else if (isPending) {
+  } else if (STATUS_CHECKS.isPending(approvalStatus)) {
     config = STATUS_CONFIG.pending
-  } else if (isRejected) {
+  } else if (STATUS_CHECKS.isRejected(approvalStatus)) {
     config = {
       ...STATUS_CONFIG.rejected,
       message: (organization as { rejectionReason?: string }).rejectionReason || "Please review and update your application.",
     }
-  } else if (isBanned) {
+  } else if (STATUS_CHECKS.isBanned(approvalStatus)) {
     config = STATUS_CONFIG.banned
   }
 
@@ -159,13 +166,15 @@ export function StatusBanner() {
 }
 
 // =============================================================================
-// Compact Version (for sidebar/header)
+// Compact Version (for sidebar/header) - URL-based
 // =============================================================================
 
 export function StatusBadge() {
-  const { isDraft, isApprovalPending, isApproved, isRejected, isBanned, isPending } = useOrganization()
+  // SSOT: useCurrentOrganization auto-extracts organizationId from URL params
+  const { organization, isLoading, isApproved } = useCurrentOrganization()
+  const approvalStatus = organization?.approvalStatus
 
-  if (isPending || isApproved) return null
+  if (isLoading || isApproved) return null
 
   const config = {
     draft: { label: "Draft", bg: "bg-neutral-100", text: "text-neutral-600" },
@@ -174,11 +183,12 @@ export function StatusBadge() {
     banned: { label: "Suspended", bg: "bg-error-100", text: "text-error-700" },
   }
 
+  // SSOT: Uses STATUS_CHECKS for status determination
   let status: keyof typeof config | null = null
-  if (isDraft) status = "draft"
-  else if (isApprovalPending) status = "pending"
-  else if (isRejected) status = "rejected"
-  else if (isBanned) status = "banned"
+  if (STATUS_CHECKS.isDraft(approvalStatus)) status = "draft"
+  else if (STATUS_CHECKS.isPending(approvalStatus)) status = "pending"
+  else if (STATUS_CHECKS.isRejected(approvalStatus)) status = "rejected"
+  else if (STATUS_CHECKS.isBanned(approvalStatus)) status = "banned"
 
   if (!status) return null
 
@@ -190,17 +200,23 @@ export function StatusBadge() {
 }
 
 // =============================================================================
-// Inline Status Indicator (for cards/lists)
+// Inline Status Indicator (for cards/lists) - URL-based
 // =============================================================================
 
-export function StatusIndicator({ size = "sm" }: { size?: "sm" | "md" }) {
-  const { isDraft, isApprovalPending, isApproved, isRejected, isBanned, isPending } = useOrganization()
+interface StatusIndicatorProps {
+  size?: "sm" | "md"
+}
 
-  if (isPending) return null
+export function StatusIndicator({ size = "sm" }: StatusIndicatorProps) {
+  // SSOT: useCurrentOrganization auto-extracts organizationId from URL params
+  const { organization, isLoading } = useCurrentOrganization()
+  const approvalStatus = organization?.approvalStatus
+
+  if (isLoading) return null
 
   const iconSize = size === "sm" ? "size-4" : "size-5"
 
-  if (isApproved) {
+  if (STATUS_CHECKS.isApproved(approvalStatus)) {
     return (
       <div className="flex items-center gap-1.5 text-success-600">
         <CheckCircle className={iconSize} weight="duotone" />
@@ -209,7 +225,7 @@ export function StatusIndicator({ size = "sm" }: { size?: "sm" | "md" }) {
     )
   }
 
-  if (isApprovalPending) {
+  if (STATUS_CHECKS.isPending(approvalStatus)) {
     return (
       <div className="flex items-center gap-1.5 text-warning-600">
         <Clock className={iconSize} weight="duotone" />
@@ -218,7 +234,7 @@ export function StatusIndicator({ size = "sm" }: { size?: "sm" | "md" }) {
     )
   }
 
-  if (isDraft) {
+  if (STATUS_CHECKS.isDraft(approvalStatus)) {
     return (
       <div className="flex items-center gap-1.5 text-neutral-500">
         <Pencil className={iconSize} weight="duotone" />
@@ -227,7 +243,7 @@ export function StatusIndicator({ size = "sm" }: { size?: "sm" | "md" }) {
     )
   }
 
-  if (isRejected) {
+  if (STATUS_CHECKS.isRejected(approvalStatus)) {
     return (
       <div className="flex items-center gap-1.5 text-error-600">
         <XCircle className={iconSize} weight="duotone" />
@@ -236,7 +252,7 @@ export function StatusIndicator({ size = "sm" }: { size?: "sm" | "md" }) {
     )
   }
 
-  if (isBanned) {
+  if (STATUS_CHECKS.isBanned(approvalStatus)) {
     return (
       <div className="flex items-center gap-1.5 text-error-700">
         <Warning className={iconSize} weight="duotone" />
@@ -249,19 +265,26 @@ export function StatusIndicator({ size = "sm" }: { size?: "sm" | "md" }) {
 }
 
 // =============================================================================
-// Info Banner (for pages that need full functionality)
+// Info Banner (for pages that need full functionality) - URL-based
 // =============================================================================
 
-export function RestrictedFeatureBanner({ feature }: { feature: string }) {
-  const { isPending, isDraft, isRejected } = useOrganization()
+interface RestrictedFeatureBannerProps {
+  feature: string
+}
 
-  if (!isPending && !isDraft && !isRejected) return null
+export function RestrictedFeatureBanner({ feature }: RestrictedFeatureBannerProps) {
+  // SSOT: useCurrentOrganization auto-extracts organizationId from URL params
+  const { organization, isDraft, isPending: isApprovalPending, isRejected } = useCurrentOrganization()
+  const approvalStatus = organization?.approvalStatus
+
+  // SSOT: Use needsAction check
+  if (!STATUS_CHECKS.needsAction(approvalStatus)) return null
 
   let message = ""
   let actionHref = "/onboarding"
   let actionLabel = "Complete Setup"
 
-  if (isPending) {
+  if (isApprovalPending) {
     message = `${feature} is available once your organization is approved.`
     actionHref = "/onboarding/pending"
     actionLabel = "Check Status"

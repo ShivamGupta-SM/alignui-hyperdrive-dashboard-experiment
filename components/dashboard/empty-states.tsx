@@ -1,7 +1,7 @@
 "use client"
 
-import * as React from "react"
 import Link from "next/link"
+import type { ElementType, ReactNode } from "react"
 import * as Button from "@/components/ui/primitives/button"
 import * as EmptyState from "@/components/ui/feedback/empty-state"
 import {
@@ -19,7 +19,129 @@ import {
 	WarningCircle,
 	WifiSlash,
 	Lock,
+	Bell,
+	ClockCounterClockwise,
+	ChartLine,
+	Funnel,
+	Buildings,
+	CheckCircle,
+	ArrowRight,
+	Warning,
 } from "@phosphor-icons/react"
+
+// ============================================
+// GENERIC SIMPLE EMPTY STATE
+// Use this for most empty states - reduces boilerplate significantly
+// ============================================
+
+type EmptyStateColor = "primary" | "success" | "warning" | "error" | "gray"
+type EmptyStateSize = "small" | "medium" | "large"
+
+interface EmptyStateAction {
+	label: string
+	href?: string
+	onClick?: () => void
+	variant?: "primary" | "neutral" | "ghost"
+	icon?: ElementType
+}
+
+interface SimpleEmptyStateProps {
+	icon: ElementType
+	iconColor?: EmptyStateColor
+	title: string
+	description: string
+	size?: EmptyStateSize
+	showPattern?: boolean
+	actions?: EmptyStateAction[]
+	children?: ReactNode // For custom content like step lists
+}
+
+/**
+ * SimpleEmptyState - Generic reusable empty state component
+ *
+ * Use this instead of creating new empty state components.
+ * Reduces ~500 lines of boilerplate to a single configurable component.
+ *
+ * @example
+ * <SimpleEmptyState
+ *   icon={Megaphone}
+ *   iconColor="primary"
+ *   title="No campaigns yet"
+ *   description="Create your first campaign to get started."
+ *   actions={[
+ *     { label: "Create Campaign", href: "/campaigns/create", variant: "primary", icon: Plus }
+ *   ]}
+ * />
+ */
+export function SimpleEmptyState({
+	icon: Icon,
+	iconColor = "gray",
+	title,
+	description,
+	size = "large",
+	showPattern = true,
+	actions = [],
+	children,
+}: SimpleEmptyStateProps) {
+	return (
+		<EmptyState.Root size={size}>
+			<EmptyState.Header showPattern={showPattern}>
+				<EmptyState.Icon color={iconColor}>
+					<Icon className="size-full" weight="duotone" />
+				</EmptyState.Icon>
+			</EmptyState.Header>
+			<EmptyState.Content>
+				<EmptyState.Title>{title}</EmptyState.Title>
+				<EmptyState.Description>{description}</EmptyState.Description>
+				{children}
+			</EmptyState.Content>
+			{actions.length > 0 && (
+				<EmptyState.Footer>
+					{actions.map((action) => (
+						action.href ? (
+							<Button.Root key={action.label} variant={action.variant || "primary"} asChild>
+								<Link href={action.href}>
+									{action.icon && <Button.Icon><action.icon className="size-5" /></Button.Icon>}
+									{action.label}
+								</Link>
+							</Button.Root>
+						) : (
+							<Button.Root key={action.label} variant={action.variant || "primary"} onClick={action.onClick}>
+								{action.icon && <Button.Icon><action.icon className="size-5" /></Button.Icon>}
+								{action.label}
+							</Button.Root>
+						)
+					))}
+				</EmptyState.Footer>
+			)}
+		</EmptyState.Root>
+	)
+}
+
+// ============================================
+// Organization Setup Required Empty State
+// ============================================
+
+interface OrganizationSetupRequiredEmptyStateProps {
+	title?: string
+	description?: string
+}
+
+export function OrganizationSetupRequiredEmptyState({
+	title = "Organization Setup Required",
+	description = "Complete your organization setup to access this feature. Your profile needs to be verified before you can continue.",
+}: OrganizationSetupRequiredEmptyStateProps) {
+	return (
+		<SimpleEmptyState
+			icon={Buildings}
+			iconColor="warning"
+			title={title}
+			description={description}
+			size="large"
+			actions={[{ label: "Complete Setup", href: "/onboarding" }]}
+		/>
+	)
+}
 
 // ============================================
 // Welcome Empty State (New Organization)
@@ -92,27 +214,18 @@ interface NoCampaignsEmptyStateProps {
 
 export function NoCampaignsEmptyState({ organizationId }: NoCampaignsEmptyStateProps) {
 	return (
-		<EmptyState.Root size="large">
-			<EmptyState.Header>
-				<EmptyState.Icon color="gray">
-					<Megaphone className="size-full" weight="duotone" />
-				</EmptyState.Icon>
-			</EmptyState.Header>
-			<EmptyState.Content>
-				<EmptyState.Title>No campaigns yet</EmptyState.Title>
-				<EmptyState.Description>
-					Create your first campaign to start accepting enrollments from shoppers.
-				</EmptyState.Description>
-			</EmptyState.Content>
-			<EmptyState.Footer>
-				<Button.Root variant="primary" asChild>
-					<Link href={`/dashboard/${organizationId}/campaigns/create`}>
-						<Button.Icon><Plus className="size-5" /></Button.Icon>
-						Create First Campaign
-					</Link>
-				</Button.Root>
-			</EmptyState.Footer>
-		</EmptyState.Root>
+		<SimpleEmptyState
+			icon={Megaphone}
+			iconColor="primary"
+			title="No campaigns yet"
+			description="Create your first campaign to start accepting enrollments from shoppers. Make sure you have products added and wallet funded first."
+			size="large"
+			actions={[{
+				label: "Create First Campaign",
+				href: `/dashboard/${organizationId}/campaigns/create`,
+				icon: Plus
+			}]}
+		/>
 	)
 }
 
@@ -126,25 +239,18 @@ interface NoPendingEnrollmentsEmptyStateProps {
 
 export function NoPendingEnrollmentsEmptyState({ organizationId }: NoPendingEnrollmentsEmptyStateProps) {
 	return (
-		<EmptyState.Root size="large">
-			<EmptyState.Header>
-				<EmptyState.Icon color="success">
-					<Check className="size-full" weight="bold" />
-				</EmptyState.Icon>
-			</EmptyState.Header>
-			<EmptyState.Content>
-				<EmptyState.Title>All caught up!</EmptyState.Title>
-				<EmptyState.Description>
-					No enrollments require your review right now. New submissions will appear here
-					automatically.
-				</EmptyState.Description>
-			</EmptyState.Content>
-			<EmptyState.Footer>
-				<Button.Root variant="neutral" asChild>
-					<Link href={`/dashboard/${organizationId}/enrollments`}>View All Enrollments</Link>
-				</Button.Root>
-			</EmptyState.Footer>
-		</EmptyState.Root>
+		<SimpleEmptyState
+			icon={Check}
+			iconColor="success"
+			title="All caught up!"
+			description="No enrollments require your review right now. New submissions will appear here automatically."
+			size="large"
+			actions={[{
+				label: "View All Enrollments",
+				href: `/dashboard/${organizationId}/enrollments`,
+				variant: "neutral"
+			}]}
+		/>
 	)
 }
 
@@ -158,28 +264,18 @@ interface NoProductsEmptyStateProps {
 
 export function NoProductsEmptyState({ organizationId }: NoProductsEmptyStateProps) {
 	return (
-		<EmptyState.Root size="large">
-			<EmptyState.Header>
-				<EmptyState.Icon color="gray">
-					<ShoppingBag className="size-full" weight="duotone" />
-				</EmptyState.Icon>
-			</EmptyState.Header>
-			<EmptyState.Content>
-				<EmptyState.Title>No products yet</EmptyState.Title>
-				<EmptyState.Description>
-					Add your products to create campaigns. Products help shoppers understand what they're
-					buying.
-				</EmptyState.Description>
-			</EmptyState.Content>
-			<EmptyState.Footer>
-				<Button.Root variant="primary" asChild>
-					<Link href={`/dashboard/${organizationId}/products/new`}>
-						<Button.Icon><Plus className="size-5" /></Button.Icon>
-						Add First Product
-					</Link>
-				</Button.Root>
-			</EmptyState.Footer>
-		</EmptyState.Root>
+		<SimpleEmptyState
+			icon={ShoppingBag}
+			iconColor="primary"
+			title="No products yet"
+			description="Products are essential for creating campaigns. Add your products with images and pricing to help shoppers understand what they'll be promoting."
+			size="large"
+			actions={[{
+				label: "Add First Product",
+				href: `/dashboard/${organizationId}/products/new`,
+				icon: Plus
+			}]}
+		/>
 	)
 }
 
@@ -193,26 +289,18 @@ interface NoTeamMembersEmptyStateProps {
 
 export function NoTeamMembersEmptyState({ onInvite }: NoTeamMembersEmptyStateProps) {
 	return (
-		<EmptyState.Root size="large">
-			<EmptyState.Header>
-				<EmptyState.Icon color="gray">
-					<UsersThree className="size-full" weight="duotone" />
-				</EmptyState.Icon>
-			</EmptyState.Header>
-			<EmptyState.Content>
-				<EmptyState.Title>Invite your team</EmptyState.Title>
-				<EmptyState.Description>
-					Add team members to help manage campaigns and review enrollments. Each member can have
-					different permissions.
-				</EmptyState.Description>
-			</EmptyState.Content>
-			<EmptyState.Footer>
-				<Button.Root variant="primary" onClick={onInvite}>
-					<Button.Icon><Plus className="size-5" /></Button.Icon>
-					Invite First Member
-				</Button.Root>
-			</EmptyState.Footer>
-		</EmptyState.Root>
+		<SimpleEmptyState
+			icon={UsersThree}
+			iconColor="primary"
+			title="Invite your team"
+			description="Add team members to help manage campaigns and review enrollments. Each member can have different permissions."
+			size="large"
+			actions={onInvite ? [{
+				label: "Invite First Member",
+				onClick: onInvite,
+				icon: UserPlus
+			}] : []}
+		/>
 	)
 }
 
@@ -270,25 +358,17 @@ interface NoInvoicesEmptyStateProps {
 
 export function NoInvoicesEmptyState({ organizationId }: NoInvoicesEmptyStateProps) {
 	return (
-		<EmptyState.Root size="large">
-			<EmptyState.Header>
-				<EmptyState.Icon color="gray">
-					<FileText className="size-full" weight="duotone" />
-				</EmptyState.Icon>
-			</EmptyState.Header>
-			<EmptyState.Content>
-				<EmptyState.Title>No invoices yet</EmptyState.Title>
-				<EmptyState.Description>
-					Invoices will appear here once you have approved enrollments. Your first invoice will be
-					generated at the end of the billing cycle.
-				</EmptyState.Description>
-			</EmptyState.Content>
-			<EmptyState.Footer>
-				<Button.Root variant="neutral" asChild>
-					<Link href={`/dashboard/${organizationId}/enrollments`}>View Enrollments</Link>
-				</Button.Root>
-			</EmptyState.Footer>
-		</EmptyState.Root>
+		<SimpleEmptyState
+			icon={FileText}
+			iconColor="primary"
+			title="No invoices yet"
+			description="Invoices will appear here once you have approved enrollments. Your first invoice will be generated at the end of the billing cycle."
+			size="large"
+			actions={[{
+				label: "View Enrollments",
+				href: `/dashboard/${organizationId}/enrollments`
+			}]}
+		/>
 	)
 }
 
@@ -298,19 +378,14 @@ export function NoInvoicesEmptyState({ organizationId }: NoInvoicesEmptyStatePro
 
 export function NoNotificationsEmptyState() {
 	return (
-		<EmptyState.Root size="medium">
-			<EmptyState.Header showPattern={false}>
-				<EmptyState.Icon color="gray">
-					<Tray className="size-full" weight="duotone" />
-				</EmptyState.Icon>
-			</EmptyState.Header>
-			<EmptyState.Content>
-				<EmptyState.Title>No notifications</EmptyState.Title>
-				<EmptyState.Description>
-					You're all caught up! New notifications will appear here.
-				</EmptyState.Description>
-			</EmptyState.Content>
-		</EmptyState.Root>
+		<SimpleEmptyState
+			icon={Tray}
+			iconColor="gray"
+			title="No notifications"
+			description="You're all caught up! New notifications will appear here."
+			size="medium"
+			showPattern={false}
+		/>
 	)
 }
 
@@ -330,24 +405,14 @@ export function ErrorEmptyState({
 	onRetry,
 }: ErrorEmptyStateProps) {
 	return (
-		<EmptyState.Root size="large">
-			<EmptyState.Header>
-				<EmptyState.Icon color="error">
-					<WarningCircle className="size-full" weight="duotone" />
-				</EmptyState.Icon>
-			</EmptyState.Header>
-			<EmptyState.Content>
-				<EmptyState.Title>{title}</EmptyState.Title>
-				<EmptyState.Description>{description}</EmptyState.Description>
-			</EmptyState.Content>
-			{onRetry && (
-				<EmptyState.Footer>
-					<Button.Root variant="primary" onClick={onRetry}>
-						Try Again
-					</Button.Root>
-				</EmptyState.Footer>
-			)}
-		</EmptyState.Root>
+		<SimpleEmptyState
+			icon={WarningCircle}
+			iconColor="error"
+			title={title}
+			description={description}
+			size="large"
+			actions={onRetry ? [{ label: "Try Again", onClick: onRetry }] : []}
+		/>
 	)
 }
 
@@ -361,26 +426,14 @@ interface NetworkErrorEmptyStateProps {
 
 export function NetworkErrorEmptyState({ onRetry }: NetworkErrorEmptyStateProps) {
 	return (
-		<EmptyState.Root size="large">
-			<EmptyState.Header>
-				<EmptyState.Icon color="warning">
-					<WifiSlash className="size-full" weight="duotone" />
-				</EmptyState.Icon>
-			</EmptyState.Header>
-			<EmptyState.Content>
-				<EmptyState.Title>Connection lost</EmptyState.Title>
-				<EmptyState.Description>
-					Please check your internet connection and try again.
-				</EmptyState.Description>
-			</EmptyState.Content>
-			{onRetry && (
-				<EmptyState.Footer>
-					<Button.Root variant="primary" onClick={onRetry}>
-						Retry
-					</Button.Root>
-				</EmptyState.Footer>
-			)}
-		</EmptyState.Root>
+		<SimpleEmptyState
+			icon={WifiSlash}
+			iconColor="warning"
+			title="Connection lost"
+			description="Please check your internet connection and try again."
+			size="large"
+			actions={onRetry ? [{ label: "Retry", onClick: onRetry }] : []}
+		/>
 	)
 }
 
@@ -394,25 +447,18 @@ interface PermissionDeniedEmptyStateProps {
 
 export function PermissionDeniedEmptyState({ organizationId }: PermissionDeniedEmptyStateProps) {
 	return (
-		<EmptyState.Root size="large">
-			<EmptyState.Header>
-				<EmptyState.Icon color="error">
-					<Lock className="size-full" weight="duotone" />
-				</EmptyState.Icon>
-			</EmptyState.Header>
-			<EmptyState.Content>
-				<EmptyState.Title>Access denied</EmptyState.Title>
-				<EmptyState.Description>
-					You don't have permission to view this content. Contact your organization admin for
-					access.
-				</EmptyState.Description>
-			</EmptyState.Content>
-			<EmptyState.Footer>
-				<Button.Root variant="neutral" asChild>
-					<Link href={organizationId ? `/dashboard/${organizationId}` : "/dashboard"}>Go to Dashboard</Link>
-				</Button.Root>
-			</EmptyState.Footer>
-		</EmptyState.Root>
+		<SimpleEmptyState
+			icon={Lock}
+			iconColor="error"
+			title="Access denied"
+			description="You don't have permission to view this content. Contact your organization admin for access."
+			size="large"
+			actions={[{
+				label: "Go to Dashboard",
+				href: organizationId ? `/dashboard/${organizationId}` : "/dashboard",
+				variant: "neutral"
+			}]}
+		/>
 	)
 }
 
@@ -428,26 +474,223 @@ export function NoWalletTransactionsEmptyState({
 	onAddFunds,
 }: NoWalletTransactionsEmptyStateProps) {
 	return (
-		<EmptyState.Root size="medium">
-			<EmptyState.Header>
-				<EmptyState.Icon color="gray">
-					<Wallet className="size-full" weight="duotone" />
-				</EmptyState.Icon>
-			</EmptyState.Header>
-			<EmptyState.Content>
-				<EmptyState.Title>No transactions yet</EmptyState.Title>
-				<EmptyState.Description>
-					Add funds to your wallet to get started with campaigns.
-				</EmptyState.Description>
-			</EmptyState.Content>
-			{onAddFunds && (
-				<EmptyState.Footer>
-					<Button.Root variant="primary" onClick={onAddFunds}>
-						<Button.Icon><Plus className="size-5" /></Button.Icon>
-						Add Funds
-					</Button.Root>
-				</EmptyState.Footer>
-			)}
-		</EmptyState.Root>
+		<SimpleEmptyState
+			icon={Wallet}
+			iconColor="gray"
+			title="No transactions yet"
+			description="Add funds to your wallet to get started with campaigns."
+			size="medium"
+			actions={onAddFunds ? [{ label: "Add Funds", onClick: onAddFunds, icon: Plus }] : []}
+		/>
+	)
+}
+
+// ============================================
+// No Enrollments Empty State
+// ============================================
+
+interface NoEnrollmentsEmptyStateProps {
+	organizationId: string
+}
+
+export function NoEnrollmentsEmptyState({ organizationId }: NoEnrollmentsEmptyStateProps) {
+	return (
+		<SimpleEmptyState
+			icon={UserPlus}
+			iconColor="primary"
+			title="No enrollments yet"
+			description="Once shoppers enroll in your campaigns, they'll appear here for review. Create and activate a campaign to start receiving enrollments."
+			size="large"
+			actions={[{
+				label: "Create Campaign",
+				href: `/dashboard/${organizationId}/campaigns/create`,
+				icon: Plus
+			}]}
+		/>
+	)
+}
+
+// ============================================
+// No Filtered Results Empty State
+// ============================================
+
+interface NoFilteredResultsEmptyStateProps {
+	entityName: string
+	onResetFilters?: () => void
+}
+
+export function NoFilteredResultsEmptyState({
+	entityName,
+	onResetFilters,
+}: NoFilteredResultsEmptyStateProps) {
+	return (
+		<SimpleEmptyState
+			icon={Funnel}
+			iconColor="gray"
+			title={`No ${entityName} match your filters`}
+			description="Try adjusting your filters or search criteria to find what you're looking for."
+			size="medium"
+			actions={onResetFilters ? [{ label: "Reset All Filters", onClick: onResetFilters, variant: "ghost" }] : []}
+		/>
+	)
+}
+
+// ============================================
+// No Activity Empty State
+// ============================================
+
+interface NoActivityEmptyStateProps {
+	organizationId?: string
+}
+
+export function NoActivityEmptyState({ organizationId }: NoActivityEmptyStateProps) {
+	return (
+		<SimpleEmptyState
+			icon={ClockCounterClockwise}
+			iconColor="gray"
+			title="No recent activity"
+			description="Your recent actions and updates will appear here."
+			size="medium"
+			actions={organizationId ? [{
+				label: "Browse Campaigns",
+				href: `/dashboard/${organizationId}/campaigns`,
+				variant: "neutral"
+			}] : []}
+		/>
+	)
+}
+
+// ============================================
+// No Analytics Data Empty State
+// ============================================
+
+interface NoAnalyticsEmptyStateProps {
+	organizationId: string
+}
+
+export function NoAnalyticsEmptyState({ organizationId }: NoAnalyticsEmptyStateProps) {
+	return (
+		<SimpleEmptyState
+			icon={ChartLine}
+			iconColor="gray"
+			title="No analytics data yet"
+			description="Start running campaigns to see performance metrics and insights here."
+			size="large"
+			actions={[{
+				label: "Create Campaign",
+				href: `/dashboard/${organizationId}/campaigns/create`,
+				icon: Plus
+			}]}
+		/>
+	)
+}
+
+// ============================================
+// All Notifications Read Empty State
+// ============================================
+
+export function AllNotificationsReadEmptyState() {
+	return (
+		<SimpleEmptyState
+			icon={Bell}
+			iconColor="success"
+			title="You're all caught up!"
+			description="No new notifications. We'll let you know when something needs your attention."
+			size="small"
+			showPattern={false}
+		/>
+	)
+}
+
+// ============================================
+// ONBOARDING SETUP CARD
+// Reusable component for organization setup prompts
+// ============================================
+
+const DEFAULT_ONBOARDING_BENEFITS = [
+	"Create Campaigns",
+	"Manage Products",
+	"Track Enrollments",
+]
+
+interface OnboardingSetupCardProps {
+	/** Variant determines the icon background color and shape */
+	variant?: "primary" | "warning" | "warning-minimal"
+	/** Title of the card */
+	title?: string
+	/** Description text */
+	description?: string
+	/** Benefits list to display (pass empty array to hide) */
+	benefits?: string[]
+	/** Button label */
+	buttonLabel?: string
+	/** Click handler for the action button */
+	onAction: () => void
+}
+
+/**
+ * Reusable onboarding setup card for dashboard empty states.
+ * Use this instead of duplicating the organization setup UI pattern.
+ */
+export function OnboardingSetupCard({
+	variant = "primary",
+	title = "Organization Setup Required",
+	description = "Complete your organization setup to access dashboard features, create campaigns, and manage enrollments.",
+	benefits = DEFAULT_ONBOARDING_BENEFITS,
+	buttonLabel = "Complete Onboarding",
+	onAction,
+}: OnboardingSetupCardProps) {
+	const isMinimal = variant === "warning-minimal"
+	const iconBgClass = variant === "primary"
+		? "bg-primary-base rounded-xl"
+		: "bg-warning-lighter rounded-full"
+	const iconColorClass = variant === "primary" ? "text-white" : "text-warning-base"
+
+	return (
+		<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
+			<div className={`max-w-md mx-auto ${isMinimal ? "space-y-4" : "space-y-6"}`}>
+				<div className="flex justify-center">
+					<div className={`flex size-16 items-center justify-center ${iconBgClass}`}>
+						{variant === "primary" ? (
+							<Buildings weight="duotone" className="size-8 text-white" />
+						) : (
+							<Warning weight="duotone" className={`size-8 ${iconColorClass}`} />
+						)}
+					</div>
+				</div>
+
+				<div className={isMinimal ? "" : "space-y-2"}>
+					<h3 className={`${isMinimal ? "text-title-h6" : "text-title-h5 font-semibold"} text-text-strong-950`}>
+						{title}
+					</h3>
+					<p className={`text-paragraph-sm text-text-sub-600 ${isMinimal ? "mt-2" : ""}`}>
+						{description}
+					</p>
+				</div>
+
+				{!isMinimal && benefits.length > 0 && (
+					<div className="flex flex-wrap justify-center gap-3 text-left">
+						{benefits.map((benefit) => (
+							<div
+								key={benefit}
+								className="flex items-center gap-2 rounded-lg bg-bg-white-0 ring-1 ring-stroke-soft-200 px-3 py-2"
+							>
+								<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
+								<span className="text-paragraph-xs text-text-sub-600">{benefit}</span>
+							</div>
+						))}
+					</div>
+				)}
+
+				<Button.Root
+					variant="primary"
+					size="medium"
+					onClick={onAction}
+				>
+					<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
+					{isMinimal ? "Start Onboarding" : buttonLabel}
+				</Button.Root>
+			</div>
+		</div>
 	)
 }

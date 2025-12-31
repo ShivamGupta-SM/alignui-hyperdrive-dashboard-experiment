@@ -4,9 +4,10 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname, useParams } from "next/navigation"
 import { useTheme } from "next-themes"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import { AvatarWithFallback } from "@/components/ui/primitives/avatar"
 import * as Badge from "@/components/ui/data-display/badge"
+import * as Button from "@/components/ui/primitives/button"
 import * as Tooltip from "@/components/ui/layout/tooltip"
 import * as Dropdown from "@/components/ui/layout/dropdown"
 import { Logo, LogoIcon } from "@/components/ui/branding/logo"
@@ -30,18 +31,20 @@ import {
 	Sun,
 	SignOut,
 	DotsThree,
-	X,
+	Clock,
+	PencilSimple,
+	XCircle,
 } from "@phosphor-icons/react"
 import { useSession } from "@/features/auth"
 import { useOrganizations } from "@/features/organizations"
 import { useSignOut } from "@/features/auth"
-import { ORGANIZATION_STATUS_CONFIG } from "@/lib/constants"
 import { StatusBadge } from "@/components/dashboard/status-banner"
 import { useRouter } from "next/navigation"
-import type { organizations } from "@/lib/api/encore-client"
-import type { OrganizationStatus } from "@/lib/types"
-
-type Organization = organizations.Organization
+import type { OrganizationListItem } from "@/features/organizations/types"
+import { getInitial } from "@/lib/utils/string"
+import { toast } from "sonner"
+import { routes } from "@/lib/routes"
+import { useQueryClient } from "@tanstack/react-query"
 
 interface SidebarProps {
 	collapsed?: boolean
@@ -129,6 +132,18 @@ interface NavItemProps {
 	onSettingsClick?: () => void
 }
 
+// Helper to get nav item classes - simplifies dark mode logic
+function getNavItemClasses(active: boolean, isDarkMode: boolean): string {
+	if (active) {
+		return isDarkMode
+			? "bg-primary-base text-white font-medium shadow-sm ring-1 ring-primary-base"
+			: "bg-bg-white-0 text-text-strong-950 font-medium shadow-sm ring-1 ring-stroke-soft-200"
+	}
+	return isDarkMode
+		? "text-white hover:bg-primary-base/80 hover:text-white hover:ring-primary-base/50 hover:shadow-sm hover:ring-1"
+		: "text-text-strong-950 hover:bg-bg-weak-50 hover:text-text-strong-950 hover:shadow-sm hover:ring-1 hover:ring-stroke-soft-200/50"
+}
+
 const NavItem = React.memo(function NavItem({
 	item,
 	isActive: active,
@@ -160,13 +175,7 @@ const NavItem = React.memo(function NavItem({
 			className={cn(
 				"group relative flex items-center rounded-xl",
 				"text-label-sm transition-colors duration-200 ease-out",
-				active
-					? isDarkMode
-						? "bg-primary-base text-white font-medium shadow-sm ring-1 ring-primary-base"
-						: "bg-bg-white-0 text-text-strong-950 font-medium shadow-sm ring-1 ring-stroke-soft-200"
-					: isDarkMode
-						? "text-white hover:bg-primary-base/80 hover:text-white hover:ring-primary-base/50 hover:shadow-sm hover:ring-1"
-						: "text-text-strong-950 hover:bg-bg-weak-50 hover:text-text-strong-950 hover:shadow-sm hover:ring-1 hover:ring-stroke-soft-200/50",
+				getNavItemClasses(active, !!isDarkMode),
 				collapsed ? "justify-center size-11" : "gap-3 px-3 py-2.5"
 			)}
 		>
@@ -225,6 +234,10 @@ export function Sidebar({
 	const organizations = organizationsData?.organizations || []
 	const currentOrganization = organizations.find(org => org.id === organizationId) || null
 	const { signOut: handleSignOut } = useSignOut()
+	const queryClient = useQueryClient()
+
+	// Track if organization switch is in progress to prevent double-clicks
+	const [isSwitching, setIsSwitching] = React.useState(false)
 
 	const isDarkMode = resolvedTheme === "dark"
 	const onToggleDarkMode = () => setTheme(resolvedTheme === "dark" ? "light" : "dark")
@@ -234,19 +247,46 @@ export function Sidebar({
 	const navigation = React.useMemo(() => getNavigation(organizationId || ""), [organizationId])
 	const footerNavigation = React.useMemo(() => getFooterNavigation(organizationId || ""), [organizationId])
 
-	const handleOrganizationChange = (org: Organization) => {
-		// Don't switch if already the active organization
-		if (organizationId === org.id) {
+	const handleOrganizationChange = async (org: OrganizationListItem) => {
+		// Don't switch if already the active organization or if switch is in progress
+		if (organizationId === org.id || isSwitching) {
 			return
 		}
 
-		// URL-based organization switching - navigate to new org's dashboard
-		router.push(`/dashboard/${org.id}`)
+		setIsSwitching(true)
+
+		try {
+			const status = org.approvalStatus
+			if (status === "draft" || status === "rejected") {
+				// Draft/Rejected orgs → go to onboarding to complete/fix
+				router.push(routes.onboarding.root)
+				return
+			}
+			if (status === "pending") {
+				// Pending orgs → go to pending approval page
+				router.push(routes.onboarding.pending)
+				return
+			}
+
+			// Invalidate all queries to ensure fresh data for new org
+			await queryClient.invalidateQueries()
+
+			// ✅ PURE URL: Just navigate! No session sync needed.
+			// Layout validates access. Multi-tab support. Zero DB writes.
+			router.push(routes.dashboard.home(org.id))
+			toast.success(`Switched to ${org.name}`)
+		} catch (error) {
+			console.error("Failed to switch organization:", error)
+			toast.error("Failed to switch organization. Please try again.")
+		} finally {
+			// Reset switching state after a short delay to allow navigation
+			setTimeout(() => setIsSwitching(false), 500)
+		}
 	}
 
 	const handleCreateOrganization = () => {
 		// Navigate to onboarding or create org page
-		router.push("/onboarding")
+		router.push(routes.onboarding.root)
 	}
 
 	const isActiveHref = (href: string) => {
@@ -265,7 +305,7 @@ export function Sidebar({
 				// Individual elements (nav items, org switcher) have their own backgrounds
 				"w-full lg:w-auto",
 				"bg-transparent",
-				"transition-[width] duration-300",
+				"transition-[width] duration-300 ease-out",
 				collapsed ? "lg:w-[72px]" : "lg:w-[280px]"
 			)}
 		>
@@ -287,13 +327,13 @@ export function Sidebar({
 			{/* Organization Switcher */}
 			<div className="px-3 py-3">
 				<OrganizationSwitcher
-					organizations={organizations as Organization[]}
-					currentOrganization={currentOrganization as Organization | null}
+					organizations={organizations}
+					currentOrganization={currentOrganization}
 					onOrganizationChange={handleOrganizationChange}
 					onCreateOrganization={handleCreateOrganization}
 					collapsed={collapsed}
 					isDarkMode={isDarkMode}
-					isLoading={isLoadingOrgs}
+					isLoading={isLoadingOrgs || isSwitching}
 				/>
 			</div>
 
@@ -301,7 +341,7 @@ export function Sidebar({
 			<div className="mx-3 h-px bg-stroke-soft-200/60" />
 
 			{/* Main Navigation */}
-			<nav className="flex-1 overflow-y-auto p-3">
+			<nav className="flex-1 overflow-y-auto p-3" aria-label="Main navigation">
 				{/* Main Section Label */}
 				{!collapsed && (
 					<p className="mb-2 px-3 py-1 text-subheading-xs font-semibold uppercase text-text-soft-400">
@@ -385,20 +425,22 @@ function UserProfileMenu({
 	const { data: session } = useSession()
 	const user = session?.user
 	const trigger = (
-		<button
+		<Button.Root
+			variant="ghost"
+			size="medium"
+			aria-label="User menu"
 			className={cn(
-				"mt-3 flex items-center rounded-xl transition-all duration-200",
-				"hover:bg-bg-weak-50 hover:shadow-sm",
+				"mt-3 rounded-xl h-auto",
 				"border border-transparent hover:border-stroke-soft-200/60",
-				collapsed ? "justify-center size-11" : "w-full gap-3 p-2"
+				collapsed ? "justify-center size-11 p-0" : "w-full gap-3 p-2"
 			)}
 		>
-		<AvatarWithFallback
-			src={user?.image ?? undefined}
-			name={user?.name || user?.email || ""}
-			size={collapsed ? "32" : "40"}
-			color="blue"
-		/>
+			<AvatarWithFallback
+				src={user?.image ?? undefined}
+				name={user?.name || user?.email || ""}
+				size={collapsed ? "32" : "40"}
+				color="blue"
+			/>
 			{!collapsed && (
 				<>
 					<div className="flex-1 min-w-0 text-left">
@@ -408,7 +450,7 @@ function UserProfileMenu({
 					<DotsThree weight="bold" className="size-5 text-text-sub-600 shrink-0" />
 				</>
 			)}
-		</button>
+		</Button.Root>
 	)
 
 	const menuContent = (
@@ -416,7 +458,7 @@ function UserProfileMenu({
 			align={collapsed ? "center" : "end"}
 			side="top"
 			sideOffset={8}
-			className="w-64"
+			className="w-[min(256px,calc(100vw-2rem))]"
 		>
 			{/* User Info Header */}
 			<div className="px-3 py-3 border-b border-stroke-soft-200">
@@ -484,9 +526,9 @@ function UserProfileMenu({
 
 // Organization Switcher Component - Based on AccountSwitcher patterns
 interface OrganizationSwitcherProps {
-	organizations: Organization[]
-	currentOrganization?: Organization | null
-	onOrganizationChange?: (org: Organization) => void
+	organizations: OrganizationListItem[]
+	currentOrganization?: OrganizationListItem | null
+	onOrganizationChange?: (org: OrganizationListItem) => void
 	onCreateOrganization?: () => void
 	collapsed?: boolean
 	isDarkMode?: boolean
@@ -499,9 +541,78 @@ function OrganizationSwitcher({
 	onOrganizationChange,
 	onCreateOrganization,
 	collapsed = false,
-	isDarkMode,
 	isLoading = false,
 }: OrganizationSwitcherProps) {
+	// Memoized helper to get status indicator for org
+	const getOrgStatusIndicator = React.useCallback((org: OrganizationListItem, isSelected: boolean) => {
+		const status = org.approvalStatus
+
+		// Selected approved org → green checkmark
+		if (isSelected && status === "approved") {
+			return (
+				<div
+					className="flex size-5 items-center justify-center rounded-full bg-primary-base"
+					role="img"
+					aria-label="Selected and approved"
+				>
+					<Check weight="bold" className="size-3 text-white" />
+				</div>
+			)
+		}
+
+		// Pending org → yellow clock
+		if (status === "pending") {
+			return (
+				<div
+					className="flex size-5 items-center justify-center rounded-full bg-warning-lighter"
+					role="img"
+					aria-label="Pending approval"
+				>
+					<Clock weight="fill" className="size-3 text-warning-base" />
+				</div>
+			)
+		}
+
+		// Draft org → gray pencil
+		if (status === "draft") {
+			return (
+				<div
+					className="flex size-5 items-center justify-center rounded-full bg-bg-soft-200"
+					role="img"
+					aria-label="Draft - incomplete"
+				>
+					<PencilSimple weight="fill" className="size-3 text-text-sub-600" />
+				</div>
+			)
+		}
+
+		// Rejected org → red X
+		if (status === "rejected") {
+			return (
+				<div
+					className="flex size-5 items-center justify-center rounded-full bg-error-lighter"
+					role="img"
+					aria-label="Rejected - needs fix"
+				>
+					<XCircle weight="fill" className="size-3 text-error-base" />
+				</div>
+			)
+		}
+
+		// Approved but not selected → empty circle
+		return <div className="size-5 rounded-full border border-stroke-soft-200" aria-hidden="true" />
+	}, [])
+
+	// Memoized helper to get status label
+	const getOrgStatusLabel = React.useCallback((status: string | undefined) => {
+		switch (status) {
+			case "pending": return "Pending approval"
+			case "draft": return "Draft - incomplete"
+			case "rejected": return "Rejected - needs fix"
+			default: return null
+		}
+	}, [])
+
 	// If no organizations or no current organization, show create button
 	if (isLoading) {
 		return (
@@ -511,6 +622,8 @@ function OrganizationSwitcher({
 					"bg-bg-white-0/80",
 					collapsed ? "justify-center size-11" : "w-full p-2.5"
 				)}
+				aria-busy="true"
+				aria-label="Loading organizations"
 			>
 				{!collapsed && <div className="size-10 rounded-full bg-bg-weak-50 animate-pulse" />}
 				{!collapsed && (
@@ -525,18 +638,18 @@ function OrganizationSwitcher({
 
 	if (!currentOrganization || organizations.length === 0) {
 		return (
-			<button
+			<Button.Root
+				variant="basic"
+				size="medium"
+				aria-label="Create organization"
 				onClick={onCreateOrganization}
 				className={cn(
-					"flex items-center gap-3 rounded-xl border border-dashed border-stroke-soft-200",
-					"bg-bg-white-0/80 transition-all duration-200",
-					"hover:bg-bg-white-0 hover:border-stroke-sub-300 hover:shadow-sm",
-					"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base",
-					collapsed ? "justify-center size-11" : "w-full p-2.5"
+					"rounded-xl border-dashed h-auto",
+					collapsed ? "justify-center size-11 p-0" : "w-full p-2.5 gap-3"
 				)}
 			>
 				{collapsed ? (
-					<Plus weight="bold" className="size-5 text-text-sub-600" />
+					<Button.Icon><Plus weight="bold" /></Button.Icon>
 				) : (
 					<>
 						<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-soft-200">
@@ -545,25 +658,27 @@ function OrganizationSwitcher({
 						<span className="text-label-sm text-text-sub-600">Create Organization</span>
 					</>
 				)}
-			</button>
+			</Button.Root>
 		)
 	}
 
 	const triggerContent = (
-		<button
-			type="button"
+		<Button.Root
+			variant="basic"
+			size="medium"
+			aria-label="Switch organization"
+			aria-haspopup="menu"
+			aria-expanded={false}
+			disabled={isLoading}
 			className={cn(
-				"flex items-center rounded-xl",
-				"border border-stroke-soft-200 bg-bg-white-0",
-				"cursor-pointer transition-all duration-200",
-				"hover:bg-bg-weak-50 hover:shadow-sm",
-				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base",
-				collapsed ? "justify-center size-11" : "w-full gap-3 p-2.5 pr-3"
+				"rounded-xl h-auto",
+				collapsed ? "justify-center size-11 p-0" : "w-full gap-3 p-2.5 pr-3",
+				isLoading && "opacity-70 cursor-not-allowed"
 			)}
 		>
 			{collapsed ? (
 				<span className="text-label-sm font-semibold text-text-strong-950">
-					{currentOrganization.name.charAt(0).toUpperCase()}
+					{getInitial(currentOrganization.name)}
 				</span>
 			) : (
 				<>
@@ -574,7 +689,7 @@ function OrganizationSwitcher({
 						)}
 					>
 						<span className="text-label-sm font-semibold text-text-strong-950">
-							{currentOrganization.name.charAt(0).toUpperCase()}
+							{getInitial(currentOrganization.name)}
 						</span>
 					</div>
 					<div className="flex min-w-0 flex-1 flex-col text-left">
@@ -592,7 +707,7 @@ function OrganizationSwitcher({
 					<CaretUpDown weight="bold" className="size-4 shrink-0 text-text-soft-400" />
 				</>
 			)}
-		</button>
+		</Button.Root>
 	)
 
 	const dropdownContent = (
@@ -607,52 +722,47 @@ function OrganizationSwitcher({
 				<Dropdown.Label>Switch organization</Dropdown.Label>
 				<div className="flex flex-col gap-0.5 px-1.5">
 					{organizations.map((org) => {
-						// Map approvalStatus to OrganizationStatus for config lookup
-						const orgStatus = org.approvalStatus === "approved" ? "approved" : 
-						                  org.approvalStatus === "pending" ? "pending" :
-						                  org.approvalStatus === "rejected" ? "rejected" : "suspended"
-						const statusConfig = ORGANIZATION_STATUS_CONFIG[orgStatus]
 						const isSelected = org.id === currentOrganization?.id
+						const statusLabel = getOrgStatusLabel(org.approvalStatus)
 
 						return (
-							<button
+							<Button.Root
 								key={org.id}
-								type="button"
+								variant="ghost"
+								size="small"
 								onClick={() => onOrganizationChange?.(org)}
 								aria-current={isSelected ? "true" : undefined}
 								className={cn(
-									"relative flex w-full items-center gap-3 rounded-md px-2 py-2",
-									"cursor-pointer transition-colors duration-200 outline-none",
-									"hover:bg-bg-weak-50 focus:bg-bg-weak-50",
+									"w-full gap-3 rounded-md px-2 py-2 h-auto justify-start",
 									isSelected && "bg-bg-weak-50"
 								)}
 							>
 								<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-bg-soft-200">
 									<span className="text-label-xs font-semibold text-text-strong-950">
-										{org.name.charAt(0).toUpperCase()}
+										{getInitial(org.name)}
 									</span>
 								</div>
 								<div className="flex min-w-0 flex-1 flex-col text-left">
 									<span className="truncate text-label-sm font-medium text-text-strong-950">
 										{org.name}
 									</span>
-									<div className="flex items-center gap-1 text-paragraph-xs text-text-sub-600">
-										<span className="truncate">{org.slug}</span>
-										{org.approvalStatus === "approved" && "campaignCount" in org && typeof org.campaignCount === "number" && (
-											<span className="shrink-0 whitespace-nowrap">
-												· {org.campaignCount} campaigns
-											</span>
-										)}
-									</div>
+									{statusLabel ? (
+										<span className={cn(
+											"truncate text-paragraph-xs",
+											org.approvalStatus === "rejected" ? "text-error-base" :
+											org.approvalStatus === "pending" ? "text-warning-base" :
+											"text-text-soft-400"
+										)}>
+											{statusLabel}
+										</span>
+									) : (
+										<span className="truncate text-paragraph-xs text-text-sub-600">
+											{org.slug}
+										</span>
+									)}
 								</div>
-								{isSelected ? (
-									<div className="flex size-5 items-center justify-center rounded-full bg-primary-base">
-										<Check weight="bold" className="size-3 text-white" />
-									</div>
-								) : (
-									<div className="size-5 rounded-full border border-stroke-soft-200" />
-								)}
-							</button>
+								{getOrgStatusIndicator(org, isSelected)}
+							</Button.Root>
 						)
 					})}
 				</div>
@@ -660,20 +770,16 @@ function OrganizationSwitcher({
 
 			{/* Add Organization Button */}
 			<div className="px-2 pt-1 pb-2">
-				<button
-					type="button"
+				<Button.Root
+					variant="basic"
+					size="small"
+					aria-label="Add new organization"
 					onClick={onCreateOrganization}
-					className={cn(
-						"flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2",
-						"text-label-sm font-semibold text-text-sub-600",
-						"border border-stroke-soft-200",
-						"cursor-pointer transition-colors duration-200",
-						"hover:bg-bg-weak-50 hover:text-text-strong-950"
-					)}
+					className="w-full"
 				>
-					<Plus weight="bold" className="size-4" />
+					<Button.Icon><Plus weight="bold" /></Button.Icon>
 					Add organization
-				</button>
+				</Button.Root>
 			</div>
 		</Dropdown.Content>
 	)

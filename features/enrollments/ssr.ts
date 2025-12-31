@@ -2,95 +2,94 @@
  * Enrollments SSR Data Fetching
  *
  * Server-side data fetching for enrollment pages.
- * Organized by feature for clean architecture.
+ * Uses ssrFetch helper for standardized error handling.
  */
 
+import { ssrFetch } from "@/lib/api/server"
 import { getAuthClient } from "@/lib/auth/server"
-import { isAuthenticationError } from "@/lib/errors/encore-error-handler"
 import { logSSRError, logWarn } from "@/lib/logging/error-logger-simple"
-import { getErrorMessageForLog } from "@/lib/utils/format"
-import type { shared } from "@/lib/api/encore-client"
+import { SSR_PAGE_SIZE } from "@/lib/utils/query-config"
+import { isValidEnrollmentStatus } from "@/lib/utils/validators"
+import type { shared } from "@/brand-client"
+
+// Default fallback for enrollments
+const EMPTY_ENROLLMENTS_RESPONSE = {
+	enrollments: [],
+	data: [],
+	total: 0,
+	skip: 0,
+	take: SSR_PAGE_SIZE.DEFAULT,
+	hasMore: false,
+}
 
 /**
  * Get enrollments list
+ * Uses ssrFetch for standardized error handling
  */
 export async function getEnrollmentsData(organizationId: string | null, status?: string, campaignId?: string) {
-	try {
-		const client = await getAuthClient()
-		const session = await client.auth.getSession()
-
-		if (!session?.user) {
-			logWarn("User not authenticated, returning empty enrollments data", { source: "getEnrollmentsData" })
-			return { enrollments: [], data: [], total: 0, skip: 0, take: 50, hasMore: false }
-		}
-
-		const params: {
-			organizationId?: string
-			skip: number
-			take: number
-			status?: shared.EnrollmentStatus
-			campaignId?: string
-		} = {
-			skip: 0,
-			take: 50,
-		}
-
-		if (status && status !== "all") {
-			params.status = status as shared.EnrollmentStatus
-		}
-
-		if (campaignId && campaignId !== "") {
-			params.campaignId = campaignId
-		}
-
-		// If user has active organization, use organization-level endpoint (for brands)
-		// Otherwise, use shopper endpoint (for shoppers)
-		let response
-		if (organizationId) {
-			response = await client.enrollments.listOrganizationEnrollments({ ...params, organizationId })
-		} else {
-			response = await client.enrollments.listMyEnrollments(params)
-		}
-
-		return { enrollments: response.data, ...response }
-	} catch (error) {
-		// Handle authentication errors gracefully
-		if (isAuthenticationError(error)) {
-			logWarn("Authentication error in getEnrollmentsData, returning empty data", {
-				source: "getEnrollmentsData",
-				data: { errorMessage: getErrorMessageForLog(error) },
-			})
-			return { enrollments: [], data: [], total: 0, skip: 0, take: 50, hasMore: false }
-		}
-
-		logSSRError(error, "getEnrollmentsData", "enrollments", {
-			data: { status, campaignId },
-		})
-		return { enrollments: [], data: [], total: 0, skip: 0, take: 50, hasMore: false }
+	if (!organizationId) {
+		logWarn("No organizationId provided for enrollments query", { source: "getEnrollmentsData" })
+		return EMPTY_ENROLLMENTS_RESPONSE
 	}
+
+	return ssrFetch(
+		{
+			source: "getEnrollmentsData",
+			feature: "enrollments",
+			context: { organizationId, status, campaignId },
+		},
+		async (client) => {
+			const params: {
+				skip: number
+				take: number
+				status?: shared.EnrollmentStatus
+				campaignId?: string
+			} = {
+				skip: 0,
+				take: SSR_PAGE_SIZE.DEFAULT,
+			}
+
+			if (status && status !== "all" && isValidEnrollmentStatus(status)) {
+				params.status = status
+			}
+
+			if (campaignId && campaignId !== "") {
+				params.campaignId = campaignId
+			}
+
+			const response = await client.organizations.listOrganizationEnrollments(organizationId, params)
+			return { enrollments: response.data, ...response }
+		},
+		EMPTY_ENROLLMENTS_RESPONSE
+	)
 }
 
 /**
  * Get enrollment detail data
+ * URL-based multi-tenancy: organizationId from URL params
+ *
+ * Uses new direct endpoint: GET /organizations/:orgId/enrollments/:enrollmentId/detail
+ * No campaignId lookup required - backend handles validation internally.
  */
-export async function getEnrollmentDetailData(enrollmentId: string) {
+export async function getEnrollmentDetailData(organizationId: string, enrollmentId: string) {
 	const client = await getAuthClient()
 
-	// Use getEnrollmentDetail which includes history, shopper info, campaign info, etc.
-	const enrollmentDetail = await client.enrollments.getEnrollmentDetail(enrollmentId)
+	// Use new direct endpoint - no campaignId required
+	const enrollmentDetail = await client.organizations.getEnrollmentDetailById(organizationId, enrollmentId)
+
+	// Get campaignId from the enrollment detail for fetching deliverables
+	const campaignId = enrollmentDetail.campaign.id
 
 	// Fetch platforms and campaign deliverables for categorization
 	try {
 		const results = await Promise.allSettled([
-			client.integrations.listActivePlatforms(),
-			enrollmentDetail.campaign?.id
-				? client.campaigns.listCampaignDeliverables(enrollmentDetail.campaign.id).catch((error) => {
-						logSSRError(error, "getEnrollmentDetailData", "campaign-deliverables", {
-							data: { enrollmentId, campaignId: enrollmentDetail.campaign?.id },
-						})
-						return { data: [] }
-					})
-				: Promise.resolve({ data: [] }),
+			client.platforms.listActivePlatforms(),
+			client.organizations.listCampaignDeliverables(organizationId, campaignId).catch((error) => {
+				logSSRError(error, "getEnrollmentDetailData", "campaign-deliverables", {
+					data: { enrollmentId, campaignId },
+				})
+				return { data: [] }
+			}),
 		])
 
 		const platforms = results[0].status === "fulfilled" ? results[0].value : { platforms: [] }

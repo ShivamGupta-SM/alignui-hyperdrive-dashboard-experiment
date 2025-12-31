@@ -18,6 +18,12 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+// SSOT: Import auth cookie constants
+// Note: Can't import from @/lib/constants in middleware (Edge Runtime)
+// So we duplicate the constant here but reference the SSOT in comments
+// SSOT Source: @/lib/constants - AUTH_COOKIE_NAMES
+const AUTH_COOKIE_NAMES = ["auth-token", "better-auth.session_token"] as const
+
 // ============================================================================
 // ROUTE CONSTANTS - Centralized route definitions
 // ============================================================================
@@ -38,9 +44,6 @@ const AUTH_ROUTES = [
 
 /** Public routes that are always accessible */
 const PUBLIC_ROUTES = ["/", "/privacy", "/terms", "/demo"] as const
-
-/** Cookie names to check for authentication */
-const AUTH_COOKIE_NAMES = ["auth-token", "better-auth.session_token"] as const
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -97,6 +100,25 @@ function getAuthCookie(request: NextRequest): string | null {
  */
 function isProtectedRoute(pathname: string): boolean {
 	return PROTECTED_ROUTES.some((route) => pathname.startsWith(route))
+}
+
+/**
+ * Validate organizationId format (UUID v4)
+ * Returns true if valid UUID format
+ */
+function isValidOrganizationId(orgId: string): boolean {
+	// UUID v4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+	const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+	return uuidRegex.test(orgId)
+}
+
+/**
+ * Extract organizationId from dashboard URL
+ * Returns null if not a dashboard org-specific route
+ */
+function extractOrganizationId(pathname: string): string | null {
+	const match = pathname.match(/^\/dashboard\/([^/]+)/)
+	return match ? match[1] : null
 }
 
 /**
@@ -166,6 +188,20 @@ export async function middleware(request: NextRequest) {
 
 		const authenticated = isAuthenticated(request)
 		const sessionCookie = getAuthCookie(request)
+
+		// ============================================================================
+		// ORGANIZATION ID VALIDATION - Validate UUID Format
+		// ============================================================================
+		const orgId = extractOrganizationId(pathname)
+		if (orgId && !isValidOrganizationId(orgId)) {
+			logMiddleware("Invalid organization ID format, redirecting to onboarding", {
+				pathname,
+				orgId,
+			})
+			// Redirect to /onboarding which handles org creation/selection
+			// This prevents redirect loops when user has no valid orgs
+			return NextResponse.redirect(new URL("/onboarding", request.url))
+		}
 
 		// ============================================================================
 		// PROTECTED ROUTES - Require Authentication
@@ -253,5 +289,6 @@ export const config = {
 		"/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf|eot)$).*)",
 	],
 }
+
 
 

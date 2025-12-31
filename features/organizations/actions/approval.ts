@@ -3,6 +3,9 @@
 /**
  * Organization Approval Server Actions
  *
+ * NOTE: submitOrganizationForApproval removed - completeOnboarding handles submit automatically
+ * Only resubmitOrganizationForApproval remains for rejected orgs to reset to draft
+ *
  * Uses next-safe-action for type-safe, error-handled server actions
  */
 
@@ -24,25 +27,8 @@ const organizationIdSchema = z.object({
 // =============================================================================
 
 /**
- * Submit organization for approval
- */
-export const submitOrganizationForApproval = authAction
-	.inputSchema(organizationIdSchema)
-	.action(async ({ parsedInput, ctx }) => {
-		await ctx.client.organizations.submitOrganizationForApproval(parsedInput.organizationId)
-
-		revalidatePath("/onboarding")
-		revalidatePath("/dashboard")
-
-		return {
-			success: true,
-			message: "Organization submitted for approval.",
-		}
-	})
-
-/**
  * Resubmit organization for approval (after rejection)
- * Resets organization status from rejected to draft
+ * Resets organization status from rejected to draft so user can edit and resubmit
  */
 export const resubmitOrganizationForApproval = authAction
 	.inputSchema(organizationIdSchema)

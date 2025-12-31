@@ -4,7 +4,7 @@
 "use client"
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
+import { tv, type VariantProps } from "@/lib/utils"
 
 const PROGRESS_CIRCLE_NAME = "ProgressCircle"
 

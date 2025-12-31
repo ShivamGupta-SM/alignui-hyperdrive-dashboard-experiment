@@ -1,14 +1,5 @@
 "use client"
 
-// Initialize navigation debugging in development
-// Using side-effect import to avoid TypeScript module check errors
-if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
-	// Dynamic import for debug utilities (side-effect only)
-	void import("@/lib/utils/debug-navigation").catch(() => {
-		// Silently fail if debug file doesn't exist
-	})
-}
-
 import { ThemeProvider } from "next-themes"
 import { useState, type ReactNode } from "react"
 import { Toaster } from "sonner"
@@ -18,9 +9,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { PostHogProvider } from "@/lib/integrations/posthog"
 import { NuqsAdapter } from "nuqs/adapters/next/app"
-// import { MSWInit } from "@/components/dev/msw-init" // Mocking disabled
-// import { NovuProvider } from "@/components/dashboard/novu-provider" // Removed - causing build issues
-// OrganizationProvider removed - URL-based multi-tenancy: organization ID from URL params
 
 function makeQueryClient() {
 	return new QueryClient({

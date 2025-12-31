@@ -4,6 +4,8 @@ import { Component, useEffect, type ReactNode, type ErrorInfo } from "react"
 import Link from "next/link"
 import * as Button from "@/components/ui/primitives/button"
 import { ArrowClockwise, House, WarningCircle } from "@phosphor-icons/react"
+import { routes } from "@/lib/routes"
+import { logError } from "@/lib/logging"
 
 interface ErrorBoundaryProps {
 	children: ReactNode
@@ -30,10 +32,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 	}
 
 	componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-		// Log error to console in development
-		console.error("Error Boundary caught an error:", error, errorInfo)
-
-		// TODO: Send error to monitoring service (e.g., Sentry, LogRocket)
+		// Log error using centralized logger (sends to monitoring in production)
+		logError(error, {
+			source: "ErrorBoundary",
+			data: { componentStack: errorInfo.componentStack },
+		})
 	}
 
 	handleRetry = () => {
@@ -69,7 +72,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 							</Button.Icon>
 							Try Again
 						</Button.Root>
-						<Link href="/dashboard">
+						<Link href={routes.dashboard.root}>
 							<Button.Root variant="neutral">
 								<Button.Icon>
 									<House className="size-5" />
@@ -142,8 +145,11 @@ interface PageErrorProps {
 
 export function PageError({ error, reset }: PageErrorProps) {
 	useEffect(() => {
-		// Log error to console
-		console.error("Page Error:", error)
+		// Log error using centralized logger
+		logError(error, {
+			source: "PageError",
+			data: { digest: error.digest },
+		})
 	}, [error])
 
 	return (
@@ -181,7 +187,7 @@ export function PageError({ error, reset }: PageErrorProps) {
 					</Button.Icon>
 					Try Again
 				</Button.Root>
-				<Link href="/dashboard">
+				<Link href={routes.dashboard.root}>
 					<Button.Root variant="neutral" size="medium">
 						<Button.Icon>
 							<House className="size-5" />

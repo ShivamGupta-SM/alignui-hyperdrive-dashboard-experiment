@@ -3,8 +3,8 @@
 "use client"
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import * as Tooltip from "@/components/ui/layout/tooltip"
 
 const categoryBarVariants = tv({

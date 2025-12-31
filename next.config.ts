@@ -1,14 +1,6 @@
 import type { NextConfig } from "next"
-import path from "path"
 
 const nextConfig: NextConfig = {
-	// Transpile solid-primitives packages for Novu compatibility
-	transpilePackages: [
-		"@solid-primitives/props",
-		"@solid-primitives/refs",
-		"@solid-primitives/transition-group",
-		"solid-motionone",
-	],
 	experimental: {
 		serverActions: {
 			bodySizeLimit: "2mb",
@@ -19,6 +11,12 @@ const nextConfig: NextConfig = {
 		ignoreBuildErrors: false,
 	},
 	images: {
+		// Modern image formats for better compression
+		formats: ["image/avif", "image/webp"],
+		// Responsive device sizes
+		deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+		// Icon/thumbnail sizes
+		imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
 		remotePatterns: [
 			{
 				protocol: "https",
@@ -50,7 +48,6 @@ const nextConfig: NextConfig = {
 			},
 		],
 	},
-	serverExternalPackages: ["canvaskit-wasm", "react", "react-dom"],
 	webpack: (config, { isServer }) => {
 		if (!isServer) {
 			config.resolve.fallback = {
@@ -58,11 +55,6 @@ const nextConfig: NextConfig = {
 				fs: false,
 				path: false,
 			}
-		}
-		config.resolve.alias = {
-			...config.resolve.alias,
-			react: path.resolve(__dirname, "node_modules/react"),
-			"react-dom": path.resolve(__dirname, "node_modules/react-dom"),
 		}
 		config.resolve.extensionAlias = {
 			".js": [".js", ".ts", ".tsx"],

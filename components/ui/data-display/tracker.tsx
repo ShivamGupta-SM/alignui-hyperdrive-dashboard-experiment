@@ -1,8 +1,8 @@
 // AlignUI Tracker v0.1.0 - Status tracker visualization
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 const trackerVariants = tv({
 	slots: {

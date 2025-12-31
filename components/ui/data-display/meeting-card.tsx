@@ -5,8 +5,8 @@
 
 import * as React from "react"
 import Image from "next/image"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { Clock, MapPin, User, VideoCamera } from "@phosphor-icons/react"
 
 const MEETING_CARD_NAME = "MeetingCard"

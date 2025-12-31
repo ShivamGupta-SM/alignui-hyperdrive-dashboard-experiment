@@ -291,8 +291,11 @@ async function seedEnrollments(orgId: string, campaigns: Campaign[], count: numb
 		const campaign = randomElement(activeCampaigns.length > 0 ? activeCampaigns : campaigns)
 		const status = randomElement(statuses)
 		const orderValue = faker.number.int({ min: 500, max: 5000 })
-		const billAmount = Math.round(orderValue * 0.1)
-		const platformFee = Math.round(billAmount * 0.05)
+		// billRate is a percentage (e.g., 10 = 10%), platformFee is flat rupee amount
+		const billRate = campaign.billRate ?? 10 // percentage
+		const platformFee = campaign.platformFee ?? 20 // flat rupee amount
+		const rebatePercentage = campaign.rebatePercentage ?? 10 // percentage
+		const billAmount = Math.round(orderValue * (billRate / 100))
 		const gstAmount = Math.round(billAmount * 0.18)
 		const totalCost = billAmount + platformFee + gstAmount
 
@@ -300,8 +303,8 @@ async function seedEnrollments(orgId: string, campaigns: Campaign[], count: numb
 		const submissionDeadline = faker.date.future({ years: 0.1 })
 		const createdAt = faker.date.recent({ days: 30 })
 
-		// Calculate payout amount (for approved enrollments)
-		const payoutAmount = status === "approved" ? billAmount : 0
+		// Calculate payout amount (for approved enrollments) - rebate of order + bonus
+		const payoutAmount = status === "approved" ? Math.round(orderValue * (rebatePercentage / 100)) : 0
 
 		const enrollment: Enrollment = {
 			id: generateId("enr"),
@@ -312,10 +315,10 @@ async function seedEnrollments(orgId: string, campaigns: Campaign[], count: numb
 			orderId: `ORD-${faker.string.alphanumeric(10).toUpperCase()}`,
 			orderValue,
 			purchaseDate: orderDate.toISOString(), // Encore format
-			lockedRebatePercentage: 10, // Encore format
-			lockedBillRate: billAmount, // Encore format
-			lockedPlatformFee: platformFee, // Encore format
-			lockedBonusAmount: 0,
+			lockedRebatePercentage: rebatePercentage, // percentage (e.g., 10 = 10%)
+			lockedBillRate: billRate, // percentage (e.g., 10 = 10%)
+			lockedPlatformFee: platformFee, // flat rupee amount
+			lockedBonusAmount: campaign.bonusAmount ?? 0,
 			payoutAmount, // Add payout amount for dashboard stats
 			submittedAt: createdAt.toISOString(), // Encore format
 			approvedAt: status === "approved" ? faker.date.recent({ days: 7 }).toISOString() : undefined,

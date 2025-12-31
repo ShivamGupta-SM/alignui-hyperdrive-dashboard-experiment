@@ -7,20 +7,13 @@
 "use client"
 
 import { useCallback, useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
-import { getEncoreBrowserClient } from "@/lib/api/encore-browser"
-import { STALE_TIME } from "@/lib/utils/query-config"
-import { getCurrentUser, getSession, signOut as signOutAction } from "../actions/auth-actions"
-import { switchOrganization as switchOrganizationAction } from "@/features/organizations/actions/organizations"
-import { toast } from "sonner"
+import { STALE_TIME, GC_TIME } from "@/lib/utils/query-config"
+import { client } from "@/lib/api/client"
+import { resetEncoreBrowserClient } from "@/lib/api/encore-browser"
+import { getSession, signOut as signOutAction } from "../actions/auth-actions"
 import { logError } from "@/lib/logging/error-logger-simple"
-import { getErrorMessage } from "@/lib/utils/format"
-
-// ============================================
-// Client Instance
-// ============================================
-const client = getEncoreBrowserClient()
 
 // ============================================
 // Query Keys
@@ -45,32 +38,27 @@ export function useSession() {
 	const { data, isLoading, error, refetch } = useQuery({
 		queryKey: authKeys.session(),
 		queryFn: async () => {
-			const [userResult, sessionResult] = await Promise.all([getCurrentUser({}), getSession({})])
+			// Single call - getSession() returns both session and user
+			const sessionResult = await getSession({})
 
-			// getCurrentUser returns { user } while getSession returns { session?, user? }
-			if (!userResult?.data?.user) {
+			if (!sessionResult?.data?.session || !sessionResult?.data?.user) {
 				return null
 			}
 
-			// Check if we have a valid session from getSession
-			if (sessionResult?.data?.session) {
-				return {
-					session: {
-						...sessionResult.data.session,
-						user: sessionResult.data.user || userResult.data.user,
-					},
-					user: sessionResult.data.user || userResult.data.user,
-				}
-			}
-
 			return {
-				session: null,
-				user: userResult.data.user,
+				session: sessionResult.data.session,
+				user: sessionResult.data.user,
 			}
 		},
+		// FIX: Increased stale time to MEDIUM (5min) since we have refetchOnWindowFocus
+		// This reduces unnecessary API calls while keeping auth state fresh on tab focus
 		staleTime: STALE_TIME.MEDIUM,
-		retry: false,
-		refetchOnWindowFocus: false,
+		gcTime: GC_TIME.LONG, // Keep session data in cache for 30 minutes
+		retry: 1, // FIX: Allow 1 retry for transient network errors
+		retryDelay: 1000,
+		refetchOnWindowFocus: true, // Refetch when user returns to tab
+		// FIX: Changed from "always" to true - only refetch if data is stale
+		// "always" was causing unnecessary API calls even when data was fresh
 		refetchOnMount: true,
 	})
 
@@ -110,18 +98,43 @@ export function useIsAuthenticated() {
 }
 
 /**
- * Get user's organizations
+ * Get active member role for organization
  */
-export function useOrganizations() {
+export function useActiveMemberRole(organizationId: string) {
 	return useQuery({
-		queryKey: authKeys.organizations(),
+		queryKey: [...authKeys.all, "activeMemberRole", organizationId] as const,
 		queryFn: async () => {
-			const result = await client.auth.listOrganizations()
-			return { organizations: result.organizations || [] }
+			const result = await client.auth.getActiveMemberRole(organizationId)
+			return result.role
 		},
+		enabled: !!organizationId,
 		staleTime: STALE_TIME.MEDIUM,
+		gcTime: GC_TIME.LONG, // Role rarely changes within session
 		retry: false,
-		refetchOnWindowFocus: false,
+	})
+}
+
+/**
+ * Check if current user has specific permission
+ * Better Auth aligned - uses hasPermission API
+ *
+ * @example
+ * const { data: canInvite } = useHasPermission({ member: ["create"] })
+ * const { data: canDeleteOrg } = useHasPermission({ organization: ["delete"] })
+ */
+export function useHasPermission(permissions: { [key: string]: string[] }) {
+	// FIX: Stable query key - serialize permissions to avoid object reference issues
+	const permissionKey = JSON.stringify(permissions, Object.keys(permissions).sort())
+
+	return useQuery({
+		queryKey: [...authKeys.all, "permission", permissionKey] as const,
+		queryFn: async () => {
+			const result = await client.auth.hasPermission({ permissions })
+			return result.hasPermission
+		},
+		staleTime: STALE_TIME.LONG,
+		gcTime: GC_TIME.LONG, // Permissions rarely change
+		retry: false,
 	})
 }
 
@@ -130,76 +143,29 @@ export function useOrganizations() {
 // ============================================
 
 /**
- * Switch active organization
- */
-export function useSwitchOrganization() {
-	const queryClient = useQueryClient()
-	const router = useRouter()
-
-	return useMutation({
-		mutationFn: async (organizationId: string) => {
-			await switchOrganizationAction({ organizationId })
-		},
-		onMutate: async (organizationId) => {
-			await queryClient.cancelQueries({ queryKey: authKeys.session() })
-			const previousSession = queryClient.getQueryData(authKeys.session())
-			queryClient.setQueryData(authKeys.session(), (old: unknown) => {
-				if (!old) return old
-				const oldData = old as { user?: { activeOrganizationId?: string } }
-				return {
-					...oldData,
-					user: {
-						...oldData.user,
-						activeOrganizationId: organizationId,
-					},
-				}
-			})
-			return { previousSession }
-		},
-		onError: (err, _organizationId, context) => {
-			if (context?.previousSession) {
-				queryClient.setQueryData(authKeys.session(), context.previousSession)
-			}
-			toast.error("Failed to switch organization", {
-				description: getErrorMessage(err, "An unexpected error occurred"),
-			})
-		},
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: authKeys.session() })
-			await queryClient.invalidateQueries({ queryKey: authKeys.organizations() })
-			await queryClient.invalidateQueries({ queryKey: ["organization"] })
-			router.replace("/dashboard")
-			router.refresh()
-			toast.success("Organization switched successfully")
-		},
-	})
-}
-
-/**
  * Sign out hook
+ * Simplified: removed redundant useRef, useState handles this correctly
  */
-export function useSignOut(redirectTo: string = "/sign-in") {
+export function useSignOut(redirectTo = "/sign-in") {
 	const router = useRouter()
 	const queryClient = useQueryClient()
 	const [isSigningOut, setIsSigningOut] = useState(false)
 
 	const signOut = useCallback(async () => {
+		// React 18+ handles state correctly in async callbacks
 		if (isSigningOut) return
 
 		setIsSigningOut(true)
 		try {
 			await signOutAction({})
 			queryClient.clear()
+			// Reset browser client singleton to clear any cached auth state
+			resetEncoreBrowserClient()
 
+			// Use centralized storage clearing
 			try {
-				localStorage.removeItem("onboarding-draft")
-				localStorage.removeItem("onboarding-draft-timestamp")
-				const keys = Object.keys(localStorage)
-				keys.forEach((key) => {
-					if (key.includes("onboarding-alert-dismissed")) {
-						localStorage.removeItem(key)
-					}
-				})
+				const { clearSessionStorage } = await import("@/lib/constants/storage-keys")
+				clearSessionStorage()
 			} catch {
 				// Ignore localStorage errors
 			}
@@ -207,8 +173,8 @@ export function useSignOut(redirectTo: string = "/sign-in") {
 			logError(error, { source: "useSignOut", data: { action: "signOut" } })
 			queryClient.clear()
 			try {
-				localStorage.removeItem("onboarding-draft")
-				localStorage.removeItem("onboarding-draft-timestamp")
+				const { clearSessionStorage } = await import("@/lib/constants/storage-keys")
+				clearSessionStorage()
 			} catch {
 				// Ignore localStorage errors
 			}
@@ -217,10 +183,9 @@ export function useSignOut(redirectTo: string = "/sign-in") {
 			router.refresh()
 			setIsSigningOut(false)
 		}
-	}, [isSigningOut, redirectTo, router, queryClient])
+	}, [redirectTo, router, queryClient, isSigningOut])
 
 	return { signOut, isSigningOut }
 }
 
-// Re-export types
-export type * from "../types"
+// Types are exported from @/features/auth (feature index)

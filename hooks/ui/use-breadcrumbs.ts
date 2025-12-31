@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import { useMemo } from "react"
+import { capitalizeFirst } from "@/lib/utils/string"
 
 export interface BreadcrumbItem {
 	label: string
@@ -81,6 +82,6 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
 function formatSegment(segment: string): string {
 	return segment
 		.split("-")
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.map((word) => capitalizeFirst(word))
 		.join(" ")
 }

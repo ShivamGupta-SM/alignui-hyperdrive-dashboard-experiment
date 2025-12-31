@@ -1,15 +1,30 @@
-import * as XLSX from "xlsx"
-import type { campaigns, wallets, enrollments, invoices } from "@/lib/api/encore-browser"
+import type { wallets, enrollments, organizations } from "@/brand-client"
+
+// Type aliases from organizations namespace (not in campaigns namespace)
+type Invoice = organizations.Invoice
+type CampaignWithStats = organizations.CampaignWithStats
+
+/**
+ * Lazy load XLSX library for better bundle size
+ * XLSX is ~280KB - only loaded when export functions are called
+ */
+async function getXLSX() {
+	const XLSX = await import("xlsx")
+	return XLSX
+}
 
 /**
  * Generic Excel export utility
+ * Now uses dynamic import for better performance
  */
-export function exportToExcel<T extends Record<string, unknown>>(
+export async function exportToExcel<T extends Record<string, unknown>>(
 	data: T[],
 	filename: string,
 	sheetName = "Sheet1",
 	columns?: { key: keyof T; header: string; width?: number }[]
-): void {
+): Promise<void> {
+	const XLSX = await getXLSX()
+
 	// Create worksheet from data
 	const worksheet = XLSX.utils.json_to_sheet(
 		columns
@@ -43,11 +58,13 @@ export function exportToExcel<T extends Record<string, unknown>>(
 /**
  * Export data as CSV
  */
-export function exportToCSV<T extends Record<string, unknown>>(
+export async function exportToCSV<T extends Record<string, unknown>>(
 	data: T[],
 	filename: string,
 	columns?: { key: keyof T; header: string }[]
-): void {
+): Promise<void> {
+	const XLSX = await getXLSX()
+
 	const worksheet = XLSX.utils.json_to_sheet(
 		columns
 			? data.map((row) =>
@@ -74,11 +91,13 @@ export function exportToCSV<T extends Record<string, unknown>>(
 /**
  * Generate Excel buffer (for server-side generation)
  */
-export function generateExcelBuffer<T extends Record<string, unknown>>(
+export async function generateExcelBuffer<T extends Record<string, unknown>>(
 	data: T[],
 	sheetName = "Sheet1",
 	columns?: { key: keyof T; header: string; width?: number }[]
-): Buffer {
+): Promise<Buffer> {
+	const XLSX = await getXLSX()
+
 	const worksheet = XLSX.utils.json_to_sheet(
 		columns
 			? data.map((row) =>
@@ -112,7 +131,7 @@ export function generateExcelBuffer<T extends Record<string, unknown>>(
 /**
  * Export campaigns to Excel
  */
-export function exportCampaigns(campaignsList: campaigns.CampaignWithStats[]): void {
+export function exportCampaigns(campaignsList: CampaignWithStats[]): void {
 	const data = campaignsList.map((c) => ({
 		id: c.id,
 		title: c.title,
@@ -154,9 +173,10 @@ export function exportCampaigns(campaignsList: campaigns.CampaignWithStats[]): v
 export function exportEnrollments(enrollmentsList: enrollments.Enrollment[]): void {
 	const data = enrollmentsList.map((e) => {
 		// Calculate costs from locked rates
+		// billRate is a percentage, platformFee is a flat rupee amount
 		const billAmount = e.orderValue * (e.lockedBillRate / 100)
 		const gstAmount = billAmount * 0.18
-		const platformFee = e.orderValue * (e.lockedPlatformFee / 100)
+		const platformFee = e.lockedPlatformFee // Flat amount, not a percentage
 		const totalCost = billAmount + gstAmount + platformFee
 
 		return {
@@ -204,7 +224,7 @@ export function exportEnrollments(enrollmentsList: enrollments.Enrollment[]): vo
 /**
  * Export invoices to Excel
  */
-export function exportInvoices(invoicesList: invoices.Invoice[]): void {
+export function exportInvoices(invoicesList: Invoice[]): void {
 	const data = invoicesList.map((i) => ({
 		invoiceNumber: i.invoiceNumber,
 		status: i.status,
@@ -260,7 +280,9 @@ export function exportTransactions(transactions: wallets.WalletTransaction[]): v
 /**
  * Read Excel/CSV file and return data
  */
-export function parseExcelFile<T = Record<string, unknown>>(file: File): Promise<T[]> {
+export async function parseExcelFile<T = Record<string, unknown>>(file: File): Promise<T[]> {
+	const XLSX = await getXLSX()
+
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader()
 
@@ -281,6 +303,7 @@ export function parseExcelFile<T = Record<string, unknown>>(file: File): Promise
 		reader.readAsBinaryString(file)
 	})
 }
+
 
 
 

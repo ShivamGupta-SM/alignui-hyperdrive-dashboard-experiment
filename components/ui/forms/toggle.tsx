@@ -5,7 +5,7 @@
 
 import * as React from "react"
 import * as SwitchPrimitives from "@radix-ui/react-switch"
-import { tv, type VariantProps } from "@/utils/tv"
+import { tv, type VariantProps } from "@/lib/utils"
 
 const TOGGLE_ROOT_NAME = "ToggleRoot"
 const TOGGLE_LABEL_NAME = "ToggleLabel"

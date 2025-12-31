@@ -1,14 +1,14 @@
 "use client"
 
-import { memo, useCallback, useState, useEffect, useTransition, useMemo } from "react"
+import { memo, useCallback, useState, useTransition, useRef, useMemo } from "react"
 import Link from "next/link"
-import { useRouter, useParams } from "next/navigation"
-import { cn } from "@/utils/cn"
+import { useRouter } from "next/navigation"
+import { cn, performOptimisticDelete, performListItemOptimisticUpdate } from "@/lib/utils"
 import * as Button from "@/components/ui/primitives/button"
 import * as Tooltip from "@/components/ui/layout/tooltip"
 import { CampaignCard } from "@/components/dashboard/campaign-card"
 import { NoCampaignsEmptyState } from "@/components/dashboard/empty-states"
-import { Callout, CalloutWithActions } from "@/components/ui/feedback/callout"
+import { Callout } from "@/components/ui/feedback/callout"
 import { ConfirmationModal } from "@/components/dashboard"
 import {
 	Plus,
@@ -22,10 +22,9 @@ import {
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 import { useQueryClient } from "@tanstack/react-query"
-import { useCampaignSearchParams } from "@/hooks"
+import { useCampaignSearchParams, useCurrentOrganization, useDebounceSearch } from "@/hooks"
 import { exportCampaigns } from "@/lib/utils/excel"
-import { getErrorMessage } from "@/lib/utils/format"
-import { useOrganizations } from "@/features/organizations"
+import { CAMPAIGN_STATUS_TABS } from "@/lib/constants"
 import {
 	useSearchCampaigns,
 	updateCampaignStatus,
@@ -36,107 +35,52 @@ import {
 	type CampaignWithStats,
 } from "@/features/campaigns"
 
-// Memoized wrapper component to prevent unnecessary re-renders
+// Simplified wrapper component - avoids unnecessary useCallback overhead
+// The parent already provides stable handlers via useCallback
 const CampaignCardWrapper = memo(function CampaignCardWrapper({
 	campaign,
 	onStatusChange,
 	onDelete,
 	onDuplicate,
-	router,
 	organizationId,
 }: {
 	campaign: CampaignWithStats
 	onStatusChange: (campaignId: string, status: CampaignStatus) => void
 	onDelete: (campaignId: string) => void
 	onDuplicate: (campaignId: string) => void
-	router: ReturnType<typeof useRouter>
 	organizationId: string
 }) {
-	const handleView = useCallback(() => {
-		router.push(`/dashboard/${organizationId}/campaigns/${campaign.id}`)
-	}, [campaign.id, router, organizationId])
-
-	const handleManage = useCallback(() => {
-		router.push(`/dashboard/${organizationId}/campaigns/${campaign.id}`)
-	}, [campaign.id, router, organizationId])
-	
-	const handlePause = useCallback(() => {
-		onStatusChange(campaign.id, "paused")
-	}, [campaign.id, onStatusChange])
-	
-	const handleResume = useCallback(() => {
-		onStatusChange(campaign.id, "active")
-	}, [campaign.id, onStatusChange])
-	
-	const handleEnd = useCallback(() => {
-		onStatusChange(campaign.id, "ended")
-	}, [campaign.id, onStatusChange])
-	
-	const handleComplete = useCallback(() => {
-		onStatusChange(campaign.id, "completed")
-	}, [campaign.id, onStatusChange])
-	
-	const handleArchive = useCallback(() => {
-		onStatusChange(campaign.id, "archived")
-	}, [campaign.id, onStatusChange])
-	
-	const handleCancel = useCallback(() => {
-		onStatusChange(campaign.id, "cancelled")
-	}, [campaign.id, onStatusChange])
-	
-	const handleDuplicate = useCallback(() => {
-		onDuplicate(campaign.id)
-	}, [campaign.id, onDuplicate])
-	
-	const handleEdit = useCallback(() => {
-		router.push(`/dashboard/${organizationId}/campaigns/${campaign.id}/edit`)
-	}, [campaign.id, router, organizationId])
-	
-	const handleDelete = useCallback(() => {
-		onDelete(campaign.id)
-	}, [campaign.id, onDelete])
-	
-	const handleSubmitForApproval = useCallback(() => {
-		onStatusChange(campaign.id, "pending_approval")
-	}, [campaign.id, onStatusChange])
+	const router = useRouter()
 
 	return (
 		<CampaignCard
 			campaign={campaign}
-			onView={handleView}
-			onManage={handleManage}
-			onPause={handlePause}
-			onResume={handleResume}
-			onEnd={handleEnd}
-			onComplete={handleComplete}
-			onArchive={handleArchive}
-			onCancel={handleCancel}
-			onDuplicate={handleDuplicate}
-			onEdit={handleEdit}
-			onDelete={handleDelete}
-			onSubmitForApproval={handleSubmitForApproval}
+			onView={() => router.push(`/dashboard/${organizationId}/campaigns/${campaign.id}`)}
+			onManage={() => router.push(`/dashboard/${organizationId}/campaigns/${campaign.id}`)}
+			onPause={() => onStatusChange(campaign.id, "paused")}
+			onResume={() => onStatusChange(campaign.id, "active")}
+			onEnd={() => onStatusChange(campaign.id, "ended")}
+			onComplete={() => onStatusChange(campaign.id, "completed")}
+			onArchive={() => onStatusChange(campaign.id, "archived")}
+			onCancel={() => onStatusChange(campaign.id, "cancelled")}
+			onDuplicate={() => onDuplicate(campaign.id)}
+			onEdit={() => router.push(`/dashboard/${organizationId}/campaigns/${campaign.id}?mode=edit`)}
+			onDelete={() => onDelete(campaign.id)}
+			onSubmitForApproval={() => onStatusChange(campaign.id, "pending_approval")}
 		/>
 	)
 })
 
-const statusTabs = [
-	{ value: "all", label: "All" },
-	{ value: "draft", label: "Draft" },
-	{ value: "pending_approval", label: "Pending" },
-	{ value: "active", label: "Active" },
-	{ value: "completed", label: "Completed" },
-]
 
 /**
  * Props for the CampaignsClient component
  */
 export interface CampaignsClientProps {
 	/** Initial status filter to apply */
-	initialStatus?: string
+	initialStatus?: CampaignStatus | "all"
 	/** Initial campaign data to display */
 	initialData?: {
-		campaigns?: CampaignWithStats[]
-		data?: CampaignWithStats[]
+		campaigns: CampaignWithStats[]
 		total?: number
 	}
 }
@@ -157,52 +101,41 @@ export function CampaignsClient({
 	initialData,
 }: CampaignsClientProps) {
 	const router = useRouter()
-	const params = useParams<{ organizationId: string }>()
-	const organizationId = params.organizationId
 	const queryClient = useQueryClient()
 	const [isPending, startTransition] = useTransition()
-	const [searchQuery, setSearchQuery] = useState("")
-	const [debouncedQuery, setDebouncedQuery] = useState("")
 	const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null)
 	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
-	// URL-based multi-tenancy: get organization from list using URL param
-	const { data: orgsData } = useOrganizations()
-	const organization = orgsData?.organizations?.find(org => org.id === organizationId) || null
-	const isApproved = organization?.approvalStatus === "approved"
+	// SSOT: Use centralized organization hook instead of duplicating logic
+	const { organization, organizationId, isApproved } = useCurrentOrganization()
+
+	// SSOT: Use centralized debounce search hook
+	const { query: searchQuery, debouncedQuery, setQuery: setSearchQuery, isSearchActive } = useDebounceSearch()
 
 	// nuqs: URL state management for filters
 	const [searchParams, setSearchParams] = useCampaignSearchParams()
 	const statusFilter = searchParams.status || initialStatus
 
-	// Debounce search query
-	useEffect(() => {
-		const timer = setTimeout(() => {
-			setDebouncedQuery(searchQuery)
-		}, 300)
-		return () => clearTimeout(timer)
-	}, [searchQuery])
-
 	// Use initialData which is passed from server component - type-safe
-	const campaignsData: CampaignWithStats[] = (initialData?.campaigns ?? initialData?.data ?? []) as CampaignWithStats[]
+	const campaignsData: CampaignWithStats[] = initialData?.campaigns ?? []
 
 	// Search hook - only active when there's a search query
-	const { data: searchResults, isLoading: isSearching } = useSearchCampaigns(organizationId, {
+	const { data: searchResults, isLoading: isSearching, isError: isSearchError } = useSearchCampaigns(organizationId, {
 		q: debouncedQuery,
 		status: statusFilter !== "all" ? (statusFilter as CampaignStatus) : undefined,
 	})
 
-	// Use server data first, fallback to search results
-	const isSearchActive = debouncedQuery.length >= 2
+	// Use server data first, fallback to search results when search is active
 	const campaigns: CampaignWithStats[] = isSearchActive
 		? (searchResults?.data ?? []) as CampaignWithStats[]
 		: campaignsData
 
-	// Stable reference time to avoid re-renders
-	const referenceTime = useMemo(() => Date.now(), [])
+	// Stable reference time to avoid re-renders (using ref instead of useMemo for primitives)
+	const referenceTimeRef = useRef(Date.now())
+	const referenceTime = referenceTimeRef.current
 
-	// Calculate stats from campaigns
-	const stats = {
+	// Calculate stats from campaigns - memoized for performance
+	const stats = useMemo(() => ({
 		total: campaigns.length,
 		active: campaigns.filter((c) => c.status === "active").length,
 		endingSoon: campaigns.filter((c) => {
@@ -217,30 +150,39 @@ export function CampaignsClient({
 		completed: campaigns.filter((c) => c.status === "completed").length,
 		totalEnrollments: campaigns.reduce((sum, c) => sum + (c.currentEnrollments || 0), 0),
 		totalPayout: campaigns.reduce((sum, c) => sum + (c.totalPayout || 0), 0),
-	}
+	}), [campaigns, referenceTime])
 
 	const handleStatusChange = useCallback((campaignId: string, status: CampaignStatus) => {
-		startTransition(async () => {
-			// Map CampaignStatus to action type
-			let action: "submit" | "activate" | "cancel" | "end" | "complete" | "archive" | "unarchive"
-			if (status === "pending_approval") action = "submit"
-			else if (status === "active") action = "activate"
-			else if (status === "cancelled") action = "cancel"
-			else if (status === "ended") action = "end"
-			else if (status === "completed") action = "complete"
-			else if (status === "archived") action = "archive"
-			else {
-				toast.error("Invalid status transition")
-				return
-			}
+		// Map CampaignStatus to action type
+		let action: "submit" | "activate" | "cancel" | "end" | "complete" | "archive" | "unarchive"
+		if (status === "pending_approval") action = "submit"
+		else if (status === "active") action = "activate"
+		else if (status === "cancelled") action = "cancel"
+		else if (status === "ended") action = "end"
+		else if (status === "completed") action = "complete"
+		else if (status === "archived") action = "archive"
+		else {
+			toast.error("Invalid status transition")
+			return
+		}
 
-			await updateCampaignStatus({ id: campaignId, action })
-			// Invalidate campaigns queries to refetch updated data
-			queryClient.invalidateQueries({ queryKey: campaignKeys.lists(organizationId) })
-			queryClient.invalidateQueries({ queryKey: campaignKeys.detail(organizationId, campaignId) })
-			router.refresh()
+		// Use optimistic update for instant UI feedback
+		startTransition(async () => {
+			await performListItemOptimisticUpdate<CampaignWithStats, unknown>({
+				queryClient,
+				queryKey: campaignKeys.list(organizationId, { status: statusFilter !== "all" ? statusFilter : undefined }),
+				itemId: campaignId,
+				updateFn: (campaign) => ({ ...campaign, status }),
+				serverFn: () => updateCampaignStatus({ organizationId, id: campaignId, action }),
+				invalidateKeys: [
+					campaignKeys.lists(organizationId),
+					campaignKeys.detail(organizationId, campaignId),
+				],
+				successMessage: `Campaign ${action === "submit" ? "submitted for approval" : `${action}d`} successfully`,
+				errorMessage: `Failed to ${action} campaign`,
+			})
 		})
-	}, [queryClient, router, organizationId])
+	}, [queryClient, organizationId, statusFilter])
 
 	const handleDelete = useCallback((campaignId: string) => {
 		setDeletingCampaignId(campaignId)
@@ -250,35 +192,37 @@ export function CampaignsClient({
 	const confirmDeleteCampaign = useCallback(async () => {
 		if (!deletingCampaignId) return
 
-		startTransition(async () => {
-			try {
-				await deleteCampaign({ id: deletingCampaignId })
-				toast.success("Campaign deleted successfully")
-				setIsDeleteModalOpen(false)
-				// Invalidate campaigns queries to refetch updated list
-				queryClient.invalidateQueries({ queryKey: campaignKeys.lists(organizationId) })
-				queryClient.invalidateQueries({ queryKey: campaignKeys.detail(organizationId, deletingCampaignId) })
-				router.refresh()
-			} catch (error) {
-				toast.error(getErrorMessage(error, "An error occurred while deleting campaign"))
-			} finally {
-				setDeletingCampaignId(null)
-			}
-		})
-	}, [deletingCampaignId, queryClient, router, organizationId])
+		setIsDeleteModalOpen(false)
 
-		const handleDuplicate = useCallback((campaignId: string) => {
+		// Use optimistic delete for instant UI feedback
+		startTransition(async () => {
+			await performOptimisticDelete<CampaignWithStats, unknown>({
+				queryClient,
+				queryKey: campaignKeys.list(organizationId, { status: statusFilter !== "all" ? statusFilter : undefined }),
+				itemId: deletingCampaignId,
+				serverFn: () => deleteCampaign({ organizationId, id: deletingCampaignId }),
+				invalidateKeys: [
+					campaignKeys.lists(organizationId),
+				],
+				successMessage: "Campaign deleted successfully",
+				errorMessage: "Failed to delete campaign",
+			})
+			setDeletingCampaignId(null)
+		})
+	}, [deletingCampaignId, queryClient, organizationId, statusFilter])
+
+	const handleDuplicate = useCallback((campaignId: string) => {
 		startTransition(async () => {
 			try {
 				const result = await duplicateCampaign({ id: campaignId, organizationId })
 				// Invalidate campaigns queries to show new campaign
 				queryClient.invalidateQueries({ queryKey: campaignKeys.lists(organizationId) })
+				toast.success("Campaign duplicated successfully")
 				if (result?.data?.id) {
 					router.push(`/dashboard/${organizationId}/campaigns/${result.data.id}`)
 				}
-				router.refresh()
 			} catch (error) {
-				toast.error(getErrorMessage(error, "Failed to duplicate campaign"))
+				toast.error(error instanceof Error ? error.message : "Failed to duplicate campaign")
 			}
 		})
 	}, [queryClient, router, organizationId])
@@ -431,21 +375,23 @@ export function CampaignsClient({
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					{/* Search Input */}
 					<div className="relative w-full sm:w-72">
-						<MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-soft-400" />
+						<MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-soft-400" aria-hidden="true" />
 						<input
-							type="text"
+							type="search"
 							placeholder="Search campaigns..."
 							value={searchQuery}
 							onChange={(e) => setSearchQuery(e.target.value)}
 							className="w-full h-9 pl-9 pr-8 rounded-lg bg-bg-white-0 text-paragraph-sm text-text-strong-950 placeholder:text-text-soft-400 ring-1 ring-inset ring-stroke-soft-200 focus:outline-none focus:ring-2 focus:ring-primary-base transition-shadow"
+							aria-label="Search campaigns"
 						/>
 						{searchQuery && (
 							<button
 								type="button"
 								onClick={() => setSearchQuery("")}
-								className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-bg-weak-50 text-text-soft-400 hover:text-text-sub-600 transition-colors"
+								className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-bg-weak-50 text-text-soft-400 hover:text-text-sub-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-base"
+								aria-label="Clear search"
 							>
-								<X className="size-3.5" />
+								<X className="size-3.5" aria-hidden="true" />
 							</button>
 						)}
 						{isSearching && (
@@ -458,7 +404,7 @@ export function CampaignsClient({
 					{/* Status Filter */}
 					<div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible">
 						<div className="flex gap-2 min-w-max sm:min-w-0 sm:flex-wrap">
-							{statusTabs.map((tab) => {
+							{CAMPAIGN_STATUS_TABS.map((tab) => {
 								const count = getStatusCount(tab.value)
 								const isActive = statusFilter === tab.value
 								return (
@@ -476,7 +422,7 @@ export function CampaignsClient({
 										{tab.label}
 										<span
 											className={cn(
-												"inline-flex items-center justify-center size-4 sm:size-5 rounded-full text-[10px] sm:text-label-xs font-medium",
+												"inline-flex items-center justify-center size-4 sm:size-5 rounded-full text-label-xs font-medium",
 												isActive ? "bg-white/20 text-white" : "bg-bg-soft-200 text-text-sub-600"
 											)}
 										>
@@ -489,8 +435,15 @@ export function CampaignsClient({
 					</div>
 				</div>
 
+				{/* Search Error */}
+				{isSearchError && isSearchActive && (
+					<Callout variant="error" size="sm" dismissible>
+						<strong>Search failed.</strong> Unable to search campaigns. Please try again.
+					</Callout>
+				)}
+
 				{/* Campaign Tips */}
-				{campaigns.length > 0 && statusFilter === "all" && (
+				{campaigns.length > 0 && statusFilter === "all" && !isSearchError && (
 					<div className="hidden sm:block">
 						<Callout variant="tip" size="sm" dismissible>
 							<strong>Tip:</strong> Set clear campaign goals and deadlines to maximize enrollment
@@ -508,7 +461,7 @@ export function CampaignsClient({
 							<div className="text-center">
 								<Megaphone weight="duotone" className="size-12 mx-auto mb-4 text-text-soft-400" />
 								<h3 className="text-label-lg text-text-strong-950 mb-2">
-									No campaigns with "{statusTabs.find((t) => t.value === statusFilter)?.label}"
+									No campaigns with "{CAMPAIGN_STATUS_TABS.find((t) => t.value === statusFilter)?.label}"
 									status
 								</h3>
 								<p className="text-paragraph-sm text-text-sub-600 mb-6">
@@ -526,7 +479,7 @@ export function CampaignsClient({
 						</div>
 					)
 				) : (
-					<div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 items-stretch">
+					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 items-stretch">
 						{campaigns.map((campaign: CampaignWithStats) => (
 							<CampaignCardWrapper
 								key={campaign.id}
@@ -534,7 +487,6 @@ export function CampaignsClient({
 								onStatusChange={handleStatusChange}
 								onDelete={handleDelete}
 								onDuplicate={handleDuplicate}
-								router={router}
 								organizationId={organizationId}
 							/>
 						))}

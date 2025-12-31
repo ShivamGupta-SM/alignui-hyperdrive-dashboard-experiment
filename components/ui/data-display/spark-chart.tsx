@@ -4,8 +4,8 @@
 
 import * as React from "react"
 import { ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar } from "recharts"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 const sparkChartVariants = tv({
 	base: "relative overflow-hidden",

@@ -12,9 +12,10 @@ import {
 	getSortedRowModel,
 	useReactTable,
 } from "@tanstack/react-table"
-import { useState } from "react"
-import { cn } from "@/utils/cn"
+import { useState, useId } from "react"
+import { cn } from "@/lib/utils"
 import * as Button from "@/components/ui/primitives/button"
+import { SearchInput } from "@/components/ui/forms/input"
 import { CaretLeft, CaretRight, CaretUp, CaretDown } from "@phosphor-icons/react"
 
 interface DataTableProps<TData, TValue> {
@@ -22,6 +23,8 @@ interface DataTableProps<TData, TValue> {
 	data: TData[]
 	searchKey?: string
 	searchPlaceholder?: string
+	/** Accessible label for the table */
+	tableLabel?: string
 }
 
 export function DataTable<TData, TValue>({
@@ -29,11 +32,15 @@ export function DataTable<TData, TValue>({
 	data,
 	searchKey,
 	searchPlaceholder = "Search...",
+	tableLabel,
 }: DataTableProps<TData, TValue>) {
 	const [sorting, setSorting] = useState<SortingState>([])
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 	const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
 	const [rowSelection, setRowSelection] = useState({})
+
+	const tableId = useId()
+	const searchId = `${tableId}-search`
 
 	const table = useReactTable({
 		data,
@@ -54,19 +61,26 @@ export function DataTable<TData, TValue>({
 		},
 	})
 
+	const searchValue = (table.getColumn(searchKey ?? "")?.getFilterValue() as string) ?? ""
+
 	return (
 		<div className="space-y-4">
 			{searchKey && (
-				<input
+				<SearchInput
+					id={searchId}
 					placeholder={searchPlaceholder}
-					value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
+					aria-label={searchPlaceholder.replace("...", "").trim() || "Search table"}
+					aria-controls={`${tableId}-table`}
+					value={searchValue}
 					onChange={(event) => table.getColumn(searchKey)?.setFilterValue(event.target.value)}
-					className="h-10 w-full max-w-sm rounded-lg border border-stroke-soft-200 bg-bg-white-0 px-3 text-paragraph-sm text-text-strong-950 placeholder:text-text-soft-400 focus:border-stroke-strong-950 focus:outline-none focus:ring-1 focus:ring-stroke-strong-950"
+					onClear={() => table.getColumn(searchKey)?.setFilterValue("")}
+					className="max-w-sm"
+					size="medium"
 				/>
 			)}
 
 			<div className="overflow-hidden rounded-xl border border-stroke-soft-200">
-				<table className="w-full">
+				<table id={`${tableId}-table`} className="w-full" aria-label={tableLabel}>
 					<thead className="border-b border-stroke-soft-200 bg-bg-weak-50">
 						{table.getHeaderGroups().map((headerGroup) => (
 							<tr key={headerGroup.id}>
@@ -74,6 +88,13 @@ export function DataTable<TData, TValue>({
 									<th
 										key={header.id}
 										className="px-4 py-3 text-left text-label-sm font-medium text-text-sub-600"
+										aria-sort={
+											header.column.getIsSorted()
+												? header.column.getIsSorted() === "asc"
+													? "ascending"
+													: "descending"
+												: undefined
+										}
 									>
 										{header.isPlaceholder ? null : (
 											<div
@@ -82,10 +103,22 @@ export function DataTable<TData, TValue>({
 													header.column.getCanSort() && "cursor-pointer select-none"
 												)}
 												onClick={header.column.getToggleSortingHandler()}
+												role={header.column.getCanSort() ? "button" : undefined}
+												tabIndex={header.column.getCanSort() ? 0 : undefined}
+												onKeyDown={
+													header.column.getCanSort()
+														? (e) => {
+																if (e.key === "Enter" || e.key === " ") {
+																	e.preventDefault()
+																	header.column.getToggleSortingHandler()?.(e)
+																}
+															}
+														: undefined
+												}
 											>
 												{flexRender(header.column.columnDef.header, header.getContext())}
 												{header.column.getCanSort() && (
-													<span className="text-text-soft-400">
+													<span className="text-text-soft-400" aria-hidden="true">
 														{{
 															asc: <CaretUp weight="bold" className="size-4" />,
 															desc: <CaretDown weight="bold" className="size-4" />,
@@ -120,7 +153,7 @@ export function DataTable<TData, TValue>({
 									colSpan={columns.length}
 									className="h-24 text-center text-paragraph-sm text-text-sub-600"
 								>
-									No results.
+									<span aria-live="polite">No results.</span>
 								</td>
 							</tr>
 						)}
@@ -133,14 +166,15 @@ export function DataTable<TData, TValue>({
 					{table.getFilteredSelectedRowModel().rows.length} of{" "}
 					{table.getFilteredRowModel().rows.length} row(s) selected.
 				</div>
-				<div className="flex items-center gap-2">
+				<nav className="flex items-center gap-2" aria-label="Table pagination">
 					<Button.Root
 						variant="ghost"
 						size="xsmall"
 						onClick={() => table.previousPage()}
 						disabled={!table.getCanPreviousPage()}
+						aria-label="Go to previous page"
 					>
-						<Button.Icon><CaretLeft className="size-5" /></Button.Icon>
+						<Button.Icon><CaretLeft className="size-5" aria-hidden="true" /></Button.Icon>
 						Previous
 					</Button.Root>
 					<Button.Root
@@ -148,15 +182,16 @@ export function DataTable<TData, TValue>({
 						size="xsmall"
 						onClick={() => table.nextPage()}
 						disabled={!table.getCanNextPage()}
+						aria-label="Go to next page"
 					>
 						Next
-						<Button.Icon><CaretRight className="size-5" /></Button.Icon>
+						<Button.Icon><CaretRight className="size-5" aria-hidden="true" /></Button.Icon>
 					</Button.Root>
-				</div>
+				</nav>
 			</div>
 		</div>
 	)
 }
 
-// Re-export for convenience
-export { type ColumnDef } from "@tanstack/react-table"
+// Re-export types for convenience
+export type { ColumnDef } from "@tanstack/react-table"

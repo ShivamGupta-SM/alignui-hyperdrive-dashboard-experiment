@@ -171,7 +171,7 @@ export function logWarn(message: string, context?: ErrorContext): void {
 
 /**
  * Log debug message (development only)
- * 
+ *
  * @param message - Debug message
  * @param context - Optional context data
  */
@@ -180,6 +180,100 @@ export function logDebug(message: string, context?: ErrorContext): void {
 		const source = context?.source || "Unknown"
 		const data = context?.data || {}
 		console.log(`🐛 [${source}] ${message}`, data)
+	}
+}
+
+/**
+ * Create a standardized mutation error handler
+ * Use this for React Query mutation onError callbacks
+ *
+ * SSOT: Single pattern for all mutation error handling
+ *
+ * @param actionName - Human-readable name of the action (e.g., "create campaign")
+ * @param options - Additional options for error handling
+ *
+ * @example
+ * const mutation = useMutation({
+ *   mutationFn: createCampaign,
+ *   onError: createMutationErrorHandler("create campaign"),
+ * })
+ *
+ * @example
+ * // With custom toast
+ * const mutation = useMutation({
+ *   mutationFn: deleteProduct,
+ *   onError: createMutationErrorHandler("delete product", {
+ *     showToast: true,
+ *     toastTitle: "Delete Failed"
+ *   }),
+ * })
+ */
+export function createMutationErrorHandler(
+	actionName: string,
+	options?: {
+		showToast?: boolean
+		toastTitle?: string
+		additionalContext?: Record<string, unknown>
+	}
+): (error: unknown) => void {
+	const { showToast = true, toastTitle, additionalContext } = options || {}
+
+	return (error: unknown) => {
+		// Log the error with context
+		logError(error, {
+			source: `Mutation: ${actionName}`,
+			data: {
+				action: actionName,
+				...additionalContext,
+			},
+		})
+
+		// Show toast if enabled (lazy import to avoid circular deps)
+		if (showToast) {
+			// Dynamic import to avoid bundling sonner in server code
+			import("sonner").then(({ toast }) => {
+				const message = error instanceof Error
+					? error.message
+					: `Failed to ${actionName}`
+				toast.error(toastTitle || "Action Failed", {
+					description: message,
+				})
+			}).catch(() => {
+				// Silently fail if sonner not available
+			})
+		}
+	}
+}
+
+/**
+ * Create a standardized query error handler
+ * Use this for React Query query onError callbacks
+ *
+ * @param queryName - Human-readable name of the query (e.g., "fetch campaigns")
+ *
+ * @example
+ * const query = useQuery({
+ *   queryKey: ["campaigns"],
+ *   queryFn: fetchCampaigns,
+ *   onError: createQueryErrorHandler("fetch campaigns"),
+ * })
+ */
+export function createQueryErrorHandler(
+	queryName: string,
+	options?: {
+		additionalContext?: Record<string, unknown>
+	}
+): (error: unknown) => void {
+	const { additionalContext } = options || {}
+
+	return (error: unknown) => {
+		logError(error, {
+			source: `Query: ${queryName}`,
+			data: {
+				query: queryName,
+				...additionalContext,
+			},
+		})
 	}
 }
 

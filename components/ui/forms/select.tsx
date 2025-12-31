@@ -1,5 +1,6 @@
-// AlignUI Select v0.2.0 - Enhanced with loading state and accessibility
-// Improvements: aria-invalid support, aria-describedby, JSDoc documentation
+// AlignUI Select v0.2.1 - Enhanced with loading state and accessibility
+// Features: hasError, errorId, aria-invalid, aria-describedby, isLoading, aria-busy
+// Empty/Loading states have proper ARIA live regions
 
 "use client"
 
@@ -8,9 +9,9 @@ import * as SelectPrimitives from "@radix-ui/react-select"
 import * as ScrollAreaPrimitives from "@radix-ui/react-scroll-area"
 import { Slottable } from "@radix-ui/react-slot"
 import { CaretDown, Check, CircleNotch } from "@phosphor-icons/react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
-import type { PolymorphicComponentProps } from "@/utils/polymorphic"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
+import type { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 
 export const selectVariants = tv({
 	slots: {

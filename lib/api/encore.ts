@@ -1,68 +1,50 @@
-// Server-only Encore client wrapper
-// This file can only be imported on the server-side
-import "server-only"
-
-import Client from "./encore-client"
-import type { ClientOptions } from "./encore-client"
-import { getEncoreBaseUrl } from "./encore-shared"
-
-// Create a singleton client instance for server-side use
-let clientInstance: Client | null = null
-
 /**
- * Get the Encore client for server-side use.
- * This should only be used in server components and API routes.
+ * Encore API Client - Unified Entry Point
+ *
+ * This file re-exports from the specialized client modules:
+ * - Server-side: lib/api/server.ts
+ * - Browser-side: lib/api/encore-browser.ts
+ *
+ * Architecture:
+ * - brand-client.ts: Auto-generated Encore client (DO NOT EDIT)
+ * - lib/api/server.ts: Server-side client factory (server-only)
+ * - lib/api/encore-browser.ts: Browser client with singleton
+ * - lib/api/encore-shared.ts: Base URL utilities (shared)
+ * - lib/api/encore.ts: This file - unified exports
+ *
+ * URL-based Multi-tenancy:
+ * - organizationId comes from URL path: /dashboard/[organizationId]/...
+ * - Client is NOT session-scoped - auth token is for user, not org
+ * - organizationId is passed explicitly to each API call
  */
-export function getEncoreClient(options?: ClientOptions): Client {
-	// Use singleton pattern
-	const baseUrl = getEncoreBaseUrl()
-	if (!clientInstance) {
-		clientInstance = new Client(baseUrl, options)
-	}
 
-	// If options are provided, return a new client with those options
-	if (options) {
-		return clientInstance.with(options)
-	}
-
-	return clientInstance
-}
-
-/**
- * Get an authenticated Encore client.
- * Pass the auth token from the request context.
- */
-export function getAuthenticatedEncoreClient(authToken: string): Client {
-	return getEncoreClient({
-		requestInit: {
-			headers: {
-				Authorization: `Bearer ${authToken}`,
-			},
-		},
-	})
-}
-
-// Re-export types from the generated client for convenience
-export type { ClientOptions } from "./encore-client"
-
-// Re-export error types and utilities
-// Note: APIError (class) and ErrCode (enum) export both value and type automatically
-export { APIError, isAPIError, ErrCode } from "./encore-client"
-
-// Re-export error handler utilities
+// Re-export everything from brand-client for types
 export {
-	extractErrorMessage,
-	extractErrorCode,
-	extractErrorStatus,
-	isAuthenticationError,
-	isNotFoundError,
-	isValidationError,
-	getErrorDetails,
-	handleAuthError,
-} from "../errors/encore-error-handler"
+	admin,
+	auth,
+	campaigns,
+	coupons,
+	enrollments,
+	integrations,
+	notifications,
+	organizations,
+	platforms,
+	products,
+	shared,
+	shoppers,
+	storage,
+	wallets,
+	webhooks,
+	Local,
+	Environment,
+	PreviewEnv,
+} from "@/brand-client"
 
-// Note: For logging utilities, use direct import:
-// import { logError } from "@/lib/logging/error-logger-simple"
+export type { ClientOptions } from "@/brand-client"
+export { default as Client } from "@/brand-client"
 
-// Note: For type namespaces, use direct import:
-// import type { campaigns } from "@/lib/api/encore-client"
+// Re-export shared utilities
+export { getEncoreBaseUrl } from "./encore-shared"
+
+// Note: For server-side usage, import from "@/lib/api/server"
+// Note: For browser-side usage, import from "@/lib/api/encore-browser"

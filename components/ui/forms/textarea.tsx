@@ -1,72 +1,89 @@
-// AlignUI Textarea v0.1.0 - Enhanced with auto-resize
+// AlignUI Textarea v0.2.0 - Enhanced with error states and accessibility
+// Improvements: hasError prop, aria-invalid, aria-describedby, errorId support, focus ring
 
 "use client"
 
 import * as React from "react"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 
 const TEXTAREA_ROOT_NAME = "TextareaRoot"
 const TEXTAREA_NAME = "Textarea"
 const TEXTAREA_RESIZE_HANDLE_NAME = "TextareaResizeHandle"
 const TEXTAREA_COUNTER_NAME = "TextareaCounter"
 
-const Textarea = React.forwardRef<
-	HTMLTextAreaElement,
-	React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
-		hasError?: boolean
-		simple?: boolean
-	}
->(({ className, hasError, simple, disabled, ...rest }, forwardedRef) => {
-	return (
-		<textarea
-			className={cn(
-				[
-					// base
-					"block w-full resize-none text-paragraph-sm text-text-strong-950 outline-none",
-					!simple && ["pointer-events-auto h-full min-h-[82px] bg-transparent pl-3 pr-2.5 pt-2.5"],
-					simple && [
-						"min-h-28 rounded-xl bg-bg-white-0 px-3 py-2.5 shadow-regular-xs",
-						"ring-1 ring-inset ring-stroke-soft-200",
-						"transition-all duration-200 ease-out",
-						// hover
-						"hover:[&:not(:focus)]:bg-bg-weak-50",
-						!hasError && [
+/** Shared props for textarea error states */
+export interface TextareaSharedProps {
+	/** Whether the textarea has an error */
+	hasError?: boolean
+	/** ID of the error message element for aria-describedby */
+	errorId?: string
+}
+
+export interface TextareaBaseProps
+	extends React.TextareaHTMLAttributes<HTMLTextAreaElement>,
+		TextareaSharedProps {
+	/** Use simple styling without container */
+	simple?: boolean
+}
+
+/**
+ * Textarea - Base textarea element with error state support
+ */
+const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaBaseProps>(
+	({ className, hasError, errorId, simple, disabled, ...rest }, forwardedRef) => {
+		return (
+			<textarea
+				className={cn(
+					[
+						// base
+						"block w-full resize-none text-paragraph-sm text-text-strong-950 outline-none",
+						!simple && ["pointer-events-auto h-full min-h-[82px] bg-transparent pl-3 pr-2.5 pt-2.5"],
+						simple && [
+							"min-h-28 rounded-xl bg-bg-white-0 px-3 py-2.5 shadow-regular-xs",
+							"ring-1 ring-inset ring-stroke-soft-200",
+							"transition-all duration-200 ease-out",
 							// hover
-							"hover:[&:not(:focus)]:ring-transparent",
-							// focus
-							"focus:shadow-button-important-focus focus:ring-stroke-strong-950",
+							"hover:[&:not(:focus)]:bg-bg-weak-50",
+							!hasError && [
+								// hover
+								"hover:[&:not(:focus)]:ring-transparent",
+								// focus
+								"focus:shadow-button-important-focus focus:ring-stroke-strong-950",
+							],
+							hasError && [
+								// base
+								"ring-error-base",
+								// focus
+								"focus:shadow-button-error-focus focus:ring-error-base",
+							],
+							disabled && ["bg-bg-weak-50 ring-transparent"],
 						],
-						hasError && [
-							// base
-							"ring-error-base",
+						!disabled && [
+							// placeholder
+							"placeholder:select-none placeholder:text-text-soft-400 placeholder:transition placeholder:duration-200 placeholder:ease-out",
+							// hover placeholder
+							"group-hover/textarea:placeholder:text-text-sub-600",
 							// focus
-							"focus:shadow-button-error-focus focus:ring-error-base",
+							"focus:outline-none",
+							// focus placeholder
+							"focus:placeholder:text-text-sub-600",
 						],
-						disabled && ["bg-bg-weak-50 ring-transparent"],
+						disabled && [
+							// disabled
+							"text-text-disabled-300 placeholder:text-text-disabled-300",
+						],
 					],
-					!disabled && [
-						// placeholder
-						"placeholder:select-none placeholder:text-text-soft-400 placeholder:transition placeholder:duration-200 placeholder:ease-out",
-						// hover placeholder
-						"group-hover/textarea:placeholder:text-text-sub-600",
-						// focus
-						"focus:outline-none",
-						// focus placeholder
-						"focus:placeholder:text-text-sub-600",
-					],
-					disabled && [
-						// disabled
-						"text-text-disabled-300 placeholder:text-text-disabled-300",
-					],
-				],
-				className
-			)}
-			ref={forwardedRef}
-			disabled={disabled}
-			{...rest}
-		/>
-	)
-})
+					className
+				)}
+				ref={forwardedRef}
+				disabled={disabled}
+				aria-invalid={hasError || undefined}
+				aria-describedby={errorId}
+				{...rest}
+			/>
+		)
+	}
+)
 Textarea.displayName = TEXTAREA_NAME
 
 function ResizeHandle() {
@@ -86,26 +103,38 @@ function ResizeHandle() {
 }
 ResizeHandle.displayName = TEXTAREA_RESIZE_HANDLE_NAME
 
-type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> &
+export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> &
+	TextareaSharedProps &
 	(
 		| {
 				simple: true
 				children?: never
 				containerClassName?: never
-				hasError?: boolean
 		  }
 		| {
 				simple?: false
 				children?: React.ReactNode
 				containerClassName?: string
-				hasError?: boolean
 		  }
 	)
 
+/**
+ * TextareaRoot - Textarea container with optional children and error support
+ * @example
+ * <Textarea.Root
+ *   value={text}
+ *   onChange={(e) => setText(e.target.value)}
+ *   hasError={!!error}
+ *   errorId="description-error"
+ * >
+ *   <Textarea.CharCounter current={text.length} max={500} />
+ * </Textarea.Root>
+ * {error && <span id="description-error">{error}</span>}
+ */
 const TextareaRoot = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-	({ containerClassName, children, hasError, simple, ...rest }, forwardedRef) => {
+	({ containerClassName, children, hasError, errorId, simple, ...rest }, forwardedRef) => {
 		if (simple) {
-			return <Textarea ref={forwardedRef} simple hasError={hasError} {...rest} />
+			return <Textarea ref={forwardedRef} simple hasError={hasError} errorId={errorId} {...rest} />
 		}
 
 		return (
@@ -138,7 +167,7 @@ const TextareaRoot = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
 			>
 				<div className="grid">
 					<div className="pointer-events-none relative z-10 flex flex-col gap-2 [grid-area:1/1]">
-						<Textarea ref={forwardedRef} hasError={hasError} {...rest} />
+						<Textarea ref={forwardedRef} hasError={hasError} errorId={errorId} {...rest} />
 						<div className="pointer-events-none flex items-center justify-end gap-1.5 pl-3 pr-2.5">
 							{children}
 							<ResizeHandle />
@@ -182,15 +211,34 @@ function CharCounter({
 }
 CharCounter.displayName = TEXTAREA_COUNTER_NAME
 
+// ============================================
 // Auto-resize textarea that grows with content
-interface AutoResizeTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-	hasError?: boolean
+// ============================================
+
+export interface AutoResizeTextareaProps
+	extends React.TextareaHTMLAttributes<HTMLTextAreaElement>,
+		TextareaSharedProps {
+	/** Minimum number of rows */
 	minRows?: number
+	/** Maximum number of rows */
 	maxRows?: number
 }
 
+/**
+ * AutoResizeTextarea - Textarea that automatically adjusts height based on content
+ * @example
+ * <AutoResizeTextarea
+ *   value={message}
+ *   onChange={(e) => setMessage(e.target.value)}
+ *   minRows={2}
+ *   maxRows={6}
+ *   hasError={!!error}
+ *   errorId="message-error"
+ * />
+ * {error && <span id="message-error">{error}</span>}
+ */
 const AutoResizeTextarea = React.forwardRef<HTMLTextAreaElement, AutoResizeTextareaProps>(
-	({ className, hasError, minRows = 2, maxRows = 10, onChange, value, ...rest }, forwardedRef) => {
+	({ className, hasError, errorId, minRows = 2, maxRows = 10, onChange, value, ...rest }, forwardedRef) => {
 		const textareaRef = React.useRef<HTMLTextAreaElement | null>(null)
 		const [height, setHeight] = React.useState<string>("auto")
 
@@ -240,7 +288,8 @@ const AutoResizeTextarea = React.forwardRef<HTMLTextAreaElement, AutoResizeTexta
 				style={{ height, minHeight, maxHeight, overflow: "auto" }}
 				onChange={handleChange}
 				value={value}
-				aria-invalid={hasError}
+				aria-invalid={hasError || undefined}
+				aria-describedby={errorId}
 				{...rest}
 			/>
 		)

@@ -4,7 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft } from "@phosphor-icons/react"
 import * as Button from "@/components/ui/primitives/button"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 
 export interface BackButtonProps {
 	/**

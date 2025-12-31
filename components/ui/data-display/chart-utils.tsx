@@ -4,7 +4,7 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 
 /**
  * Selects N evenly spaced items from an array.
@@ -73,7 +73,7 @@ export const chartColors = {
  * Chart Legend Content component for Recharts.
  * Renders a custom styled legend.
  */
-type ChartLegendPayload = {
+export type ChartLegendPayload = {
 	value?: string
 	type?: string
 	id?: string
@@ -81,7 +81,7 @@ type ChartLegendPayload = {
 	[key: string]: unknown
 }
 
-type ChartLegendContentProps = {
+export type ChartLegendContentProps = {
 	payload?: ChartLegendPayload[]
 	align?: "left" | "center" | "right"
 	layout?: "horizontal" | "vertical"

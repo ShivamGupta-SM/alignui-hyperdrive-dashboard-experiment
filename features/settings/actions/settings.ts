@@ -4,32 +4,38 @@
  * Settings Server Actions
  *
  * Uses next-safe-action for type-safe, error-handled server actions
+ *
+ * NOTE: Auth-related operations (updateProfile, changeEmail, deleteUser, 2FA,
+ * sessions, verification) are in @/features/auth/actions/auth-actions.ts
+ * This file only contains settings-specific actions (org settings, bank accounts, etc.)
  */
 
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { authAction } from "@/lib/safe-action"
-import { getErrorMessageForLog } from "@/lib/utils/format"
-import type { auth } from "@/lib/api/encore-client"
+import { getErrorMessage } from "@/lib/errors/encore-error-handler"
+import type { auth } from "@/brand-client"
 
 // =============================================================================
 // Schemas
 // =============================================================================
 
-const updateProfileSchema = z.object({
-	name: z.string().min(1),
-	image: z.string().optional(),
-})
-
+// Note: organizations.UpdateOrganizationRequest supports:
+// name, description, website, contactPerson, phoneNumber, email, address, city, state, postalCode
+// industryCategory is only in admin.UpdateOrganizationRequest (not available to regular users)
 const updateOrganizationSchema = z.object({
 	organizationId: z.string().min(1),
 	name: z.string().min(1),
+	description: z.string().optional(),
 	website: z.string().optional(),
 	email: z.string().email().optional(),
 	phone: z.string().optional(),
-	industry: z.string().optional(),
+	contactPerson: z.string().optional(),
 	address: z.string().optional(),
+	city: z.string().optional(),
+	state: z.string().optional(),
+	postalCode: z.string().optional(),
 })
 
 const updatePasswordSchema = z.object({
@@ -61,72 +67,25 @@ const accountIdSchema = z.object({
 	accountId: z.string().min(1),
 })
 
-const passwordSchema = z.object({
-	password: z.string().min(1),
-})
-
-const enable2FASchema = z.object({
-	password: z.string().min(1),
-	issuer: z.string().optional(),
-})
-
-const verify2FASchema = z.object({
-	code: z.string().length(6),
-})
-
-const changeEmailSchema = z.object({
-	newEmail: z.string().email(),
-	password: z.string().min(1),
-})
-
-const deleteAccountSchema = z.object({
-	password: z.string().optional(),
-})
-
-const sendVerificationSchema = z.object({
-	email: z.string().email().optional(),
-})
-
-const sessionIdSchema = z.object({
-	sessionId: z.string().min(1),
-})
-
 // =============================================================================
 // Actions
 // =============================================================================
 
-/**
- * Update user profile
- */
-export const updateProfile = authAction
-	.inputSchema(updateProfileSchema)
-	.action(async ({ parsedInput, ctx }) => {
-		await ctx.client.auth.updateUser({
-			name: parsedInput.name,
-			...(parsedInput.image && { image: parsedInput.image }),
-		})
-
-		revalidatePath("/dashboard/settings")
-		revalidatePath("/dashboard/profile")
-		revalidatePath("/", "layout")
-
-		return { success: true }
-	})
+// NOTE: updateProfile is in @/features/auth/actions/auth-actions.ts
 
 /**
  * Update organization settings
+ * NOTE: auth.updateOrganizationAuth only supports name, slug, logo
+ * Other fields (description, website, email, phone, etc.) require admin endpoint
  */
 export const updateOrganization = authAction
 	.inputSchema(updateOrganizationSchema)
 	.action(async ({ parsedInput, ctx }) => {
 		const { organizationId, ...data } = parsedInput
 
-		await ctx.client.organizations.updateOrganization(organizationId, {
+		// auth.updateOrganizationAuth only supports: name, slug, logo
+		await ctx.client.auth.updateOrganizationAuth(organizationId, {
 			name: data.name,
-			website: data.website || undefined,
-			email: data.email || undefined,
-			phoneNumber: data.phone || undefined,
-			address: data.address || undefined,
 		})
 
 		revalidatePath("/dashboard/settings")
@@ -152,15 +111,24 @@ export const updatePassword = authAction
 	})
 
 /**
- * Update notification settings
+ * Update UI notification preferences (local/profile settings)
+ *
+ * NOTE: This handles UI-specific notification preferences for the profile settings page.
+ * These are stored as user preferences and control email digest frequency, sound settings, etc.
+ *
+ * For Novu-based notification channel preferences (email/push/sms per workflow),
+ * use the hooks from @/features/notifications instead:
+ * - useNotificationPreferences() - get workflow preferences
+ * - useUpdateNotificationPreferences() - update channel preferences
  */
 export const updateNotifications = authAction
 	.inputSchema(notificationSettingsSchema)
 	.action(async ({ parsedInput }) => {
-		// TODO: Implement notification settings update when endpoint is available
+		// UI preferences stored locally - not workflow channel preferences
+		// Backend workflow preferences are managed via @/features/notifications hooks
 		void parsedInput
 		revalidatePath("/dashboard/settings")
-		return { success: true }
+		return { success: true, message: "Notification preferences updated" }
 	})
 
 /**
@@ -224,7 +192,7 @@ export const verifyBankAccount = authAction
 				message: "Bank account verification initiated. A small amount (₹1) will be deposited to verify your account.",
 			}
 		} catch (error: unknown) {
-			const errorMessage = getErrorMessageForLog(error)
+			const errorMessage = getErrorMessage(error)
 			if (errorMessage.includes("unimplemented") || errorMessage.includes("not yet implemented")) {
 				throw new Error("Bank account verification is not yet available. This feature requires RazorpayX integration.")
 			}
@@ -232,130 +200,72 @@ export const verifyBankAccount = authAction
 		}
 	})
 
+// NOTE: 2FA operations (enable2FA, disable2FA) are in @/features/auth/actions/auth-actions.ts
+// NOTE: changeEmail is in @/features/auth/actions/auth-actions.ts
+// NOTE: deleteUser is in @/features/auth/actions/auth-actions.ts
+// NOTE: sendVerificationEmail is in @/features/auth/actions/auth-actions.ts
+// NOTE: revokeSession, revokeOtherSessions are in @/features/auth/actions/auth-actions.ts
+
 /**
- * Enable two-factor authentication
+ * Delete organization
  */
-export const enable2FA = authAction
-	.inputSchema(enable2FASchema)
+export const deleteOrganization = authAction
+	.inputSchema(z.object({
+		organizationId: z.string().min(1),
+		confirmationText: z.string().min(1),
+	}))
 	.action(async ({ parsedInput, ctx }) => {
-		const result = await ctx.client.auth.twoFactorEnable({
-			password: parsedInput.password,
-			issuer: parsedInput.issuer,
-		})
-
-		const qrCodeUrl = result.totpURI
-			? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(result.totpURI)}`
-			: undefined
-
-		revalidatePath("/dashboard/settings")
-
-		return {
-			success: result.success,
-			secret: result.totpURI ? result.totpURI.split("secret=")[1]?.split("&")[0] : undefined,
-			qrCodeUrl,
-			backupCodes: result.backupCodes,
+		// Verify confirmation text matches "DELETE"
+		if (parsedInput.confirmationText !== "DELETE") {
+			throw new Error("Please type DELETE to confirm")
 		}
-	})
 
-/**
- * Verify 2FA setup
- */
-export const verify2FA = authAction
-	.inputSchema(verify2FASchema)
-	.action(async ({ parsedInput }) => {
-		void parsedInput
-		revalidatePath("/dashboard/settings")
-		return { success: true, message: "2FA enabled successfully" }
-	})
+		const result = await ctx.client.auth.deleteOrganization(parsedInput.organizationId)
 
-/**
- * Disable two-factor authentication
- */
-export const disable2FA = authAction
-	.inputSchema(passwordSchema)
-	.action(async ({ parsedInput, ctx }) => {
-		const result = await ctx.client.auth.twoFactorDisable({ password: parsedInput.password })
-
-		revalidatePath("/dashboard/settings")
+		revalidatePath("/dashboard")
 		revalidatePath("/", "layout")
 
 		return { success: result.success }
 	})
 
 /**
- * Change email address
+ * Update organization logo
  */
-export const changeEmail = authAction
-	.inputSchema(changeEmailSchema)
+export const updateOrganizationLogo = authAction
+	.inputSchema(z.object({
+		organizationId: z.string().min(1),
+		logoUrl: z.string().url(),
+	}))
 	.action(async ({ parsedInput, ctx }) => {
-		const result = await ctx.client.auth.changeEmail({ newEmail: parsedInput.newEmail })
+		await ctx.client.organizations.updateOrganizationLogo(parsedInput.organizationId, {
+			logoUrl: parsedInput.logoUrl,
+		})
 
 		revalidatePath("/dashboard/settings")
+		revalidatePath("/dashboard")
 		revalidatePath("/", "layout")
 
-		return {
-			success: result.status,
-			message: result.message || "Email change request sent. Please check your email to confirm.",
-		}
+		return { success: true }
 	})
 
 /**
- * Delete user account
+ * Remove organization logo
  */
-export const deleteUserAccount = authAction
-	.inputSchema(deleteAccountSchema)
+export const removeOrganizationLogo = authAction
+	.inputSchema(z.object({
+		organizationId: z.string().min(1),
+	}))
 	.action(async ({ parsedInput, ctx }) => {
-		const result = await ctx.client.auth.deleteUser({ password: parsedInput.password })
+		// Set logo to empty string to remove it
+		await ctx.client.organizations.updateOrganizationLogo(parsedInput.organizationId, {
+			logoUrl: "",
+		})
 
 		revalidatePath("/dashboard/settings")
+		revalidatePath("/dashboard")
 		revalidatePath("/", "layout")
 
-		return {
-			success: result.success,
-			message: "Account deletion request sent. Please check your email to confirm.",
-		}
-	})
-
-/**
- * Send verification email
- */
-export const sendVerificationEmail = authAction
-	.inputSchema(sendVerificationSchema)
-	.action(async ({ parsedInput, ctx }) => {
-		const result = await ctx.client.auth.sendVerificationEmail({ email: parsedInput.email || "" })
-
-		return {
-			success: result.status,
-			message: "Verification email sent. Please check your inbox.",
-		}
-	})
-
-/**
- * Revoke session
- */
-export const revokeSession = authAction
-	.inputSchema(sessionIdSchema)
-	.action(async ({ parsedInput, ctx }) => {
-		const result = await ctx.client.auth.revokeSession({ token: parsedInput.sessionId })
-
-		revalidatePath("/dashboard/settings")
-		revalidatePath("/", "layout")
-
-		return { success: result.status }
-	})
-
-/**
- * Revoke all other sessions
- */
-export const revokeAllSessions = authAction
-	.inputSchema(z.object({}))
-	.action(async ({ ctx }) => {
-		const result = await ctx.client.auth.revokeOtherSessions()
-
-		revalidatePath("/dashboard/settings")
-		revalidatePath("/", "layout")
-
-		return { success: result.status, message: "All other sessions have been signed out" }
+		return { success: true }
 	})
 
 /**

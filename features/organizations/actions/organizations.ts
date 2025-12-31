@@ -4,62 +4,57 @@
  * Organizations Server Actions
  *
  * Uses next-safe-action for type-safe, error-handled server actions
+ *
+ * NOTE: Organization creation happens through completeOnboarding action
+ * in @/features/organizations/actions/onboarding.ts which requires GST details.
  */
 
-import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { authAction } from "@/lib/safe-action"
-
-// =============================================================================
-// Schemas
-// =============================================================================
-
-const createOrgSchema = z.object({
-	name: z.string().min(1),
-})
-
-const switchOrgSchema = z.object({
-	organizationId: z.string().min(1),
-})
+import { logInfo } from "@/lib/logging"
+import { STATUS_CHECKS } from "@/lib/utils/validations"
+import type { CreateOrgActionResponse } from "../types"
 
 // =============================================================================
 // Actions
 // =============================================================================
 
 /**
- * Create basic organization
+ * Get existing draft/pending organization (if any)
  *
- * Creates a new organization with name only.
- * Advanced details can be added later in settings.
+ * For brand onboarding, use completeOnboarding from @/features/organizations/actions/onboarding
+ * which creates the org with all required fields (GST, business details, etc.)
+ *
+ * This function only checks if user already has a draft/pending org to resume.
  */
-export const createBasicOrganization = authAction
-	.inputSchema(createOrgSchema)
-	.action(async ({ parsedInput, ctx }) => {
-		const result = await ctx.client.organizations.createOrganization({ name: parsedInput.name })
+export const getExistingDraftOrganization = authAction
+	.inputSchema(z.object({}))
+	.action(async ({ ctx }): Promise<CreateOrgActionResponse | null> => {
+		logInfo("Checking for existing draft organization", {
+			source: "getExistingDraftOrganization",
+		})
 
-		if (!result?.id) {
-			throw new Error("Failed to create organization")
+		const orgs = await ctx.client.auth.listOrganizations()
+		// SSOT: Using STATUS_CHECKS helpers from @/lib/utils/validations
+		const existing = orgs.organizations.find(
+			(o) => STATUS_CHECKS.isDraft(o.approvalStatus) || STATUS_CHECKS.isPending(o.approvalStatus)
+		)
+
+		if (existing) {
+			const status = (existing.approvalStatus ?? "draft") as "draft" | "pending" | "approved" | "rejected" | "banned"
+			logInfo("Found existing draft/pending organization", {
+				source: "getExistingDraftOrganization",
+				data: { organizationId: existing.id, approvalStatus: status },
+			})
+			return {
+				id: existing.id,
+				name: existing.name,
+				isNew: false,
+				approvalStatus: status,
+			}
 		}
 
-		revalidatePath("/dashboard")
-		revalidatePath("/onboarding")
-
-		return result
+		return null
 	})
 
-/**
- * Switch active organization
- *
- * Updates the active organization in the session.
- */
-export const switchOrganization = authAction
-	.inputSchema(switchOrgSchema)
-	.action(async ({ parsedInput, ctx }) => {
-		await ctx.client.auth.setActiveOrganization({ organizationId: parsedInput.organizationId })
-
-		revalidatePath("/", "layout")
-		revalidatePath("/dashboard")
-
-		return { success: true }
-	})

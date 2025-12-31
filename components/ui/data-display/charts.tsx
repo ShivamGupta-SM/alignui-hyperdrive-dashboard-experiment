@@ -26,7 +26,7 @@ import {
 	PolarAngleAxis,
 	PolarRadiusAxis,
 } from "recharts"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import {
 	chartColors,
 	chartGridStyles,
@@ -38,6 +38,7 @@ import {
 	ChartEmptyState,
 	formatChartNumber,
 	selectEvenlySpacedItems,
+	type ChartLegendPayload,
 } from "./chart-utils"
 
 // ============================================================================
@@ -123,7 +124,7 @@ export function AlignLineChart({
 					)}
 					{showLegend && (
 						<Legend
-							content={({ payload }) => <ChartLegendContent payload={payload as any} />}
+							content={({ payload }) => <ChartLegendContent payload={payload as ChartLegendPayload[]} />}
 							wrapperStyle={{ paddingTop: 20 }}
 						/>
 					)}
@@ -212,7 +213,7 @@ export function AlignAreaChart({
 					)}
 					{showLegend && (
 						<Legend
-							content={({ payload }) => <ChartLegendContent payload={payload as any} />}
+							content={({ payload }) => <ChartLegendContent payload={payload as ChartLegendPayload[]} />}
 							wrapperStyle={{ paddingTop: 20 }}
 						/>
 					)}
@@ -346,7 +347,7 @@ export function AlignBarChart({
 					)}
 					{showLegend && (
 						<Legend
-							content={({ payload }) => <ChartLegendContent payload={payload as any} />}
+							content={({ payload }) => <ChartLegendContent payload={payload as ChartLegendPayload[]} />}
 							wrapperStyle={{ paddingTop: 20 }}
 						/>
 					)}
@@ -444,7 +445,7 @@ export function AlignPieChart({
 					)}
 					{showLegend && (
 						<Legend
-							content={({ payload }) => <ChartLegendContent payload={payload as any} />}
+							content={({ payload }) => <ChartLegendContent payload={payload as ChartLegendPayload[]} />}
 							wrapperStyle={{ paddingTop: 20 }}
 						/>
 					)}
@@ -527,7 +528,7 @@ export function AlignDonutChart({
 					)}
 					{showLegend && (
 						<Legend
-							content={({ payload }) => <ChartLegendContent payload={payload as any} />}
+							content={({ payload }) => <ChartLegendContent payload={payload as ChartLegendPayload[]} />}
 							wrapperStyle={{ paddingTop: 20 }}
 						/>
 					)}
@@ -589,7 +590,7 @@ export function AlignRadarChart({
 					)}
 					{showLegend && (
 						<Legend
-							content={({ payload }) => <ChartLegendContent payload={payload as any} />}
+							content={({ payload }) => <ChartLegendContent payload={payload as ChartLegendPayload[]} />}
 							wrapperStyle={{ paddingTop: 20 }}
 						/>
 					)}

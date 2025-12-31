@@ -1,15 +1,8 @@
 import type { Metadata } from "next"
-
-// Force dynamic rendering globally for all pages
-// This prevents prerendering issues with Button.Icon, function components, and useContext
-export const dynamic = "force-dynamic"
-export const fetchCache = "force-no-store"
-export const revalidate = 0
-
 import { Inter as FontSans } from "next/font/google"
 import localFont from "next/font/local"
 import "./globals.css"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import { Providers } from "./providers"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Analytics } from "@vercel/analytics/next"
@@ -64,9 +57,9 @@ export default async function RootLayout({
 		<html
 			lang="en"
 			suppressHydrationWarning
-			className={cn(inter.variable, geistMono.variable, "antialiased", "bg-bg-weak-50")}
+			className={cn(inter.variable, geistMono.variable, "antialiased", "bg-bg-weak-50", "h-full")}
 		>
-			<body className="text-text-strong-950 font-sans overscroll-none">
+			<body className="text-text-strong-950 font-sans overscroll-none min-h-full">
 				<Providers>{children}</Providers>
 				<SpeedInsights />
 				<Analytics />

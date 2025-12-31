@@ -2,11 +2,20 @@
 
 import * as React from "react"
 import { useRouter, useParams } from "next/navigation"
+import { routes } from "@/lib/routes"
 import { useOrganizations } from "@/features/organizations"
 import { useLocalStorage } from "@/hooks/state"
 import * as Button from "@/components/ui/primitives/button"
 import { ArrowRight, Building, Sparkle, CheckCircle, Circle, Dot } from "@phosphor-icons/react"
 import { Skeleton } from "@/components/ui/primitives/skeleton"
+import {
+	PageHeaderSkeleton,
+	DashboardStatsSkeleton,
+	ChartSkeleton,
+	CardGridSkeleton,
+	ListSkeleton,
+	ProductGridSkeleton,
+} from "@/components/dashboard/loading-skeletons"
 
 interface OrganizationGuardProps {
 	children: React.ReactNode
@@ -61,16 +70,55 @@ export function OrganizationGuard({
 		false
 	)
 
-	// Show loading state
+	// Show loading state with proper skeleton based on page type
 	if (isPending) {
-		return (
-			<div className="space-y-5 sm:space-y-6">
-				<div className="animate-pulse">
-					<div className="h-8 w-48 bg-bg-soft-200 rounded mb-4" />
-					<div className="h-40 bg-bg-soft-200 rounded-xl" />
-				</div>
-			</div>
-		)
+		switch (pageType) {
+			case "campaigns":
+				return (
+					<div className="space-y-5 sm:space-y-6">
+						<PageHeaderSkeleton />
+						<DashboardStatsSkeleton />
+						<CardGridSkeleton count={6} />
+					</div>
+				)
+			case "products":
+				return (
+					<div className="space-y-5 sm:space-y-6">
+						<PageHeaderSkeleton />
+						<ProductGridSkeleton count={6} />
+					</div>
+				)
+			case "enrollments":
+				return (
+					<div className="space-y-5 sm:space-y-6">
+						<PageHeaderSkeleton />
+						<ListSkeleton count={5} />
+					</div>
+				)
+			case "dashboard":
+				return (
+					<div className="space-y-5 sm:space-y-6">
+						<PageHeaderSkeleton />
+						<DashboardStatsSkeleton />
+						<div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+							<ChartSkeleton />
+							<ChartSkeleton />
+						</div>
+					</div>
+				)
+			default:
+				return (
+					<div className="space-y-5 sm:space-y-6">
+						<PageHeaderSkeleton />
+						<div className="rounded-xl border border-stroke-soft-200 p-6 space-y-4">
+							<Skeleton className="h-6 w-32" />
+							<Skeleton className="h-4 w-full" />
+							<Skeleton className="h-4 w-3/4" />
+							<Skeleton className="h-32 w-full" />
+						</div>
+					</div>
+				)
+		}
 	}
 
 	// If has organization, render children
@@ -324,7 +372,7 @@ export function OrganizationGuard({
 											<Button.Root
 												variant="primary"
 												size="small"
-												onClick={() => router.push("/onboarding")}
+												onClick={() => router.push(routes.onboarding.root)}
 												className="shadow-md shadow-primary-base/20 hover:shadow-lg hover:shadow-primary-base/30 transition-shadow"
 											>
 											<Button.Icon>
@@ -447,7 +495,7 @@ export function OrganizationGuard({
 							<Button.Root 
 								variant="primary" 
 								size="medium" 
-								onClick={() => router.push("/onboarding")}
+								onClick={() => router.push(routes.onboarding.root)}
 								className="mx-auto shadow-lg shadow-primary-base/20 hover:shadow-xl hover:shadow-primary-base/30 transition-shadow"
 							>
 								<Button.Icon>

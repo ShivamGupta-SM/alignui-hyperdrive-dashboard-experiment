@@ -14,14 +14,14 @@ export {
 	useWalletTransactions,
 	useWithdrawals,
 	useWalletHolds,
-	useWithdrawalStats,
+	useDepositAccount,
 	// Mutations
 	useRequestWithdrawal,
-	useCancelWithdrawal,
 	useRequestCredit,
+	useFundWallet,
 } from "./hooks/use-wallet"
 
 // Server Actions
-export { requestWithdrawal, cancelWithdrawal, requestCredit } from "./actions/wallet"
+export { requestWithdrawal, requestCredit } from "./actions/wallet"
 
 // SSR Data Fetching - Import directly from @/features/wallet/ssr in server components

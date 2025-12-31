@@ -10,6 +10,7 @@ import { Callout } from "@/components/ui/feedback/callout"
 import { ArrowLeft, Envelope, WarningCircle } from "@phosphor-icons/react"
 import { forgotPasswordSchema, type ForgotPasswordFormData } from "@/lib/utils/validations"
 import { validateCallbackUrlServer } from "@/lib/utils/url-validation"
+import { routes } from "@/lib/routes"
 
 export default function ForgotPasswordPage() {
 	const [isLoading, setIsLoading] = useState(false)
@@ -61,7 +62,7 @@ export default function ForgotPasswordPage() {
 		<div className="flex min-h-screen flex-col bg-bg-white-0">
 			<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 				<Button.Root variant="ghost" size="small" asChild>
-					<Link href="/sign-in">
+					<Link href={routes.auth.signIn}>
 						<Button.Icon><ArrowLeft className="size-5" /></Button.Icon>
 						Back to Sign In
 					</Link>
@@ -94,7 +95,7 @@ export default function ForgotPasswordPage() {
 									address
 								</Callout>
 								<Button.Root variant="ghost" className="w-full" asChild>
-									<Link href="/sign-in">Back to Sign In</Link>
+									<Link href={routes.auth.signIn}>Back to Sign In</Link>
 								</Button.Root>
 							</div>
 						) : (

@@ -1,17 +1,50 @@
 /**
  * UI Utility Hooks
- * 
+ *
  * @description
  * Hooks for UI interactions and behaviors.
+ * Explicit exports for better tree-shaking and clarity.
  */
 
-export * from './use-media-query'
-export * from './use-clipboard'
-// use-keyboard-shortcut.ts is empty, skip it
-export * from './use-tab-observer'
-export * from './use-notification'
-export * from './use-breadcrumbs'
+// Media Query hooks
+export { useMediaQuery, useIsDesktop, useIsTablet, useIsMobile } from './use-media-query'
 
-// Re-export for convenience
-export { useIsDesktop, useIsTablet, useIsMobile } from './use-media-query'
+// Clipboard hooks
+export { useCopyToClipboard, useCopyWithField } from './use-clipboard'
+export type { UseClipboardOptions } from './use-clipboard'
 
+// Keyboard shortcuts
+export { useKeyboardShortcut } from './use-keyboard-shortcut'
+
+// Tab observer
+export { useTabObserver } from './use-tab-observer'
+
+// Notification hooks
+export { notification, useNotification, reducer as notificationReducer } from './use-notification'
+
+// Breadcrumbs
+export { useBreadcrumbs } from './use-breadcrumbs'
+export type { BreadcrumbItem } from './use-breadcrumbs'
+
+// Hydration-safe hooks
+export {
+	useIsMounted,
+	useHydratedTime,
+	useStableTime,
+	useFormattedDate,
+	useHydratedLocalStorage
+} from './use-mounted'
+
+// Pagination hooks
+export { usePagination, calculatePagination, generatePageNumbers } from './use-pagination'
+export type {
+	PaginationState,
+	PaginationActions,
+	PaginationMeta,
+	UsePaginationOptions,
+	UsePaginationReturn
+} from './use-pagination'
+
+// Modal state hooks
+export { useModal, useMultiModal } from './use-modal'
+export type { UseModalReturn, UseMultiModalReturn } from './use-modal'

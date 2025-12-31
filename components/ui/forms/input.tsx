@@ -4,9 +4,9 @@
 // Improvements: Better accessibility (aria-invalid, aria-describedby), JSDoc documentation, exported types
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { recursiveCloneChildren } from "@/utils/recursive-clone-children"
-import type { PolymorphicComponentProps } from "@/utils/polymorphic"
+import { tv, type VariantProps } from "@/lib/utils"
+import { recursiveCloneChildren } from "@/lib/utils"
+import type { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 import { Slot } from "@radix-ui/react-slot"
 import { Eye, EyeSlash, MagnifyingGlass, Plus, Minus, X } from "@phosphor-icons/react"
 
@@ -113,12 +113,16 @@ export const inputVariants = tv({
 		hasError: {
 			true: {
 				root: [
-					// base
-					"before:ring-error-base",
-					// base
-					"hover:before:ring-error-base hover:[&:not(&:has(input:focus)):has(>:only-child)]:before:ring-error-base",
+					// error border
+					"border-error-base",
+					// hover
+					"hover:border-error-base",
 					// focus
-					"has-[input:focus]:shadow-button-error-focus has-[input:focus]:before:ring-error-base",
+					"has-[input:focus]:shadow-button-error-focus has-[input:focus]:border-error-base",
+				],
+				icon: [
+					// error icon color
+					"text-error-base",
 				],
 			},
 			false: {
@@ -151,14 +155,15 @@ export const inputVariants = tv({
 })
 
 /** Shared props for input variants */
-export type InputSharedProps = VariantProps<typeof inputVariants>
+export type InputSharedProps = VariantProps<typeof inputVariants> & {
+	/** ID for error message element (for aria-describedby) */
+	errorId?: string
+}
 
 /** Props for the InputRoot component */
 export interface InputRootProps extends React.HTMLAttributes<HTMLDivElement>, InputSharedProps {
 	/** Use Slot pattern for composition */
 	asChild?: boolean
-	/** ID for error message element (for aria-describedby) */
-	errorId?: string
 }
 
 /**
@@ -190,6 +195,7 @@ function InputRoot({
 	const sharedProps: InputSharedProps = {
 		size,
 		hasError,
+		errorId,
 	}
 
 	const extendedChildren = recursiveCloneChildren(
@@ -213,6 +219,7 @@ function InputWrapper({
 	children,
 	size,
 	hasError,
+	errorId: _errorId, // Destructure and discard - not used in wrapper, prevent DOM warning
 	asChild,
 	...rest
 }: React.HTMLAttributes<HTMLLabelElement> &
@@ -240,7 +247,7 @@ const Input = React.forwardRef<
 		InputSharedProps & {
 			asChild?: boolean
 		}
->(({ className, type = "text", size, hasError, asChild, ...rest }, forwardedRef) => {
+>(({ className, type = "text", size, hasError, errorId, asChild, ...rest }, forwardedRef) => {
 	const Component = asChild ? Slot : "input"
 
 	const { input } = inputVariants({
@@ -249,7 +256,14 @@ const Input = React.forwardRef<
 	})
 
 	return (
-		<Component type={type} className={input({ class: className })} ref={forwardedRef} {...rest} />
+		<Component
+			type={type}
+			className={input({ class: className })}
+			ref={forwardedRef}
+			aria-invalid={hasError || undefined}
+			aria-describedby={errorId}
+			{...rest}
+		/>
 	)
 })
 Input.displayName = INPUT_EL_NAME
@@ -257,6 +271,7 @@ Input.displayName = INPUT_EL_NAME
 function InputIcon<T extends React.ElementType = "div">({
 	size,
 	hasError,
+	errorId: _errorId, // Destructure and discard - not used in icon, prevent DOM warning
 	as,
 	className,
 	...rest
@@ -273,6 +288,7 @@ function InputAffix({
 	children,
 	size,
 	hasError,
+	errorId: _errorId, // Destructure and discard - prevent DOM warning
 	...rest
 }: React.HTMLAttributes<HTMLDivElement> & InputSharedProps) {
 	const { affix } = inputVariants({
@@ -293,6 +309,7 @@ function InputInlineAffix({
 	children,
 	size,
 	hasError,
+	errorId: _errorId, // Destructure and discard - prevent DOM warning
 	...rest
 }: React.HTMLAttributes<HTMLSpanElement> & InputSharedProps) {
 	const { inlineAffix } = inputVariants({

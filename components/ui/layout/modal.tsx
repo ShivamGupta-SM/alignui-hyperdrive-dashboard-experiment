@@ -5,8 +5,8 @@ import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 import * as CompactButton from "@/components/ui/primitives/compact-button"
-import { cn } from "@/utils/cn"
-import { tv, type VariantProps } from "@/utils/tv"
+import { cn } from "@/lib/utils"
+import { tv, type VariantProps } from "@/lib/utils"
 import { X, type Icon as PhosphorIcon } from "@phosphor-icons/react"
 
 const modalVariants = tv({

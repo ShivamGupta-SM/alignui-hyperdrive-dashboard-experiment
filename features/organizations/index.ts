@@ -1,5 +1,13 @@
 /**
  * Organizations Feature - Public API
+ *
+ * URL-based multi-tenancy: organizationId from URL params
+ * Components use useParams() directly - no context needed
+ *
+ * IMPORTANT: For getting current organization from URL, use:
+ * import { useCurrentOrganization } from "@/hooks"
+ *
+ * This feature module exports organization-specific queries and mutations.
  */
 
 // Types
@@ -7,30 +15,46 @@ export type * from "./types"
 
 // Hooks
 export {
-	// Query Keys
 	organizationKeys,
-	// Queries
 	useOrganizations,
 	useOrganizationById,
-	useActiveOrganization,
+	useOrganizationWithDetails,
 	useOrganization,
-	// Mutations
-	useSwitchOrganization,
-	// Helpers
-	useNeedsOnboarding,
-	useOrganizationStatus,
+	useUpdateOrganization,
+	useOrganizationCampaignStats,
+	useOrganizationStats,
+	useBankAccount,
+	useOrganizationInvitations,
+	useRequestCreditIncrease,
+	useUpdateBankAccount,
+	useUpdateOrganizationLogo,
+	useDashboardOverview,
 } from "./hooks/use-organizations"
 
-// Server Actions - Onboarding
-export { verifyGST, submitOnboarding, checkUserOrganizations } from "./actions/onboarding"
+// Re-export SSOT useCurrentOrganization from hooks/shared for convenience
+// This is the primary hook for getting organization from URL params
+export { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
 
-// Server Actions - Draft
-export { saveOnboardingDraft, loadOnboardingDraft } from "./actions/draft"
+// Onboarding Status
+export {
+	useOnboardingStatus,
+	getRedirectUrl,
+	getOnboardingMessage,
+	ONBOARDING_ROUTES,
+	type OnboardingState,
+	type OnboardingSubState,
+	type OnboardingStatus,
+} from "./hooks/use-onboarding-status"
 
-// Server Actions - Approval
-export { submitOrganizationForApproval, resubmitOrganizationForApproval } from "./actions/approval"
+// Server Actions
+export {
+	completeOnboarding,
+	verifyGST,
+} from "./actions/onboarding"
 
-// Server Actions - Organizations
-export { createBasicOrganization, switchOrganization } from "./actions/organizations"
+// SSOT: CompleteOnboardingResult from types
+export type { CompleteOnboardingResult } from "./types"
 
-// SSR Data Fetching - Import directly from @/features/organizations/ssr in server components
+export {
+	getExistingDraftOrganization,
+} from "./actions/organizations"

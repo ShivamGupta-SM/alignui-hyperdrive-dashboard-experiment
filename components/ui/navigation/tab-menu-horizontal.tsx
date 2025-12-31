@@ -6,8 +6,8 @@ import * as React from "react"
 import { Slottable } from "@radix-ui/react-slot"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 import mergeRefs from "merge-refs"
-import { cn } from "@/utils/cn"
-import type { PolymorphicComponentProps } from "@/utils/polymorphic"
+import { cn } from "@/lib/utils"
+import type { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 import { useTabObserver } from "@/hooks/ui"
 
 const TabMenuHorizontalContent = React.forwardRef<

@@ -6,8 +6,8 @@
 import * as React from "react"
 import Image from "next/image"
 import { AvatarWithFallback } from "@/components/ui/primitives/avatar"
-import { tv } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import {
 	CaretUpDown,
 	User,
@@ -190,9 +190,10 @@ type AccountSwitcherProps = React.HTMLAttributes<HTMLDivElement> & {
 	compact?: boolean
 }
 
+// Default menu items without fake shortcuts - shortcuts should only be shown if actually implemented
 const defaultMenuItems: MenuItemConfig[] = [
-	{ label: "View profile", icon: <User weight="duotone" className="size-5" />, shortcut: "⌘K→P" },
-	{ label: "Account settings", icon: <Gear weight="duotone" className="size-5" />, shortcut: "⌘S" },
+	{ label: "View profile", icon: <User weight="duotone" className="size-5" /> },
+	{ label: "Account settings", icon: <Gear weight="duotone" className="size-5" /> },
 	{ label: "Documentation", icon: <BookOpen weight="duotone" className="size-5" /> },
 ]
 
@@ -216,10 +217,42 @@ const AccountSwitcher = React.forwardRef<HTMLDivElement, AccountSwitcherProps>(
 		const styles = accountSwitcherVariants({ size: compact ? "compact" : "default" })
 
 		const selectedAccount = accounts.find((acc) => acc.id === selectedAccountId)
+		const hasAccounts = accounts.length > 0
+		const firstAccountId = hasAccounts ? accounts[0].id : null
 
+		// Auto-select first account if selected account not found but accounts exist
+		React.useEffect(() => {
+			if (!selectedAccount && firstAccountId) {
+				onAccountChange?.(firstAccountId)
+			}
+		}, [selectedAccount, firstAccountId, onAccountChange])
+
+		// Handle account not found - show error state instead of silently returning null
 		if (!selectedAccount) {
-			// Account not found - return null gracefully
-			return null
+			// Show error state with fallback UI
+			return (
+				<div
+					ref={forwardedRef}
+					className={className}
+					role="alert"
+					aria-live="polite"
+					{...rest}
+				>
+					<div className={cn(styles.trigger(), "cursor-default opacity-70")}>
+						<div className={styles.avatarPlaceholder()}>
+							<User weight="duotone" className="size-5" />
+						</div>
+						<div className={styles.info()}>
+							<span className={cn(styles.name(), "text-text-sub-600")}>
+								{hasAccounts ? "Select account" : "No accounts"}
+							</span>
+							<span className={styles.email()}>
+								{hasAccounts ? "Account not found" : "Add an account to continue"}
+							</span>
+						</div>
+					</div>
+				</div>
+			)
 		}
 
 		const handleAccountSelect = (accountId: string) => {
@@ -243,7 +276,8 @@ const AccountSwitcher = React.forwardRef<HTMLDivElement, AccountSwitcherProps>(
 										className={accountSwitcherVariants({
 											status: selectedAccount.status,
 										}).statusIndicator()}
-										aria-hidden="true"
+										role="img"
+										aria-label={`Status: ${selectedAccount.status}`}
 									/>
 								)}
 							</div>
@@ -320,7 +354,8 @@ const AccountSwitcher = React.forwardRef<HTMLDivElement, AccountSwitcherProps>(
 															accountSwitcherVariants({ status: account.status }).statusIndicator(),
 															"size-2"
 														)}
-														aria-hidden="true"
+														role="img"
+														aria-label={`Status: ${account.status}`}
 													/>
 												)}
 											</div>
@@ -368,7 +403,6 @@ const AccountSwitcher = React.forwardRef<HTMLDivElement, AccountSwitcherProps>(
 										<SignOut weight="duotone" className="size-5 text-text-soft-400" />
 										<span className={styles.menuItemLabel()}>Sign out</span>
 									</div>
-									<kbd className={styles.menuItemShortcut()}>⌥⇧Q</kbd>
 								</DropdownMenuPrimitive.Item>
 							</DropdownMenuPrimitive.Group>
 						</DropdownMenuPrimitive.Content>

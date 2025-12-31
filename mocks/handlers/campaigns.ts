@@ -6,6 +6,7 @@
 
 import { http } from "msw"
 import { db } from "@/mocks/db"
+import type { Campaign } from "@/mocks/db/schemas"
 import {
 	getAuthContext,
 	encoreUrl,
@@ -16,26 +17,21 @@ import {
 } from "./utils"
 
 // Campaign already in Encore format from database, just add product relation
-function toCampaignWithStats(campaign: any) {
+function toCampaignWithStats(campaign: Campaign) {
 	const product = db.products.findFirst((q) => q.where({ id: campaign.productId }))
 
+	// Campaign schema already has currentEnrollments, approvedCount, etc.
+	// Just add the product relation
 	return {
-		// Stats fields (appear first in Encore type)
-		currentEnrollments: campaign.currentEnrollments || 0,
-		approvedCount: campaign.approvedCount || 0,
-		rejectedCount: campaign.rejectedCount || 0,
-		pendingCount: campaign.pendingCount || 0,
-		totalPayout: campaign.totalPayout || 0,
+		...campaign,
 		product: product
 			? {
 					id: product.id,
 					name: product.name,
 					price: product.price || 0,
-					productImages: product.productImages || [], // Encore format
+					productImages: product.productImages || [],
 				}
 			: undefined,
-		// Campaign already in Encore format - return as-is
-		...campaign,
 	}
 }
 

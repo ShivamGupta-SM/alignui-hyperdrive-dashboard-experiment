@@ -1,6 +1,10 @@
 import { createEnv } from "@t3-oss/env-nextjs"
 import { z } from "zod"
 
+// Helper: Required in production, optional in development
+const requiredInProduction = (schema: z.ZodString) =>
+	process.env.NODE_ENV === "production" ? schema : schema.optional()
+
 export const env = createEnv({
 	/**
 	 * Server-side environment variables schema
@@ -9,8 +13,8 @@ export const env = createEnv({
 	server: {
 		NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
-		// Encore Backend
-		ENCORE_API_URL: z.string().url().optional(),
+		// Encore Backend - Required for API connectivity
+		ENCORE_API_URL: requiredInProduction(z.string().url()),
 		ENCORE_ENVIRONMENT: z.string().optional(),
 
 		// Database (when you add one)
@@ -26,12 +30,16 @@ export const env = createEnv({
 		// Analytics
 		POSTHOG_API_KEY: z.string().optional(),
 
-		// Auth secrets
-		BETTER_AUTH_SECRET: z.string().min(32).optional(),
+		// Auth secrets - Required for secure authentication
+		BETTER_AUTH_SECRET: requiredInProduction(z.string().min(32)),
 
 		// Google OAuth
 		GOOGLE_CLIENT_ID: z.string().optional(),
 		GOOGLE_CLIENT_SECRET: z.string().optional(),
+
+		// GitHub OAuth
+		GITHUB_CLIENT_ID: z.string().optional(),
+		GITHUB_CLIENT_SECRET: z.string().optional(),
 
 		// Novu Notifications
 		NOVU_SECRET_KEY: z.string().optional(),
@@ -46,11 +54,20 @@ export const env = createEnv({
 	 * These are exposed to the client via the `NEXT_PUBLIC_` prefix
 	 */
 	client: {
-		NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+		// App URL - Required for proper URL generation
+		NEXT_PUBLIC_APP_URL: requiredInProduction(z.string().url()),
 		NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
 		NEXT_PUBLIC_POSTHOG_HOST: z.string().url().optional(),
 		NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
 		NEXT_PUBLIC_NOVU_APP_ID: z.string().optional(),
+		NEXT_PUBLIC_NOVU_API_URL: z.string().url().optional(),
+		NEXT_PUBLIC_NOVU_WS_URL: z.string().url().optional(),
+		// Encore URL - Required for client-side API calls
+		NEXT_PUBLIC_ENCORE_URL: requiredInProduction(z.string().url()),
+		NEXT_PUBLIC_BETTER_AUTH_URL: z.string().url().optional(),
+		NEXT_PUBLIC_GOOGLE_CLIENT_ID: z.string().optional(),
+		NEXT_PUBLIC_GITHUB_CLIENT_ID: z.string().optional(),
+		NEXT_PUBLIC_API_MOCKING: z.string().optional(),
 	},
 
 	/**
@@ -70,6 +87,8 @@ export const env = createEnv({
 		BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
 		GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
 		GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+		GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
+		GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
 		NOVU_SECRET_KEY: process.env.NOVU_SECRET_KEY,
 		ENABLE_MOCK_AUTH: process.env.ENABLE_MOCK_AUTH,
 		ENABLE_MOCK_DELAYS: process.env.ENABLE_MOCK_DELAYS,
@@ -80,6 +99,13 @@ export const env = createEnv({
 		NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
 		NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
 		NEXT_PUBLIC_NOVU_APP_ID: process.env.NEXT_PUBLIC_NOVU_APP_ID,
+		NEXT_PUBLIC_NOVU_API_URL: process.env.NEXT_PUBLIC_NOVU_API_URL,
+		NEXT_PUBLIC_NOVU_WS_URL: process.env.NEXT_PUBLIC_NOVU_WS_URL,
+		NEXT_PUBLIC_ENCORE_URL: process.env.NEXT_PUBLIC_ENCORE_URL,
+		NEXT_PUBLIC_BETTER_AUTH_URL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
+		NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+		NEXT_PUBLIC_GITHUB_CLIENT_ID: process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID,
+		NEXT_PUBLIC_API_MOCKING: process.env.NEXT_PUBLIC_API_MOCKING,
 	},
 
 	/**
@@ -92,6 +118,7 @@ export const env = createEnv({
 	 */
 	emptyStringAsUndefined: true,
 })
+
 
 
 

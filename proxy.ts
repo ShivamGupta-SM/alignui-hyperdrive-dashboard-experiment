@@ -17,6 +17,7 @@
 
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { AUTH_COOKIE_NAMES } from "@/lib/constants"
 
 /**
  * Proxy logging utility
@@ -37,9 +38,15 @@ export function proxy(request: NextRequest) {
 	// ============================================================================
 	// 1. GET SESSION TOKEN FROM COOKIES
 	// ============================================================================
-	// We use "auth-token" cookie set by our server actions
-	// Also check "better-auth.session_token" as fallback
-	const sessionCookie = request.cookies.get("auth-token") || request.cookies.get("better-auth.session_token")
+	// SSOT: Use centralized auth cookie names from @/lib/constants
+	let sessionCookie: { value: string } | undefined
+	for (const cookieName of AUTH_COOKIE_NAMES) {
+		const cookie = request.cookies.get(cookieName)
+		if (cookie?.value) {
+			sessionCookie = cookie
+			break
+		}
+	}
 	const isAuthenticated = !!sessionCookie?.value
 
 	// ============================================================================
@@ -143,6 +150,7 @@ export const config = {
 		"/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf|eot)$).*)",
 	],
 }
+
 
 
 

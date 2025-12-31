@@ -1,12 +1,22 @@
 /**
  * State Management Hooks
- * 
+ *
  * @description
  * Hooks for managing component and application state.
+ * Explicit exports for better tree-shaking and clarity.
  */
 
-export * from './use-local-storage'
-export * from './use-search-params'
+// Local Storage hooks
+export { useLocalStorage } from './use-local-storage'
 
-
-
+// URL Search Params hooks (nuqs-based)
+export {
+	useCampaignSearchParams,
+	useEnrollmentSearchParams,
+	useInvoiceSearchParams,
+	useWalletSearchParams,
+	useSettingsSearchParams,
+	useSearchParam,
+	usePaginationParams,
+	useProductSearchParams,
+} from './use-search-params'

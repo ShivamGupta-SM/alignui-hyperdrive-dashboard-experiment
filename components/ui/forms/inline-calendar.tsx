@@ -4,8 +4,8 @@
 "use client"
 
 import * as React from "react"
-import { tv } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { CaretLeft, CaretRight } from "@phosphor-icons/react"
 
 const INLINE_CALENDAR_NAME = "InlineCalendar"

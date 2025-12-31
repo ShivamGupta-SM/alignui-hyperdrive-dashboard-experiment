@@ -4,21 +4,28 @@
  * Products Server Actions
  *
  * Uses next-safe-action for type-safe, error-handled server actions
+ * URL-based multi-tenancy: organizationId from URL params passed to all actions
  */
 
 import { revalidateTag } from "next/cache"
 import { z } from "zod"
 
-import { authAction } from "@/lib/safe-action"
+import { authAction, createOrgSchema, entitySchemas } from "@/lib/safe-action"
 import { getErrorMessage } from "@/lib/utils/format"
-import type { products } from "@/lib/api/encore-client"
+import type { organizations as orgTypes } from "@/brand-client"
 
 // =============================================================================
-// Schemas
+// Schemas - Using createOrgSchema helper for URL-based multi-tenancy
 // =============================================================================
 
-const createProductSchema = z.object({
-	organizationId: z.string().min(1),
+const productImageInputSchema = z.object({
+	imageUrl: z.string(),
+	sortOrder: z.number().optional(),
+	altText: z.string().optional(),
+	isPrimary: z.boolean().optional(),
+})
+
+const createProductSchema = createOrgSchema({
 	name: z.string().min(1),
 	description: z.string().optional(),
 	sku: z.string().min(1),
@@ -26,24 +33,25 @@ const createProductSchema = z.object({
 	platformId: z.string().optional(),
 	price: z.number().min(0),
 	productLink: z.string().min(1),
-	productImages: z.array(z.string()).optional(),
+	productImages: z.array(productImageInputSchema).optional(),
 })
 
-const updateProductSchema = z.object({
+const updateProductSchema = createOrgSchema({
 	id: z.string().min(1),
 	name: z.string().optional(),
 	description: z.string().optional(),
 	sku: z.string().optional(),
 	categoryId: z.string().optional(),
 	platformId: z.string().optional(),
+	price: z.number().min(0).optional(),
+	productLink: z.string().optional(),
+	productImages: z.array(productImageInputSchema).optional(),
 })
 
-const deleteProductSchema = z.object({
-	id: z.string().min(1),
-})
+// Use pre-built schema for simple delete operation
+const deleteProductSchema = entitySchemas.byId
 
-const bulkImportSchema = z.object({
-	organizationId: z.string().min(1),
+const bulkImportSchema = createOrgSchema({
 	products: z.array(
 		z.object({
 			name: z.string().optional(),
@@ -53,13 +61,20 @@ const bulkImportSchema = z.object({
 			platformId: z.string().optional(),
 			price: z.number().optional(),
 			productLink: z.string().optional(),
-			productImages: z.array(z.string()).optional(),
+			productImages: z.array(
+				z.object({
+					imageUrl: z.string(),
+					sortOrder: z.number().optional(),
+					altText: z.string().optional(),
+					isPrimary: z.boolean().optional(),
+				})
+			).optional(),
 		})
 	),
 })
 
 // =============================================================================
-// Actions
+// Actions - Use organization-scoped endpoints for multi-tenancy
 // =============================================================================
 
 /**
@@ -67,17 +82,17 @@ const bulkImportSchema = z.object({
  */
 export const createProduct = authAction
 	.inputSchema(createProductSchema)
-	.action(async ({ parsedInput, ctx }): Promise<products.Product> => {
-		const result = await ctx.client.products.createProduct({
-			organizationId: parsedInput.organizationId,
-			name: parsedInput.name,
-			description: parsedInput.description,
-			sku: parsedInput.sku,
-			categoryId: parsedInput.categoryId,
-			platformId: parsedInput.platformId,
-			price: parsedInput.price,
-			productLink: parsedInput.productLink,
-			productImages: parsedInput.productImages,
+	.action(async ({ parsedInput, ctx }): Promise<orgTypes.Product> => {
+		const { organizationId, ...productData } = parsedInput
+		const result = await ctx.client.organizations.createProduct(organizationId, {
+			name: productData.name,
+			description: productData.description,
+			sku: productData.sku,
+			categoryId: productData.categoryId,
+			platformId: productData.platformId,
+			price: productData.price,
+			productLink: productData.productLink,
+			productImages: productData.productImages,
 		})
 
 		revalidateTag("products")
@@ -89,14 +104,17 @@ export const createProduct = authAction
  */
 export const updateProduct = authAction
 	.inputSchema(updateProductSchema)
-	.action(async ({ parsedInput, ctx }): Promise<products.Product> => {
-		const { id, ...data } = parsedInput
-		const result = await ctx.client.products.updateProduct(id, {
+	.action(async ({ parsedInput, ctx }): Promise<orgTypes.Product> => {
+		const { organizationId, id, ...data } = parsedInput
+		const result = await ctx.client.organizations.updateProduct(organizationId, id, {
 			name: data.name,
 			description: data.description,
 			sku: data.sku,
 			categoryId: data.categoryId,
 			platformId: data.platformId,
+			price: data.price,
+			productLink: data.productLink,
+			productImages: data.productImages,
 		})
 
 		revalidateTag("products")
@@ -110,9 +128,10 @@ export const updateProduct = authAction
 export const deleteProduct = authAction
 	.inputSchema(deleteProductSchema)
 	.action(async ({ parsedInput, ctx }) => {
-		await ctx.client.products.deleteProduct(parsedInput.id)
+		const { organizationId, id } = parsedInput
+		await ctx.client.organizations.deleteProduct(organizationId, id)
 		revalidateTag("products")
-		revalidateTag(`product-${parsedInput.id}`)
+		revalidateTag(`product-${id}`)
 		return { success: true }
 	})
 
@@ -127,10 +146,8 @@ export const bulkImportProducts = authAction
 		const errors: string[] = []
 
 		try {
-			const result = await ctx.client.products.bulkImportProducts({
-				organizationId,
+			const result = await ctx.client.organizations.bulkImportProducts(organizationId, {
 				products: productsData.map((p) => ({
-					organizationId,
 					name: p.name || "",
 					description: p.description,
 					sku: p.sku || "",
@@ -147,8 +164,7 @@ export const bulkImportProducts = authAction
 			// Fallback to individual creates
 			for (const p of productsData) {
 				try {
-					await ctx.client.products.createProduct({
-						organizationId,
+					await ctx.client.organizations.createProduct(organizationId, {
 						name: p.name || "",
 						description: p.description,
 						sku: p.sku || "",
@@ -160,16 +176,24 @@ export const bulkImportProducts = authAction
 					})
 					successCount++
 				} catch (e: unknown) {
-					errors.push((p.name || "Unknown product") + ": " + getErrorMessage(e, "Unknown error"))
+					errors.push(`${p.name || "Unknown product"}: ${getErrorMessage(e, "Unknown error")}`)
 				}
 			}
 		}
 
 		revalidateTag("products")
 
+		// RESTful: Include explicit partial success indicator for client handling
+		const totalRequested = productsData.length
+		const isPartialSuccess = errors.length > 0 && successCount > 0
+		const isFullSuccess = errors.length === 0 && successCount === totalRequested
+
 		return {
+			success: isFullSuccess,
+			partialSuccess: isPartialSuccess,
 			imported: successCount,
 			failed: errors.length,
+			total: totalRequested,
 			errors,
 			message:
 				errors.length > 0

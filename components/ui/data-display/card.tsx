@@ -1,8 +1,8 @@
 // AlignUI Card v0.1.0 - Card component with variants
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 const cardVariants = tv({
 	slots: {

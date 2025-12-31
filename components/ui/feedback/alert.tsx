@@ -3,11 +3,11 @@
 "use client"
 
 import * as React from "react"
-import { tv, type VariantProps, type ClassValue } from "@/utils/tv"
-import { recursiveCloneChildren } from "@/utils/recursive-clone-children"
-import type { PolymorphicComponentProps } from "@/utils/polymorphic"
+import { tv, type VariantProps, type ClassValue } from "@/lib/utils"
+import { recursiveCloneChildren } from "@/lib/utils"
+import type { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 import { X } from "@phosphor-icons/react"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 
 type PhosphorIcon = React.ComponentType<{
 	className?: string

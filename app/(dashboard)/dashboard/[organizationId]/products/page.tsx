@@ -4,6 +4,7 @@ import { getProductsData } from "@/features/products/ssr"
 import { ProductsClient } from "./products-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
+import ProductsLoading from "./loading"
 
 export const metadata: Metadata = {
 	title: "Products",
@@ -14,25 +15,30 @@ export const metadata: Metadata = {
 	},
 }
 
+// URL-based multi-tenancy: organizationId from URL params
+interface ProductsPageProps {
+	params: Promise<{ organizationId: string }>
+}
 
-async function ProductsData() {
+async function ProductsData({ organizationId }: { organizationId: string }) {
 	try {
-		const data = await getProductsData()
-		// Industry Standard: Don't pass hasOrganization prop - use context instead
+		// SSOT: Pass organizationId from URL to SSR function
+		const data = await getProductsData(organizationId)
 		return <ProductsClient initialData={data || { data: [], total: 0 }} />
 	} catch (error) {
 		logSSRError(error, "getProductsData", "products-data", {})
-		// Industry Standard: Return empty data, let context handle organization state
 		return <ProductsClient initialData={{ data: [], total: 0 }} />
 	}
 }
 
-export default async function ProductsPage() {
-	// Industry Standard: Use OrganizationGuard for consistent UX
+export default async function ProductsPage({ params }: ProductsPageProps) {
+	// URL-based multi-tenancy: extract organizationId from URL params
+	const { organizationId } = await params
+
 	return (
 		<OrganizationGuard pageType="products">
-			<Suspense fallback={<div className="p-8">Loading products...</div>}>
-				<ProductsData />
+			<Suspense fallback={<ProductsLoading />}>
+				<ProductsData organizationId={organizationId} />
 			</Suspense>
 		</OrganizationGuard>
 	)

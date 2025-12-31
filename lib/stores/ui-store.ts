@@ -2,6 +2,8 @@
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { useShallow } from "zustand/react/shallow"
+import { UI_DEFAULTS, type ViewMode } from "@/lib/constants"
 
 interface UIState {
 	// Sidebar state (persisted)
@@ -24,8 +26,8 @@ interface UIState {
 
 	// View preferences (persisted)
 	viewPreferences: {
-		campaignsView: "grid" | "list"
-		enrollmentsView: "grid" | "list"
+		campaignsView: ViewMode
+		enrollmentsView: ViewMode
 		tablePageSize: number
 		showAdvancedFilters: boolean
 	}
@@ -73,12 +75,12 @@ export const useUIStore = create<UIState>()(
 			setSettingsPanelOpen: (open) => set({ settingsPanelOpen: open }),
 			toggleSettingsPanel: () => set((state) => ({ settingsPanelOpen: !state.settingsPanelOpen })),
 
-			// View preferences (persisted)
+			// View preferences (persisted) - uses centralized UI_DEFAULTS
 			viewPreferences: {
-				campaignsView: "grid",
-				enrollmentsView: "grid",
-				tablePageSize: 50,
-				showAdvancedFilters: false,
+				campaignsView: UI_DEFAULTS.VIEW_MODE,
+				enrollmentsView: UI_DEFAULTS.VIEW_MODE,
+				tablePageSize: UI_DEFAULTS.TABLE_PAGE_SIZE,
+				showAdvancedFilters: UI_DEFAULTS.SHOW_ADVANCED_FILTERS,
 			},
 			setViewPreference: (key, value) =>
 				set((state) => ({
@@ -98,3 +100,79 @@ export const useUIStore = create<UIState>()(
 		}
 	)
 )
+
+// ============================================
+// Optimized Selectors - Prevent unnecessary re-renders
+// ============================================
+
+/**
+ * Selector for sidebar state only
+ * Components using this won't re-render when other UI state changes
+ */
+export const useSidebar = () =>
+	useUIStore(
+		useShallow((state) => ({
+			collapsed: state.sidebarCollapsed,
+			setCollapsed: state.setSidebarCollapsed,
+			toggle: state.toggleSidebar,
+		}))
+	)
+
+/**
+ * Selector for notifications drawer state only
+ */
+export const useNotificationsDrawer = () =>
+	useUIStore(
+		useShallow((state) => ({
+			open: state.notificationsDrawerOpen,
+			setOpen: state.setNotificationsDrawerOpen,
+			toggle: state.toggleNotificationsDrawer,
+		}))
+	)
+
+/**
+ * Selector for command menu state only
+ */
+export const useCommandMenu = () =>
+	useUIStore(
+		useShallow((state) => ({
+			open: state.commandMenuOpen,
+			setOpen: state.setCommandMenuOpen,
+			toggle: state.toggleCommandMenu,
+		}))
+	)
+
+/**
+ * Selector for settings panel state only
+ */
+export const useSettingsPanel = () =>
+	useUIStore(
+		useShallow((state) => ({
+			open: state.settingsPanelOpen,
+			setOpen: state.setSettingsPanelOpen,
+			toggle: state.toggleSettingsPanel,
+		}))
+	)
+
+/**
+ * Selector for view preferences only
+ */
+export const useViewPreferences = () =>
+	useUIStore(
+		useShallow((state) => ({
+			preferences: state.viewPreferences,
+			setPreference: state.setViewPreference,
+		}))
+	)
+
+/**
+ * Selector for a specific view preference
+ */
+export const useCampaignsView = () =>
+	useUIStore((state) => state.viewPreferences.campaignsView)
+
+export const useEnrollmentsView = () =>
+	useUIStore((state) => state.viewPreferences.enrollmentsView)
+
+export const useTablePageSize = () =>
+	useUIStore((state) => state.viewPreferences.tablePageSize)

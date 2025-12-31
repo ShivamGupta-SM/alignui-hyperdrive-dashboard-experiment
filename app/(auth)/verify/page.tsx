@@ -1,14 +1,39 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { Suspense, useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import * as Button from "@/components/ui/primitives/button"
 import * as DigitInput from "@/components/ui/forms/digit-input"
 import { Callout } from "@/components/ui/feedback/callout"
 import { ShieldCheck, ArrowClockwise, Key } from "@phosphor-icons/react"
+import { routes } from "@/lib/routes"
+
+function VerifyLoading() {
+	return (
+		<div className="w-full max-w-md">
+			<div className="rounded-2xl bg-bg-white-0 p-6 sm:p-8 ring-1 ring-inset ring-stroke-soft-200 shadow-lg animate-pulse">
+				<div className="mb-6 sm:mb-8 text-center">
+					<div className="flex size-14 sm:size-16 items-center justify-center rounded-2xl bg-bg-soft-200 mx-auto mb-4" />
+					<div className="h-6 w-48 bg-bg-soft-200 rounded mx-auto mb-2" />
+					<div className="h-4 w-64 bg-bg-soft-200 rounded mx-auto" />
+				</div>
+				<div className="h-12 bg-bg-soft-200 rounded mb-6" />
+				<div className="h-11 bg-bg-soft-200 rounded" />
+			</div>
+		</div>
+	)
+}
 
 export default function VerifyPage() {
+	return (
+		<Suspense fallback={<VerifyLoading />}>
+			<VerifyContent />
+		</Suspense>
+	)
+}
+
+function VerifyContent() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 	const twoFactorToken = searchParams.get("token")
@@ -47,7 +72,8 @@ export default function VerifyPage() {
 				const result = await verify2FATotp({ twoFactorToken, code })
 
 				if (result?.data?.success) {
-					router.push("/dashboard")
+					// Use replace() - user shouldn't go back to 2FA page after successful verification
+					router.replace(routes.dashboard.root)
 					router.refresh()
 				} else {
 					setError(result?.serverError || "Invalid code. Please try again.")
@@ -158,7 +184,7 @@ export default function VerifyPage() {
 								Use one of your backup codes to sign in
 							</p>
 							<Link
-								href="/verify/backup-code"
+								href={routes.verify.backupCode}
 								className="inline-flex items-center text-paragraph-sm text-primary-base font-medium hover:text-primary-darker hover:underline transition-colors"
 							>
 								Use backup code →

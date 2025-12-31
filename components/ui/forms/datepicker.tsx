@@ -7,7 +7,7 @@ import { CaretLeft, CaretRight } from "@phosphor-icons/react"
 import { DayPicker } from "react-day-picker"
 
 import { compactButtonVariants } from "@/components/ui/primitives/compact-button"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
 

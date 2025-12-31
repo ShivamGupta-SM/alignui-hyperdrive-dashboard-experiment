@@ -7,7 +7,7 @@ import * as Button from "@/components/ui/primitives/button"
 import { Logo } from "@/components/ui/branding/logo"
 import { House } from "@phosphor-icons/react"
 import ThemeSwitch from "@/components/shared/theme-switch"
-import type { auth } from "@/lib/api/encore-client"
+import type { auth } from "@/brand-client"
 
 export default function Header() {
 	const { data: sessionData, isPending } = useSession()
@@ -15,7 +15,7 @@ export default function Header() {
 
 	return (
 		<div className="border-b border-stroke-soft-200">
-			<header className="mx-auto flex h-14 max-w-5xl items-center justify-between px-5">
+			<header className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-5">
 				<Link href="/">
 					<Logo width={140} height={32} />
 				</Link>
@@ -36,7 +36,7 @@ export default function Header() {
 								</Link>
 							</Button.Root>
 							<Link href="/dashboard">
-								<UserAvatar user={user ? (user as unknown as auth.MeResponse) : null} size="40" className="size-9" />
+								<UserAvatar user={user as auth.MeResponse | null} size="40" className="size-9" />
 							</Link>
 						</div>
 					) : (

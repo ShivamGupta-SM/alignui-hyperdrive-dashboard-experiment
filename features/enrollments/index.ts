@@ -11,23 +11,30 @@ export {
 	enrollmentKeys,
 	// Queries
 	useEnrollments,
-	useOrganizationEnrollments,
 	useCampaignEnrollments,
 	useEnrollment,
 	useEnrollmentDetail,
 	useEnrollmentTransitions,
 	useEnrollmentPricing,
+	useEnrollmentStats,
 	// Mutations
 	useUpdateEnrollmentStatus,
-	useBulkUpdateEnrollments,
+	useBulkApproveEnrollments,
+	useBulkRejectEnrollments,
 	useApproveEnrollment,
 	useRejectEnrollment,
-	useWithdrawEnrollment,
-	useSubmitDeliverables,
-	useUpdateDeliverable,
+	useRequestChanges,
+	useExtendDeadline,
+	useExportEnrollments,
 } from "./hooks/use-enrollments"
 
 // Server Actions
-export { updateEnrollmentStatus, bulkUpdateEnrollments } from "./actions/enrollments"
+export {
+	updateEnrollmentStatus,
+	requestChanges,
+	exportEnrollments,
+	extendDeadline,
+	bulkUpdateEnrollments,
+} from "./actions/enrollments"
 
 // SSR Data Fetching - Import directly from @/features/enrollments/ssr in server components

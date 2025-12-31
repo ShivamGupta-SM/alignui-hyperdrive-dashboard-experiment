@@ -5,8 +5,8 @@
 import * as React from "react"
 import useEmblaCarousel, { type UseEmblaCarouselType } from "embla-carousel-react"
 import { CaretLeft, CaretRight } from "@phosphor-icons/react"
-import { tv } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { Slot } from "@radix-ui/react-slot"
 
 const CAROUSEL_ROOT_NAME = "CarouselRoot"

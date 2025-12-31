@@ -2,7 +2,9 @@
 
 import { useState, useMemo, useRef, useEffect, Fragment } from "react"
 import Link from "next/link"
-import { useRouter, useParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
+import { routes } from "@/lib/routes"
 import { useForm, Controller, useFieldArray, type ControllerRenderProps } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
@@ -34,10 +36,10 @@ import {
 	Globe,
 	Lock,
 	Info,
-	Warning,
 } from "@phosphor-icons/react"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import { formatDateShort, formatDateMedium, formatDateWithWeekday, getErrorMessage } from "@/lib/utils/format"
+import { OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
 import { useLocalStorage } from "@/hooks/state"
 import { CalloutWithActions } from "@/components/ui/feedback/callout"
 import {
@@ -46,8 +48,8 @@ import {
 	DEFAULT_SUBMISSION_DEADLINE_DAYS,
 } from "@/lib/constants"
 import { createCampaign, updateCampaignStatus, type CampaignType } from "@/features/campaigns"
-import { campaignFormSchema, type CampaignFormInput } from "@/features/campaigns/lib/validation"
-import type { DeliverableType } from "@/lib/types"
+import { campaignFormSchema, type CampaignFormInput } from "@/lib/utils/validations"
+import type { DeliverableType } from "@/features/campaigns/types"
 import type { ProductWithStats } from "@/features/products"
 
 type Product = ProductWithStats
@@ -66,8 +68,7 @@ interface CreateCampaignClientProps {
 // URL-based multi-tenancy: Get organizationId from URL params
 export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 	const router = useRouter()
-	const params = useParams<{ organizationId: string }>()
-	const organizationId = params.organizationId
+	const { organizationId } = useCurrentOrganization()
 
 	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
 		"create-campaign-onboarding-alert-dismissed",
@@ -99,7 +100,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 								<Button.Root
 									variant="primary"
 									size="small"
-									onClick={() => router.push("/onboarding")}
+									onClick={() => router.push(routes.onboarding.root)}
 								>
 									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 									Start Onboarding
@@ -127,25 +128,9 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 
 				{/* EMPTY STATE */}
 				{dismissedOnboardingAlert && (
-					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
-						<div className="max-w-md mx-auto space-y-4">
-							<div className="flex justify-center">
-								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
-									<Warning weight="duotone" className="size-8 text-warning-base" />
-								</div>
-							</div>
-							<div>
-								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
-								<p className="text-paragraph-sm text-text-sub-600 mt-2">
-									Complete your organization setup to create campaigns.
-								</p>
-							</div>
-							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
-								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-								Start Onboarding
-							</Button.Root>
-						</div>
-					</div>
+					<OrganizationSetupRequiredEmptyState
+						description="Complete your organization setup to create campaigns."
+					/>
 				)}
 			</div>
 		)
@@ -281,7 +266,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 			}
 
 			// Then submit for approval
-			await updateCampaignStatus({ id: campaignId, action: "submit" })
+			await updateCampaignStatus({ organizationId, id: campaignId, action: "submit" })
 
 			toast.success("Campaign submitted for approval")
 			router.push(`/dashboard/${organizationId}/campaigns`)
@@ -295,7 +280,7 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 					description: "Please complete onboarding and wait for admin approval before creating campaigns.",
 					action: {
 						label: "Go to Onboarding",
-						onClick: () => router.push("/onboarding")
+						onClick: () => router.push(routes.onboarding.root)
 					},
 					duration: 8000
 				})
@@ -965,6 +950,7 @@ function Step3Deliverables({
 											size="xsmall"
 											onClick={() => removeDeliverable(index)}
 											className="text-error-base hover:bg-error-lighter -mr-1"
+											aria-label="Remove deliverable"
 										>
 											<Button.Icon><Trash className="size-5" /></Button.Icon>
 										</Button.Root>

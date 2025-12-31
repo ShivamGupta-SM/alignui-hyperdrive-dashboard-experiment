@@ -7,32 +7,28 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useRouter } from "next/navigation"
-import { getEncoreBrowserClient } from "@/lib/api/encore-browser"
-import { STALE_TIME } from "@/lib/utils/query-config"
-import { getErrorMessage } from "@/lib/utils/format"
+import { client } from "@/lib/api/client"
+import { STALE_TIME, GC_TIME, PAGE_SIZE, DEFAULT_RETRY_CONFIG, createMutationErrorHandler, createGlobalQueryKeyFactory } from "@/lib/utils/query-config"
+import { STATUS_CHECKS } from "@/lib/utils/validations"
 import { useSession } from "@/features/auth"
 import { toast } from "sonner"
-import * as actions from "../actions/organizations"
-import type { organizations } from "@/lib/api/encore-client"
-
-// Use Encore types directly - single source of truth
-type Organization = organizations.Organization
-type UpdateOrganizationInput = organizations.UpdateOrganizationRequest & { id?: string }
+import { verifyGST } from "../actions/onboarding"
+import { resubmitOrganizationForApproval } from "../actions/approval"
+import type { OrganizationListItem } from "../types"
 
 // ============================================
-// Client Instance
+// Query Keys - Using factory + custom extensions
 // ============================================
-const client = getEncoreBrowserClient()
+const baseKeys = createGlobalQueryKeyFactory("organizations")
 
-// ============================================
-// Query Keys
-// ============================================
 export const organizationKeys = {
-	all: ["organizations"] as const,
+	all: baseKeys.all(),
 	lists: () => [...organizationKeys.all, "list"] as const,
 	detail: (id: string) => [...organizationKeys.all, "detail", id] as const,
 	stats: (id: string) => [...organizationKeys.all, "stats", id] as const,
+	activity: (id: string) => [...organizationKeys.all, "activity", id] as const,
+	campaignStats: (id: string) => [...organizationKeys.all, "campaignStats", id] as const,
+	bankAccounts: (id: string) => [...organizationKeys.all, "bankAccounts", id] as const,
 }
 
 // ============================================
@@ -41,17 +37,24 @@ export const organizationKeys = {
 
 /**
  * Get user's organizations
+ *
+ * Waits for session to be loaded before fetching to prevent
+ * race condition where orgs are fetched before auth cookie is available.
  */
 export function useOrganizations() {
+	const { data: session, isPending: isSessionPending } = useSession()
+
 	return useQuery({
 		queryKey: organizationKeys.lists(),
 		queryFn: async () => {
 			const result = await client.auth.listOrganizations()
 			return { organizations: result.organizations || [] }
 		},
+		// Wait for session to load before fetching organizations
+		enabled: !isSessionPending && !!session?.user,
 		staleTime: STALE_TIME.MEDIUM,
-		retry: false,
-		refetchOnWindowFocus: true,
+		gcTime: GC_TIME.LONG,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
@@ -61,291 +64,319 @@ export function useOrganizations() {
 export function useOrganizationById(id: string) {
 	return useQuery({
 		queryKey: organizationKeys.detail(id),
-		queryFn: () => client.organizations.getOrganization(id),
+		queryFn: () => client.auth.getFullOrganization(id, {}),
 		enabled: !!id,
 		staleTime: STALE_TIME.MEDIUM,
+		gcTime: GC_TIME.LONG,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
-/**
- * Get active organization (from session)
- */
-export function useActiveOrganization() {
-	const { data: session, isPending } = useSession()
-	const activeOrgId = (session?.user as { activeOrganizationId?: string } | undefined)?.activeOrganizationId
+// ============================================
+// URL-BASED ORGANIZATION DETAIL HOOK
+// ============================================
 
-	const query = useQuery({
-		queryKey: organizationKeys.detail(activeOrgId || ""),
-		queryFn: () => (activeOrgId ? client.organizations.getOrganization(activeOrgId) : null),
-		enabled: !!activeOrgId && !isPending,
-		staleTime: STALE_TIME.MEDIUM,
-	})
+/**
+ * Get organization detail with full data
+ *
+ * Use this when you need the full organization object with members.
+ * For just checking status/approval, use useCurrentOrganization from @/hooks/shared.
+ *
+ * @param organizationId - Organization ID from URL params (useParams)
+ * @deprecated Prefer useCurrentOrganization from @/hooks/shared for most use cases.
+ *             Only use this hook when you need full org details including members.
+ */
+export function useOrganizationWithDetails(organizationId: string) {
+	const { data: orgsData, isPending: isLoadingOrgs } = useOrganizations()
+	const { data: orgDetail, isPending: isLoadingDetail } = useOrganizationById(organizationId)
+
+	// Find org in list for basic info (has approvalStatus)
+	const organizations = orgsData?.organizations || []
+	const organizationFromList = organizations.find((org) => org.id === organizationId)
+
+	// Merge detail with list item (detail has members, list has approvalStatus)
+	const organization = orgDetail
+		? { ...orgDetail, approvalStatus: organizationFromList?.approvalStatus }
+		: organizationFromList
+
+	// Derived status flags - use list item for approvalStatus (it's the source)
+	// SSOT: Using STATUS_CHECKS helpers from @/lib/utils/validations
+	const approvalStatus = organizationFromList?.approvalStatus
+	const isApproved = STATUS_CHECKS.isApproved(approvalStatus)
+	const isApprovalPending = STATUS_CHECKS.isPending(approvalStatus)
+	const isDraft = STATUS_CHECKS.isDraft(approvalStatus)
+	const isRejected = STATUS_CHECKS.isRejected(approvalStatus)
+	const isBanned = STATUS_CHECKS.isBanned(approvalStatus)
 
 	return {
-		...query,
-		activeOrgId,
-		isSessionPending: isPending,
+		// Data
+		organization,
+		organizationId,
+
+		// Status flags
+		isApproved,
+		isApprovalPending,
+		isDraft,
+		isRejected,
+		isBanned,
+		approvalStatus,
+
+		// Loading
+		isLoading: isLoadingOrgs || isLoadingDetail,
+		isPending: isLoadingOrgs || isLoadingDetail,
 	}
 }
 
+// ============================================
+// ORGANIZATIONS LIST HOOK (for navigation/onboarding)
+// ============================================
+
 /**
- * Comprehensive organization hook with all mutations
+ * Organizations list hook - for navigation and onboarding checks
+ *
+ * URL-based multi-tenancy: This hook ONLY manages the organizations LIST.
+ * For organization details, use useCurrentOrganization(orgId) where orgId comes from URL.
+ *
+ * SSOT: Uses useOrganizations() internally to avoid duplicate API calls
  */
 export function useOrganization() {
 	const queryClient = useQueryClient()
-	const { data: session, isPending: isSessionPending } = useSession()
-	const activeOrgId = (session?.user as { activeOrganizationId?: string } | undefined)?.activeOrganizationId
+	const { error: sessionError } = useSession()
 
-	// Active organization query
-	const {
-		data: organization,
-		isPending: isPendingOrg,
-		refetch: refetchOrg,
-	} = useQuery({
-		queryKey: organizationKeys.detail(activeOrgId || ""),
-		queryFn: () => (activeOrgId ? client.organizations.getOrganization(activeOrgId) : null),
-		enabled: !!activeOrgId && !isSessionPending,
-		staleTime: STALE_TIME.MEDIUM,
-	})
-
-	// All organizations query
+	// SSOT: Reuse useOrganizations hook instead of duplicate useQuery
 	const {
 		data: organizationsData,
 		isLoading: isLoadingOrgs,
+		isFetching: isFetchingOrgs,
+		isError: isOrgsError,
 		refetch: refetchOrgs,
-	} = useQuery({
-		queryKey: organizationKeys.lists(),
-		queryFn: async () => {
-			const result = await client.auth.listOrganizations()
-			return result.organizations || []
-		},
-		enabled: !isSessionPending && !!session?.user,
-		staleTime: STALE_TIME.MEDIUM,
-	})
+	} = useOrganizations()
 
-	const organizations = organizationsData as Organization[] | undefined
+	// Use OrganizationListItem - listOrganizations returns limited fields
+	const organizations = organizationsData?.organizations as OrganizationListItem[] | undefined
 
-	// Create organization
-	const createMutation = useMutation({
-		mutationFn: async (name: string) => {
-			const { createBasicOrganization } = await import("../actions/organizations")
-			const result = await createBasicOrganization({ name })
-			if (!result?.data) throw new Error("Failed to create organization")
-			return result.data
-		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: organizationKeys.all })
-			toast.success("Organization created")
-		},
-		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to create organization"))
-		},
-	})
-
-	// Update organization
-	const updateMutation = useMutation({
-		mutationFn: async (data: UpdateOrganizationInput) => {
-			return client.organizations.updateOrganization(data.id || activeOrgId || "", data)
-		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: organizationKeys.detail(activeOrgId || "") })
-		},
-	})
-
-	// Verify GST
+	// Verify GST Preview - for onboarding before org creation
 	const verifyGSTMutation = useMutation({
-		mutationFn: async ({ gstNumber, orgId }: { gstNumber: string; orgId?: string }) => {
-			const { verifyGST } = await import("../actions/onboarding")
-			const result = await verifyGST({ gstNumber, organizationId: orgId || activeOrgId || "" })
+		mutationFn: async ({ gstNumber }: { gstNumber: string }) => {
+			const result = await verifyGST({ gstNumber })
 			if (!result?.data) throw new Error("GST verification failed")
 			return result.data
 		},
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: organizationKeys.detail(activeOrgId || "") })
 			toast.success("GST verified successfully")
 		},
-		onError: (error) => {
-			toast.error(getErrorMessage(error, "GST verification failed"))
-		},
+		onError: createMutationErrorHandler("verify GST"),
 	})
 
-	// Submit for approval
-	const submitMutation = useMutation({
-		mutationFn: async (orgId: string) => {
-			const { submitOrganizationForApproval } = await import("../actions/approval")
-			const result = await submitOrganizationForApproval({ organizationId: orgId })
-			if (!result?.data?.success) throw new Error("Submission failed")
-			return result.data
-		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: organizationKeys.detail(activeOrgId || "") })
-			toast.success("Submitted for approval")
-		},
-		onError: (error) => {
-			toast.error(getErrorMessage(error, "Submission failed"))
-		},
-	})
-
-	// Resubmit after rejection
+	// Resubmit after rejection (for rejected orgs only)
 	const resubmitMutation = useMutation({
 		mutationFn: async (orgId: string) => {
-			const { resubmitOrganizationForApproval } = await import("../actions/approval")
 			const result = await resubmitOrganizationForApproval({ organizationId: orgId })
 			if (!result?.data?.success) throw new Error("Resubmit failed")
 			return result.data
 		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: organizationKeys.detail(activeOrgId || "") })
+		onSuccess: (_, orgId) => {
+			queryClient.invalidateQueries({ queryKey: organizationKeys.detail(orgId) })
+			queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
 			toast.success("Reset to draft - you can now edit and resubmit")
 		},
-		onError: (error) => {
-			toast.error(getErrorMessage(error, "Resubmit failed"))
-		},
+		onError: createMutationErrorHandler("resubmit organization"),
 	})
 
-	// Derived state
-	const isPending = isSessionPending || isPendingOrg
-	const hasApprovedOrg = organizations?.some((org) => org.approvalStatus === "approved") ?? false
-	const hasDraftOrg =
-		organizations?.some((org) => org.approvalStatus === "draft" || org.approvalStatus === "pending") ?? false
-	const draftOrg = organizations?.find(
-		(org) => org.approvalStatus === "draft" || org.approvalStatus === "pending"
+	// Derived state from organizations list
+	// SSOT: Using STATUS_CHECKS helpers from @/lib/utils/validations
+	const isPending = isLoadingOrgs
+	const orgsArray = Array.isArray(organizations) ? organizations : []
+	const hasApprovedOrg = orgsArray.some((org) => STATUS_CHECKS.isApproved(org.approvalStatus))
+	const hasPendingOrg = orgsArray.some((org) => STATUS_CHECKS.isPending(org.approvalStatus))
+	const hasDraftOrg = orgsArray.some((org) => STATUS_CHECKS.isDraft(org.approvalStatus))
+	const draftOrg = orgsArray.find(
+		(org) => STATUS_CHECKS.isDraft(org.approvalStatus) || STATUS_CHECKS.isPending(org.approvalStatus)
 	)
-
-	// Status flags for current organization
-	const org = organization as Organization | null | undefined
-	const isDraft = org?.approvalStatus === "draft"
-	const isApprovalPending = org?.approvalStatus === "pending"
-	const isApproved = org?.approvalStatus === "approved"
-	const isRejected = org?.approvalStatus === "rejected"
-	const isBanned = org?.approvalStatus === "banned"
-	const isGSTVerified = org?.gstVerified ?? false
+	const pendingOrg = orgsArray.find((org) => STATUS_CHECKS.isPending(org.approvalStatus))
+	const approvedOrg = orgsArray.find((org) => STATUS_CHECKS.isApproved(org.approvalStatus))
 	const needsOnboarding = !hasApprovedOrg
 
 	return {
-		// Data
-		organization: org,
+		// Data - organizations list only (no single org detail)
 		organizations,
-		activeOrgId,
 
-		// Derived
+		// Derived (from organizations list)
 		hasApprovedOrg,
+		hasPendingOrg,
 		hasDraftOrg,
 		draftOrg,
+		pendingOrg,
+		approvedOrg,
 		needsOnboarding,
-
-		// Status flags (approval)
-		isDraft,
-		isApprovalPending,
-		isApproved,
-		isRejected,
-		isBanned,
-		isGSTVerified,
 
 		// Loading States
 		isPending,
-		isLoading: isPending, // Alias for backwards compatibility
+		isFetching: isFetchingOrgs,
+		isLoading: isPending,
 		isPendingOrgs: isLoadingOrgs,
-		isCreating: createMutation.isPending,
-		isUpdating: updateMutation.isPending,
+		isOrgsError,
+		isSessionError: !!sessionError,
 		isVerifyingGST: verifyGSTMutation.isPending,
-		isSubmitting: submitMutation.isPending,
 		isResubmitting: resubmitMutation.isPending,
 
 		// Actions
-		create: createMutation.mutateAsync,
-		update: updateMutation.mutateAsync,
 		verifyGST: verifyGSTMutation.mutateAsync,
-		submit: submitMutation.mutateAsync,
 		resubmit: resubmitMutation.mutateAsync,
-
-		// Refetch
-		refetch: () => {
-			refetchOrg()
-			refetchOrgs()
-		},
+		refetch: refetchOrgs,
 	}
 }
 
-// ============================================
-// MUTATIONS
-// ============================================
-
 /**
- * Switch active organization
+ * Update organization hook - requires orgId from URL
+ * Can update: name, slug, logo
  */
-export function useSwitchOrganization() {
+export function useUpdateOrganization(orgId: string) {
 	const queryClient = useQueryClient()
-	const router = useRouter()
-
 	return useMutation({
-		mutationFn: (organizationId: string) => actions.switchOrganization({ organizationId }),
-		onMutate: async (organizationId) => {
-			await queryClient.cancelQueries({ queryKey: ["auth", "session"] })
-			const previousSession = queryClient.getQueryData(["auth", "session"])
-			queryClient.setQueryData(["auth", "session"], (old: unknown) => {
-				if (!old) return old
-				const oldData = old as { user?: { activeOrganizationId?: string } }
-				return {
-					...oldData,
-					user: {
-						...oldData.user,
-						activeOrganizationId: organizationId,
-					},
-				}
-			})
-			return { previousSession }
+		mutationFn: (data: { name?: string; slug?: string; logo?: string }) =>
+			client.auth.updateOrganizationAuth(orgId, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: organizationKeys.detail(orgId) })
+			queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+			toast.success("Organization updated")
 		},
-		onError: (err, _, context) => {
-			if (context?.previousSession) {
-				queryClient.setQueryData(["auth", "session"], context.previousSession)
-			}
-			toast.error("Failed to switch organization", {
-				description: getErrorMessage(err, "An unexpected error occurred"),
-			})
-		},
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["auth", "session"] })
-			await queryClient.refetchQueries({ queryKey: ["auth", "session"] })
-			queryClient.invalidateQueries()
-			router.refresh()
-			toast.success("Organization switched successfully")
-		},
+		onError: createMutationErrorHandler("update organization"),
 	})
 }
 
 // ============================================
-// Helper Hooks
+// Additional Organization Queries
 // ============================================
 
 /**
- * Check if user needs onboarding
+ * Get organization campaign stats
  */
-export function useNeedsOnboarding() {
-	const { hasApprovedOrg, hasDraftOrg, isPending, isPendingOrgs } = useOrganization()
-
-	return {
-		needsOnboarding: !hasApprovedOrg,
-		hasDraft: hasDraftOrg,
-		isPending: isPending || isPendingOrgs,
-	}
+export function useOrganizationCampaignStats(orgId: string, params?: { skip?: number; take?: number }) {
+	return useQuery({
+		queryKey: organizationKeys.campaignStats(orgId),
+		queryFn: () =>
+			client.organizations.getOrganizationCampaignStats(orgId, {
+				skip: params?.skip ?? 0,
+				take: params?.take ?? PAGE_SIZE.SMALL, // SSOT: Use centralized constant
+			}),
+		enabled: !!orgId,
+		staleTime: STALE_TIME.MEDIUM,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
+	})
 }
 
 /**
- * Organization status checks
+ * Get organization stats (aggregated metrics)
  */
-export function useOrganizationStatus() {
-	const { organization, isPending } = useOrganization()
+export function useOrganizationStats(orgId: string) {
+	return useQuery({
+		queryKey: organizationKeys.stats(orgId),
+		queryFn: () => client.organizations.getOrganizationStats(orgId),
+		enabled: !!orgId,
+		staleTime: STALE_TIME.MEDIUM,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
+	})
+}
 
-	return {
-		status: organization?.approvalStatus ?? null,
-		isDraft: organization?.approvalStatus === "draft",
-		isApprovalPending: organization?.approvalStatus === "pending",
-		isApproved: organization?.approvalStatus === "approved",
-		isRejected: organization?.approvalStatus === "rejected",
-		isSuspended: organization?.approvalStatus === "banned",
-		isGSTVerified: organization?.gstVerified ?? false,
-		isPending,
-	}
+// NOTE: Bank account hooks (useBankAccounts, useVerifyBankAccount, useSetDefaultBankAccount)
+// are in features/settings/hooks/use-settings.ts - import from @/features/settings
+
+/**
+ * Get single bank account
+ * FIX: Use primitive value for showFull in query key
+ */
+export function useBankAccount(organizationId: string, bankAccountId: string, showFull?: boolean) {
+	return useQuery({
+		queryKey: [...organizationKeys.bankAccounts(organizationId), bankAccountId, showFull ?? false] as const,
+		queryFn: () => client.organizations.getBankAccount(organizationId, bankAccountId, { showFull }),
+		enabled: !!organizationId && !!bankAccountId,
+		staleTime: STALE_TIME.MEDIUM,
+		gcTime: GC_TIME.LONG,
+		...DEFAULT_RETRY_CONFIG,
+	})
+}
+
+/**
+ * List pending invitations for organization
+ */
+export function useOrganizationInvitations(organizationId: string) {
+	return useQuery({
+		queryKey: ["organization-invitations", organizationId] as const,
+		queryFn: () => client.auth.listInvitations(organizationId),
+		enabled: !!organizationId,
+		staleTime: STALE_TIME.SHORT,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
+	})
+}
+
+/**
+ * Request credit limit increase
+ */
+export function useRequestCreditIncrease(organizationId: string) {
+	const queryClient = useQueryClient()
+	return useMutation({
+		mutationFn: (data: { requestedAmount: number; reason?: string }) =>
+			client.organizations.requestCreditIncrease(organizationId, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: organizationKeys.detail(organizationId) })
+			toast.success("Credit increase request submitted")
+		},
+		onError: createMutationErrorHandler("request credit increase"),
+	})
+}
+
+/**
+ * Update bank account details
+ */
+export function useUpdateBankAccount(organizationId: string) {
+	const queryClient = useQueryClient()
+	return useMutation({
+		mutationFn: ({ bankAccountId, data }: { bankAccountId: string; data: { accountHolderName?: string; bankName?: string; accountType?: "current" | "savings" } }) =>
+			client.organizations.updateBankAccount(organizationId, bankAccountId, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: organizationKeys.bankAccounts(organizationId) })
+			toast.success("Bank account updated")
+		},
+		onError: createMutationErrorHandler("update bank account"),
+	})
+}
+
+// ============================================
+// DASHBOARD & OVERVIEW
+// ============================================
+
+/**
+ * Get dashboard overview for organization
+ * Includes stats, recent activity, and key metrics
+ */
+export function useDashboardOverview(organizationId: string) {
+	return useQuery({
+		queryKey: ["dashboard-overview", organizationId] as const,
+		queryFn: () => client.organizations.getDashboardOverview(organizationId, {}),
+		enabled: !!organizationId,
+		staleTime: STALE_TIME.SHORT,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
+	})
+}
+
+/**
+ * Update organization logo
+ */
+export function useUpdateOrganizationLogo(organizationId: string) {
+	const queryClient = useQueryClient()
+	return useMutation({
+		mutationFn: (data: { logoUrl: string }) =>
+			client.organizations.updateOrganizationLogo(organizationId, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: organizationKeys.detail(organizationId) })
+			toast.success("Logo updated successfully")
+		},
+		onError: createMutationErrorHandler("update logo"),
+	})
 }
 

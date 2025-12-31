@@ -9,14 +9,19 @@ import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import * as Avatar from "@/components/ui/primitives/avatar"
 import * as Badge from "@/components/ui/data-display/badge"
-import * as Select from "@/components/ui/forms/select"
 import { FormField } from "@/components/ui/forms/form-field"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import { useSettingsSearchParams } from "@/hooks"
 import { useQueryClient } from "@tanstack/react-query"
-import { updateOrganization } from "@/app/actions"
-import { settingsKeys, verifyBankAccount, addBankAccount, removeBankAccount, setDefaultBankAccount } from "@/features/settings"
-import type { organizations } from "@/lib/api/encore-client"
+import { settingsKeys, updateOrganization, verifyBankAccount, addBankAccount, updateOrganizationLogo, removeOrganizationLogo } from "@/features/settings"
+import { organizationKeys } from "@/features/organizations"
+import { requestOrgLogoUploadUrl } from "@/features/storage"
+import { FILE_SIZES } from "@/lib/types/constants"
+import * as Dropdown from "@/components/ui/layout/dropdown"
+import { useNotificationPreferences, useUpdateNotificationPreferences } from "@/features/notifications/hooks/use-notifications"
+import { getInitial } from "@/lib/utils/string"
+import * as Switch from "@/components/ui/forms/switch"
+import type { organizations } from "@/brand-client"
 import {
 	Buildings,
 	Bank,
@@ -24,7 +29,6 @@ import {
 	SealCheck,
 	Plus,
 	Trash,
-	PencilSimple,
 	ShieldCheck,
 	Bell,
 	CloudArrowUp,
@@ -48,12 +52,14 @@ import * as Modal from "@/components/ui/layout/modal"
 import * as BottomSheet from "@/components/ui/layout/bottom-sheet"
 import * as Radio from "@/components/ui/forms/radio"
 import { useMediaQuery } from "usehooks-ts"
+import { SettingsPageLoading } from "@/components/dashboard/loading-skeletons"
 
 // Settings sections - Organization only (Industry Standard: Settings = Organization, Profile = User)
 const settingsSections = [
 	{ id: "organization", label: "Organization", icon: Buildings },
 	{ id: "gst", label: "GST & Tax", icon: FileText },
 	{ id: "bank-accounts", label: "Bank Accounts", icon: Bank },
+	{ id: "notifications", label: "Notifications", icon: Bell },
 ]
 
 interface SettingsData {
@@ -64,6 +70,7 @@ interface SettingsData {
 		avatar?: string
 		role: string
 		emailVerified?: boolean
+		twoFactorEnabled?: boolean
 	}
 	organization: {
 		id: string
@@ -214,6 +221,7 @@ export function SettingsClient({ initialData }: SettingsClientProps = {}) {
 							organizationId={data.organization.id}
 						/>
 					)}
+					{activeSection === "notifications" && <NotificationPreferencesSection />}
 				</div>
 			</div>
 		</div>
@@ -228,6 +236,9 @@ export function SettingsClient({ initialData }: SettingsClientProps = {}) {
 function OrganizationSection({ organization }: { organization: SettingsData["organization"] }) {
 	const [saved, setSaved] = useState(false)
 	const [isLoading, setIsLoading] = useState(false)
+	const [isUploadingLogo, setIsUploadingLogo] = useState(false)
+	const [isRemovingLogo, setIsRemovingLogo] = useState(false)
+	const logoInputRef = useRef<HTMLInputElement>(null)
 	const router = useRouter()
 	const queryClient = useQueryClient()
 	const timeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -243,7 +254,6 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 			website: organization.website || "",
 			email: organization.email || "",
 			phone: organization.phone || "",
-			industry: organization.industry || "",
 			address: organization.address || "",
 		},
 	})
@@ -260,10 +270,8 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 				setSaved(true)
 				toast.success("Organization updated successfully")
 				timeoutRef.current = setTimeout(() => setSaved(false), 3000)
-				// Invalidate settings and organization queries to refetch updated data
-				queryClient.invalidateQueries({ queryKey: settingsKeys.all(organization.id) })
-				queryClient.invalidateQueries({ queryKey: settingsKeys.organization(organization.id) })
-				router.refresh()
+				// SSOT: Invalidate organizationKeys.detail - single source of truth
+				queryClient.invalidateQueries({ queryKey: organizationKeys.detail(organization.id) })
 			} else {
 				toast.error(result?.serverError || "Failed to update organization")
 			}
@@ -275,6 +283,99 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 	}
 
 	const [logoError, setLogoError] = useState(false)
+
+	// Handle logo upload
+	const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0]
+		if (!file) return
+
+		// Validate file size (2MB max)
+		if (file.size > FILE_SIZES.MAX_AVATAR_SIZE) {
+			toast.error("Image size must be less than 2MB")
+			return
+		}
+
+		// Validate file type
+		if (!file.type.startsWith("image/")) {
+			toast.error("Please upload an image file")
+			return
+		}
+
+		setIsUploadingLogo(true)
+		try {
+			// Step 1: Get presigned upload URL
+			const urlResult = await requestOrgLogoUploadUrl({
+				filename: file.name,
+				orgId: organization.id,
+			})
+
+			if (!urlResult?.data?.uploadUrl || !urlResult?.data?.fileUrl) {
+				throw new Error("Failed to get upload URL")
+			}
+
+			// Step 2: Upload file to presigned URL
+			const uploadResponse = await fetch(urlResult.data.uploadUrl, {
+				method: "PUT",
+				body: file,
+				headers: {
+					"Content-Type": file.type,
+				},
+			})
+
+			if (!uploadResponse.ok) {
+				throw new Error("Failed to upload file")
+			}
+
+			// Step 3: Update organization with new logo URL
+			const updateResult = await updateOrganizationLogo({
+				organizationId: organization.id,
+				logoUrl: urlResult.data.fileUrl,
+			})
+
+			if (updateResult?.data?.success) {
+				toast.success("Logo updated successfully")
+				setLogoError(false)
+				queryClient.invalidateQueries({ queryKey: organizationKeys.detail(organization.id) })
+			} else {
+				toast.error(updateResult?.serverError || "Failed to update logo")
+			}
+		} catch {
+			toast.error("Failed to upload logo. Please try again.")
+		} finally {
+			setIsUploadingLogo(false)
+			// Reset input
+			if (logoInputRef.current) {
+				logoInputRef.current.value = ""
+			}
+		}
+	}
+
+	// Handle logo remove
+	const handleLogoRemove = async () => {
+		if (!organization.logo) {
+			toast.error("No logo to remove")
+			return
+		}
+
+		setIsRemovingLogo(true)
+		try {
+			const result = await removeOrganizationLogo({
+				organizationId: organization.id,
+			})
+
+			if (result?.data?.success) {
+				toast.success("Logo removed successfully")
+				setLogoError(false)
+				queryClient.invalidateQueries({ queryKey: organizationKeys.detail(organization.id) })
+			} else {
+				toast.error(result?.serverError || "Failed to remove logo")
+			}
+		} catch {
+			toast.error("Failed to remove logo. Please try again.")
+		} finally {
+			setIsRemovingLogo(false)
+		}
+	}
 
 	return (
 		<div className="space-y-6">
@@ -296,31 +397,69 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 								/>
 							) : (
 								<span className="text-title-h5 font-semibold">
-									{organization.name.charAt(0).toUpperCase()}
+									{getInitial(organization.name)}
 								</span>
 							)}
 						</Avatar.Root>
 						<button
 							type="button"
-							className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer"
+							onClick={() => logoInputRef.current?.click()}
+							disabled={isUploadingLogo}
+							className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer disabled:cursor-not-allowed"
 						>
-							<CloudArrowUp className="size-6 text-white" />
+							{isUploadingLogo ? (
+								<div className="size-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+							) : (
+								<CloudArrowUp className="size-6 text-white" />
+							)}
 						</button>
 					</div>
 					<div className="flex-1">
 						<div className="flex flex-wrap gap-2">
-							<Button.Root variant="neutral" size="small">
-								<Button.Icon><CloudArrowUp className="size-5" /></Button.Icon>
-								Upload
+							<Button.Root
+								variant="neutral"
+								size="small"
+								onClick={() => logoInputRef.current?.click()}
+								disabled={isUploadingLogo}
+							>
+								<Button.Icon>
+									{isUploadingLogo ? (
+										<div className="size-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+									) : (
+										<CloudArrowUp className="size-5" />
+									)}
+								</Button.Icon>
+								{isUploadingLogo ? "Uploading..." : "Upload"}
 							</Button.Root>
-							<Button.Root variant="ghost" size="small">
-								<Button.Icon><Trash className="size-5" /></Button.Icon>
-								Remove
-							</Button.Root>
+							{organization.logo && !logoError && (
+								<Button.Root
+									variant="ghost"
+									size="small"
+									onClick={handleLogoRemove}
+									disabled={isRemovingLogo || isUploadingLogo}
+								>
+									<Button.Icon>
+										{isRemovingLogo ? (
+											<div className="size-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+										) : (
+											<Trash className="size-5" />
+										)}
+									</Button.Icon>
+									{isRemovingLogo ? "Removing..." : "Remove"}
+								</Button.Root>
+							)}
 						</div>
 						<p className="mt-2 text-paragraph-xs text-text-soft-400">
 							200×200px min. PNG/JPG, max 2MB.
 						</p>
+						{/* Hidden file input */}
+						<input
+							ref={logoInputRef}
+							type="file"
+							accept="image/*"
+							onChange={handleLogoUpload}
+							className="sr-only"
+						/>
 					</div>
 				</div>
 			</SettingsCard>
@@ -359,21 +498,6 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 							</Input.Root>
 						</FormField>
 
-						<FormField label="Industry" error={errors.industry?.message}>
-							<Select.Root {...register("industry")}>
-								<Select.Trigger className="w-full">
-									<Select.Value placeholder="Select industry" />
-								</Select.Trigger>
-								<Select.Content>
-									<Select.Item value="ecommerce">E-Commerce</Select.Item>
-									<Select.Item value="retail">Retail</Select.Item>
-									<Select.Item value="technology">Technology</Select.Item>
-									<Select.Item value="fashion">Fashion</Select.Item>
-									<Select.Item value="other">Other</Select.Item>
-								</Select.Content>
-							</Select.Root>
-						</FormField>
-
 						<FormField label="Email" error={errors.email?.message}>
 							<Input.Root>
 								<Input.Wrapper>
@@ -408,25 +532,7 @@ function OrganizationSection({ organization }: { organization: SettingsData["org
 				</div>
 			</SettingsCard>
 
-			{/* Danger Zone */}
-			<SettingsCard title="Danger Zone" variant="danger">
-				<div className="p-4 rounded-xl bg-error-lighter/30 border border-error-base/20">
-					<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-						<div className="flex items-start gap-3">
-							<Warning className="size-5 text-error-base shrink-0 mt-0.5" weight="fill" />
-							<div>
-								<h4 className="text-label-sm text-text-strong-950">Delete Organization</h4>
-								<p className="text-paragraph-xs text-text-sub-600 mt-0.5">
-									Permanently delete all data.
-								</p>
-							</div>
-						</div>
-						<Button.Root variant="error" size="small" className="shrink-0 w-full sm:w-auto">
-							Delete
-						</Button.Root>
-					</div>
-				</div>
-			</SettingsCard>
+			{/* Note: Organization deletion is disabled for brands. Contact support if needed. */}
 		</div>
 	)
 }
@@ -512,7 +618,6 @@ function BankAccountsSection({
 	organizationId: string
 }) {
 	const [showAddModal, setShowAddModal] = useState(false)
-	const router = useRouter()
 	const queryClient = useQueryClient()
 
 	const handleRemove = async (accountId: string) => {
@@ -525,8 +630,7 @@ function BankAccountsSection({
 			const result = await removeBankAccount({ organizationId, accountId })
 			if (result?.data?.success) {
 				toast.success("Bank account removed successfully")
-				queryClient.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
-				router.refresh()
+				queryClient.invalidateQueries({ queryKey: organizationKeys.bankAccounts(organizationId) })
 			} else {
 				toast.error(result?.serverError || "Failed to remove bank account")
 			}
@@ -541,8 +645,7 @@ function BankAccountsSection({
 			const result = await setDefaultBankAccount({ organizationId, accountId })
 			if (result?.data?.success) {
 				toast.success("Default bank account updated")
-				queryClient.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
-				router.refresh()
+				queryClient.invalidateQueries({ queryKey: organizationKeys.bankAccounts(organizationId) })
 			} else {
 				toast.error(result?.serverError || "Failed to set default account")
 			}
@@ -620,9 +723,207 @@ function BankAccountsSection({
 	)
 }
 
-// Notifications section removed - moved to /dashboard/profile page (Industry Standard: Settings = Organization, Profile = User)
+// ===========================================
+// NOTIFICATION PREFERENCES SECTION
+// ===========================================
+function NotificationPreferencesSection() {
+	const { data: preferences, isLoading } = useNotificationPreferences()
+	const updatePreferences = useUpdateNotificationPreferences()
 
-// Security section removed - moved to /dashboard/profile page (Industry Standard: Settings = Organization, Profile = User)
+	const handleToggle = async (channel: "email" | "sms" | "inApp" | "push", value: boolean, workflowId?: string) => {
+		try {
+			await updatePreferences.mutateAsync({
+				workflowId,
+				channels: { [channel]: value },
+			})
+			toast.success("Notification preferences updated")
+		} catch {
+			toast.error("Failed to update preferences")
+		}
+	}
+
+	if (isLoading) {
+		return (
+			<div className="space-y-6">
+				<SettingsCard title="Notification Preferences">
+					<div className="animate-pulse space-y-4">
+						<div className="h-12 bg-bg-weak-50 rounded-lg" />
+						<div className="h-12 bg-bg-weak-50 rounded-lg" />
+						<div className="h-12 bg-bg-weak-50 rounded-lg" />
+					</div>
+				</SettingsCard>
+			</div>
+		)
+	}
+
+	const globalPrefs = preferences?.global || {}
+
+	return (
+		<div className="space-y-6">
+			{/* Global Notification Settings */}
+			<SettingsCard title="Notification Channels" badge={
+				<Badge.Root color="blue" variant="lighter" size="small">
+					Global
+				</Badge.Root>
+			}>
+				<div className="space-y-4">
+					<p className="text-paragraph-sm text-text-sub-600 mb-4">
+						Control how you receive notifications across all activities.
+					</p>
+
+					{/* Email Notifications */}
+					<div className="flex items-center justify-between p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200">
+						<div className="flex items-center gap-3">
+							<div className="size-10 rounded-lg bg-bg-white-0 border border-stroke-soft-200 flex items-center justify-center">
+								<Envelope className="size-5 text-text-sub-600" />
+							</div>
+							<div>
+								<p className="text-label-sm text-text-strong-950">Email</p>
+								<p className="text-paragraph-xs text-text-sub-600">Receive notifications via email</p>
+							</div>
+						</div>
+						<Switch.Root
+							checked={globalPrefs.email ?? true}
+							onCheckedChange={(checked) => handleToggle("email", checked)}
+							disabled={updatePreferences.isPending}
+						/>
+					</div>
+
+					{/* In-App Notifications */}
+					<div className="flex items-center justify-between p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200">
+						<div className="flex items-center gap-3">
+							<div className="size-10 rounded-lg bg-bg-white-0 border border-stroke-soft-200 flex items-center justify-center">
+								<Bell className="size-5 text-text-sub-600" />
+							</div>
+							<div>
+								<p className="text-label-sm text-text-strong-950">In-App</p>
+								<p className="text-paragraph-xs text-text-sub-600">Show notifications in the app</p>
+							</div>
+						</div>
+						<Switch.Root
+							checked={globalPrefs.inApp ?? true}
+							onCheckedChange={(checked) => handleToggle("inApp", checked)}
+							disabled={updatePreferences.isPending}
+						/>
+					</div>
+
+					{/* Push Notifications */}
+					<div className="flex items-center justify-between p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200">
+						<div className="flex items-center gap-3">
+							<div className="size-10 rounded-lg bg-bg-white-0 border border-stroke-soft-200 flex items-center justify-center">
+								<Bell className="size-5 text-text-sub-600" weight="fill" />
+							</div>
+							<div>
+								<p className="text-label-sm text-text-strong-950">Push</p>
+								<p className="text-paragraph-xs text-text-sub-600">Browser push notifications</p>
+							</div>
+						</div>
+						<Switch.Root
+							checked={globalPrefs.push ?? false}
+							onCheckedChange={(checked) => handleToggle("push", checked)}
+							disabled={updatePreferences.isPending}
+						/>
+					</div>
+
+					{/* SMS Notifications */}
+					<div className="flex items-center justify-between p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200">
+						<div className="flex items-center gap-3">
+							<div className="size-10 rounded-lg bg-bg-white-0 border border-stroke-soft-200 flex items-center justify-center">
+								<Phone className="size-5 text-text-sub-600" />
+							</div>
+							<div>
+								<p className="text-label-sm text-text-strong-950">SMS</p>
+								<p className="text-paragraph-xs text-text-sub-600">Receive text message alerts</p>
+							</div>
+						</div>
+						<Switch.Root
+							checked={globalPrefs.sms ?? false}
+							onCheckedChange={(checked) => handleToggle("sms", checked)}
+							disabled={updatePreferences.isPending}
+						/>
+					</div>
+				</div>
+			</SettingsCard>
+
+			{/* Workflow-specific Preferences */}
+			{preferences?.workflows && preferences.workflows.length > 0 && (
+				<SettingsCard title="Activity Notifications">
+					<div className="space-y-3">
+						<p className="text-paragraph-sm text-text-sub-600 mb-4">
+							Customize notifications for specific activities.
+						</p>
+						{preferences.workflows.map((workflow) => (
+							<div key={workflow.workflowId} className="p-4 rounded-xl bg-bg-weak-50/50 border border-stroke-soft-200">
+								<div className="flex items-center justify-between mb-3">
+									<p className="text-label-sm text-text-strong-950">{workflow.workflowName}</p>
+									<Badge.Root
+										color={workflow.enabled ? "green" : "gray"}
+										variant="lighter"
+										size="small"
+									>
+										{workflow.enabled ? "Enabled" : "Disabled"}
+									</Badge.Root>
+								</div>
+								<div className="flex flex-wrap gap-2">
+									{workflow.channels.email !== undefined && (
+										<button
+											type="button"
+											onClick={() => handleToggle("email", !workflow.channels.email, workflow.workflowId)}
+											className={cn(
+												"px-3 py-1.5 rounded-lg text-label-xs transition-colors",
+												workflow.channels.email
+													? "bg-primary-base/10 text-primary-base"
+													: "bg-bg-weak-50 text-text-soft-400"
+											)}
+										>
+											Email {workflow.channels.email ? "On" : "Off"}
+										</button>
+									)}
+									{workflow.channels.inApp !== undefined && (
+										<button
+											type="button"
+											onClick={() => handleToggle("inApp", !workflow.channels.inApp, workflow.workflowId)}
+											className={cn(
+												"px-3 py-1.5 rounded-lg text-label-xs transition-colors",
+												workflow.channels.inApp
+													? "bg-primary-base/10 text-primary-base"
+													: "bg-bg-weak-50 text-text-soft-400"
+											)}
+										>
+											In-App {workflow.channels.inApp ? "On" : "Off"}
+										</button>
+									)}
+									{workflow.channels.push !== undefined && (
+										<button
+											type="button"
+											onClick={() => handleToggle("push", !workflow.channels.push, workflow.workflowId)}
+											className={cn(
+												"px-3 py-1.5 rounded-lg text-label-xs transition-colors",
+												workflow.channels.push
+													? "bg-primary-base/10 text-primary-base"
+													: "bg-bg-weak-50 text-text-soft-400"
+											)}
+										>
+											Push {workflow.channels.push ? "On" : "Off"}
+										</button>
+									)}
+								</div>
+							</div>
+						))}
+					</div>
+				</SettingsCard>
+			)}
+
+			{/* Info Note */}
+			<div className="flex items-start gap-3 p-4 rounded-xl bg-bg-weak-50 border border-stroke-soft-200">
+				<Info className="size-5 text-text-soft-400 shrink-0 mt-0.5" />
+				<p className="text-paragraph-sm text-text-sub-600">
+					Some notifications are required for security and compliance and cannot be disabled.
+				</p>
+			</div>
+		</div>
+	)
+}
 
 // ===========================================
 // HELPER COMPONENTS
@@ -720,8 +1021,9 @@ interface BankAccountCardProps {
 
 function BankAccountCard({ account, organizationId }: BankAccountCardProps) {
 	const [isVerifying, setIsVerifying] = useState(false)
+	const [isRemoving, setIsRemoving] = useState(false)
+	const [isSettingDefault, setIsSettingDefault] = useState(false)
 	const queryClient = useQueryClient()
-	const router = useRouter()
 
 	const handleVerify = async () => {
 		setIsVerifying(true)
@@ -730,15 +1032,52 @@ function BankAccountCard({ account, organizationId }: BankAccountCardProps) {
 			if (result?.data?.success) {
 				toast.success("Verification initiated successfully")
 				// Invalidate bank accounts query to refetch updated status
-				queryClient.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
-				router.refresh()
+				queryClient.invalidateQueries({ queryKey: organizationKeys.bankAccounts(organizationId) })
 			} else {
 				toast.error(result?.serverError || "Failed to initiate verification")
 			}
-		} catch (error) {
+		} catch {
 			toast.error("An error occurred. Please try again.")
 		} finally {
 			setIsVerifying(false)
+		}
+	}
+
+	const handleSetDefault = async () => {
+		if (account.isDefault) return
+		setIsSettingDefault(true)
+		try {
+			const { setDefaultBankAccount } = await import("@/features/settings")
+			const result = await setDefaultBankAccount({ organizationId, accountId: account.id })
+			if (result?.data?.success) {
+				toast.success("Default bank account updated")
+				queryClient.invalidateQueries({ queryKey: organizationKeys.bankAccounts(organizationId) })
+			} else {
+				toast.error(result?.serverError || "Failed to set default account")
+			}
+		} catch {
+			toast.error("An error occurred. Please try again.")
+		} finally {
+			setIsSettingDefault(false)
+		}
+	}
+
+	const handleRemove = async () => {
+		if (!confirm("Are you sure you want to remove this bank account?")) return
+		setIsRemoving(true)
+		try {
+			const { removeBankAccount } = await import("@/features/settings")
+			const result = await removeBankAccount({ organizationId, accountId: account.id })
+			if (result?.data?.success) {
+				toast.success("Bank account removed successfully")
+				queryClient.invalidateQueries({ queryKey: organizationKeys.bankAccounts(organizationId) })
+			} else {
+				toast.error(result?.serverError || "Failed to remove bank account")
+			}
+		} catch {
+			toast.error("An error occurred. Please try again.")
+		} finally {
+			setIsRemoving(false)
 		}
 	}
 
@@ -798,9 +1137,39 @@ function BankAccountCard({ account, organizationId }: BankAccountCardProps) {
 						)}
 					</div>
 				</div>
-				<Button.Root variant="ghost" size="xsmall" className="shrink-0">
-					<Button.Icon><DotsThree className="size-5" /></Button.Icon>
-				</Button.Root>
+				<Dropdown.Root>
+					<Dropdown.Trigger asChild>
+						<Button.Root
+							variant="ghost"
+							size="xsmall"
+							className="shrink-0"
+							disabled={isRemoving || isSettingDefault}
+						>
+							<Button.Icon>
+								{(isRemoving || isSettingDefault) ? (
+									<div className="size-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+								) : (
+									<DotsThree className="size-5" />
+								)}
+							</Button.Icon>
+						</Button.Root>
+					</Dropdown.Trigger>
+					<Dropdown.Content align="end">
+						{!account.isDefault && (
+							<Dropdown.Item onClick={handleSetDefault}>
+								<Check className="size-4 mr-2" />
+								Set as Primary
+							</Dropdown.Item>
+						)}
+						<Dropdown.Item
+							onClick={handleRemove}
+							className="text-error-base focus:text-error-base"
+						>
+							<Trash className="size-4 mr-2" />
+							Remove
+						</Dropdown.Item>
+					</Dropdown.Content>
+				</Dropdown.Root>
 			</div>
 		</div>
 	)
@@ -818,7 +1187,6 @@ interface AddBankAccountModalProps {
 function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAccountModalProps) {
 	const isMobile = useMediaQuery("(max-width: 639px)")
 	const [isPending, setIsPending] = useState(false)
-	const router = useRouter()
 	const queryClient = useQueryClient()
 
 	const {
@@ -882,8 +1250,7 @@ function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAcco
 				reset()
 				onOpenChange(false)
 				// Invalidate bank accounts query to refetch updated list
-				queryClient.invalidateQueries({ queryKey: settingsKeys.bankAccounts(organizationId) })
-				router.refresh()
+				queryClient.invalidateQueries({ queryKey: organizationKeys.bankAccounts(organizationId) })
 			} else {
 				toast.error(result?.serverError || "Failed to add bank account")
 			}

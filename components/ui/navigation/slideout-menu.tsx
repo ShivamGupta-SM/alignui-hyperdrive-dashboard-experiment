@@ -5,7 +5,7 @@
 import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "@phosphor-icons/react"
-import { tv, type VariantProps } from "@/utils/tv"
+import { tv, type VariantProps } from "@/lib/utils"
 import * as CompactButton from "@/components/ui/primitives/compact-button"
 
 const SLIDEOUT_MENU_ROOT_NAME = "SlideoutMenuRoot"

@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 import { getProductsData } from "@/features/products/ssr"
 import { CreateCampaignClient } from "./create-campaign-client"
 import type { ProductWithStats } from "@/features/products"
@@ -13,17 +14,30 @@ export const metadata: Metadata = {
 	},
 }
 
-export default async function CreateCampaignPage() {
-	// Industry Standard: Fetch data, let context handle organization state
+interface PageProps {
+	params: Promise<{ organizationId: string }>
+}
+
+async function CreateCampaignData({ organizationId }: { organizationId: string }) {
 	let products: ProductWithStats[] = []
 	try {
-		const data = await getProductsData()
+		const data = await getProductsData(organizationId)
 		products = data.data ?? []
 	} catch (error) {
 		logSSRError(error, "getProductsData", "products-data", {})
 		products = []
 	}
 
-	// Industry Standard: Don't pass hasOrganization prop - use context instead
 	return <CreateCampaignClient products={products} />
+}
+
+export default async function CreateCampaignPage({ params }: PageProps) {
+	// URL-based multi-tenancy: Get organizationId from URL params
+	const { organizationId } = await params
+
+	return (
+		<Suspense fallback={<div className="p-8">Loading...</div>}>
+			<CreateCampaignData organizationId={organizationId} />
+		</Suspense>
+	)
 }

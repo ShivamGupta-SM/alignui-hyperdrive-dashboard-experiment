@@ -4,9 +4,9 @@
 
 import * as React from "react"
 import { MagnifyingGlass } from "@phosphor-icons/react"
-import { tv, type VariantProps } from "@/utils/tv"
+import { tv, type VariantProps } from "@/lib/utils"
 import { Slot } from "@radix-ui/react-slot"
-import type { PolymorphicComponentProps } from "@/utils/polymorphic"
+import type { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 
 const SIDEBAR_ROOT_NAME = "SidebarRoot"
 const SIDEBAR_HEADER_NAME = "SidebarHeader"

@@ -4,8 +4,8 @@
 "use client"
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { X } from "@phosphor-icons/react"
 
 const FEATURED_CARD_NAME = "FeaturedCard"

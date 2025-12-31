@@ -7,7 +7,7 @@ import * as React from "react"
 import { Drawer } from "vaul"
 import { X } from "@phosphor-icons/react"
 import * as CompactButton from "@/components/ui/primitives/compact-button"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import { useMediaQuery } from "usehooks-ts"
 
 interface BottomSheetProps {

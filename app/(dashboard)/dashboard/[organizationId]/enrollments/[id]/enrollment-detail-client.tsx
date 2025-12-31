@@ -1,19 +1,21 @@
 "use client"
 
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import Link from "next/link"
 import * as Button from "@/components/ui/primitives/button"
 import * as StatusBadge from "@/components/ui/data-display/status-badge"
 import * as Avatar from "@/components/ui/primitives/avatar"
 import * as Modal from "@/components/ui/layout/modal"
 import * as Textarea from "@/components/ui/forms/textarea"
-import { InlineBackButton } from "@/components/ui/navigation/back-button"
-import { getAvatarColor } from "@/utils/avatar-color"
-import { getErrorMessage } from "@/lib/utils/format"
+import * as Breadcrumb from "@/components/ui/navigation/breadcrumb"
+import { getAvatarColor } from "@/lib/utils"
+import { getErrorMessage, formatCurrency, formatDateMedium } from "@/lib/utils/format"
+import { getInitial } from "@/lib/utils/string"
 import {
-	ArrowLeft,
 	Check,
 	X,
 	PencilSimple,
@@ -30,19 +32,15 @@ import {
 	Star,
 	ShareNetwork,
 	ClipboardText,
+	CaretRight,
 } from "@phosphor-icons/react"
-import { cn } from "@/utils/cn"
-import { ENROLLMENT_STATUS_CONFIG, REJECTION_REASONS } from "@/lib/constants"
+import { cn } from "@/lib/utils"
+import { ENROLLMENT_STATUS_CONFIG, REJECTION_REASONS, getEnrollmentStatusBadgeStatus } from "@/lib/constants"
 import type { Enrollment, EnrollmentStatus } from "@/features/enrollments"
-import { updateEnrollmentStatus, enrollmentKeys } from "@/features/enrollments"
+import { updateEnrollmentStatus, enrollmentKeys, requestChanges } from "@/features/enrollments"
 import { campaignKeys } from "@/features/campaigns"
-// TODO: requestEnrollmentChanges needs to be implemented in enrollments feature
-async function requestEnrollmentChanges(enrollmentId: string, comment: string) {
-	// Placeholder - this functionality needs to be implemented
-	throw new Error("Not implemented yet")
-}
 import { EnrollmentTimeline } from "@/components/dashboard/enrollment-timeline"
-import type { enrollments, campaigns, integrations } from "@/lib/api/encore-client"
+import type { enrollments, organizations, platforms } from "@/brand-client"
 
 // Helper to calculate costs from Encore enrollment
 function calculateCosts(enrollment: Enrollment | enrollments.EnrollmentDetail) {
@@ -53,37 +51,19 @@ function calculateCosts(enrollment: Enrollment | enrollments.EnrollmentDetail) {
 	return { billAmount, gstAmount, platformFee, totalCost }
 }
 
-const getStatusBadgeStatus = (status: EnrollmentStatus) => {
-	switch (status) {
-		case "approved":
-			return "completed" as const
-		case "awaiting_review":
-		case "awaiting_submission":
-		case "changes_requested":
-			return "pending" as const
-		case "permanently_rejected":
-		case "withdrawn":
-		case "expired":
-			return "failed" as const
-		default:
-			return "disabled" as const
-	}
-}
-
 interface EnrollmentDetailClientProps {
 	enrollmentId: string
 	initialData?:
 		| (enrollments.EnrollmentDetail & {
-				platforms?: integrations.Platform[]
-				campaignDeliverables?: campaigns.CampaignDeliverableResponse[]
+				platforms?: platforms.Platform[]
+				campaignDeliverables?: organizations.CampaignDeliverableResponse[]
 		  })
 		| unknown
 }
 
 export function EnrollmentDetailClient({ enrollmentId, initialData }: EnrollmentDetailClientProps) {
 	const router = useRouter()
-	const params = useParams<{ organizationId: string }>()
-	const organizationId = params.organizationId
+	const { organizationId } = useCurrentOrganization()
 	const queryClient = useQueryClient()
 
 	const [isApproveModalOpen, setIsApproveModalOpen] = React.useState(false)
@@ -93,39 +73,42 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 	const [changesComment, setChangesComment] = React.useState("")
 	const [isProcessing, setIsProcessing] = React.useState(false)
 
-	// Fetch enrollment data from API (hydrated from SSR)
-	// React Query hook removed - using server data via initialData
-	// const { data: enrollment, isLoading: isLoadingEnrollment, error } = useEnrollment(enrollmentId)
+	// Safe type handling - enrollments.EnrollmentDetail is the source of truth
+	const isEnrollmentDetail = (data: unknown): data is enrollments.EnrollmentDetail & {
+		platforms?: platforms.Platform[]
+		campaignDeliverables?: organizations.CampaignDeliverableResponse[]
+	} => {
+		return !!data && typeof data === "object" && "status" in data && "id" in data
+	}
 
-	const enrollmentDetail = initialData as enrollments.EnrollmentDetail | undefined
-	// Use enrollmentDetail directly - it has all the fields we need
-	const enrollment = enrollmentDetail as unknown as Enrollment & enrollments.EnrollmentDetail
+	const enrollmentDetail = isEnrollmentDetail(initialData) ? initialData : undefined
+	const enrollment = enrollmentDetail // EnrollmentDetail already has all fields
 	const isLoadingEnrollment = !enrollmentDetail
-	const error = null
 
 	// Action handlers
 	const statusConfig = enrollmentDetail ? ENROLLMENT_STATUS_CONFIG[enrollmentDetail.status as EnrollmentStatus] : null
-	const formatCurrency = (amount: number) => `₹${amount.toLocaleString("en-IN")}`
-	const formatDate = (date: Date) =>
-		new Date(date).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
-	const isLoading = false // pure server actions don't track loading state this way automatically, could use useTransition
 
 	const handleApprove = async () => {
 		setIsProcessing(true)
 		try {
-			await updateEnrollmentStatus({ id: enrollmentId, status: "approved" })
+			const campaignId = enrollmentDetail?.campaignId ?? ""
+			await updateEnrollmentStatus({ organizationId, campaignId, id: enrollmentId, status: "approved" })
 			toast.success("Enrollment approved successfully")
 			setIsApproveModalOpen(false)
-			// Invalidate enrollments queries to refetch updated data
+			// SSOT: Only invalidate affected queries - enrollment list, detail, and specific campaign stats
 			queryClient.invalidateQueries({ queryKey: enrollmentKeys.lists(organizationId) })
-			queryClient.invalidateQueries({ queryKey: enrollmentKeys.detail(organizationId, enrollmentId) })
-			queryClient.invalidateQueries({ queryKey: campaignKeys.lists(organizationId) }) // Campaign stats may change
+			queryClient.invalidateQueries({ queryKey: enrollmentKeys.detail(organizationId, campaignId, enrollmentId) })
+			// Only invalidate specific campaign stats, not ALL campaigns list
+			if (campaignId) {
+				queryClient.invalidateQueries({ queryKey: campaignKeys.stats(organizationId, campaignId) })
+			}
 			// Give user time to see success message before redirect
 			setTimeout(() => {
 				router.push(`/dashboard/${organizationId}/enrollments`)
 			}, 1500)
 		} catch (error) {
 			toast.error(getErrorMessage(error, "Failed to approve enrollment"))
+		} finally {
 			setIsProcessing(false)
 		}
 	}
@@ -135,20 +118,25 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 
 		setIsProcessing(true)
 		try {
-			await updateEnrollmentStatus({ id: enrollmentId, status: "rejected", reason: rejectionReason })
+			const campaignId = enrollmentDetail?.campaignId ?? ""
+			await updateEnrollmentStatus({ organizationId, campaignId, id: enrollmentId, status: "rejected", reason: rejectionReason })
 			toast.success("Enrollment rejected")
 			setIsRejectModalOpen(false)
 			setRejectionReason("")
-			// Invalidate enrollments queries to refetch updated data
+			// SSOT: Only invalidate affected queries - enrollment list, detail, and specific campaign stats
 			queryClient.invalidateQueries({ queryKey: enrollmentKeys.lists(organizationId) })
-			queryClient.invalidateQueries({ queryKey: enrollmentKeys.detail(organizationId, enrollmentId) })
-			queryClient.invalidateQueries({ queryKey: campaignKeys.lists(organizationId) }) // Campaign stats may change
+			queryClient.invalidateQueries({ queryKey: enrollmentKeys.detail(organizationId, campaignId, enrollmentId) })
+			// Only invalidate specific campaign stats, not ALL campaigns list
+			if (campaignId) {
+				queryClient.invalidateQueries({ queryKey: campaignKeys.stats(organizationId, campaignId) })
+			}
 			// Give user time to see success message before redirect
 			setTimeout(() => {
 				router.push(`/dashboard/${organizationId}/enrollments`)
 			}, 1500)
 		} catch (error) {
 			toast.error(getErrorMessage(error, "Failed to reject enrollment"))
+		} finally {
 			setIsProcessing(false)
 		}
 	}
@@ -158,19 +146,21 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 
 		setIsProcessing(true)
 		try {
-			await requestEnrollmentChanges(enrollmentId, changesComment.trim())
+			const campaignId = enrollmentDetail?.campaignId ?? ""
+			await requestChanges({ organizationId, campaignId, id: enrollmentId, feedback: changesComment.trim() })
 			toast.success("Changes requested from shopper")
 			setIsChangesModalOpen(false)
 			setChangesComment("")
-			// Invalidate enrollments queries to refetch updated data
+			// SSOT: Only invalidate enrollment queries - no campaign stats change on request changes
 			queryClient.invalidateQueries({ queryKey: enrollmentKeys.lists(organizationId) })
-			queryClient.invalidateQueries({ queryKey: enrollmentKeys.detail(organizationId, enrollmentId) })
+			queryClient.invalidateQueries({ queryKey: enrollmentKeys.detail(organizationId, campaignId, enrollmentId) })
 			// Give user time to see success message before redirect
 			setTimeout(() => {
 				router.push(`/dashboard/${organizationId}/enrollments`)
 			}, 1500)
 		} catch (error) {
 			toast.error(getErrorMessage(error, "Failed to request changes"))
+		} finally {
 			setIsProcessing(false)
 		}
 	}
@@ -179,32 +169,15 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 	if (isLoadingEnrollment) {
 		return (
 			<div className="space-y-5 sm:space-y-6 max-w-4xl mx-auto">
-				<div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5 animate-pulse">
-					<div className="h-6 bg-gray-200 rounded w-24 mb-4" />
+				<div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5 animate-pulse">
+					<div className="h-6 bg-bg-soft-200 rounded w-24 mb-4" />
 					<div className="flex items-center gap-3">
-						<div className="size-12 rounded-full bg-gray-200" />
+						<div className="size-12 rounded-full bg-bg-soft-200" />
 						<div className="flex-1 space-y-2">
-							<div className="h-5 bg-gray-200 rounded w-32" />
-							<div className="h-4 bg-gray-200 rounded w-48" />
+							<div className="h-5 bg-bg-soft-200 rounded w-32" />
+							<div className="h-4 bg-bg-soft-200 rounded w-48" />
 						</div>
 					</div>
-				</div>
-			</div>
-		)
-	}
-
-	// Error state (error is always null in current implementation, but kept for future use)
-	if (error) {
-		const errorMessage = (error as { message?: string })?.message ?? "An unknown error occurred"
-		return (
-			<div className="space-y-5 sm:space-y-6 max-w-4xl mx-auto">
-				<div className="rounded-2xl bg-error-lighter border border-error-base/20 p-4 sm:p-5 text-center">
-					<Warning className="size-8 text-error-base mx-auto mb-2" />
-					<p className="text-label-md text-error-base mb-1">Failed to load enrollment</p>
-					<p className="text-paragraph-sm text-text-sub-600">
-						{errorMessage}
-					</p>
-					<InlineBackButton label="Go Back" className="mt-4" />
 				</div>
 			</div>
 		)
@@ -214,13 +187,24 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 	if (!enrollment || !statusConfig) {
 		return (
 			<div className="space-y-5 sm:space-y-6 max-w-4xl mx-auto">
+				<Breadcrumb.Root className="mb-4">
+					<Breadcrumb.Item asChild>
+						<Link href={`/dashboard/${organizationId}`}>Dashboard</Link>
+					</Breadcrumb.Item>
+					<Breadcrumb.ArrowIcon as={CaretRight} />
+					<Breadcrumb.Item asChild>
+						<Link href={`/dashboard/${organizationId}/enrollments`}>Enrollments</Link>
+					</Breadcrumb.Item>
+				</Breadcrumb.Root>
 				<div className="rounded-2xl bg-warning-lighter border border-warning-base/20 p-4 sm:p-5 text-center">
 					<Warning className="size-8 text-warning-base mx-auto mb-2" />
 					<p className="text-label-md text-warning-base mb-1">Enrollment not found</p>
 					<p className="text-paragraph-sm text-text-sub-600">
 						The requested enrollment could not be found.
 					</p>
-					<InlineBackButton label="Go Back" className="mt-4" />
+					<Button.Root variant="neutral" size="small" asChild className="mt-4">
+						<Link href={`/dashboard/${organizationId}/enrollments`}>Back to Enrollments</Link>
+					</Button.Root>
 				</div>
 			</div>
 		)
@@ -230,14 +214,23 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 		<div className="space-y-5 sm:space-y-6 max-w-4xl mx-auto pb-24 sm:pb-0">
 			{/* Header Card */}
 			<div
-				className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5"
-				style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}
+				className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5"
 			>
-				{/* Top row: Back + Actions + Status */}
+				{/* Top row: Breadcrumb + Status */}
 				<div className="flex items-center justify-between gap-4 mb-4">
-					<InlineBackButton />
+					<Breadcrumb.Root>
+						<Breadcrumb.Item asChild>
+							<Link href={`/dashboard/${organizationId}`}>Dashboard</Link>
+						</Breadcrumb.Item>
+						<Breadcrumb.ArrowIcon as={CaretRight} />
+						<Breadcrumb.Item asChild>
+							<Link href={`/dashboard/${organizationId}/enrollments`}>Enrollments</Link>
+						</Breadcrumb.Item>
+						<Breadcrumb.ArrowIcon as={CaretRight} />
+						<Breadcrumb.Item active>#{enrollment.orderId}</Breadcrumb.Item>
+					</Breadcrumb.Root>
 
-					<StatusBadge.Root status={getStatusBadgeStatus(enrollment.status)} variant="light">
+					<StatusBadge.Root status={getEnrollmentStatusBadgeStatus(enrollment.status)} variant="light">
 						<StatusBadge.Dot />
 						{statusConfig.label}
 					</StatusBadge.Root>
@@ -246,12 +239,12 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 				{/* Enrollment Info */}
 				<div className="flex items-center gap-3 sm:gap-4">
 					<Avatar.Root size="48" color={getAvatarColor(enrollment.shopperId || "U")}>
-						{(enrollment.shopperId || "U").charAt(0).toUpperCase()}
+						{getInitial(enrollment.shopperId)}
 					</Avatar.Root>
 					<div className="flex-1 min-w-0">
 						<div className="flex items-center gap-2 mb-0.5">
 							<span className="text-label-md sm:text-title-h5 text-text-strong-950 truncate">
-								Shopper #{enrollment.shopperId.slice(0, 8)}
+								Shopper #{(enrollment.shopperId || "").slice(0, 8)}
 							</span>
 						</div>
 						<div className="flex items-center gap-2">
@@ -289,30 +282,30 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 			{/* Two Column Layout */}
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 				{/* Order Details */}
-				<div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
-					<h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-						<CalendarBlank weight="duotone" className="size-4 text-gray-500" />
+				<div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
+					<h2 className="text-label-sm font-semibold text-text-strong-950 mb-3 flex items-center gap-2">
+						<CalendarBlank weight="duotone" className="size-4 text-text-soft-400" />
 						Order Details
 					</h2>
 					<div className="space-y-2">
 						<DetailRow label="Order ID" value={enrollment.orderId} mono />
 						<DetailRow
 							label="Purchase Date"
-							value={enrollment.purchaseDate ? formatDate(new Date(enrollment.purchaseDate)) : "-"}
+							value={enrollment.purchaseDate ? formatDateMedium(new Date(enrollment.purchaseDate)) : "-"}
 						/>
-						<DetailRow label="Enrolled" value={formatDate(new Date(enrollment.createdAt))} />
+						<DetailRow label="Enrolled" value={formatDateMedium(new Date(enrollment.createdAt))} />
 						<DetailRow
 							label="Expires"
-							value={enrollment.expiresAt ? formatDate(new Date(enrollment.expiresAt)) : "-"}
+							value={enrollment.expiresAt ? formatDateMedium(new Date(enrollment.expiresAt)) : "-"}
 						/>
 						<DetailRow label="Can Resubmit" value={enrollment.canResubmit ? "Yes" : "No"} />
 					</div>
 				</div>
 
 				{/* Rate Details */}
-				<div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
-					<h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-						<ShieldCheck weight="duotone" className="size-4 text-gray-500" />
+				<div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
+					<h2 className="text-label-sm font-semibold text-text-strong-950 mb-3 flex items-center gap-2">
+						<ShieldCheck weight="duotone" className="size-4 text-text-soft-400" />
 						Rate Details
 					</h2>
 					<div className="space-y-2">
@@ -334,8 +327,8 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 			{(() => {
 				const costs = calculateCosts(enrollment)
 				return (
-					<div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
-						<h2 className="text-sm font-semibold text-gray-900 mb-3">Billing Breakdown</h2>
+					<div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
+						<h2 className="text-label-sm font-semibold text-text-strong-950 mb-3">Billing Breakdown</h2>
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div className="space-y-2">
 								<DetailRow
@@ -348,9 +341,9 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 									value={formatCurrency(costs.platformFee)}
 								/>
 							</div>
-							<div className="rounded-xl bg-blue-50 border border-blue-200 p-4 flex flex-col items-center justify-center">
-								<span className="text-sm text-blue-700 mb-1">Total Cost to You</span>
-								<span className="text-2xl text-blue-600 font-bold">
+							<div className="rounded-xl bg-primary-lighter ring-1 ring-inset ring-primary-base/20 p-4 flex flex-col items-center justify-center">
+								<span className="text-paragraph-sm text-primary-darker mb-1">Total Cost to You</span>
+								<span className="text-title-h4 text-primary-base font-bold">
 									{formatCurrency(costs.totalCost)}
 								</span>
 							</div>
@@ -361,25 +354,25 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 
 			{/* Required Deliverables - Categorized by Platform */}
 			{enrollmentDetail?.submissions && enrollmentDetail.submissions.length > 0 && (
-				<div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
-					<h2 className="text-sm font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
+				<div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
+					<h2 className="text-label-sm font-semibold text-text-strong-950 mb-3 sm:mb-4 flex items-center gap-2">
 						<ListChecks weight="duotone" className="size-5 text-primary-base" />
 						Required Deliverables
 					</h2>
 					{(() => {
 						const extendedData = enrollmentDetail as enrollments.EnrollmentDetail & {
-							platforms?: integrations.Platform[]
-							campaignDeliverables?: campaigns.CampaignDeliverableResponse[]
+							platforms?: platforms.Platform[]
+							campaignDeliverables?: organizations.CampaignDeliverableResponse[]
 						}
-						const platforms = extendedData.platforms || []
+						const platformsList = extendedData.platforms || []
 						const campaignDeliverables = extendedData.campaignDeliverables || []
 
 						// Create platform map for quick lookup
-						const platformMap = new Map(platforms.map((p: integrations.Platform) => [p.id, p.name]))
+						const platformMap = new Map(platformsList.map((p: platforms.Platform) => [p.id, p.name]))
 
 						// Create deliverable map to get platformId from campaignDeliverableId
 						const deliverablePlatformMap = new Map(
-							campaignDeliverables.map((cd: campaigns.CampaignDeliverableResponse) => [
+							campaignDeliverables.map((cd: organizations.CampaignDeliverableResponse) => [
 								cd.id,
 								cd.deliverable?.platformId || "general",
 							])
@@ -458,16 +451,16 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 																		{index + 1}. {submission.deliverableName}
 																	</span>
 																	{submission.isRequired ? (
-																		<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error-lighter text-error-base text-[10px] sm:text-xs font-medium">
+																		<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-error-lighter text-error-base text-label-xs font-medium">
 																			Required
 																		</span>
 																	) : (
-																		<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-soft-200 text-text-sub-600 text-[10px] sm:text-xs font-medium">
+																		<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-soft-200 text-text-sub-600 text-label-xs font-medium">
 																			Optional
 																		</span>
 																	)}
 																	{isSubmitted && (
-																		<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success-lighter text-success-base text-[10px] sm:text-xs font-medium">
+																		<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success-lighter text-success-base text-label-xs font-medium">
 																			<Check weight="bold" className="size-3" />
 																			Submitted
 																		</span>
@@ -512,7 +505,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 																		)}
 																		{submission.submittedAt && (
 																			<span className="text-paragraph-xs text-text-soft-400">
-																				Submitted: {formatDate(new Date(submission.submittedAt))}
+																				Submitted: {formatDateMedium(new Date(submission.submittedAt))}
 																			</span>
 																		)}
 																	</div>
@@ -545,7 +538,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 			)}
 
 			{/* Status Timeline - Using EnrollmentTimeline component with history from API */}
-			<div className="rounded-2xl bg-white border border-gray-200 p-4 sm:p-5">
+			<div className="rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
 				<EnrollmentTimeline enrollmentId={enrollmentId} history={enrollmentDetail?.history} />
 			</div>
 
@@ -553,7 +546,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 			{enrollment.status === "awaiting_review" && (
 				<>
 					{/* Desktop: Card with centered buttons */}
-					<div className="hidden sm:block rounded-2xl bg-gradient-to-r from-primary-lighter to-bg-white-0 ring-1 ring-inset ring-primary-light p-5">
+					<div className="hidden sm:block rounded-2xl bg-primary-lighter ring-1 ring-inset ring-primary-base/20 p-5">
 						<div className="flex items-center justify-between">
 							<div>
 								<h3 className="text-label-md text-text-strong-950 mb-1">Ready to Review</h3>
@@ -856,7 +849,7 @@ function DetailRow({
 	label,
 	value,
 	mono = false,
-	valueColor = "text-gray-900",
+	valueColor = "text-text-strong-950",
 }: {
 	label: string
 	value: string
@@ -865,8 +858,8 @@ function DetailRow({
 }) {
 	return (
 		<div className="flex items-center justify-between py-1.5">
-			<span className="text-sm text-gray-500">{label}</span>
-			<span className={cn("text-sm font-medium", valueColor, mono && "font-mono")}>{value}</span>
+			<span className="text-paragraph-sm text-text-sub-600">{label}</span>
+			<span className={cn("text-paragraph-sm font-medium", valueColor, mono && "font-mono")}>{value}</span>
 		</div>
 	)
 }

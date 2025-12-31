@@ -12,11 +12,11 @@ import { redirect } from "next/navigation"
 import { z } from "zod"
 
 import { authAction, publicActionClient } from "@/lib/safe-action"
-import { getAuthenticatedEncoreClient } from "@/lib/api/encore"
+import { getAuthenticatedEncoreClient } from "@/lib/api/server"
 import { logDebug, logInfo, logError } from "@/lib/logging/error-logger-simple"
 import { validateCallbackUrlServer } from "@/lib/utils/url-validation"
-import { getErrorMessageForLog } from "@/lib/utils/format"
-import type { auth } from "@/lib/api/encore-client"
+import { EXTERNAL_URLS, LIMITS, AUTH_COOKIE_PRIMARY, AUTH_COOKIE_NAMES } from "@/lib/constants"
+import type { auth } from "@/brand-client"
 
 // =============================================================================
 // Schemas
@@ -30,7 +30,7 @@ const signInSchema = z.object({
 
 const signUpSchema = z.object({
 	email: z.string().email(),
-	password: z.string().min(8),
+	password: z.string().min(12, "Password must be at least 12 characters"),
 	name: z.string().optional(),
 	rememberMe: z.boolean().optional(),
 })
@@ -50,12 +50,12 @@ const resetPasswordCallbackSchema = z.object({
 
 const resetPasswordSchema = z.object({
 	token: z.string().min(1),
-	newPassword: z.string().min(8),
+	newPassword: z.string().min(12, "Password must be at least 12 characters"),
 })
 
 const changePasswordSchema = z.object({
 	currentPassword: z.string().min(1),
-	newPassword: z.string().min(8),
+	newPassword: z.string().min(12, "Password must be at least 12 characters"),
 	revokeOtherSessions: z.boolean().optional(),
 })
 
@@ -125,92 +125,11 @@ const send2FAOtpSchema = z.object({
 // =============================================================================
 
 /**
- * Helper function to ensure user has an active organization set
- * Prefers approved organizations over draft/pending ones
- */
-async function ensureActiveOrganization(token: string): Promise<{
-	success: boolean
-	hasOrganization: boolean
-	activeOrgSet: boolean
-}> {
-	try {
-		const authClient = getAuthenticatedEncoreClient(token)
-
-		// Get current user to check activeOrganizationId
-		const meResult = await authClient.auth.me()
-		const hasActiveOrg = !!meResult.activeOrganizationId
-
-		// If user already has active org, no need to set
-		if (hasActiveOrg) {
-			return { success: true, hasOrganization: true, activeOrgSet: true }
-		}
-
-		// Get user's organizations
-		const orgsResult = await authClient.auth.listOrganizations()
-		const organizations = orgsResult.organizations || []
-
-		if (organizations.length === 0) {
-			return { success: true, hasOrganization: false, activeOrgSet: false }
-		}
-
-		// Prefer approved organizations
-		let orgToSet = organizations[0]
-
-		const orgsWithStatus = organizations.filter(
-			(org): org is typeof org & { approvalStatus: string } =>
-				"approvalStatus" in org && typeof (org as { approvalStatus?: string }).approvalStatus === "string"
-		)
-
-		if (orgsWithStatus.length > 0) {
-			const approvedOrg = orgsWithStatus.find((org) => org.approvalStatus === "approved")
-			if (approvedOrg) {
-				orgToSet = approvedOrg
-			}
-		} else {
-			// Fallback: check up to 2 orgs for performance
-			for (let i = 0; i < Math.min(organizations.length, 2); i++) {
-				try {
-					const fullOrg = await authClient.organizations.getOrganization(organizations[i].id)
-					if (fullOrg.approvalStatus === "approved") {
-						orgToSet = organizations[i]
-						break
-					}
-				} catch (error) {
-					logDebug("[ensureActiveOrganization] Failed to get org details", {
-						source: "ensureActiveOrganization",
-						data: { orgId: organizations[i].id, error: getErrorMessageForLog(error) },
-					})
-				}
-			}
-		}
-
-		// Set the organization as active
-		await authClient.auth.setActiveOrganization({ organizationId: orgToSet.id })
-
-		revalidatePath("/", "layout")
-
-		logDebug("[ensureActiveOrganization] Set active organization", {
-			source: "ensureActiveOrganization",
-			data: { organizationId: orgToSet.id, organizationName: orgToSet.name },
-		})
-
-		return { success: true, hasOrganization: true, activeOrgSet: true }
-	} catch (error) {
-		logDebug("[ensureActiveOrganization] Failed to set active organization", {
-			source: "ensureActiveOrganization",
-			data: { error: getErrorMessageForLog(error) },
-		})
-
-		return { success: false, hasOrganization: false, activeOrgSet: false }
-	}
-}
-
-/**
  * Helper to set auth cookie
  */
 async function setAuthCookie(token: string, rememberMe?: boolean) {
 	const cookieStore = await cookies()
-	cookieStore.set("auth-token", token, {
+	cookieStore.set(AUTH_COOKIE_PRIMARY, token, {
 		httpOnly: true,
 		secure: process.env.NODE_ENV === "production",
 		sameSite: "lax",
@@ -260,30 +179,11 @@ export const signInEmail = publicActionClient
 
 		revalidatePath("/", "layout")
 
-		// Ensure active organization is set after login
-		let hasOrganization = false
-		let activeOrgSet = false
-		if (result.token) {
-			try {
-				const orgResult = await ensureActiveOrganization(result.token)
-				hasOrganization = orgResult.hasOrganization
-				activeOrgSet = orgResult.activeOrgSet
-
-				if (activeOrgSet) {
-					revalidatePath("/", "layout")
-				}
-			} catch (error) {
-				logDebug("[SignIn] Failed to ensure active organization:", { source: "SignIn", data: { error } })
-			}
-		}
-
 		return {
 			success: true,
 			user: result.user,
 			token: result.token,
 			redirect: result.redirect,
-			hasOrganization,
-			activeOrgSet,
 		}
 	})
 
@@ -310,29 +210,10 @@ export const signUpEmail = publicActionClient
 
 		revalidatePath("/", "layout")
 
-		// Ensure active organization is set after signup
-		let hasOrganization = false
-		let activeOrgSet = false
-		if (result.token) {
-			try {
-				const orgResult = await ensureActiveOrganization(result.token)
-				hasOrganization = orgResult.hasOrganization
-				activeOrgSet = orgResult.activeOrgSet
-
-				if (activeOrgSet) {
-					revalidatePath("/", "layout")
-				}
-			} catch (error) {
-				logDebug("[SignUp] Failed to ensure active organization:", { source: "SignUp", data: { error } })
-			}
-		}
-
 		return {
 			success: true,
 			user: result.user,
 			token: result.token,
-			hasOrganization,
-			activeOrgSet,
 		}
 	})
 
@@ -371,7 +252,10 @@ export const signInSocial = publicActionClient
 export const signOut = publicActionClient.inputSchema(z.object({})).action(async ({ ctx }) => {
 	// Always clear cookie and revalidate
 	const cookieStore = await cookies()
-	cookieStore.delete("auth-token")
+	// SSOT: Clear all auth cookies
+	for (const cookieName of AUTH_COOKIE_NAMES) {
+		cookieStore.delete(cookieName)
+	}
 
 	revalidatePath("/", "layout")
 
@@ -392,7 +276,7 @@ export const getSession = publicActionClient.inputSchema(z.object({})).action(as
 	user?: auth.MeResponse | auth.UserResponse
 }> => {
 	const cookieStore = await cookies()
-	const token = cookieStore.get("auth-token")?.value
+	const token = cookieStore.get(AUTH_COOKIE_PRIMARY)?.value
 
 	logDebug("[getSession] Token from cookie:", {
 		source: "getSession",
@@ -588,12 +472,24 @@ export const getCurrentUser = authAction.inputSchema(z.object({})).action(async 
 		twoFactorEnabled: boolean
 	}
 }> => {
-	const userResult = await ctx.client.auth.me()
+	// Use getSession instead of me() - me() no longer exists in API
+	const sessionResult = await ctx.client.auth.getSession()
+	const user = sessionResult.user
 
+	if (!user) {
+		throw new Error("User not authenticated")
+	}
+
+	// Map getSession user to expected format
 	const normalizedUser = {
-		...userResult,
-		userID: (userResult as unknown as { userID?: string; id?: string }).userID || (userResult as unknown as { userID?: string; id?: string }).id || "",
-		id: (userResult as unknown as { userID?: string; id?: string }).id || (userResult as unknown as { userID?: string; id?: string }).userID || "",
+		userID: user.id || "",
+		id: user.id || "",
+		email: user.email || "",
+		name: user.name || "",
+		image: user.image || undefined,
+		emailVerified: user.emailVerified || false,
+		role: "user", // Default role
+		twoFactorEnabled: false, // Not available in getSession
 	}
 
 	return { user: normalizedUser as typeof normalizedUser & { userID: string; email: string; name: string; emailVerified: boolean; role: string; twoFactorEnabled: boolean } }
@@ -631,7 +527,8 @@ export const changeEmail = authAction.inputSchema(changeEmailSchema).action(asyn
 
 	revalidatePath("/", "layout")
 
-	return { success: result.status, message: result.message, user: result.user }
+	// Standardize success response: use boolean success field
+	return { success: !!result.status, message: result.message, user: result.user }
 })
 
 /**
@@ -662,7 +559,10 @@ export const deleteUser = authAction.inputSchema(deleteUserSchema).action(async 
 
 	// Clear auth cookie
 	const cookieStore = await cookies()
-	cookieStore.delete("auth-token")
+	// SSOT: Clear all auth cookies
+	for (const cookieName of AUTH_COOKIE_NAMES) {
+		cookieStore.delete(cookieName)
+	}
 
 	revalidatePath("/", "layout")
 
@@ -684,7 +584,8 @@ export const sendVerificationEmail = authAction
 			callbackURL: validatedCallbackURL || undefined,
 		})
 
-		return { success: result.status }
+		// Standardize success response: use boolean success field
+		return { success: !!result.status }
 	})
 
 /**
@@ -703,7 +604,8 @@ export const revokeSession = authAction.inputSchema(sessionTokenSchema).action(a
 
 	revalidatePath("/", "layout")
 
-	return { success: result.status }
+	// Standardize success response: use boolean success field
+	return { success: !!result.status }
 })
 
 /**
@@ -714,7 +616,8 @@ export const revokeOtherSessions = authAction.inputSchema(z.object({})).action(a
 
 	revalidatePath("/", "layout")
 
-	return { success: result.status }
+	// Standardize success response: use boolean success field
+	return { success: !!result.status }
 })
 
 /**
@@ -724,6 +627,19 @@ export const listDeviceSessions = authAction.inputSchema(z.object({})).action(as
 	const result = await ctx.client.auth.listDeviceSessions()
 	return { sessions: result.sessions || [] }
 })
+
+/**
+ * Revoke a device session
+ */
+export const revokeDeviceSession = authAction
+	.inputSchema(z.object({ sessionToken: z.string().min(1) }))
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.revokeDeviceSession({ sessionToken: parsedInput.sessionToken })
+
+		revalidatePath("/", "layout")
+
+		return { success: result.success }
+	})
 
 /**
  * Set active session
@@ -751,10 +667,22 @@ export const enable2FA = authAction.inputSchema(enable2FASchema).action(async ({
 		issuer: parsedInput.issuer,
 	})
 
+	// Generate QR code URL for easy scanning
+	const qrCodeUrl = result.totpURI
+		? `${EXTERNAL_URLS.QR_CODE_API}?size=${LIMITS.QR_CODE_SIZE}x${LIMITS.QR_CODE_SIZE}&data=${encodeURIComponent(result.totpURI)}`
+		: undefined
+
+	// Extract secret from TOTP URI for manual entry
+	const secret = result.totpURI ? result.totpURI.split("secret=")[1]?.split("&")[0] : undefined
+
+	revalidatePath("/dashboard/settings")
+
 	return {
 		success: result.success,
 		backupCodes: result.backupCodes,
 		totpURI: result.totpURI,
+		qrCodeUrl,
+		secret,
 	}
 })
 
@@ -800,8 +728,39 @@ export const view2FABackupCodes = authAction
 	})
 
 /**
- * Ensure active organization is set after OAuth login
+ * List linked accounts (social providers)
  */
-export const ensureActiveOrgAfterOAuth = authAction.inputSchema(z.object({})).action(async ({ ctx }) => {
-	return await ensureActiveOrganization(ctx.token)
+export const listLinkedAccounts = authAction.inputSchema(z.object({})).action(async ({ ctx }) => {
+	const result = await ctx.client.auth.listAccounts()
+	return { accounts: result.accounts || [] }
 })
+
+/**
+ * Unlink a social account
+ */
+export const unlinkAccount = authAction
+	.inputSchema(z.object({ providerId: z.string().min(1), accountId: z.string().optional() }))
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.unlinkAccount({
+			providerId: parsedInput.providerId,
+			accountId: parsedInput.accountId,
+		})
+
+		revalidatePath("/", "layout")
+
+		// Standardize success response: use boolean success field
+		return { success: !!result.status }
+	})
+
+/**
+ * Leave an organization
+ */
+export const leaveOrganization = authAction
+	.inputSchema(z.object({ organizationId: z.string().min(1) }))
+	.action(async ({ parsedInput, ctx }) => {
+		const result = await ctx.client.auth.leaveOrganization(parsedInput.organizationId)
+
+		revalidatePath("/", "layout")
+
+		return { success: result.success }
+	})

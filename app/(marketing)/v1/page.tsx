@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import * as Button from "@/components/ui/primitives/button"
 import { Logo } from "@/components/ui/branding/logo"
 import { Tracker } from "@/components/ui/data-display/tracker"
@@ -185,7 +185,7 @@ function HeroSection() {
 					</div>
 
 					{/* Stats Row */}
-					<div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-3xl mx-auto">
+					<div className="mt-12 sm:mt-16 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 max-w-3xl mx-auto px-2 sm:px-0">
 						{MARKETING_STATS.map((stat) => (
 							<div
 								key={stat.label}
@@ -222,9 +222,9 @@ function HeroSection() {
 							<Link href="/dashboard" className="block group">
 								<div className="aspect-[16/9] bg-bg-weak-50 p-6 sm:p-8 relative overflow-hidden">
 									{/* Dashboard Grid Mockup */}
-									<div className="grid grid-cols-4 gap-4 h-full">
+									<div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 h-full">
 										{/* Stat Cards Row */}
-										<div className="col-span-4 grid grid-cols-4 gap-4">
+										<div className="col-span-2 sm:col-span-4 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
 											{[
 												{ label: "Active Campaigns", value: "12", color: "primary" },
 												{ label: "Pending Reviews", value: "48", color: "warning" },
@@ -246,7 +246,7 @@ function HeroSection() {
 													>
 														{stat.value}
 													</div>
-													<div className="text-[10px] sm:text-paragraph-xs text-text-soft-400 mt-0.5">
+													<div className="text-label-xs text-text-soft-400 mt-0.5">
 														{stat.label}
 													</div>
 												</div>
@@ -254,7 +254,7 @@ function HeroSection() {
 										</div>
 
 										{/* Chart Area */}
-										<div className="col-span-3 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 flex flex-col">
+										<div className="col-span-2 sm:col-span-3 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-2 sm:p-4 flex flex-col">
 											<div className="text-label-xs text-text-sub-600 mb-3">Enrollment Trends</div>
 											<div className="flex-1 flex items-end gap-1">
 												{[40, 65, 45, 80, 55, 90, 70, 85, 60, 95, 75, 88].map((height) => (
@@ -268,7 +268,7 @@ function HeroSection() {
 										</div>
 
 										{/* Side Panel */}
-										<div className="col-span-1 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-3 space-y-2">
+										<div className="hidden sm:block sm:col-span-1 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-2 sm:p-3 space-y-2">
 											<div className="text-label-xs text-text-sub-600 mb-2">Recent</div>
 											{[1, 2, 3].map((i) => (
 												<div
@@ -316,7 +316,7 @@ function LogosSection() {
 				<p className="text-center text-label-sm text-text-soft-400 mb-8">
 					TRUSTED BY LEADING BRANDS
 				</p>
-				<div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-6">
+				<div className="flex flex-wrap items-center justify-center gap-x-6 sm:gap-x-8 lg:gap-x-12 gap-y-4 sm:gap-y-6">
 					{brands.map((brand) => (
 						<div key={brand} className="text-label-lg font-semibold text-text-disabled-300">
 							{brand}
@@ -401,7 +401,7 @@ function FeaturesSection() {
 					</p>
 				</div>
 
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
 					{features.map((feature, index) => (
 						<div
 							key={feature.title}
@@ -482,7 +482,7 @@ function HowItWorksSection() {
 					{/* Connection line */}
 					<div className="hidden lg:block absolute top-24 left-[calc(12.5%+24px)] right-[calc(12.5%+24px)] h-0.5 bg-gradient-to-r from-primary-base via-feature-base to-success-base" />
 
-					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
 						{steps.map((item, index) => (
 							<div
 								key={item.step}
@@ -524,7 +524,7 @@ function MetricsSection() {
 	return (
 		<section className="py-24 sm:py-32">
 			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-				<div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+				<div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
 					<div>
 						<div className="inline-flex items-center gap-2 rounded-full bg-information-lighter px-4 py-1.5 mb-4">
 							<ChartLineUp weight="fill" className="size-4 text-information-base" />
@@ -569,16 +569,16 @@ function MetricsSection() {
 						<div className="rounded-2xl bg-bg-white-0 p-6 shadow-custom-md ring-1 ring-stroke-soft-200">
 							<h3 className="text-label-md text-text-strong-950 mb-4">Enrollment Distribution</h3>
 							<Tracker data={trackerData} size="lg" className="mb-6" />
-							<div className="grid grid-cols-3 gap-4">
-								<div className="text-center p-3 rounded-xl bg-success-lighter/50">
+							<div className="grid grid-cols-3 gap-2 sm:gap-4">
+								<div className="text-center p-2 sm:p-3 rounded-xl bg-success-lighter/50">
 									<div className="text-title-h5 text-success-base font-semibold">850</div>
 									<div className="text-label-xs text-text-sub-600">Approved</div>
 								</div>
-								<div className="text-center p-3 rounded-xl bg-warning-lighter/50">
+								<div className="text-center p-2 sm:p-3 rounded-xl bg-warning-lighter/50">
 									<div className="text-title-h5 text-warning-base font-semibold">120</div>
 									<div className="text-label-xs text-text-sub-600">Pending</div>
 								</div>
-								<div className="text-center p-3 rounded-xl bg-error-lighter/50">
+								<div className="text-center p-2 sm:p-3 rounded-xl bg-error-lighter/50">
 									<div className="text-title-h5 text-error-base font-semibold">30</div>
 									<div className="text-label-xs text-text-sub-600">Rejected</div>
 								</div>
@@ -665,13 +665,13 @@ function PricingSection() {
 					</p>
 				</div>
 
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
 					{plans.map((plan, index) => (
 						<div
 							key={plan.name}
 							className={cn(
 								"relative rounded-2xl bg-bg-white-0 p-8 shadow-custom-sm ring-1 transition-all duration-300 hover:shadow-custom-md",
-								plan.popular ? "ring-primary-base ring-2 scale-105" : "ring-stroke-soft-200"
+								plan.popular ? "ring-primary-base ring-2 md:scale-105" : "ring-stroke-soft-200"
 							)}
 							style={{ animationDelay: `${index * 100}ms` }}
 						>
@@ -739,6 +739,27 @@ function PricingSection() {
 
 // Testimonials Section
 function TestimonialsSection() {
+	const testimonials = [
+		{
+			quote:
+				"Hypedrive reduced our campaign management time by 80%. The OCR verification is a game-changer for our team.",
+			author: "Marketing Head",
+			company: "Leading Fashion Brand",
+		},
+		{
+			quote:
+				"Finally, a platform that understands B2B influencer marketing. The wallet system is incredibly intuitive.",
+			author: "Brand Manager",
+			company: "Consumer Electronics",
+		},
+		{
+			quote:
+				"We processed over ₹1Cr in payouts last quarter. The automation saved us countless hours of manual work.",
+			author: "Growth Lead",
+			company: "D2C Startup",
+		},
+	]
+
 	return (
 		<section id="testimonials" className="py-24 sm:py-32">
 			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -757,11 +778,44 @@ function TestimonialsSection() {
 					</p>
 				</div>
 
-				{/* Testimonials section removed - will be populated from API/CMS when available */}
-				<div className="text-center py-12">
-					<p className="text-paragraph-md text-text-sub-600">
-						Customer testimonials will be displayed here when available.
-					</p>
+				{/* Testimonial cards */}
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+					{testimonials.map((testimonial) => (
+						<div
+							key={testimonial.author}
+							className="rounded-2xl bg-bg-white-0 p-6 ring-1 ring-inset ring-stroke-soft-200"
+						>
+							{/* Stars */}
+							<div className="flex gap-0.5 mb-4">
+								{[1, 2, 3, 4, 5].map((star) => (
+									<Star
+										key={`${testimonial.author}-star-${star}`}
+										weight="fill"
+										className="size-4 text-warning-base"
+									/>
+								))}
+							</div>
+
+							<blockquote className="text-paragraph-md text-text-sub-600 leading-relaxed mb-6">
+								&ldquo;{testimonial.quote}&rdquo;
+							</blockquote>
+
+							<div className="flex items-center gap-3 pt-4 border-t border-stroke-soft-200">
+								<div className="flex items-center justify-center size-10 rounded-full bg-bg-soft-200 text-text-sub-600 text-label-xs font-medium">
+									{testimonial.author
+										.split(" ")
+										.map((n) => n[0])
+										.join("")}
+								</div>
+								<div>
+									<div className="text-label-sm text-text-strong-950">{testimonial.author}</div>
+									<div className="text-paragraph-xs text-text-sub-600">
+										{testimonial.company}
+									</div>
+								</div>
+							</div>
+						</div>
+					))}
 				</div>
 			</div>
 		</section>
@@ -773,7 +827,7 @@ function CTASection() {
 	return (
 		<section className="py-24 sm:py-32">
 			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-				<div className="relative rounded-3xl bg-bg-strong-950 p-8 sm:p-16 overflow-hidden">
+				<div className="relative rounded-3xl bg-bg-strong-950 p-6 sm:p-10 lg:p-16 overflow-hidden">
 					{/* Subtle texture */}
 					<div
 						className="absolute inset-0 opacity-[0.03]"
@@ -828,13 +882,13 @@ function Footer() {
 			{ label: "Sign Up", href: "/sign-up" },
 		],
 		Resources: [
-			{ label: "Help Center", href: "/dashboard/help" },
+			{ label: "Help Center", href: "/contact" },
 			{ label: "API Docs", href: "https://docs.hypedrive.com", external: true },
 			{ label: "Support", href: "mailto:support@hypedrive.com", external: true },
 		],
 		Company: [
 			{ label: "About", href: "#", disabled: true },
-			{ label: "Contact", href: "mailto:hello@hypedrive.com", external: true },
+			{ label: "Contact", href: "/contact" },
 		],
 		Legal: [
 			{ label: "Privacy", href: "/privacy" },
@@ -845,7 +899,7 @@ function Footer() {
 	return (
 		<footer className="bg-bg-strong-950 text-text-white-0 py-16">
 			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-				<div className="grid grid-cols-2 md:grid-cols-6 gap-8 mb-12">
+				<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 sm:gap-6 lg:gap-8 mb-12">
 					<div className="col-span-2">
 						<div className="flex items-center gap-3 mb-4">
 							<Logo width={110} height={24} forceTheme="dark" />

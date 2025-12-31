@@ -1,82 +1,160 @@
-// Hypedrive Brand Dashboard - Core Types
-// Re-exports from domain-specific files for backwards compatibility
+/**
+ * Hypedrive Brand Dashboard - Core Types
+ *
+ * This file provides a centralized export for all types.
+ * Domain-specific types are re-exported from their feature modules.
+ *
+ * ARCHITECTURE:
+ * - lib/types/base.ts - Shared interfaces (BaseFilters, etc.)
+ * - lib/types/constants.ts - Business constants
+ * - lib/types/api.ts - API response types
+ * - lib/types/user.ts - User/Auth types (not feature-based)
+ * - lib/types/notification.ts - Notification types
+ * - lib/types/dashboard.ts - Dashboard-specific types
+ * - features/[domain]/types/ - Domain-specific types (source of truth)
+ */
 
-// User & Auth Types
-export type { User, UserRole, TeamMember, Invitation } from "./user"
+// =============================================================================
+// Shared Base Types (kept in lib/types)
+// =============================================================================
 
-// Organization Types
 export type {
-	Organization,
-	OrganizationStatus,
-	BusinessType,
-	IndustryCategory,
-	OrganizationDraft,
-} from "./organization"
+	BaseFilters,
+	SortableFilters,
+	DateRangeFilters,
+	PaginationMeta,
+	BaseStats,
+	PageClientProps,
+	DetailPageClientProps,
+	SSRListResponse,
+} from "./base"
+export type { ApiResponse, PaginatedResponse, ApiErrorResponse, ApiError } from "./api"
+// User types - re-export from features/team (source of truth)
+export type { UserRole, UserResponse as User } from "@/features/team/types"
+// TeamMember and Invitation are also from features/team
+export type { Member as TeamMember, Invitation } from "@/features/team/types"
+export type { Notification, NotificationType } from "./notification"
+export type { RecentActivity, DashboardData } from "./dashboard"
 
-// Product Types
-export type { Product } from "./product"
+// =============================================================================
+// Constants (business logic values)
+// =============================================================================
+
+// Re-export from their actual source locations
+export { STALE_TIME } from "@/lib/utils/query-config"
+export { GST_STATE_CODES } from "@/lib/constants"
+export { VALIDATION_CONSTANTS } from "@/lib/utils/validations"
+
+// Constants from local file
+export {
+	THRESHOLDS,
+	MARKETING_STATS,
+	DURATIONS,
+	LIMITS,
+	CAMPAIGN_STATS,
+	BREAKPOINTS,
+	FILE_SIZES,
+	ANIMATION,
+} from "./constants"
+
+// =============================================================================
+// Domain Types - Re-exported from Features (source of truth)
+// =============================================================================
 
 // Campaign Types
-// Re-export from Encore (source of truth)
 export type {
 	Campaign,
 	CampaignStatus,
 	CampaignType,
-	CampaignDeliverable,
 	CampaignWithStats,
-} from "./campaign"
-// Frontend-only types
-export type {
+	CampaignStats,
+	CampaignPricing,
+	CampaignPerformance,
+	Deliverable,
+	DeliverableStatus,
 	DeliverableType,
-	CampaignFormData,
-} from "./campaign"
+	CampaignDeliverableResponse,
+	CreateCampaignRequest,
+	UpdateCampaignRequest,
+	ListCampaignsParams,
+	CampaignFilters,
+} from "@/features/campaigns/types"
 
 // Enrollment Types
-// Re-export from Encore (source of truth)
 export type {
 	Enrollment,
 	EnrollmentStatus,
 	EnrollmentWithRelations,
-} from "./enrollment"
-// Frontend-only types
-export type {
-	EnrollmentSubmission,
-	EnrollmentHistoryItem,
-} from "./enrollment"
+	EnrollmentDetail,
+	EnrollmentDeliverable,
+	EnrollmentPricing,
+	EnrollmentExportRow,
+	CreateEnrollmentRequest,
+	EnrollmentFilters,
+} from "@/features/enrollments/types"
 
-// Wallet & Transaction Types
+// Product Types
 export type {
-	WalletBalance,
-	Transaction,
-	TransactionType,
+	Product,
+	ProductWithStats,
+	ProductCategory,
+	ProductImageItem,
+	ProductImageInput,
+	CreateProductRequest,
+	UpdateProductRequest,
+	ListProductsParams,
+	ProductFilters,
+} from "@/features/products/types"
+
+// Wallet Types
+export type {
+	OrganizationWallet,
+	WalletTransaction,
+	Withdrawal,
+	WithdrawalStatus,
 	ActiveHold,
-	WalletSummary,
-} from "./wallet"
+	TransactionType,
+	WalletFilters,
+	DepositAccountDetails as WalletDepositAccountDetails,
+} from "@/features/wallet/types"
+
+// Organization Types
+export type {
+	Organization,
+	OrganizationStats,
+	OrganizationBankAccount,
+	GSTDetails,
+	DepositAccountDetails,
+	DashboardOverviewResponse,
+	OrganizationCampaignStats,
+	ActivityLogEntry,
+	ApprovalStatus,
+	AccountTier,
+	OrganizationStatus,
+	BusinessType,
+	IndustryCategory,
+	OrganizationDraft,
+	CreateOrganizationRequest,
+	UpdateOrganizationRequest,
+	AddBankAccountRequest,
+	UpdateBankAccountRequest,
+	OrganizationFilters,
+} from "@/features/organizations/types"
 
 // Invoice Types
-export type { Invoice, InvoiceStatus, InvoiceLineItem } from "./invoice"
-
-// Notification Types
-export type { Notification, NotificationType } from "./notification"
-
-// API Response Types
 export type {
-	ApiResponse,
-	PaginatedResponse,
-	ApiErrorResponse,
-	ApiError,
-} from "./api"
+	Invoice,
+	InvoiceStatus,
+	InvoiceLineItem,
+	ListInvoicesParams,
+	InvoiceFilters,
+} from "@/features/invoices/types"
 
-// Dashboard Types
+// Dashboard types from organizations feature
 export type {
 	DashboardStats,
-	EnrollmentChartData,
 	TopCampaign,
-	EnrollmentDistribution,
 	PendingEnrollmentItem,
-	RecentActivity,
-	DashboardData,
-} from "./dashboard"
-
-// Constants
-export { STALE_TIMES } from "./constants"
+	EnrollmentChartDataPoint,
+	EnrollmentDistribution,
+} from "@/features/organizations/types"

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { cn } from '@/utils/cn'
+import { cn } from '@/lib/utils'
 import * as Button from "@/components/ui/primitives/button"
 import { Logo } from "@/components/ui/branding/logo"
 import {
@@ -86,6 +86,7 @@ export function NavigationClient() {
     </header>
   )
 }
+
 
 
 

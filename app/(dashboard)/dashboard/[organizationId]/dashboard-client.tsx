@@ -1,134 +1,88 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
-import Image from "next/image"
-import { cn } from "@/utils/cn"
 import * as Button from "@/components/ui/primitives/button"
-import * as Badge from "@/components/ui/data-display/badge"
-import { Tracker } from "@/components/ui/data-display/tracker"
-import { SparkChart } from "@/components/ui/data-display/spark-chart"
 import {
-	Wallet,
-	Megaphone,
 	Plus,
 	ArrowRight,
 	Clock,
-	Warning,
-	TrendUp,
-	TrendDown,
-	Check,
-	Lightning,
-	CaretRight,
-	Building,
-	Sparkle,
 	CheckCircle,
 	WarningCircle,
+	Building,
 } from "@phosphor-icons/react"
-import { Skeleton } from "@/components/ui/primitives/skeleton"
-import { THRESHOLDS, ANIMATION } from "@/lib/types/constants"
-import type { organizations } from "@/lib/api/encore-client"
-import { SimpleStatCard } from "@/components/dashboard/stat-card"
+import { DISPLAY_LIMITS } from "@/lib/constants"
+import { STORAGE_KEYS } from "@/lib/constants/storage-keys"
+import { toast } from "sonner"
+import { OnboardingSetupCard } from "@/components/dashboard/empty-states"
 import { CalloutWithActions, Callout } from "@/components/ui/feedback/callout"
 import * as Tooltip from "@/components/ui/layout/tooltip"
 import { useRouter } from "next/navigation"
 import { useLocalStorage } from "@/hooks/state"
-import { useOrganizations } from "@/features/organizations"
 import { useDashboard } from "@/hooks/shared/use-dashboard"
-import { formatCurrency, formatCurrencyCompact } from "@/lib/utils/format"
+import { getHoursAgo } from "@/lib/utils/date"
+import { useHydratedTime, useFormattedDate } from "@/hooks/ui"
+import { routes } from "@/lib/routes"
+import type { OrganizationListItem } from "@/features/organizations/types"
 
-// Calculate hours ago from a date - now takes currentTime to avoid hydration mismatch
-const getHoursAgo = (date: Date | string, currentTime: number): number => {
-	return Math.floor((currentTime - new Date(date).getTime()) / (1000 * 60 * 60))
-}
-
-// Format hours ago to human readable
-const formatTimeAgo = (hoursAgo: number): string => {
-	if (hoursAgo < 1) return "Just now"
-	if (hoursAgo < 24) return `${hoursAgo}h ago`
-	const days = Math.floor(hoursAgo / 24)
-	return `${days}d ago`
-}
-
-// Hook to get current time after hydration (avoids server/client mismatch)
-function useHydratedTime() {
-	const [currentTime, setCurrentTime] = useState<number | null>(null)
-
-	useEffect(() => {
-		setCurrentTime(Date.now())
-		// Update every minute for "time ago" displays
-		const interval = setInterval(() => setCurrentTime(Date.now()), ANIMATION.TIME_UPDATE_INTERVAL)
-		return () => clearInterval(interval)
-	}, [])
-
-	return currentTime
-}
-
-// Hook to get formatted date after hydration
-function useFormattedDate() {
-	const [dateString, setDateString] = useState<string>("")
-
-	useEffect(() => {
-		setDateString(
-			new Date().toLocaleDateString("en-IN", {
-				weekday: "long",
-				day: "numeric",
-				month: "short",
-			})
-		)
-	}, [])
-
-	return dateString
-}
-
-// Loading skeleton
-function DashboardSkeleton() {
-	return (
-		<div className="space-y-5 sm:space-y-6">
-			{/* Header skeleton */}
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-				<div className="min-w-0">
-					<Skeleton className="h-8 w-32" />
-					<Skeleton className="h-4 w-24 mt-0.5" />
-				</div>
-				<Skeleton className="h-9 w-32" />
-			</div>
-
-			{/* Metrics skeleton */}
-			<div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-				<Skeleton className="col-span-2 sm:col-span-1 h-32 rounded-xl" />
-				<Skeleton className="h-32 rounded-xl" />
-				<Skeleton className="h-32 rounded-xl" />
-			</div>
-
-			{/* Main grid skeleton */}
-			<div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-				<Skeleton className="lg:col-span-5 h-64 rounded-xl" />
-				<Skeleton className="lg:col-span-7 h-64 rounded-xl" />
-			</div>
-
-			{/* Priority queue skeleton */}
-			<Skeleton className="h-48 rounded-xl" />
-		</div>
-	)
-}
+// Split components for better code splitting
+import {
+	DashboardSkeleton,
+	DashboardMetrics,
+	DashboardCampaignsSection,
+	DashboardEnrollmentTrend,
+	DashboardPriorityQueue,
+	DashboardAlertBar,
+} from "./components"
 
 interface DashboardClientProps {
 	organizationId: string
+	/** Organization data fetched server-side - avoids client fetching all orgs */
+	initialOrganization?: OrganizationListItem | null
+	/** All organizations fetched server-side - for redirect logic */
+	initialOrganizations?: OrganizationListItem[]
 }
 
 // URL-based multi-tenancy: organizationId from URL params
-export function DashboardClient({ organizationId }: DashboardClientProps) {
+// Uses server-fetched org data to avoid client-side fetch of all orgs
+export function DashboardClient({
+	organizationId,
+	initialOrganization,
+	initialOrganizations = [],
+}: DashboardClientProps) {
 	const router = useRouter()
 	const currentTime = useHydratedTime()
 	const formattedDate = useFormattedDate()
 	const [isResubmitting, setIsResubmitting] = useState(false)
+	const [isRedirecting, setIsRedirecting] = useState(false)
 
-	// URL-based multi-tenancy: get organization from list using URL param
-	const { data: orgsData, isPending: isOrgLoading } = useOrganizations()
-	const organizationsList = orgsData?.organizations || []
-	const organization = organizationsList.find(org => org.id === organizationId) as (typeof organizationsList[number] & { gstVerified?: boolean }) | undefined
+	// Dismiss onboarding alert state (persisted in localStorage)
+	// Using centralized storage key
+	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
+		STORAGE_KEYS.DASHBOARD_ONBOARDING_ALERT_DISMISSED,
+		false
+	)
+
+	// Use server-fetched organization data (passed as props) - no client-side fetch needed
+	const organizationsList = initialOrganizations
+	const organization = initialOrganization as (OrganizationListItem & { gstVerified?: boolean }) | null | undefined
 	const hasOrganization = !!organization
+
+	// Simplified redirect logic - no state machine needed
+	// Data is server-fetched, so we can determine redirect immediately
+	useEffect(() => {
+		if (hasOrganization || isRedirecting) return
+
+		setIsRedirecting(true)
+
+		// Find redirect target
+		const approvedOrg = organizationsList.find(o => o.approvalStatus === "approved")
+		if (approvedOrg) {
+			router.replace(`/dashboard/${approvedOrg.id}`)
+		} else {
+			router.replace(routes.onboarding.root)
+		}
+	}, [hasOrganization, organizationsList, router, isRedirecting])
 
 	// Fetch dashboard data using organizationId from URL
 	const { data, isLoading: isDashboardLoading } = useDashboard({
@@ -137,44 +91,51 @@ export function DashboardClient({ organizationId }: DashboardClientProps) {
 		enabled: hasOrganization,
 	})
 
-	// Industry Standard: Check loading state first
-	if (isOrgLoading || (hasOrganization && isDashboardLoading)) {
-		return <DashboardSkeleton />
-	}
-
-	// Dismiss onboarding alert state (persisted in localStorage)
-	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
-		"dashboard-onboarding-alert-dismissed",
-		false
-	)
-
-	// Store setter in ref for stable reference
-	const setDismissedRef = useRef(setDismissedOnboardingAlert)
-	useEffect(() => {
-		setDismissedRef.current = setDismissedOnboardingAlert
-	}, [setDismissedOnboardingAlert])
-
 	// Map pending enrollments with hours ago calculation (only after hydration)
-	// NOTE: This useMemo must be called before any early returns to maintain hooks order
 	const pendingEnrollments = data?.pendingEnrollments
 	const priorityEnrollments = useMemo(() => {
 		if (!pendingEnrollments || !Array.isArray(pendingEnrollments)) return []
-		if (!currentTime) return pendingEnrollments.slice(0, 3).map((e) => ({ ...e, hoursAgo: 0 }))
-		return pendingEnrollments.slice(0, 3).map((e) => ({
-			...e,
-			hoursAgo: getHoursAgo(e.createdAt, currentTime),
-		}))
+		const limit = DISPLAY_LIMITS.PRIORITY_ENROLLMENTS
+		return pendingEnrollments.slice(0, limit).map((e) => {
+			// Convert null to undefined for type compatibility with PriorityEnrollment
+			const campaign = e.campaign ? {
+				id: e.campaign.id,
+				title: e.campaign.title,
+				product: e.campaign.product ? {
+					image: e.campaign.product.image ?? undefined,
+				} : undefined,
+			} : undefined
+
+			return {
+				id: e.id,
+				orderId: e.orderId,
+				orderValue: e.orderValue,
+				orderValueDecimal: e.orderValueDecimal,
+				createdAt: e.createdAt,
+				hoursAgo: currentTime ? getHoursAgo(e.createdAt, currentTime) : 0,
+				campaign,
+				shopper: e.shopper ? { id: e.shopper.id, name: e.shopper.name } : undefined,
+			}
+		})
 	}, [pendingEnrollments, currentTime])
 
 	// Memoized event handlers - MUST be defined before early returns
-	// Use ref to avoid dependency on unstable setter
 	const handleDismissAlert = useCallback(() => {
-		setDismissedRef.current(true)
-	}, [])
+		setDismissedOnboardingAlert(true)
+	}, [setDismissedOnboardingAlert])
 
 	const handleStartOnboarding = useCallback(() => {
-		router.push("/onboarding")
+		router.push(routes.onboarding.root)
 	}, [router])
+
+	// Show skeleton while redirecting or loading dashboard data
+	const shouldShowSkeleton =
+		isRedirecting ||                          // Actively redirecting
+		(hasOrganization && isDashboardLoading)   // Org found, loading dashboard data
+
+	if (shouldShowSkeleton) {
+		return <DashboardSkeleton />
+	}
 
 	// Show onboarding alert if no organization
 	const showOnboardingAlert = !hasOrganization && !dismissedOnboardingAlert
@@ -226,62 +187,10 @@ export function DashboardClient({ organizationId }: DashboardClientProps) {
 
 				{/* EMPTY STATE */}
 				{dismissedOnboardingAlert && (
-					<div className="relative overflow-hidden rounded-xl border border-stroke-soft-200 bg-gradient-to-br from-bg-weak-50 via-bg-weak-50 to-primary-alpha-5 p-8 sm:p-12 text-center">
-						{/* Decorative background */}
-						<div className="absolute -right-12 -top-12 size-40 rounded-full bg-primary-base/5 blur-3xl" />
-						<div className="absolute -bottom-8 -left-8 size-32 rounded-full bg-primary-base/5 blur-2xl" />
-						
-						<div className="relative max-w-md mx-auto space-y-6">
-							{/* Icon with animated gradient */}
-							<div className="flex justify-center">
-								<div className="relative">
-									<div className="absolute inset-0 animate-pulse rounded-full bg-primary-base/20 blur-xl" />
-									<div className="relative flex size-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-base via-primary-base/90 to-primary-base/80 shadow-xl shadow-primary-base/30">
-										<Building weight="duotone" className="size-10 text-white" />
-									</div>
-									{/* Sparkle decoration */}
-									<div className="absolute -right-2 -top-2">
-										<Sparkle weight="fill" className="size-5 animate-pulse text-primary-base" />
-									</div>
-								</div>
-							</div>
-							
-							<div className="space-y-2">
-								<h3 className="text-title-h5 font-semibold text-text-strong-950">
-									Organization Setup Required
-								</h3>
-								<p className="text-paragraph-sm text-text-sub-600">
-									Complete your organization setup to access dashboard features, create campaigns, and manage enrollments.
-								</p>
-							</div>
-							
-							{/* Feature highlights */}
-							<div className="flex flex-wrap justify-center gap-4 text-left">
-								<div className="flex items-center gap-2 rounded-lg bg-bg-weak-50 px-3 py-2">
-									<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
-									<span className="text-paragraph-xs text-text-sub-600">Create Campaigns</span>
-								</div>
-								<div className="flex items-center gap-2 rounded-lg bg-bg-weak-50 px-3 py-2">
-									<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
-									<span className="text-paragraph-xs text-text-sub-600">Manage Products</span>
-								</div>
-								<div className="flex items-center gap-2 rounded-lg bg-bg-weak-50 px-3 py-2">
-									<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
-									<span className="text-paragraph-xs text-text-sub-600">Track Enrollments</span>
-								</div>
-							</div>
-							
-							<Button.Root 
-								variant="primary" 
-								size="medium" 
-								onClick={handleStartOnboarding}
-								className="mx-auto shadow-lg shadow-primary-base/20"
-							>
-								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-								Complete Onboarding
-							</Button.Root>
-						</div>
-					</div>
+					<OnboardingSetupCard
+						variant="primary"
+						onAction={handleStartOnboarding}
+					/>
 				)}
 			</div>
 		)
@@ -325,14 +234,14 @@ export function DashboardClient({ organizationId }: DashboardClientProps) {
 	// Map top campaigns - use product image from API (memoized)
 	const topCampaigns = useMemo(() => {
 		return (safeData.topCampaigns && Array.isArray(safeData.topCampaigns))
-			? safeData.topCampaigns.slice(0, 3).map((c) => ({
+			? safeData.topCampaigns.slice(0, DISPLAY_LIMITS.TOP_CAMPAIGNS).map((c) => ({
 				id: c.id,
 				name: c.name,
 				enrollments: c.enrollments,
 				approvalRate: c.approvalRate,
 				status: c.status,
 				daysLeft: c.daysLeft,
-				image: c.productImage,
+				image: c.productImage ?? undefined,
 			}))
 			: []
 	}, [safeData.topCampaigns])
@@ -366,77 +275,10 @@ export function DashboardClient({ organizationId }: DashboardClientProps) {
 		[metrics.approvedCount, metrics.pendingCount, metrics.rejectedCount]
 	)
 
-	const isEnrollmentOverdue = useCallback(
-		(hoursAgo: number) => hoursAgo > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS,
-		[]
-	)
-
 	// If no organization, show minimal dashboard with alert
 	if (!hasOrganization) {
 		return (
 			<div className="space-y-5 sm:space-y-6">
-				{/* ONBOARDING ALERT */}
-				{showOnboardingAlert && (
-					<div className="relative overflow-hidden rounded-xl border border-primary-base/20 bg-gradient-to-br from-primary-alpha-10 via-primary-alpha-5 to-bg-weak-50 p-6 sm:p-8">
-						{/* Decorative background elements */}
-						<div className="absolute -right-8 -top-8 size-32 rounded-full bg-primary-base/5 blur-2xl" />
-						<div className="absolute -bottom-4 -left-4 size-24 rounded-full bg-primary-base/5 blur-xl" />
-						
-						<div className="relative">
-							<div className="flex items-start gap-4">
-								{/* Icon with gradient background */}
-								<div className="flex shrink-0">
-									<div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary-base to-primary-base/80 shadow-lg shadow-primary-base/20">
-										<Building weight="duotone" className="size-6 text-white" />
-									</div>
-								</div>
-								
-								<div className="flex-1 space-y-3">
-									<div>
-										<h3 className="flex items-center gap-2 text-title-h6 font-semibold text-text-strong-950">
-											<Sparkle weight="fill" className="size-5 text-primary-base" />
-											Complete Your Organization Setup
-										</h3>
-										<p className="mt-2 text-paragraph-sm text-text-sub-600">
-											To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
-										</p>
-									</div>
-									
-									<div className="flex flex-wrap items-center gap-3">
-										<Button.Root
-											variant="primary"
-											size="small"
-											onClick={handleStartOnboarding}
-											className="shadow-md shadow-primary-base/20"
-										>
-											<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-											Start Onboarding
-										</Button.Root>
-										<Button.Root
-											variant="ghost"
-											size="small"
-											onClick={handleDismissAlert}
-										>
-											Maybe Later
-										</Button.Root>
-									</div>
-								</div>
-								
-								{/* Dismiss button */}
-								<button
-									onClick={handleDismissAlert}
-									className="shrink-0 rounded-lg p-1.5 text-text-sub-500 transition-colors hover:bg-bg-soft-200 hover:text-text-strong-950"
-									aria-label="Dismiss"
-								>
-									<svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-									</svg>
-								</button>
-							</div>
-						</div>
-					</div>
-				)}
-
 				{/* HEADER */}
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
 					<div className="min-w-0">
@@ -447,129 +289,66 @@ export function DashboardClient({ organizationId }: DashboardClientProps) {
 					</div>
 				</div>
 
-				{/* EMPTY STATE */}
-				{dismissedOnboardingAlert && (
-					<div className="relative overflow-hidden rounded-xl border border-stroke-soft-200 bg-gradient-to-br from-bg-weak-50 via-bg-weak-50 to-primary-alpha-5 p-8 sm:p-12 text-center">
-						{/* Decorative background */}
-						<div className="absolute -right-12 -top-12 size-40 rounded-full bg-primary-base/5 blur-3xl" />
-						<div className="absolute -bottom-8 -left-8 size-32 rounded-full bg-primary-base/5 blur-2xl" />
-						
-						<div className="relative max-w-md mx-auto space-y-6">
-							{/* Icon with animated gradient */}
-							<div className="flex justify-center">
-								<div className="relative">
-									<div className="absolute inset-0 animate-pulse rounded-full bg-primary-base/20 blur-xl" />
-									<div className="relative flex size-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-base via-primary-base/90 to-primary-base/80 shadow-xl shadow-primary-base/30">
-										<Building weight="duotone" className="size-10 text-white" />
-									</div>
-									{/* Sparkle decoration */}
-									<div className="absolute -right-2 -top-2">
-										<Sparkle weight="fill" className="size-5 animate-pulse text-primary-base" />
-									</div>
-								</div>
-							</div>
-							
-							<div className="space-y-2">
-								<h3 className="text-title-h5 font-semibold text-text-strong-950">
-									Organization Setup Required
-								</h3>
-								<p className="text-paragraph-sm text-text-sub-600">
-									Complete your organization setup to access dashboard features, create campaigns, and manage enrollments.
-								</p>
-							</div>
-							
-							{/* Feature highlights */}
-							<div className="flex flex-wrap justify-center gap-4 text-left">
-								<div className="flex items-center gap-2 rounded-lg bg-bg-weak-50 px-3 py-2">
-									<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
-									<span className="text-paragraph-xs text-text-sub-600">Create Campaigns</span>
-								</div>
-								<div className="flex items-center gap-2 rounded-lg bg-bg-weak-50 px-3 py-2">
-									<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
-									<span className="text-paragraph-xs text-text-sub-600">Manage Products</span>
-								</div>
-								<div className="flex items-center gap-2 rounded-lg bg-bg-weak-50 px-3 py-2">
-									<CheckCircle weight="fill" className="size-4 shrink-0 text-success-base" />
-									<span className="text-paragraph-xs text-text-sub-600">Track Enrollments</span>
-								</div>
-							</div>
-							
-							<Button.Root 
-								variant="primary" 
-								size="medium" 
-								onClick={handleStartOnboarding}
-								className="mx-auto shadow-lg shadow-primary-base/20"
-							>
-								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-								Complete Onboarding
-							</Button.Root>
-						</div>
-					</div>
-				)}
+				{/* EMPTY STATE - No organization */}
+				<OnboardingSetupCard
+					variant="warning"
+					onAction={handleStartOnboarding}
+				/>
 			</div>
 		)
 	}
 
 	return (
-		<div className="space-y-5 sm:space-y-6">
+		<div className="space-y-4 sm:space-y-6">
 			{/* ONBOARDING ALERT - Show if no organization */}
 			{showOnboardingAlert && (
-				<div className="relative overflow-hidden rounded-xl border border-primary-base/20 bg-gradient-to-br from-primary-alpha-10 via-primary-alpha-5 to-bg-weak-50 p-6 sm:p-8">
-					{/* Decorative background elements */}
-					<div className="absolute -right-8 -top-8 size-32 rounded-full bg-primary-base/5 blur-2xl" />
-					<div className="absolute -bottom-4 -left-4 size-24 rounded-full bg-primary-base/5 blur-xl" />
-					
-					<div className="relative">
-						<div className="flex items-start gap-4">
-							{/* Icon with gradient background */}
-							<div className="flex shrink-0">
-								<div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary-base to-primary-base/80 shadow-lg shadow-primary-base/20">
-									<Building weight="duotone" className="size-6 text-white" />
-								</div>
+				<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-6 sm:p-8">
+					<div className="flex items-start gap-4">
+						<div className="flex shrink-0">
+							<div className="flex size-12 items-center justify-center rounded-xl bg-primary-base">
+								<Building weight="duotone" className="size-6 text-white" />
 							</div>
-							
-							<div className="flex-1 space-y-3">
-								<div>
-									<h3 className="flex items-center gap-2 text-title-h6 font-semibold text-text-strong-950">
-										<Sparkle weight="fill" className="size-5 text-primary-base" />
-										Complete Your Organization Setup
-									</h3>
-									<p className="mt-2 text-paragraph-sm text-text-sub-600">
-										To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
-									</p>
-								</div>
-								
-								<div className="flex flex-wrap items-center gap-3">
-									<Button.Root
-										variant="primary"
-										size="small"
-										onClick={handleStartOnboarding}
-										className="shadow-md shadow-primary-base/20"
-									>
-										<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-										Start Onboarding
-									</Button.Root>
-									<Button.Root
-										variant="ghost"
-										size="small"
-										onClick={handleDismissAlert}
-									>
-										Maybe Later
-									</Button.Root>
-								</div>
-							</div>
-							
-							{/* Dismiss button */}
-							<button
-								onClick={handleDismissAlert}
-								className="shrink-0 rounded-lg p-1.5 text-text-sub-500 transition-colors hover:bg-bg-soft-200 hover:text-text-strong-950"
-								aria-label="Dismiss"
-							>
-								<svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-								</svg>
-							</button>
 						</div>
+
+						<div className="flex-1 space-y-3">
+							<div>
+								<h3 className="text-title-h6 font-semibold text-text-strong-950">
+									Complete Your Organization Setup
+								</h3>
+								<p className="mt-2 text-paragraph-sm text-text-sub-600">
+									To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
+								</p>
+							</div>
+
+							<div className="flex flex-wrap items-center gap-3">
+								<Button.Root
+									variant="primary"
+									size="small"
+									onClick={handleStartOnboarding}
+								>
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
+									Start Onboarding
+								</Button.Root>
+								<Button.Root
+									variant="ghost"
+									size="small"
+									onClick={handleDismissAlert}
+								>
+									Maybe Later
+								</Button.Root>
+							</div>
+						</div>
+
+						<button
+							type="button"
+							onClick={handleDismissAlert}
+							className="shrink-0 rounded-lg p-1.5 text-text-sub-500 transition-colors hover:bg-bg-soft-200 hover:text-text-strong-950"
+							aria-label="Dismiss"
+						>
+							<svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+							</svg>
+						</button>
 					</div>
 				</div>
 			)}
@@ -625,16 +404,14 @@ export function DashboardClient({ organizationId }: DashboardClientProps) {
 							title="Complete Your Organization Setup"
 							dismissible
 							actions={
-								<>
-									<Button.Root
-										variant="primary"
-										size="small"
-										onClick={() => router.push("/onboarding")}
-									>
-										<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-										Continue Setup
-									</Button.Root>
-								</>
+								<Button.Root
+									variant="primary"
+									size="small"
+									onClick={() => router.push(routes.onboarding.root)}
+								>
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
+									Continue Setup
+								</Button.Root>
 							}
 						>
 							<div className="space-y-2">
@@ -678,41 +455,39 @@ export function DashboardClient({ organizationId }: DashboardClientProps) {
 							size="md"
 							title="Application Rejected"
 							actions={
-								<>
-									<Button.Root
-										variant="primary"
-										size="small"
-										disabled={isResubmitting}
-										onClick={async () => {
-											if (!organization?.id) return
-											
-											setIsResubmitting(true)
-											try {
-												const { resubmitOrganizationForApproval } = await import("@/app/actions")
-												const result = await resubmitOrganizationForApproval({ organizationId: organization.id })
+								<Button.Root
+									variant="primary"
+									size="small"
+									disabled={isResubmitting}
+									onClick={async () => {
+										if (!organization?.id) return
 
-												if (result?.data?.success) {
-													// Redirect to onboarding to edit and resubmit
-													router.push("/onboarding")
-												} else {
-													// Show error - user can still navigate manually
-													const errorMsg = result?.serverError || "Unknown error"
-													console.error("Resubmit failed:", errorMsg)
-													router.push("/onboarding")
-												}
-											} catch (error) {
-												console.error("Resubmit error:", error)
-												// Still redirect - user can manually resubmit
-												router.push("/onboarding")
-											} finally {
-												setIsResubmitting(false)
+										setIsResubmitting(true)
+										try {
+											const { resubmitOrganizationForApproval } = await import("@/app/actions")
+											const result = await resubmitOrganizationForApproval({ organizationId: organization.id })
+
+											if (result?.data?.success) {
+												// Redirect to onboarding to edit and resubmit
+												router.push(routes.onboarding.root)
+											} else {
+												// Show error to user - they can still navigate manually
+												const errorMsg = result?.serverError || "Failed to resubmit. Please try again."
+												toast.error(errorMsg)
+												router.push(routes.onboarding.root)
 											}
-										}}
-									>
-										<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-										{isResubmitting ? "Processing..." : "Edit & Resubmit"}
-									</Button.Root>
-								</>
+										} catch {
+											// Show error to user - they can still navigate manually
+											toast.error("Something went wrong. Please try again.")
+											router.push(routes.onboarding.root)
+										} finally {
+											setIsResubmitting(false)
+										}
+									}}
+								>
+									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
+									{isResubmitting ? "Processing..." : "Edit & Resubmit"}
+								</Button.Root>
 							}
 						>
 							Your organization application was rejected. Please review the feedback and resubmit.
@@ -722,402 +497,66 @@ export function DashboardClient({ organizationId }: DashboardClientProps) {
 			)}
 
 			{/* ALERT BAR - Only show if has organization and data */}
-			{hasOrganization && safeData && (hasOverdue || isLowBalance) && (
-				<div
-					className={cn(
-						"rounded-xl p-3 flex items-start sm:items-center gap-3",
-						hasOverdue
-							? "bg-linear-to-r from-error-lighter to-error-lighter/50 ring-1 ring-inset ring-error-base/20"
-							: "bg-linear-to-r from-warning-lighter to-warning-lighter/50 ring-1 ring-inset ring-warning-base/20"
-					)}
-				>
-					<div
-						className={cn(
-							"flex size-9 sm:size-10 items-center justify-center rounded-full shrink-0",
-							hasOverdue ? "bg-error-base text-white" : "bg-warning-base text-white"
-						)}
-					>
-						<Warning weight="fill" className="size-4 sm:size-5" />
-					</div>
-					<div className="flex-1 min-w-0">
-						<p
-							className={cn(
-								"text-label-xs sm:text-label-sm font-medium",
-								hasOverdue ? "text-error-dark" : "text-warning-dark"
-							)}
-						>
-							{hasOverdue
-								? `${metrics.pendingOverdue} enrollments overdue`
-								: `Low balance · ${runwayDays} days runway`}
-						</p>
-						<p className="text-paragraph-xs text-text-sub-600 mt-0.5 line-clamp-1">
-							{hasOverdue ? "Reviews pending over 48 hours" : "Add funds to keep campaigns running"}
-						</p>
-					</div>
-					<Button.Root
-						variant={hasOverdue ? "error" : "primary"}
-						size="xsmall"
-						asChild
-						className="shrink-0"
-					>
-						<Link
-							href={
-								hasOverdue ? `/dashboard/${organizationId}/enrollments?status=awaiting_review` : `/dashboard/${organizationId}/wallet`
-							}
-						>
-							{hasOverdue ? "Review" : "Add Funds"}
-						</Link>
-					</Button.Root>
-				</div>
+			{hasOrganization && safeData && (
+				<DashboardAlertBar
+					organizationId={organizationId}
+					hasOverdue={hasOverdue}
+					isLowBalance={isLowBalance}
+					pendingOverdue={metrics.pendingOverdue}
+					runwayDays={runwayDays}
+				/>
 			)}
 
 			{/* METRICS */}
-			<div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-				{/* WALLET */}
-				<SimpleStatCard
-					icon={<Wallet weight="duotone" className="size-5" />}
-					value={formatCurrency(wallet.available)}
-					label="Available"
-					href={`/dashboard/${organizationId}/wallet`}
-					iconColor={isLowBalance ? "warning" : "success"}
-					className={cn("col-span-2 sm:col-span-1", isLowBalance && "ring-warning-base/20")}
-				/>
-
-				{/* PENDING */}
-				<SimpleStatCard
-					icon={<Clock weight="duotone" className="size-5" />}
-					value={metrics.pendingTotal}
-					label="Pending"
-					href={`/dashboard/${organizationId}/enrollments?status=awaiting_review`}
-					iconColor={hasOverdue ? "error" : "neutral"}
-					className={cn(hasOverdue && "ring-error-base/20")}
-				/>
-
-				{/* APPROVAL RATE */}
-				<SimpleStatCard
-					icon={<Check weight="duotone" className="size-5" />}
-					value={`${approvalRate}%`}
-					label="Approval Rate"
-					iconColor="primary"
-				/>
-			</div>
+			<DashboardMetrics
+				organizationId={organizationId}
+				wallet={{ available: wallet.available, lowBalanceThreshold: wallet.lowBalanceThreshold }}
+				metrics={{ pendingTotal: metrics.pendingTotal, pendingOverdue: metrics.pendingOverdue }}
+				approvalRate={approvalRate}
+			/>
 
 			{/* MAIN GRID */}
-			<div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-12">
 				{/* CAMPAIGNS */}
-				<div className="lg:col-span-5 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
-					<div className="flex items-center justify-between p-4 border-b border-stroke-soft-200">
-						<div className="flex items-center gap-2">
-							<Megaphone weight="duotone" className="size-5 text-primary-base" />
-							<h2 className="text-label-sm text-text-strong-950 font-medium">Campaigns</h2>
-						</div>
-						<Link
-							href={`/dashboard/${organizationId}/campaigns`}
-							className="text-paragraph-xs text-primary-base hover:underline"
-						>
-							View all
-						</Link>
-					</div>
-
-					<div className="grid grid-cols-3 border-b border-stroke-soft-200 divide-x divide-stroke-soft-200">
-						<div className="p-3 sm:p-4 text-center">
-							<div className="text-title-h4 text-success-base font-semibold">
-								{metrics.activeCampaigns}
-							</div>
-							<div className="text-paragraph-sm text-text-sub-600 mt-0.5">Active</div>
-						</div>
-						<div className="p-4 text-center">
-							<div className="text-title-h4 text-warning-base font-semibold">
-								{metrics.endingSoon}
-							</div>
-							<div className="text-paragraph-sm text-text-sub-600 mt-0.5">Ending</div>
-						</div>
-						<div className="p-4 text-center">
-							<div className="text-title-h4 text-text-soft-400 font-semibold">
-								{metrics.pausedCampaigns}
-							</div>
-							<div className="text-paragraph-sm text-text-sub-600 mt-0.5">Paused</div>
-						</div>
-					</div>
-
-					<div className="divide-y divide-stroke-soft-200">
-						{topCampaigns.map((campaign) => (
-							<Link
-								key={campaign.id}
-								href={`/dashboard/${organizationId}/campaigns/${campaign.id}`}
-								className="flex items-center gap-2.5 p-2.5 sm:p-3 hover:bg-bg-weak-50 transition-colors group"
-							>
-								<div className="relative size-10 rounded-lg overflow-hidden shrink-0 ring-1 ring-inset ring-stroke-soft-200 bg-bg-weak-50">
-									{campaign.image ? (
-										<Image
-											src={campaign.image}
-											alt={campaign.name}
-											fill
-											sizes="40px"
-											className="object-contain p-0.5"
-										/>
-									) : (
-										<div className="size-full flex items-center justify-center text-text-soft-400">
-											<Megaphone className="size-5" />
-										</div>
-									)}
-								</div>
-								<div className="flex-1 min-w-0">
-									<div className="text-label-xs text-text-strong-950 group-hover:text-primary-base transition-colors truncate">
-										{campaign.name}
-									</div>
-									<div className="flex items-center gap-2 text-label-xs text-text-sub-600 mt-0.5">
-										<span>{campaign.enrollments} enrolled</span>
-										<span>•</span>
-										<span className="text-success-base">{campaign.approvalRate}%</span>
-									</div>
-								</div>
-								{campaign.status === "ending" ? (
-									<span className="text-label-xs font-medium text-warning-base bg-warning-lighter px-2 py-0.5 rounded-full shrink-0">
-										{campaign.daysLeft}d left
-									</span>
-								) : (
-									<CaretRight className="size-4 text-text-soft-400 opacity-0 group-hover:opacity-100 group-hover:text-text-sub-600 transition-opacity shrink-0" />
-								)}
-							</Link>
-						))}
-					</div>
-				</div>
+				<DashboardCampaignsSection
+					organizationId={organizationId}
+					campaigns={topCampaigns}
+					metrics={{
+						activeCampaigns: metrics.activeCampaigns,
+						endingSoon: metrics.endingSoon,
+						pausedCampaigns: metrics.pausedCampaigns,
+					}}
+				/>
 
 				{/* ENROLLMENT TREND */}
-				<div className="lg:col-span-7 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
-					<div className="flex items-center justify-between p-4 border-b border-stroke-soft-200">
-						<div className="flex items-center gap-2">
-							<Lightning weight="duotone" className="size-5 text-primary-base" />
-							<h2 className="text-label-sm text-text-strong-950 font-medium">Enrollment Trend</h2>
-						</div>
-						<span className="text-label-xs text-text-soft-400 uppercase tracking-wide">
-							14 days
-						</span>
-					</div>
-
-					<div className="p-4">
-						<div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-paragraph-xs text-text-sub-600">
-							<span className="flex items-center gap-1.5">
-								<span className="size-2.5 rounded-full bg-success-base" /> Approved
-							</span>
-							<span className="flex items-center gap-1.5">
-								<span className="size-2.5 rounded-full bg-warning-base" /> Pending
-							</span>
-							<span className="flex items-center gap-1.5">
-								<span className="size-2.5 rounded-full bg-error-base" /> Rejected
-							</span>
-						</div>
-						<Tracker data={trackerData} size="lg" className="mb-4" />
-
-						<SparkChart
-							data={enrollmentChartData}
-							variant="area"
-							size="lg"
-							color="var(--color-primary-base)"
-							className="w-full h-20 sm:h-24"
-						/>
-					</div>
-
-					<div className="grid grid-cols-4 border-t border-stroke-soft-200 divide-x divide-stroke-soft-200">
-						<div className="p-4 text-center">
-							<div className="text-title-h4 text-text-strong-950 font-semibold">
-								{metrics.totalEnrollments}
-							</div>
-							<div className="text-paragraph-sm text-text-sub-600 mt-0.5">Total</div>
-						</div>
-						<div className="p-4 text-center">
-							<div className="text-title-h4 text-success-base font-semibold">
-								{metrics.approvedCount}
-							</div>
-							<div className="text-paragraph-sm text-text-sub-600 mt-0.5">Approved</div>
-						</div>
-						<div className="p-4 text-center">
-							<div className="text-title-h4 text-error-base font-semibold">
-								{metrics.rejectedCount}
-							</div>
-							<div className="text-paragraph-sm text-text-sub-600 mt-0.5">Rejected</div>
-						</div>
-						<div className="p-4 text-center">
-							<div className="text-title-h4 text-warning-base font-semibold">
-								{metrics.pendingCount}
-							</div>
-							<div className="text-paragraph-sm text-text-sub-600 mt-0.5">Pending</div>
-						</div>
-					</div>
-				</div>
+				<DashboardEnrollmentTrend
+					metrics={{
+						totalEnrollments: metrics.totalEnrollments,
+						approvedCount: metrics.approvedCount,
+						rejectedCount: metrics.rejectedCount,
+						pendingCount: metrics.pendingCount,
+					}}
+					enrollmentChartData={enrollmentChartData}
+					trackerData={trackerData}
+				/>
 			</div>
 
 			{/* PRIORITY QUEUE - Only show if has organization and data */}
 			{hasOrganization && safeData && (
-			<div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
-				<div className="flex items-center justify-between p-4 border-b border-stroke-soft-200">
-					<div className="flex items-center gap-2">
-						<h2 className="text-label-sm text-text-strong-950 font-medium">Priority Reviews</h2>
-						<span
-							className={cn(
-								"text-label-xs font-medium px-2 py-0.5 rounded-full",
-								hasOverdue
-									? "bg-error-lighter text-error-base"
-									: "bg-warning-lighter text-warning-base"
-							)}
-						>
-							{metrics.pendingTotal}
-						</span>
-					</div>
-					<Link
-						href={`/dashboard/${organizationId}/enrollments?status=awaiting_review`}
-						className="text-paragraph-xs text-primary-base hover:underline"
-					>
-						View all
-					</Link>
-				</div>
-
-				<div className="divide-y divide-stroke-soft-200">
-					{priorityEnrollments.map((enrollment) => {
-						const overdue = isEnrollmentOverdue(enrollment.hoursAgo)
-						const highValue = (enrollment.orderValue || 0) >= THRESHOLDS.HIGH_VALUE_ORDER
-
-						return (
-							<div
-								key={enrollment.id}
-								className={cn(
-									"p-3 sm:p-4 transition-colors hover:bg-bg-weak-50",
-									overdue && "bg-error-lighter/20"
-								)}
-							>
-								{/* Mobile layout */}
-								<div className="flex items-start gap-3 sm:hidden">
-									<div className="relative size-12 rounded-lg overflow-hidden shrink-0 ring-1 ring-inset ring-stroke-soft-200 bg-bg-weak-50">
-										{enrollment.campaign?.product?.image && (
-											<Image
-												src={enrollment.campaign.product.image}
-												alt="Product"
-												fill
-												sizes="48px"
-												className="object-contain p-1.5"
-											/>
-										)}
-									</div>
-									<div className="flex-1 min-w-0">
-										<div className="flex items-center gap-2 flex-wrap">
-											<span className="text-label-xs text-text-strong-950 truncate">
-												{enrollment.campaign?.title}
-											</span>
-											{overdue && (
-												<span className="text-label-xs font-medium text-error-base bg-error-lighter px-1.5 py-0.5 rounded">
-													Overdue
-												</span>
-											)}
-										</div>
-										<div className="flex items-center gap-2 text-paragraph-xs text-text-sub-600 mt-1">
-											<span>{enrollment.shopper?.name}</span>
-											<span>•</span>
-											<span className="font-medium text-text-strong-950">
-												{formatCurrency(enrollment.orderValue || 0)}
-											</span>
-										</div>
-										<div className="flex items-center justify-between mt-2">
-											<span className="text-label-xs text-text-soft-400">
-												{formatTimeAgo(enrollment.hoursAgo)}
-											</span>
-											<Button.Root variant="primary" size="xsmall" asChild>
-												<Link href={`/dashboard/${organizationId}/enrollments/${enrollment.id}`}>Review</Link>
-											</Button.Root>
-										</div>
-									</div>
-								</div>
-
-								{/* Desktop layout */}
-								<div className="hidden sm:flex items-center gap-4">
-									<div className="relative size-10 rounded-lg overflow-hidden shrink-0 ring-1 ring-inset ring-stroke-soft-200 bg-bg-weak-50">
-										{enrollment.campaign?.product?.image && (
-											<Image
-												src={enrollment.campaign.product.image}
-												alt="Product"
-												fill
-												sizes="40px"
-												className="object-contain p-1"
-											/>
-										)}
-									</div>
-
-									<div className="flex-1 min-w-0">
-										<div className="flex items-center gap-2">
-											<span className="text-label-sm text-text-strong-950 truncate">
-												{enrollment.campaign?.title}
-											</span>
-											{overdue && (
-												<span className="text-[10px] font-medium text-error-base bg-error-lighter px-1.5 py-0.5 rounded shrink-0">
-													Overdue
-												</span>
-											)}
-											{highValue && !overdue && (
-												<span className="text-label-xs font-medium text-information-base bg-information-lighter px-1.5 py-0.5 rounded shrink-0">
-													High Value
-												</span>
-											)}
-										</div>
-										<div className="flex items-center gap-2 text-paragraph-xs text-text-sub-600 mt-0.5">
-											<span>{enrollment.shopper?.name}</span>
-											<span>•</span>
-											<span className="text-text-soft-400">
-												{formatTimeAgo(enrollment.hoursAgo)}
-											</span>
-										</div>
-									</div>
-
-									<div className="text-right shrink-0">
-										<div className="text-label-sm text-text-strong-950 font-medium">
-											{formatCurrency(enrollment.orderValue || 0)}
-										</div>
-										<div className="text-label-xs text-text-soft-400 font-mono">
-											{enrollment.orderId}
-										</div>
-									</div>
-
-									<Button.Root variant="primary" size="xsmall" asChild className="shrink-0">
-										<Link href={`/dashboard/${organizationId}/enrollments/${enrollment.id}`}>Review</Link>
-									</Button.Root>
-								</div>
-							</div>
-						)
-					})}
-				</div>
-
-				{metrics.pendingTotal > 3 && (
-					<Link
-						href={`/dashboard/${organizationId}/enrollments?status=awaiting_review`}
-						className="flex items-center justify-center gap-2 p-3 text-paragraph-xs text-primary-base hover:bg-bg-weak-50 transition-colors border-t border-stroke-soft-200"
-					>
-						View all {metrics.pendingTotal} pending
-						<ArrowRight weight="bold" className="size-3" />
-					</Link>
-				)}
-			</div>
+				<DashboardPriorityQueue
+					organizationId={organizationId}
+					priorityEnrollments={priorityEnrollments}
+					pendingTotal={metrics.pendingTotal}
+					hasOverdue={hasOverdue}
+				/>
 			)}
 
 			{/* EMPTY STATE - Show if no organization and alert dismissed */}
 			{!hasOrganization && dismissedOnboardingAlert && (
-				<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
-					<div className="max-w-md mx-auto space-y-4">
-						<div className="flex justify-center">
-							<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
-								<Warning weight="duotone" className="size-8 text-warning-base" />
-							</div>
-						</div>
-						<div>
-							<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
-							<p className="text-paragraph-sm text-text-sub-600 mt-2">
-								Complete your organization setup to access dashboard features, create campaigns, and manage enrollments.
-							</p>
-						</div>
-						<Button.Root variant="primary" size="medium" onClick={handleStartOnboarding}>
-							<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-							Start Onboarding
-						</Button.Root>
-					</div>
-				</div>
+				<OnboardingSetupCard
+					variant="warning-minimal"
+					onAction={handleStartOnboarding}
+				/>
 			)}
 		</div>
 	)

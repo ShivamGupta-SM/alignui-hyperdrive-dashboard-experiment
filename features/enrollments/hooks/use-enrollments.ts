@@ -2,33 +2,34 @@
  * Enrollment React Query Hooks
  *
  * Clean pattern: Direct client usage for queries
+ * URL-based multi-tenancy: organizationId from URL params
  */
 
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { getEncoreBrowserClient } from "@/lib/api/encore-browser"
-import { STALE_TIME } from "@/lib/utils/query-config"
-import type { enrollments as enrollmentTypes, shared } from "@/lib/api/encore-client"
+import { client } from "@/lib/api/client"
+import { STALE_TIME, GC_TIME, PAGE_SIZE, DEFAULT_RETRY_CONFIG, createMutationErrorHandler, createQueryKeyFactory } from "@/lib/utils/query-config"
+import type { shared } from "@/brand-client"
 import * as actions from "../actions/enrollments"
 import type { EnrollmentFilters } from "../types"
 
 // ============================================
-// Client Instance
+// Query Keys - Using factory + custom extensions
 // ============================================
-const client = getEncoreBrowserClient()
+const baseKeys = createQueryKeyFactory("enrollments")
 
-// ============================================
-// Query Keys
-// ============================================
 export const enrollmentKeys = {
-	all: (orgId: string) => ["enrollments", orgId] as const,
-	lists: (orgId: string) => [...enrollmentKeys.all(orgId), "list"] as const,
-	list: (orgId: string, filters?: EnrollmentFilters) => [...enrollmentKeys.lists(orgId), filters] as const,
-	details: (orgId: string) => [...enrollmentKeys.all(orgId), "detail"] as const,
-	detail: (orgId: string, id: string) => [...enrollmentKeys.details(orgId), id] as const,
-	transitions: (id: string) => ["enrollment-transitions", id] as const,
-	campaign: (campaignId: string) => ["campaign-enrollments", campaignId] as const,
+	...baseKeys,
+	// Override list to include enrollment-specific filters
+	list: (orgId: string, filters?: EnrollmentFilters) =>
+		[...baseKeys.lists(orgId), filters?.status ?? "all", filters?.campaignId ?? "", filters?.skip ?? 0, filters?.take ?? 50] as const,
+	// Override detail to include campaignId
+	detail: (orgId: string, campaignId: string, id: string) => [...baseKeys.details(orgId), campaignId, id] as const,
+	// Extended keys not in base factory
+	campaign: (orgId: string, campaignId: string) => ["campaign-enrollments", orgId, campaignId] as const,
+	pricing: (orgId: string, campaignId: string, id: string) => ["enrollment-pricing", orgId, campaignId, id] as const,
+	stats: (orgId: string, campaignId: string) => ["enrollment-stats", orgId, campaignId] as const,
 }
 
 // ============================================
@@ -36,100 +37,102 @@ export const enrollmentKeys = {
 // ============================================
 
 /**
- * List enrollments (my enrollments for shoppers)
+ * List enrollments (organization enrollments)
  */
 export function useEnrollments(orgId: string, filters: EnrollmentFilters = {}) {
 	return useQuery({
 		queryKey: enrollmentKeys.list(orgId, filters),
 		queryFn: () =>
-			client.enrollments.listMyEnrollments({
-				status: filters.status as shared.EnrollmentStatus | undefined,
+			client.organizations.listOrganizationEnrollments(orgId, {
+				status: filters.status,
 				campaignId: filters.campaignId,
 				skip: filters.skip ?? 0,
-				take: filters.take ?? 10,
+				take: filters.take ?? PAGE_SIZE.MEDIUM,
 			}),
 		enabled: !!orgId,
 		staleTime: STALE_TIME.SHORT,
-	})
-}
-
-/**
- * List organization enrollments (for brands)
- */
-export function useOrganizationEnrollments(
-	orgId: string,
-	params?: { skip?: number; take?: number; status?: shared.EnrollmentStatus; campaignId?: string }
-) {
-	return useQuery({
-		queryKey: enrollmentKeys.list(orgId, params),
-		queryFn: () =>
-			client.enrollments.listOrganizationEnrollments({
-				organizationId: orgId,
-				skip: params?.skip ?? 0,
-				take: params?.take ?? 50,
-				status: params?.status,
-				campaignId: params?.campaignId,
-			}),
-		enabled: !!orgId,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
 /**
  * List campaign enrollments
  */
-export function useCampaignEnrollments(campaignId: string, params?: { skip?: number; take?: number }) {
+export function useCampaignEnrollments(orgId: string, campaignId: string, params?: { skip?: number; take?: number }) {
 	return useQuery({
-		queryKey: enrollmentKeys.campaign(campaignId),
+		queryKey: enrollmentKeys.campaign(orgId, campaignId),
 		queryFn: () =>
-			client.enrollments.listCampaignEnrollments(campaignId, {
+			client.organizations.listCampaignEnrollments(orgId, campaignId, {
 				skip: params?.skip ?? 0,
-				take: params?.take ?? 100,
+				take: params?.take ?? PAGE_SIZE.LARGE,
 			}),
-		enabled: !!campaignId,
+		enabled: !!orgId && !!campaignId,
+		staleTime: STALE_TIME.SHORT,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
 /**
  * Get single enrollment
  */
-export function useEnrollment(orgId: string, id: string) {
+export function useEnrollment(orgId: string, campaignId: string, id: string) {
 	return useQuery({
-		queryKey: enrollmentKeys.detail(orgId, id),
-		queryFn: () => client.enrollments.getEnrollment(id),
-		enabled: !!orgId && !!id,
+		queryKey: enrollmentKeys.detail(orgId, campaignId, id),
+		queryFn: () => client.organizations.getEnrollmentForBrand(orgId, campaignId, id),
+		enabled: !!orgId && !!campaignId && !!id,
+		staleTime: STALE_TIME.SHORT,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
 /**
  * Get enrollment detail (includes history, shopper info, etc.)
+ * SSOT: This is the primary query for enrollment detail data
  */
-export function useEnrollmentDetail(id: string) {
+export function useEnrollmentDetail(orgId: string, campaignId: string, id: string) {
 	return useQuery({
-		queryKey: ["enrollment-detail", id],
-		queryFn: () => client.enrollments.getEnrollmentDetail(id),
-		enabled: !!id,
+		queryKey: enrollmentKeys.detail(orgId, campaignId, id),
+		queryFn: () => client.organizations.getEnrollmentDetailForBrand(orgId, campaignId, id),
+		enabled: !!orgId && !!campaignId && !!id,
+		staleTime: STALE_TIME.SHORT,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
 /**
- * Get enrollment transitions
+ * Get enrollment transitions - derives from enrollment detail cache
+ * SSOT: Uses SAME queryKey as useEnrollmentDetail to share cache (NO duplicate API call)
+ * Uses `select` to extract only the history/transitions from cached data
  */
-export function useEnrollmentTransitions(id: string) {
+export function useEnrollmentTransitions(orgId: string, campaignId: string, id: string) {
 	return useQuery({
-		queryKey: enrollmentKeys.transitions(id),
-		queryFn: () => client.enrollments.getEnrollmentTransitions(id),
-		enabled: !!id,
+		// SSOT: Same queryKey as useEnrollmentDetail - shares cache, no duplicate API call
+		queryKey: enrollmentKeys.detail(orgId, campaignId, id),
+		queryFn: () => client.organizations.getEnrollmentDetailForBrand(orgId, campaignId, id),
+		enabled: !!orgId && !!campaignId && !!id,
+		staleTime: STALE_TIME.SHORT,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
+		// Extract only transitions from the cached detail data
+		select: (detail) => ({ transitions: detail.history }),
 	})
 }
 
 /**
  * Get enrollment pricing
  */
-export function useEnrollmentPricing(id: string) {
+export function useEnrollmentPricing(orgId: string, campaignId: string, id: string) {
 	return useQuery({
-		queryKey: ["enrollment-pricing", id],
-		queryFn: () => client.enrollments.getEnrollmentPricing(id),
-		enabled: !!id,
+		queryKey: enrollmentKeys.pricing(orgId, campaignId, id),
+		queryFn: () => client.organizations.getEnrollmentPricingForBrand(orgId, campaignId, id),
+		enabled: !!orgId && !!campaignId && !!id,
+		staleTime: STALE_TIME.SHORT,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
@@ -138,42 +141,100 @@ export function useEnrollmentPricing(id: string) {
 // ============================================
 
 /**
- * Update enrollment status (approve/reject/withdraw)
+ * Update enrollment status (approve/reject)
  */
 export function useUpdateEnrollmentStatus(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: ({ id, status, reason }: { id: string; status: string; reason?: string }) =>
-			actions.updateEnrollmentStatus({ id, status: status as "approved" | "rejected" | "withdrawn", reason }),
-		onSuccess: (_, { id }) => {
-			qc.invalidateQueries({ queryKey: enrollmentKeys.detail(orgId, id) })
+		mutationFn: ({ campaignId, id, status, reason }: { campaignId: string; id: string; status: "approved" | "rejected"; reason?: string }) =>
+			actions.updateEnrollmentStatus({ organizationId: orgId, campaignId, id, status, reason }),
+		onSuccess: (_, { campaignId, id }) => {
+			qc.invalidateQueries({ queryKey: enrollmentKeys.detail(orgId, campaignId, id) })
 			qc.invalidateQueries({ queryKey: enrollmentKeys.lists(orgId) })
 		},
+		onError: createMutationErrorHandler("update enrollment status"),
 	})
 }
 
 /**
- * Bulk update enrollments
+ * Bulk approve enrollments - uses server action for consistency
  */
-export function useBulkUpdateEnrollments(orgId: string) {
+export function useBulkApproveEnrollments(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: ({ ids, status, reason }: { ids: string[]; status: string; reason?: string }) =>
-			actions.bulkUpdateEnrollments({ ids, status: status as "approved" | "rejected", reason }),
+		mutationFn: ({ enrollmentIds, remarks }: { enrollmentIds: string[]; remarks?: string }) =>
+			actions.bulkUpdateEnrollments({ organizationId: orgId, ids: enrollmentIds, status: "approved", reason: remarks }),
 		onSuccess: () => qc.invalidateQueries({ queryKey: enrollmentKeys.lists(orgId) }),
+		onError: createMutationErrorHandler("bulk approve enrollments"),
 	})
 }
 
 /**
- * Approve enrollment (direct client - no SSR cache needed)
+ * Bulk reject enrollments - uses server action for consistency
+ */
+export function useBulkRejectEnrollments(orgId: string) {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: ({ enrollmentIds, reason }: { enrollmentIds: string[]; reason: string }) =>
+			actions.bulkUpdateEnrollments({ organizationId: orgId, ids: enrollmentIds, status: "rejected", reason }),
+		onSuccess: () => qc.invalidateQueries({ queryKey: enrollmentKeys.lists(orgId) }),
+		onError: createMutationErrorHandler("bulk reject enrollments"),
+	})
+}
+
+/**
+ * Approve enrollment
+ * Includes optimistic update for instant UI feedback
  */
 export function useApproveEnrollment(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: ({ id, remarks }: { id: string; remarks?: string }) =>
-			client.enrollments.approveEnrollment(id, { remarks }),
-		onSuccess: (_, { id }) => {
-			qc.invalidateQueries({ queryKey: enrollmentKeys.detail(orgId, id) })
+		mutationFn: ({ campaignId, id, remarks }: { campaignId: string; id: string; remarks?: string }) =>
+			actions.updateEnrollmentStatus({ organizationId: orgId, campaignId, id, status: "approved", reason: remarks }),
+		onMutate: async ({ campaignId, id }) => {
+			// Cancel outgoing refetches to prevent overwriting optimistic update
+			await qc.cancelQueries({ queryKey: enrollmentKeys.detail(orgId, campaignId, id) })
+			await qc.cancelQueries({ queryKey: enrollmentKeys.lists(orgId) })
+
+			// Snapshot previous values for rollback
+			const previousDetail = qc.getQueryData(enrollmentKeys.detail(orgId, campaignId, id))
+			const previousLists = qc.getQueriesData({ queryKey: enrollmentKeys.lists(orgId) })
+
+			// Optimistically update the detail cache
+			qc.setQueryData(enrollmentKeys.detail(orgId, campaignId, id), (old: unknown) => {
+				if (!old || typeof old !== "object") return old
+				return { ...old, status: "approved" }
+			})
+
+			// Optimistically update list caches
+			qc.setQueriesData({ queryKey: enrollmentKeys.lists(orgId) }, (old: unknown) => {
+				if (!old || typeof old !== "object" || !("enrollments" in old)) return old
+				const data = old as { enrollments: Array<{ id: string; status?: string }> }
+				return {
+					...data,
+					enrollments: data.enrollments.map((e) =>
+						e.id === id ? { ...e, status: "approved" } : e
+					),
+				}
+			})
+
+			return { previousDetail, previousLists }
+		},
+		onError: (err, { campaignId, id }, context) => {
+			// Rollback on error
+			if (context?.previousDetail) {
+				qc.setQueryData(enrollmentKeys.detail(orgId, campaignId, id), context.previousDetail)
+			}
+			if (context?.previousLists) {
+				for (const [key, data] of context.previousLists) {
+					qc.setQueryData(key, data)
+				}
+			}
+			createMutationErrorHandler("approve enrollment")(err)
+		},
+		onSettled: (_, __, { campaignId, id }) => {
+			// Always refetch after mutation settles
+			qc.invalidateQueries({ queryKey: enrollmentKeys.detail(orgId, campaignId, id) })
 			qc.invalidateQueries({ queryKey: enrollmentKeys.lists(orgId) })
 		},
 	})
@@ -181,56 +242,122 @@ export function useApproveEnrollment(orgId: string) {
 
 /**
  * Reject enrollment
+ * Includes optimistic update for instant UI feedback
  */
 export function useRejectEnrollment(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: ({ id, reason }: { id: string; reason: string }) =>
-			client.enrollments.rejectEnrollment(id, { reason }),
-		onSuccess: (_, { id }) => {
-			qc.invalidateQueries({ queryKey: enrollmentKeys.detail(orgId, id) })
+		mutationFn: ({ campaignId, id, reason }: { campaignId: string; id: string; reason: string }) =>
+			actions.updateEnrollmentStatus({ organizationId: orgId, campaignId, id, status: "rejected", reason }),
+		onMutate: async ({ campaignId, id }) => {
+			// Cancel outgoing refetches to prevent overwriting optimistic update
+			await qc.cancelQueries({ queryKey: enrollmentKeys.detail(orgId, campaignId, id) })
+			await qc.cancelQueries({ queryKey: enrollmentKeys.lists(orgId) })
+
+			// Snapshot previous values for rollback
+			const previousDetail = qc.getQueryData(enrollmentKeys.detail(orgId, campaignId, id))
+			const previousLists = qc.getQueriesData({ queryKey: enrollmentKeys.lists(orgId) })
+
+			// Optimistically update the detail cache
+			qc.setQueryData(enrollmentKeys.detail(orgId, campaignId, id), (old: unknown) => {
+				if (!old || typeof old !== "object") return old
+				return { ...old, status: "rejected" }
+			})
+
+			// Optimistically update list caches
+			qc.setQueriesData({ queryKey: enrollmentKeys.lists(orgId) }, (old: unknown) => {
+				if (!old || typeof old !== "object" || !("enrollments" in old)) return old
+				const data = old as { enrollments: Array<{ id: string; status?: string }> }
+				return {
+					...data,
+					enrollments: data.enrollments.map((e) =>
+						e.id === id ? { ...e, status: "rejected" } : e
+					),
+				}
+			})
+
+			return { previousDetail, previousLists }
+		},
+		onError: (err, { campaignId, id }, context) => {
+			// Rollback on error
+			if (context?.previousDetail) {
+				qc.setQueryData(enrollmentKeys.detail(orgId, campaignId, id), context.previousDetail)
+			}
+			if (context?.previousLists) {
+				for (const [key, data] of context.previousLists) {
+					qc.setQueryData(key, data)
+				}
+			}
+			createMutationErrorHandler("reject enrollment")(err)
+		},
+		onSettled: (_, __, { campaignId, id }) => {
+			// Always refetch after mutation settles
+			qc.invalidateQueries({ queryKey: enrollmentKeys.detail(orgId, campaignId, id) })
 			qc.invalidateQueries({ queryKey: enrollmentKeys.lists(orgId) })
 		},
 	})
 }
 
 /**
- * Withdraw enrollment
+ * Request changes on enrollment deliverables
  */
-export function useWithdrawEnrollment(orgId: string) {
+export function useRequestChanges(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: (id: string) => client.enrollments.withdrawEnrollment(id),
-		onSuccess: (_, id) => {
-			qc.invalidateQueries({ queryKey: enrollmentKeys.detail(orgId, id) })
+		mutationFn: ({ campaignId, id, feedback }: { campaignId: string; id: string; feedback: string }) =>
+			actions.requestChanges({ organizationId: orgId, campaignId, id, feedback }),
+		onSuccess: (_, { campaignId, id }) => {
+			qc.invalidateQueries({ queryKey: enrollmentKeys.detail(orgId, campaignId, id) })
 			qc.invalidateQueries({ queryKey: enrollmentKeys.lists(orgId) })
 		},
+		onError: createMutationErrorHandler("request changes"),
 	})
 }
 
 /**
- * Submit deliverables (batch)
+ * Extend enrollment deadline
+ * Direct client call - no server action needed for simple update
  */
-export function useSubmitDeliverables(orgId: string) {
+export function useExtendDeadline(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: ({ enrollmentId, data }: { enrollmentId: string; data: enrollmentTypes.SubmitDeliverablesRequest }) =>
-			client.enrollments.submitDeliverables(enrollmentId, data),
-		onSuccess: () => qc.invalidateQueries({ queryKey: enrollmentKeys.lists(orgId) }),
+		mutationFn: ({ campaignId, id, expiresAt }: { campaignId: string; id: string; expiresAt: string }) =>
+			client.organizations.extendEnrollmentDeadline(orgId, campaignId, id, { expiresAt }),
+		onSuccess: (_, { campaignId, id }) => {
+			qc.invalidateQueries({ queryKey: enrollmentKeys.detail(orgId, campaignId, id) })
+			qc.invalidateQueries({ queryKey: enrollmentKeys.lists(orgId) })
+		},
+		onError: createMutationErrorHandler("extend enrollment deadline"),
+	})
+}
+
+// Note: submitDeliverables, updateDeliverable, deleteDeliverable methods
+// are not available in the organizations service API.
+// These operations are handled by the shopper client, not the brand client.
+
+/**
+ * Get enrollment stats for a campaign
+ */
+export function useEnrollmentStats(orgId: string, campaignId: string) {
+	return useQuery({
+		queryKey: enrollmentKeys.stats(orgId, campaignId),
+		queryFn: () => client.organizations.getEnrollmentStats(orgId, campaignId),
+		enabled: !!orgId && !!campaignId,
+		staleTime: STALE_TIME.MEDIUM,
+		gcTime: GC_TIME.MEDIUM,
+		...DEFAULT_RETRY_CONFIG,
 	})
 }
 
 /**
- * Update deliverable proof
+ * Export enrollments to Excel
  */
-export function useUpdateDeliverable(orgId: string) {
-	const qc = useQueryClient()
+export function useExportEnrollments(orgId: string) {
 	return useMutation({
-		mutationFn: ({ id, data }: { id: string; data: { proofLink?: string; proofScreenshot?: string } }) =>
-			client.enrollments.updateDeliverable(id, data),
-		onSuccess: () => qc.invalidateQueries({ queryKey: enrollmentKeys.lists(orgId) }),
+		mutationFn: ({ campaignId, status }: { campaignId: string; status?: shared.EnrollmentStatus }) =>
+			actions.exportEnrollments({ organizationId: orgId, campaignId, status }),
+		onError: createMutationErrorHandler("export enrollments"),
 	})
 }
 
-// Re-export types
-export type * from "../types"
+// Types are exported from @/features/enrollments (feature index)

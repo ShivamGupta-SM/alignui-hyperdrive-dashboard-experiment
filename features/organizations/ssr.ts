@@ -2,62 +2,83 @@
  * Organizations SSR Data Fetching
  *
  * Server-side data fetching for organization-level pages (including dashboard).
- * Organized by feature for clean architecture.
+ * Uses ssrFetch helper for standardized error handling.
  */
 
-import { getAuthClient } from "@/lib/auth/server"
-import { getErrorDetails } from "@/lib/api/encore"
-import { logSSRError } from "@/lib/logging/error-logger-simple"
+import { ssrFetch } from "@/lib/api/server"
+import { logWarn } from "@/lib/logging/error-logger-simple"
+import type { OrganizationListItem } from "./types"
+
+/**
+ * Get current organization by ID (for server-side rendering)
+ * Uses ssrFetch for standardized error handling
+ */
+export async function getOrganizationById(organizationId: string): Promise<OrganizationListItem | null> {
+	if (!organizationId) return null
+
+	return ssrFetch(
+		{
+			source: "getOrganizationById",
+			feature: "organizations",
+			context: { organizationId },
+		},
+		async (client) => {
+			try {
+				// First try to get full organization details
+				const org = await client.auth.getFullOrganization(organizationId, {})
+				return org as unknown as OrganizationListItem
+			} catch {
+				// If direct fetch fails, try from list (fallback)
+				const result = await client.auth.listOrganizations()
+				const org = result.organizations?.find((o) => o.id === organizationId)
+				return (org as OrganizationListItem) ?? null
+			}
+		},
+		null
+	)
+}
+
+/**
+ * Get all user organizations (for navigation/switcher)
+ * Uses ssrFetch for standardized error handling
+ */
+export async function getOrganizations(): Promise<OrganizationListItem[]> {
+	return ssrFetch(
+		{
+			source: "getOrganizations",
+			feature: "organizations",
+			context: {},
+		},
+		async (client) => {
+			const result = await client.auth.listOrganizations()
+			return (result.organizations ?? []) as OrganizationListItem[]
+		},
+		[]
+	)
+}
 
 /**
  * Get dashboard overview data
+ * Uses ssrFetch for standardized error handling
  */
 export async function getDashboardData(organizationId: string | null) {
 	if (!organizationId) {
-		// No active organization - return null gracefully
+		logWarn("No organizationId provided for dashboard query", { source: "getDashboardData" })
 		return null
 	}
 
-	try {
-		const client = await getAuthClient()
-		const response = await client.organizations.getDashboardOverview({
-			organizationId,
-			days: 7,
-		})
-		return response
-	} catch (error) {
-		// Check if it's a network error first
-		if (error && typeof error === "object" && "message" in error) {
-			const errorMsg = String(error.message || "")
-			if (
-				errorMsg.includes("fetch failed") ||
-				errorMsg.includes("ECONNREFUSED") ||
-				errorMsg.includes("Failed to fetch") ||
-				errorMsg.includes("NetworkError")
-			) {
-				logSSRError(error, "getDashboardData", "dashboard-overview", {
-					data: {
-						errorType: "network",
-						organizationId,
-						message: "Backend connection failed",
-					},
-				})
-				return null
-			}
-		}
-
-		// Log error details for debugging
-		const errorInfo = getErrorDetails(error)
-		logSSRError(error, "getDashboardData", "dashboard-overview", {
-			data: {
-				organizationId,
-				errorMessage: errorInfo.message,
-				errorCode: errorInfo.code,
-				errorStatus: errorInfo.status,
-				isAPIError: errorInfo.isAPIError,
-			},
-		})
-
-		return null
-	}
+	return ssrFetch(
+		{
+			source: "getDashboardData",
+			feature: "dashboard",
+			context: { organizationId },
+		},
+		async (client) => {
+			const response = await client.organizations.getDashboardOverview(organizationId, {
+				days: 7,
+			})
+			return response
+		},
+		null
+	)
 }

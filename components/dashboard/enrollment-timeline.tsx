@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@/utils/cn"
-import { formatTimeAgo, formatDateShort } from "@/lib/utils/format"
+import { cn } from "@/lib/utils"
+import { formatDateShort } from "@/lib/utils/format"
+import { formatTimeAgoShort } from "@/lib/utils/date"
 import type { EnrollmentTransitionHistoryItem } from "@/features/enrollments"
 import {
 	CheckCircle,
@@ -68,9 +69,9 @@ function formatDate(dateString: string): string {
 	const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
 	const diffDays = Math.floor(diffHours / 24)
 
-	// Use lib/format.ts for hours/days
+	// Use lib/utils/date.ts for hours/days
 	if (diffHours < 24) {
-		return formatTimeAgo(diffHours)
+		return formatTimeAgoShort(diffHours)
 	}
 	if (diffDays < 7) {
 		return `${diffDays}d ago`

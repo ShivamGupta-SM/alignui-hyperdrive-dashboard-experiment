@@ -1,7 +1,8 @@
 "use client"
 
-import React, { useState, useEffect, useRef, useCallback } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { routes } from "@/lib/routes"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as Button from "@/components/ui/primitives/button"
@@ -12,8 +13,6 @@ import * as Textarea from "@/components/ui/forms/textarea"
 import * as Checkbox from "@/components/ui/forms/checkbox"
 import * as HorizontalStepper from "@/components/ui/primitives/horizontal-stepper"
 import * as FileUpload from "@/components/ui/forms/file-upload"
-import * as Hint from "@/components/ui/feedback/hint"
-import { Callout } from "@/components/ui/feedback/callout"
 import { FormField } from "@/components/ui/forms/form-field"
 import {
 	ArrowRight,
@@ -21,19 +20,19 @@ import {
 	SealCheck,
 	Clock,
 	CloudArrowUp,
-	Info,
-	FileText,
+	WarningCircle,
 } from "@phosphor-icons/react"
-import { cn } from "@/utils/cn"
-import { BUSINESS_TYPE_OPTIONS, INDUSTRY_CATEGORY_OPTIONS, INDIAN_STATES } from "@/lib/constants"
-import { onboardingFormSchema, type OnboardingFormInput } from "@/lib/utils/validations"
-import type { BusinessType, IndustryCategory, OrganizationDraft } from "@/lib/types"
-import type { organizations, auth } from "@/lib/api/encore-client"
+import { BUSINESS_TYPE_OPTIONS, INDUSTRY_CATEGORY_OPTIONS, INDIAN_STATES, getStateFromGSTCode, getCitiesOfState, STORAGE_KEYS, clearOnboardingStorage } from "@/lib/constants"
+import { onboardingFormSchema, onboardingDraftSchema, type OnboardingFormInput } from "@/lib/utils/validations"
+import type { BusinessType, IndustryCategory, OrganizationDraft } from "@/features/organizations/types"
 import { useSession } from "@/features/auth"
-import { getEncoreClient } from "@/lib/api/encore"
+import { useLogoPreview } from "@/features/storage"
+import { useOnboardingStatus } from "@/features/organizations/hooks/use-onboarding-status"
+import { useOrganizations } from "@/features/organizations/hooks/use-organizations"
 import { toast } from "sonner"
-import { logInfo, logError, logWarn } from "@/lib/logging/error-logger-simple"
-import { getErrorMessage, getErrorMessageForLog } from "@/lib/utils/format"
+import { logInfo, logError } from "@/lib/logging/error-logger-simple"
+import { getErrorMessage } from "@/lib/utils/format"
+import { useOnboardingStore } from "@/lib/stores/onboarding-store"
 
 const steps = [
 	{ label: "Basic Info", value: 1 },
@@ -44,146 +43,65 @@ const steps = [
 export default function OnboardingPage() {
 	const router = useRouter()
 	const { data: session, isPending: isSessionPending } = useSession()
-	const [currentStep, setCurrentStep] = useState(1)
-	const [isLoading, setIsLoading] = useState(false)
-	const [isVerifyingGst, setIsVerifyingGst] = useState(false)
-	// ❌ REMOVED: PAN verification state - PAN is only for shoppers
-	const [termsAccepted, setTermsAccepted] = useState(false)
-	const [hasCheckedOrg, setHasCheckedOrg] = useState(false)
-	const [organizationId, setOrganizationId] = useState<string | null>(null)
-	const [draftSaved, setDraftSaved] = useState(false)
-	const [isLoadingDraft, setIsLoadingDraft] = useState(true)
-	const [draftRestored, setDraftRestored] = useState(false)
-	// GST verification result - MUST be before any early returns
-	const [gstDetails, setGstDetails] = useState<{
-		legalName: string
-		tradeName: string
-		status: string
-		address: string
-	} | null>(null)
-	
-	// ✅ OPTIMIZATION: Cache organizations list to avoid duplicate API calls
-	const [organizationsCache, setOrganizationsCache] = useState<{
-		organizations: Array<auth.OrganizationResponse & { approvalStatus?: string }>
-		fetchedAt: number
-	} | null>(null)
-	const ORGANIZATIONS_CACHE_TTL = 30000 // 30 seconds cache
-	
+
+	// ✅ PAGE-LEVEL PROTECTION: Use central hook for onboarding status
+	const {
+		state,
+		subState,
+		isLoading: isStatusLoading,
+		approvedOrgId,
+		targetOrgId,
+		rejectionReason
+	} = useOnboardingStatus()
+
+	// ✅ ZUSTAND: Single store replaces 8 useState calls
+	const {
+		currentStep,
+		setCurrentStep,
+		isLoading,
+		setIsLoading,
+		isVerifyingGst,
+		setIsVerifyingGst,
+		termsAccepted,
+		setTermsAccepted,
+		organizationId,
+		setOrganizationId,
+		draftSaved,
+		draftRestored,
+		setIsLoadingDraft,
+		setDraftRestored,
+		logoFile,
+		setLogoFile,
+		reset: resetOnboardingStore,
+	} = useOnboardingStore()
+
+	// Use React Query hook for organizations - cached automatically
+	const { data: orgsData } = useOrganizations()
+
 	// Ref map for form fields to avoid direct DOM manipulation
 	const fieldRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>>(new Map())
-	
-	// ✅ OPTIMIZATION: Shared function to get organizations (with caching)
-	// ✅ FIX: Only fetch if user is authenticated
-	const getOrganizationsList = useCallback(async () => {
-		// Check cache first
-		if (organizationsCache && Date.now() - organizationsCache.fetchedAt < ORGANIZATIONS_CACHE_TTL) {
-			return organizationsCache.organizations
-		}
-		
-		// ✅ FIX: Don't fetch if user is not authenticated
-		if (!session?.user || isSessionPending) {
-			return []
-		}
-		
-		try {
-			// Fetch fresh data
-			const { getEncoreBrowserClient } = await import("@/lib/api/encore-browser")
-			const orgsClient = getEncoreBrowserClient()
-			const orgsResult = await orgsClient.auth.listOrganizations()
-			const organizations = (orgsResult.organizations || []) as Array<auth.OrganizationResponse & { approvalStatus?: string }>
-			
-			// Update cache
-			setOrganizationsCache({
-				organizations,
-				fetchedAt: Date.now(),
-			})
-			
-			return organizations
-		} catch (error) {
-			// ✅ FIX: If auth error, return empty array (user not authenticated yet)
-			const errorMsg = getErrorMessageForLog(error)
-			if (errorMsg.includes("authentication") || errorMsg.includes("401") || errorMsg.includes("credentials")) {
-				return []
-			}
-			// For other errors, log but return empty
-			logWarn("Failed to fetch organizations list", {
-				source: "Onboarding",
-				data: { error: errorMsg }
-			})
-			return []
-		}
-	}, [organizationsCache, session?.user, isSessionPending])
-	
-	// Check if user already has an organization - redirect to dashboard if yes
-	// This prevents forcing onboarding on users who already completed it
+
+	// ✅ PAGE-LEVEL PROTECTION: Handle redirects based on onboarding status
 	useEffect(() => {
-		async function checkOrganization() {
-			// Wait for session to load
-			if (isSessionPending) return
+		if (isStatusLoading) return
 
-			// If not authenticated, let them stay (middleware will handle redirect)
-			if (!session?.user) {
-				setHasCheckedOrg(true)
-				return
-			}
-
-			// Clear any previous user's draft data when checking (safety measure)
-			// This ensures new users don't see previous user's data
-			try {
-				// Check if this is a new user (no organizations) and clear draft using server action
-				const { checkUserOrganizations } = await import("@/features/organizations/actions/onboarding")
-				const checkResult = await checkUserOrganizations({})
-				const approvedOrgs = checkResult?.data?.approvedOrgs
-				const draftOrgs = checkResult?.data?.draftOrgs
-
-				// Only redirect if user has approved organizations (not drafts)
-				if (approvedOrgs && approvedOrgs.length > 0) {
-					router.replace("/dashboard")
-					return
-				}
-				
-				// If user has draft org, allow them to continue onboarding
-				if (draftOrgs && draftOrgs.length > 0) {
-					// Set organizationId so backend auto-save can work
-					setOrganizationId(draftOrgs[0].id)
-				} else {
-					// New user with no orgs - clear any stale draft data
-					try {
-						localStorage.removeItem("onboarding-draft")
-						localStorage.removeItem("onboarding-draft-timestamp")
-					} catch (e) {
-						// Ignore localStorage errors
-					}
-				}
-			} catch (error) {
-				// Check if it's a network/server error (502, 503, etc.) or auth error
-				const errorMsg = getErrorMessageForLog(error)
-				const isServerError = errorMsg.includes("502") || errorMsg.includes("503") || errorMsg.includes("504") || errorMsg.includes("fetch failed")
-				const isAuthError = errorMsg.includes("Authentication") || errorMsg.includes("authentication") || errorMsg.includes("401") || errorMsg.includes("credentials")
-
-				// Only log unexpected errors, not expected ones (server down, auth issues)
-				if (!isServerError && !isAuthError) {
-					logError(error, { source: "Onboarding", data: { action: "checkOrganization" } })
-				} else {
-					// Log as warning for expected errors (not critical)
-					logWarn(`Expected error in checkUserOrganizations: ${errorMsg}`, {
-						source: "Onboarding",
-						data: { action: "checkUserOrganizations" }
-					})
-				}
-				// Don't block onboarding on error - let user proceed
-			}
-
-			setHasCheckedOrg(true)
+		// Already approved? Go to dashboard
+		if (state === "ready" && approvedOrgId) {
+			router.replace(`/dashboard/${approvedOrgId}`)
+			return
 		}
 
-		checkOrganization()
-	}, [session, isSessionPending, router])
+		// Has pending? Go to pending page
+		if (state === "needs_onboarding" && subState === "has_pending") {
+			router.replace(routes.onboarding.pending)
+			return
+		}
 
-	// Note: Loading state moved to conditional rendering at the end to comply with Rules of Hooks
-	// All hooks must be called before any returns
-
-	// Note: gstDetails useState moved to top of component to fix hooks order error
+		// Set organization ID from hook if available (for draft/rejected orgs)
+		if (targetOrgId && !organizationId) {
+			setOrganizationId(targetOrgId)
+		}
+	}, [state, subState, isStatusLoading, approvedOrgId, targetOrgId, organizationId, router])
 
 	// RHF form setup
 	const {
@@ -218,11 +136,32 @@ export default function OnboardingPage() {
 			verification: {
 				gstNumber: "",
 				gstVerified: false,
-				// ❌ REMOVED: PAN fields - PAN is only for shoppers
 				cinNumber: "",
 			},
 		},
 	})
+
+	// Watch website field for logo preview
+	const websiteValue = watch("basicInfo.website")
+
+	// Extract domain from website URL for logo preview
+	const websiteDomain = React.useMemo(() => {
+		if (!websiteValue) return ""
+		try {
+			// Handle URLs without protocol
+			const urlWithProtocol = websiteValue.startsWith("http") ? websiteValue : `https://${websiteValue}`
+			const url = new URL(urlWithProtocol)
+			// Remove www. prefix if present
+			return url.hostname.replace(/^www\./, "")
+		} catch {
+			// If URL parsing fails, try to extract domain-like string
+			const domainMatch = websiteValue.match(/(?:https?:\/\/)?(?:www\.)?([^\/\s]+)/)
+			return domainMatch ? domainMatch[1] : ""
+		}
+	}, [websiteValue])
+
+	// Fetch logo preview based on domain
+	const logoPreviewQuery = useLogoPreview(websiteDomain)
 
 	// useEffect to scroll to first error field when errors change
 	useEffect(() => {
@@ -256,109 +195,80 @@ export default function OnboardingPage() {
 	// RESUMABLE FORM: Phase 1 - Load Draft on Mount
 	// ============================================================================
 
-	// Load draft from backend and localStorage on mount
 	useEffect(() => {
-		const abortController = new AbortController()
-
 		async function loadDraft() {
 			if (isSessionPending || !session?.user) {
-				if (!abortController.signal.aborted) {
-					setIsLoadingDraft(false)
-				}
+				setIsLoadingDraft(false)
 				return
 			}
 
+			// Wait for orgs data to be loaded
+			const organizations = orgsData?.organizations || []
+
 			try {
-				if (abortController.signal.aborted) return
-				// ✅ OPTIMIZATION: Use cached organizations list
-				const organizations = await getOrganizationsList()
+				// Find draft/pending org
 				const draftOrg = organizations.find(
-					(org): org is auth.OrganizationResponse & { approvalStatus?: string } => 
-						'approvalStatus' in org && 
-						((org as { approvalStatus?: string }).approvalStatus === "draft" || 
-						 (org as { approvalStatus?: string }).approvalStatus === "pending")
+					(org) => org.approvalStatus === "draft" || org.approvalStatus === "pending"
 				)
 
 				if (draftOrg) {
-					// Load draft from backend
-					const { loadOnboardingDraft } = await import("@/features/organizations")
-					const draftResult = await loadOnboardingDraft({ organizationId: draftOrg.id })
-					const backendDraft = draftResult?.data
-
-					if (backendDraft) {
-						if (abortController.signal.aborted) return
-						setOrganizationId(draftOrg.id)
-						reset(backendDraft)
-						setDraftRestored(true)
-						const { logInfo } = await import("@/lib/logging/error-logger-simple")
-						logInfo("Draft restored from backend", { source: "Onboarding" })
-						if (!abortController.signal.aborted) {
-							toast.success("Draft restored", {
-								description: "Continuing where you left off",
-								duration: 3000,
-							})
-							setIsLoadingDraft(false)
-						}
-						return
-					}
+					setOrganizationId(draftOrg.id)
 				}
 
-				// Fallback: Load from localStorage (same device)
-				const savedDraft = localStorage.getItem("onboarding-draft")
+				// Load from localStorage
+				const savedDraft = localStorage.getItem(STORAGE_KEYS.ONBOARDING_DRAFT)
 				if (savedDraft) {
 					try {
-						if (abortController.signal.aborted) return
-						const draft = JSON.parse(savedDraft)
-						reset(draft)
-						setDraftRestored(true)
-						const { logInfo } = await import("@/lib/logging/error-logger-simple")
-						logInfo("Draft restored from localStorage", { source: "Onboarding" })
-						if (!abortController.signal.aborted) {
+						const rawDraft = JSON.parse(savedDraft)
+						// Validate with Zod schema to ensure type safety
+						const parseResult = onboardingDraftSchema.safeParse(rawDraft)
+						if (parseResult.success) {
+							reset(parseResult.data as OnboardingFormInput)
+							setDraftRestored(true)
+							logInfo("Draft restored from localStorage", { source: "Onboarding" })
 							toast.success("Draft restored", {
 								description: "Your progress has been restored",
 								duration: 3000,
 							})
+						} else {
+							logError(new Error("Invalid draft data format"), {
+								source: "Onboarding",
+								data: { action: "validateLocalStorageDraft", errors: parseResult.error.issues }
+							})
+							// Clear invalid draft
+							localStorage.removeItem(STORAGE_KEYS.ONBOARDING_DRAFT)
 						}
 					} catch (e) {
-						if (!abortController.signal.aborted) {
-							const { logError } = await import("@/lib/logging/error-logger-simple")
-							logError(e, { source: "Onboarding", data: { action: "parseLocalStorageDraft" } })
-						}
+						logError(e, { source: "Onboarding", data: { action: "parseLocalStorageDraft" } })
 					}
 				}
 			} catch (error) {
-				if (!abortController.signal.aborted) {
-					const { logError } = await import("@/lib/logging/error-logger-simple")
-					logError(error, { source: "Onboarding", data: { action: "loadDraft" } })
-				}
+				logError(error, { source: "Onboarding", data: { action: "loadDraft" } })
 				// Fallback to localStorage
-				const savedDraft = localStorage.getItem("onboarding-draft")
+				const savedDraft = localStorage.getItem(STORAGE_KEYS.ONBOARDING_DRAFT)
 				if (savedDraft) {
 					try {
-						if (abortController.signal.aborted) return
-						const draft = JSON.parse(savedDraft)
-						reset(draft)
-						setDraftRestored(true)
-					} catch (e) {
-						if (!abortController.signal.aborted) {
-							const { logError: logErr } = await import("@/lib/logging/error-logger-simple")
-							logErr(e, { source: "Onboarding", data: { action: "parseLocalStorageDraftFallback" } })
+						const rawDraft = JSON.parse(savedDraft)
+						// Validate with Zod schema to ensure type safety
+						const parseResult = onboardingDraftSchema.safeParse(rawDraft)
+						if (parseResult.success) {
+							reset(parseResult.data as OnboardingFormInput)
+							setDraftRestored(true)
+						} else {
+							// Clear invalid draft
+							localStorage.removeItem(STORAGE_KEYS.ONBOARDING_DRAFT)
 						}
+					} catch (e) {
+						logError(e, { source: "Onboarding", data: { action: "parseLocalStorageDraftFallback" } })
 					}
 				}
 			} finally {
-				if (!abortController.signal.aborted) {
-					setIsLoadingDraft(false)
-				}
+				setIsLoadingDraft(false)
 			}
 		}
 
 		loadDraft()
-
-		return () => {
-			abortController.abort()
-		}
-	}, [session, isSessionPending, reset])
+	}, [session, isSessionPending, reset, orgsData])
 
 	// ============================================================================
 	// RESUMABLE FORM: Phase 2 - Local Storage Auto-Save
@@ -377,8 +287,8 @@ export default function OnboardingPage() {
 			// Debounce localStorage saves (1 second)
 			timeoutId = setTimeout(() => {
 				try {
-					localStorage.setItem("onboarding-draft", JSON.stringify(value))
-					localStorage.setItem("onboarding-draft-timestamp", Date.now().toString())
+					localStorage.setItem(STORAGE_KEYS.ONBOARDING_DRAFT, JSON.stringify(value))
+					localStorage.setItem(STORAGE_KEYS.ONBOARDING_DRAFT_TIMESTAMP, Date.now().toString())
 					logInfo("Draft saved to localStorage", { source: "Onboarding" })
 				} catch (error) {
 					logError(error, { source: "Onboarding", data: { action: "saveToLocalStorage" } })
@@ -394,184 +304,7 @@ export default function OnboardingPage() {
 		}
 	}, [watch])
 
-	// ============================================================================
-	// RESUMABLE FORM: Phase 3 - Backend Auto-Save
-	// ============================================================================
-
-	// Auto-save to backend (after organization is created, debounced)
-	useEffect(() => {
-		// Only save if organization exists
-		if (!organizationId) return
-
-		let timeoutId: NodeJS.Timeout | null = null
-		let innerTimeoutId: NodeJS.Timeout | null = null
-
-		const subscription = watch(async (value) => {
-			// Clear previous timeout
-			if (timeoutId) {
-				clearTimeout(timeoutId)
-			}
-
-			// Debounce backend saves (3 seconds - less frequent than localStorage)
-			timeoutId = setTimeout(async () => {
-				try {
-					const { saveOnboardingDraft } = await import("@/features/organizations")
-					// Convert OnboardingFormInput to Partial<OrganizationDraft>
-					// OnboardingFormInput matches OrganizationDraft structure but without step
-					const draftData: Partial<OrganizationDraft> = {
-						step: currentStep as 1 | 2 | 3 | 4,
-						...(value.basicInfo && value.basicInfo.name && { 
-							basicInfo: {
-								name: value.basicInfo.name,
-								...(value.basicInfo.description && { description: value.basicInfo.description }),
-								...(value.basicInfo.website && { website: value.basicInfo.website }),
-							}
-						}),
-						...(value.businessDetails && 
-							value.businessDetails.businessType && 
-							value.businessDetails.industryCategory &&
-							value.businessDetails.contactPerson &&
-							value.businessDetails.phone &&
-							value.businessDetails.address &&
-							value.businessDetails.city &&
-							value.businessDetails.state &&
-							value.businessDetails.pinCode && {
-								businessDetails: {
-									businessType: value.businessDetails.businessType as BusinessType,
-									industryCategory: value.businessDetails.industryCategory as IndustryCategory,
-									contactPerson: value.businessDetails.contactPerson,
-									phone: value.businessDetails.phone,
-									address: value.businessDetails.address,
-									city: value.businessDetails.city,
-									state: value.businessDetails.state,
-									pinCode: value.businessDetails.pinCode,
-								}
-							}
-						),
-						...(value.verification && 
-							value.verification.gstNumber && 
-							typeof value.verification.gstVerified === 'boolean' && {
-								verification: {
-									gstNumber: value.verification.gstNumber,
-									gstVerified: value.verification.gstVerified,
-									// ❌ REMOVED: PAN fields - PAN is only for shoppers
-									...(value.verification.cinNumber && { cinNumber: value.verification.cinNumber }),
-								}
-							}
-						),
-					}
-					const result = await saveOnboardingDraft({ organizationId, formData: draftData })
-
-					if (result?.data?.success) {
-						setDraftSaved(true)
-						logInfo("Draft saved to backend", { source: "Onboarding" })
-						// Show subtle toast (only once per session to avoid spam)
-						if (!draftSaved) {
-							toast.success("Draft saved", {
-								description: "Your progress is saved",
-								duration: 2000,
-							})
-						}
-						// Hide indicator after 3 seconds
-						innerTimeoutId = setTimeout(() => {
-							setDraftSaved(false)
-						}, 3000)
-					} else {
-						logError(new Error(result?.serverError || "Unknown error"), {
-							source: "Onboarding",
-							data: { action: "saveDraft" }
-						})
-					}
-				} catch (error) {
-					logError(error, { source: "Onboarding", data: { action: "saveDraftToBackend" } })
-					// Continue with localStorage only
-				}
-			}, 3000)
-		})
-
-		return () => {
-			subscription.unsubscribe()
-			if (timeoutId) {
-				clearTimeout(timeoutId)
-			}
-			if (innerTimeoutId) {
-				clearTimeout(innerTimeoutId)
-			}
-		}
-	}, [watch, organizationId, draftSaved])
-
-	// ============================================================================
-	// RESUMABLE FORM: Create Organization on Step 1 Completion
-	// ============================================================================
-
-	// Create organization when user completes Step 1 (if not already created)
-	useEffect(() => {
-		async function createOrganizationIfNeeded() {
-			// Only create if we're past step 1 and organization doesn't exist
-			if (currentStep < 2 || organizationId) return
-			if (isSessionPending || !session?.user) return
-
-			const formData = getValues()
-			// Only create if basic info is filled
-			if (!formData.basicInfo?.name) return
-
-			try {
-				// ✅ FIX: Only create organization if user is authenticated
-				if (!session?.user) {
-					// User not authenticated yet - skip organization creation
-					// Organization will be created when they submit the form
-					return
-				}
-
-				// ✅ OPTIMIZATION: Use cached organizations list
-				const organizations = await getOrganizationsList()
-				const existingOrg = organizations.find(
-					(org): org is auth.OrganizationResponse & { approvalStatus?: string } => 
-						'approvalStatus' in org && 
-						((org as { approvalStatus?: string }).approvalStatus === "draft" || 
-						 (org as { approvalStatus?: string }).approvalStatus === "pending")
-				)
-
-				if (existingOrg) {
-					setOrganizationId(existingOrg.id)
-					return
-				}
-
-				// Create new organization using custom backend endpoint (auto-sets active org)
-				// Industry Standard: Backend handles Better Auth sync + auto-set
-				const { getEncoreBrowserClient } = await import("@/lib/api/encore-browser")
-				const createOrgClient = getEncoreBrowserClient()
-				const basicOrg = await createOrgClient.organizations.createOrganization({
-					name: formData.basicInfo.name,
-					// Backend auto-sets if user has no active org
-				})
-
-				if (basicOrg?.id) {
-					setOrganizationId(basicOrg.id)
-					// ✅ OPTIMIZATION: Invalidate cache when new org is created
-					setOrganizationsCache(null)
-					// ✅ No need to call setActiveOrganization - backend does it automatically!
-					logInfo("Organization created and auto-set as active", { source: "Onboarding" })
-				}
-			} catch (error) {
-				// ✅ FIX: Check if it's an auth error (expected for unauthenticated users)
-				const errorMsg = getErrorMessageForLog(error)
-				const isAuthError = errorMsg.includes("authentication") || errorMsg.includes("401") || errorMsg.includes("credentials")
-
-				if (!isAuthError) {
-					logError(error, { source: "Onboarding", data: { action: "createOrganizationForDraft" } })
-				} else {
-					logWarn("User not authenticated yet, skipping organization creation", {
-						source: "Onboarding",
-						data: { action: "createOrganizationForDraft" }
-					})
-				}
-				// Continue without backend saving - localStorage will still work
-			}
-		}
-
-		createOrganizationIfNeeded()
-	}, [currentStep, organizationId, session, isSessionPending, getValues])
+	// Using localStorage for draft persistence
 
 	const handleNext = async () => {
 		let isValid = false
@@ -636,128 +369,93 @@ export default function OnboardingPage() {
 
 		setIsVerifyingGst(true)
 		try {
-			// Get or create organization ID if needed
-			let orgId = organizationId
-			
-			if (!orgId) {
-				// ✅ FIX: Only create/fetch organization if user is authenticated
-				if (!session?.user) {
-					throw new Error("Please sign in to verify GST. Authentication is required.")
-				}
-
-				// ✅ OPTIMIZATION: Use cached organizations list
-				const organizations = await getOrganizationsList()
-				const draftOrg = organizations.find(
-					(org): org is auth.OrganizationResponse & { approvalStatus?: string } => 
-						'approvalStatus' in org && 
-						((org as { approvalStatus?: string }).approvalStatus === "draft" || 
-						 (org as { approvalStatus?: string }).approvalStatus === "pending")
-				)
-
-				if (draftOrg) {
-					// Use existing draft organization
-					orgId = draftOrg.id
-					setOrganizationId(draftOrg.id)
-				} else {
-					// Create new draft organization
-					const { getEncoreBrowserClient } = await import("@/lib/api/encore-browser")
-					const gstVerifyClient = getEncoreBrowserClient()
-					const orgName = getValues("basicInfo.name") || "Organization"
-					const newOrg = await gstVerifyClient.organizations.createOrganization({ name: orgName })
-					if (newOrg?.id) {
-						orgId = newOrg.id
-						setOrganizationId(newOrg.id)
-						// ✅ OPTIMIZATION: Invalidate cache when new org is created
-						setOrganizationsCache(null)
-					} else {
-						throw new Error("Failed to create organization for GST verification")
-					}
-				}
-			}
-
-			// Call actual GST verification API (SurePass integration)
-			// Server action will handle setting active organization server-side
 			const { verifyGST } = await import('@/features/organizations')
-			const result = await verifyGST({ gstNumber, organizationId: orgId })
+			const result = await verifyGST({ gstNumber })
 
 			if (result?.data?.success && result.data.gstDetails) {
-				// Success - set verified GST details from SurePass API
-				setGstDetails({
-					legalName: result.data.gstDetails.legalName || "",
-					tradeName: result.data.gstDetails.tradeName || "",
-					status: result.data.gstDetails.gstStatus || "Active",
-					address: result.data.gstDetails.address || "",
-				})
 				setValue("verification.gstVerified", true, { shouldValidate: true })
+				setValue("verification.gstLegalName", result.data.gstDetails.legalName || "")
+				setValue("verification.gstTradeName", result.data.gstDetails.tradeName || "")
+				setValue("verification.gstStatus", result.data.gstDetails.gstStatus || "Active")
+				setValue("verification.gstAddress", result.data.gstDetails.address || "")
 
-				// ✅ AUTO-FILL: Fill address from GST API response
-				if (result.data.gstDetails.address) {
-					setValue("businessDetails.address", result.data.gstDetails.address, { shouldValidate: true })
+				// ✅ AUTO-FILL: Fill address fields from GST API response
+				// Type assertion for extended GST fields that may come from real API
+				const gst = result.data.gstDetails as typeof result.data.gstDetails & {
+					city?: string
+					state?: string
+					stateCode?: string
+					pinCode?: string
+					pincode?: string
+					phone?: string
+					contactPerson?: string
+				}
+				
+				// Auto-fill address
+				if (gst.address) {
+					setValue("businessDetails.address", gst.address, { shouldValidate: true })
+				}
+				// Auto-fill city if available
+				if (gst.city) {
+					setValue("businessDetails.city", gst.city, { shouldValidate: true })
+				}
+				// Auto-fill PIN code if available
+				if (gst.pinCode || gst.pincode) {
+					setValue("businessDetails.pinCode", gst.pinCode || gst.pincode || "", { shouldValidate: true })
+				}
+				// Auto-fill state if available (from stateCode or state field)
+				if (gst.stateCode || gst.state) {
+					const stateName = gst.state || (gst.stateCode ? getStateFromGSTCode(gst.stateCode) : "")
+					if (stateName) {
+						setValue("businessDetails.state", stateName, { shouldValidate: true })
+					}
+				}
+				// Auto-fill contact person if available
+				if (gst.contactPerson) {
+					setValue("businessDetails.contactPerson", gst.contactPerson, { shouldValidate: true })
+				}
+				// Auto-fill phone if available
+				if (gst.phone) {
+					setValue("businessDetails.phone", gst.phone, { shouldValidate: true })
 				}
 
 				toast.success("GST verified successfully. Address auto-filled from GST data.")
 			} else {
-				// Error from API
 				const errorMessage = result?.serverError || "GST verification failed"
 				toast.error(errorMessage)
-				setGstDetails(null)
 				setValue("verification.gstVerified", false, { shouldValidate: true })
+				setValue("verification.gstLegalName", "")
+				setValue("verification.gstTradeName", "")
+				setValue("verification.gstStatus", "")
+				setValue("verification.gstAddress", "")
 			}
 		} catch (error) {
-			// Network or other errors
 			toast.error(getErrorMessage(error, "Failed to verify GST. Please try again."))
-			setGstDetails(null)
 			setValue("verification.gstVerified", false, { shouldValidate: true })
+			setValue("verification.gstLegalName", "")
+			setValue("verification.gstTradeName", "")
+			setValue("verification.gstStatus", "")
+			setValue("verification.gstAddress", "")
 		} finally {
 			setIsVerifyingGst(false)
 		}
 	}
 
-	// ❌ REMOVED: PAN verification for organizations
-	// PAN verification is only for shoppers, not organizations
-	// handleVerifyPan function removed - not needed for organizations
-
-	// Helper function to get state name from GST state code
-	const getStateFromCode = (code: string): string => {
-		const stateCodes: Record<string, string> = {
-			"01": "Jammu & Kashmir",
-			"02": "Himachal Pradesh",
-			"03": "Punjab",
-			"04": "Chandigarh",
-			"05": "Uttarakhand",
-			"06": "Haryana",
-			"07": "Delhi",
-			"08": "Rajasthan",
-			"09": "Uttar Pradesh",
-			"10": "Bihar",
-			"11": "Sikkim",
-			"12": "Arunachal Pradesh",
-			"13": "Nagaland",
-			"14": "Manipur",
-			"15": "Mizoram",
-			"16": "Tripura",
-			"17": "Meghalaya",
-			"18": "Assam",
-			"19": "West Bengal",
-			"20": "Jharkhand",
-			"21": "Odisha",
-			"22": "Chattisgarh",
-			"23": "Madhya Pradesh",
-			"24": "Gujarat",
-			"26": "Dadra & Nagar Haveli and Daman & Diu",
-			"27": "Maharashtra",
-			"28": "Andhra Pradesh",
-			"29": "Karnataka",
-			"30": "Goa",
-			"31": "Lakshadweep",
-			"32": "Kerala",
-			"33": "Tamil Nadu",
-			"34": "Puducherry",
-			"35": "Andaman & Nicobar Islands",
-			"36": "Telangana",
-			"37": "Andhra Pradesh (New)",
-		}
-		return stateCodes[code] || "India"
+	// Reset GST verification to allow editing
+	const handleResetGst = () => {
+		setValue("verification.gstVerified", false, { shouldValidate: true })
+		setValue("verification.gstLegalName", "")
+		setValue("verification.gstTradeName", "")
+		setValue("verification.gstStatus", "")
+		setValue("verification.gstAddress", "")
+		// Clear the GST number so user can enter a new one
+		setValue("verification.gstNumber", "", { shouldValidate: false })
+		// Also clear auto-filled address fields since they came from GST
+		setValue("businessDetails.address", "", { shouldValidate: false })
+		setValue("businessDetails.city", "", { shouldValidate: false })
+		setValue("businessDetails.state", "", { shouldValidate: false })
+		setValue("businessDetails.pinCode", "", { shouldValidate: false })
+		toast.info("GST cleared. Please enter and verify your GST number again.")
 	}
 
 	const onSubmit = async (data: OnboardingFormInput) => {
@@ -772,39 +470,98 @@ export default function OnboardingPage() {
 
 		setIsLoading(true)
 		try {
-			const { submitOnboarding } = await import("@/app/actions")
-			// Map OnboardingFormInput to OrganizationDraft format
-			// Ensure all required fields are present and properly typed
-			if (!data.basicInfo?.name || !data.businessDetails) {
+			const { completeOnboarding } = await import("@/features/organizations")
+			const { getEncoreBrowserClient } = await import("@/lib/api/encore-browser")
+
+			// Ensure all required fields are present
+			if (!data.basicInfo?.name || !data.businessDetails || !data.verification?.gstNumber) {
 				throw new Error("Missing required fields")
 			}
-			const formData: OrganizationDraft = {
-				step: 4 as const,
-				basicInfo: {
-					name: data.basicInfo.name,
-					...(data.basicInfo.description && { description: data.basicInfo.description }),
-					...(data.basicInfo.website && { website: data.basicInfo.website }),
-				},
-				businessDetails: {
-					...data.businessDetails,
-					industryCategory: data.businessDetails.industryCategory as IndustryCategory,
-				},
-				...(data.verification && { verification: data.verification }),
+
+			// ✅ Upload logo if user selected one
+			let uploadedLogoUrl: string | undefined = undefined
+			if (logoFile) {
+				try {
+					logInfo("Uploading organization logo...", { source: "Onboarding" })
+					const uploadClient = getEncoreBrowserClient()
+
+					// Get presigned upload URL
+					const orgIdForUpload = organizationId || "temp-upload"
+					const { uploadUrl, fileUrl } = await uploadClient.storage.requestOrgLogoUploadUrl({
+						filename: logoFile.name,
+						orgId: orgIdForUpload,
+					})
+
+					// Upload file to presigned URL
+					const uploadResponse = await fetch(uploadUrl, {
+						method: "PUT",
+						body: logoFile,
+						headers: {
+							"Content-Type": logoFile.type,
+						},
+					})
+
+					if (!uploadResponse.ok) {
+						throw new Error("Failed to upload logo file")
+					}
+
+					uploadedLogoUrl = fileUrl
+					logInfo("Logo uploaded successfully", { source: "Onboarding", data: { fileUrl } })
+				} catch (logoError) {
+					// Log but don't fail submission if logo upload fails
+					logInfo("Logo upload failed, continuing without logo", {
+						source: "Onboarding",
+						data: { error: getErrorMessage(logoError) }
+					})
+					toast.warning("Logo upload failed", {
+						description: "Your application will be submitted without a logo. You can add it later.",
+						duration: 4000,
+					})
+				}
 			}
-			const result = await submitOnboarding(formData)
+
+			const result = await completeOnboarding({
+				// Basic Info
+				name: data.basicInfo.name,
+				description: data.basicInfo.description || undefined,
+				website: data.basicInfo.website || undefined,
+				logo: uploadedLogoUrl || undefined,
+				// Business Details
+				businessType: data.businessDetails.businessType,
+				industryCategory: data.businessDetails.industryCategory || undefined,
+				contactPerson: data.businessDetails.contactPerson || undefined,
+				phoneNumber: data.businessDetails.phone,
+				// Address
+				address: data.businessDetails.address,
+				city: data.businessDetails.city,
+				state: data.businessDetails.state,
+				postalCode: data.businessDetails.pinCode,
+				// GST - pass verified number AND pre-verified details to skip duplicate SurePass call
+				gstNumber: data.verification.gstNumber,
+				// gstLegalName is required by schema - use verified name or fallback to org name
+				gstLegalName: data.verification.gstLegalName || data.basicInfo.name,
+				gstTradeName: data.verification.gstTradeName || "",
+				// Optional
+				cinNumber: data.verification.cinNumber || "",
+			})
 
 			if (!result?.data?.success) {
 				throw new Error(result?.serverError || "Failed to submit application")
 			}
 
 			// Clear draft data on successful submission
-			localStorage.removeItem("onboarding-draft")
-			localStorage.removeItem("onboarding-draft-timestamp")
-			logInfo("Draft cleared after successful submission", { source: "Onboarding" })
+			clearOnboardingStorage()
+			logInfo("Onboarding completed successfully", {
+				source: "Onboarding",
+				data: {
+					organizationId: result.data.organizationId,
+					approvalStatus: result.data.approvalStatus,
+				}
+			})
 
-			router.push("/onboarding/pending")
+			router.push(routes.onboarding.pending)
 		} catch (error: unknown) {
-			logError(error, { source: "Onboarding", data: { action: "submitOnboarding" } })
+			logError(error, { source: "Onboarding", data: { action: "completeOnboarding" } })
 			// Show error to user using toast (industry standard)
 			toast.error("Submission Failed", {
 				description: getErrorMessage(error, "Failed to submit application. Please try again."),
@@ -824,11 +581,9 @@ export default function OnboardingPage() {
 			action: {
 				label: "Clear",
 				onClick: () => {
-					localStorage.removeItem("onboarding-draft")
-					localStorage.removeItem("onboarding-draft-timestamp")
-					reset()
-					setOrganizationId(null)
-					setDraftRestored(false)
+					clearOnboardingStorage()
+					reset() // React Hook Form reset
+					resetOnboardingStore() // Zustand store reset
 					logInfo("Draft cleared by user", { source: "Onboarding" })
 					toast.success("Draft cleared")
 				},
@@ -837,17 +592,41 @@ export default function OnboardingPage() {
 		})
 	}
 
-	// Show loading while session is pending or org check is in progress
-	if (isSessionPending || !hasCheckedOrg) {
+	// Show loading while checking onboarding status or during redirect
+	if (isStatusLoading || state === "ready" || (state === "needs_onboarding" && subState === "has_pending")) {
 		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="text-paragraph-sm text-text-sub-600">Loading...</div>
+			<div className="flex items-center justify-center min-h-[50vh]">
+				<div className="flex flex-col items-center gap-4">
+					<div className="relative">
+						<div className="animate-spin h-10 w-10 border-3 border-stroke-soft-200 border-t-primary-base rounded-full" />
+					</div>
+					<div className="text-center">
+						<p className="text-label-sm text-text-sub-600">Setting up your account</p>
+						<p className="text-paragraph-xs text-text-soft-400 mt-1">Please wait a moment...</p>
+					</div>
+				</div>
 			</div>
 		)
 	}
 
 	return (
-		<div className="w-full max-w-2xl mx-auto px-4 sm:px-0">
+		<div className="w-full h-full flex flex-col">
+			{/* Rejection Banner - Show if org was rejected */}
+			{state === "needs_onboarding" && subState === "has_rejected" && rejectionReason && (
+				<div className="mb-4 flex items-start gap-3 rounded-lg bg-error-lighter p-4 ring-1 ring-error-base/20">
+					<WarningCircle className="size-5 text-error-base shrink-0 mt-0.5" weight="duotone" />
+					<div className="flex-1 min-w-0">
+						<p className="text-label-sm font-medium text-error-base">Application Rejected</p>
+						<p className="text-paragraph-xs text-text-sub-600 mt-1">
+							{rejectionReason}
+						</p>
+						<p className="text-paragraph-xs text-text-soft-400 mt-2">
+							Please update your information and resubmit for approval.
+						</p>
+					</div>
+				</div>
+			)}
+
 			{/* Draft Status Indicators */}
 			{(draftRestored || draftSaved) && (
 				<div className="mb-4 flex items-center justify-between gap-2 rounded-lg bg-bg-weak-50 p-3 ring-1 ring-stroke-soft-200">
@@ -909,10 +688,20 @@ export default function OnboardingPage() {
 			</div>
 
 			{/* Step Content */}
-			<div className="rounded-xl sm:rounded-2xl bg-bg-white-0 p-4 sm:p-5 lg:p-6 xl:p-8 ring-1 ring-inset ring-stroke-soft-200 shadow-sm">
-				<form id="onboarding-form" onSubmit={handleSubmit(onSubmit)}>
+			<div className="flex-1 rounded-xl sm:rounded-2xl bg-bg-white-0 p-4 sm:p-5 lg:p-6 xl:p-8 ring-1 ring-inset ring-stroke-soft-200 shadow-sm overflow-y-auto">
+				<form id="onboarding-form" onSubmit={handleSubmit(onSubmit)} className="h-full flex flex-col">
 					{currentStep === 1 && (
-						<Step1BasicInfo register={register} control={control} errors={errors} />
+						<Step1BasicInfo
+							register={register}
+							control={control}
+							errors={errors}
+							watch={watch}
+							logoPreview={{
+								data: logoPreviewQuery.data,
+								isLoading: logoPreviewQuery.isLoading,
+							}}
+							onLogoFileChange={setLogoFile}
+						/>
 					)}
 					{currentStep === 2 && (
 						<Step2BusinessAndVerification
@@ -922,8 +711,8 @@ export default function OnboardingPage() {
 							watch={watch}
 							setValue={setValue}
 							getValues={getValues}
-							gstDetails={gstDetails}
-							onVerifyGst={handleVerifyGst}
+									onVerifyGst={handleVerifyGst}
+							onResetGst={handleResetGst}
 							isVerifyingGst={isVerifyingGst}
 						/>
 					)}
@@ -936,8 +725,8 @@ export default function OnboardingPage() {
 						/>
 					)}
 
-					{/* Actions */}
-					<div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-stroke-soft-200">
+					{/* Actions - Always at bottom */}
+					<div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mt-auto pt-4 sm:pt-6 border-t border-stroke-soft-200">
 						<div className="w-full sm:w-auto">
 							{currentStep > 1 && (
 								<BackButton
@@ -956,13 +745,14 @@ export default function OnboardingPage() {
 								<Button.Root
 									type="button"
 									variant="primary"
+									disabled={isVerifyingGst}
 									onClick={(e) => {
 										e.preventDefault()
 										handleNext()
 									}}
 									className="flex-1 sm:flex-initial"
 								>
-									Continue
+									{isVerifyingGst ? "Verifying..." : "Continue"}
 									<Button.Icon>
 										<ArrowRight className="size-5" />
 									</Button.Icon>
@@ -990,9 +780,33 @@ interface Step1Props {
 	register: ReturnType<typeof useForm<OnboardingFormInput>>["register"]
 	control: ReturnType<typeof useForm<OnboardingFormInput>>["control"]
 	errors: ReturnType<typeof useForm<OnboardingFormInput>>["formState"]["errors"]
+	watch: ReturnType<typeof useForm<OnboardingFormInput>>["watch"]
+	logoPreview: {
+		data: { logoUrl: string | null; found: boolean; source: string } | undefined
+		isLoading: boolean
+	}
+	// ✅ FIX: Callback to store logo file for upload on submission
+	onLogoFileChange: (file: File | null) => void
 }
 
-function Step1BasicInfo({ register, control, errors }: Step1Props) {
+function Step1BasicInfo({ register, control, errors, watch, logoPreview, onLogoFileChange }: Step1Props) {
+	const [uploadedLogo, setUploadedLogo] = useState<string | null>(null)
+
+	const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0]
+		if (file) {
+			// Create preview URL for uploaded file
+			const previewUrl = URL.createObjectURL(file)
+			setUploadedLogo(previewUrl)
+			// ✅ FIX: Store file for upload on submission
+			onLogoFileChange(file)
+		}
+	}
+
+	// Show uploaded logo first, then fetched preview from API
+	const fetchedLogoUrl = logoPreview.data?.found ? logoPreview.data.logoUrl : null
+	const displayLogo = uploadedLogo || fetchedLogoUrl
+
 	return (
 		<div className="space-y-4 sm:space-y-6">
 			<div>
@@ -1011,21 +825,61 @@ function Step1BasicInfo({ register, control, errors }: Step1Props) {
 				</Input.Root>
 			</FormField>
 
-			<FormField label="Logo" hint="Recommended: 200x200px">
-				<FileUpload.Root htmlFor="org-logo">
-					<FileUpload.Icon as={CloudArrowUp} />
-					<FileUpload.Button>Choose file</FileUpload.Button>
-					<p className="text-paragraph-xs text-text-soft-400">PNG or JPG, max 2MB</p>
-					<input id="org-logo" type="file" accept="image/*" className="sr-only" />
-				</FileUpload.Root>
-			</FormField>
-
-			<FormField label="Website" error={errors.basicInfo?.website?.message}>
+			<FormField label="Website" error={errors.basicInfo?.website?.message} hint="Enter your website to auto-fetch logo">
 				<Input.Root>
 					<Input.Wrapper>
 						<Input.El {...register("basicInfo.website")} placeholder="https://www.example.com" />
 					</Input.Wrapper>
 				</Input.Root>
+			</FormField>
+
+			<FormField label="Logo" hint="Recommended: 200x200px">
+				<div className="flex flex-col sm:flex-row gap-4 items-start">
+					{/* Logo Preview */}
+					{(displayLogo || logoPreview.isLoading) && (
+						<div className="shrink-0">
+							{logoPreview.isLoading ? (
+								<div className="size-20 rounded-lg bg-bg-weak-50 animate-pulse flex items-center justify-center ring-1 ring-stroke-soft-200">
+									<span className="text-paragraph-xs text-text-soft-400">Loading...</span>
+								</div>
+							) : displayLogo ? (
+								<div className="relative group">
+									<img
+										src={displayLogo}
+										alt="Logo preview"
+										className="size-20 rounded-lg object-contain bg-bg-white-0 ring-1 ring-stroke-soft-200"
+									/>
+									{!uploadedLogo && fetchedLogoUrl && (
+										<div className="absolute -bottom-1 -right-1 bg-primary-base text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+											Auto
+										</div>
+									)}
+								</div>
+							) : null}
+						</div>
+					)}
+
+					{/* File Upload */}
+					<div className="flex-1">
+						<FileUpload.Root htmlFor="org-logo">
+							<FileUpload.Icon as={CloudArrowUp} />
+							<FileUpload.Button>{displayLogo ? "Change logo" : "Choose file"}</FileUpload.Button>
+							<p className="text-paragraph-xs text-text-soft-400">PNG or JPG, max 2MB</p>
+							<input
+								id="org-logo"
+								type="file"
+								accept="image/*"
+								className="sr-only"
+								onChange={handleLogoChange}
+							/>
+						</FileUpload.Root>
+						{!uploadedLogo && fetchedLogoUrl && (
+							<p className="mt-2 text-paragraph-xs text-text-sub-600">
+								Logo auto-fetched from your website. Upload a different one if preferred.
+							</p>
+						)}
+					</div>
+				</div>
 			</FormField>
 
 			<FormField
@@ -1051,8 +905,8 @@ interface Step2CombinedProps {
 	watch: ReturnType<typeof useForm<OnboardingFormInput>>["watch"]
 	setValue: ReturnType<typeof useForm<OnboardingFormInput>>["setValue"]
 	getValues: ReturnType<typeof useForm<OnboardingFormInput>>["getValues"]
-	gstDetails: { legalName: string; tradeName: string; status: string; address: string } | null
 	onVerifyGst: () => void
+	onResetGst: () => void
 	isVerifyingGst: boolean
 }
 
@@ -1063,8 +917,8 @@ function Step2BusinessAndVerification({
 	watch,
 	setValue,
 	getValues,
-	gstDetails,
 	onVerifyGst,
+	onResetGst,
 	isVerifyingGst,
 }: Step2CombinedProps) {
 	const gstNumber = watch("verification.gstNumber")
@@ -1112,19 +966,30 @@ function Step2BusinessAndVerification({
 								</Input.Wrapper>
 							</Input.Root>
 						</div>
-						<Button.Root
-							type="button"
-							variant={gstVerified ? "neutral" : "primary"}
-							onClick={onVerifyGst}
-							disabled={isVerifyingGst || !gstNumber || gstVerified}
-							className="w-full sm:w-auto shrink-0"
-						>
-							{isVerifyingGst ? "Verifying..." : gstVerified ? "Verified" : "Verify GST"}
-						</Button.Root>
+						{gstVerified ? (
+							<Button.Root
+								type="button"
+								variant="neutral"
+								onClick={onResetGst}
+								className="w-full sm:w-auto shrink-0"
+							>
+								Edit
+							</Button.Root>
+						) : (
+							<Button.Root
+								type="button"
+								variant="primary"
+								onClick={onVerifyGst}
+								disabled={isVerifyingGst || !gstNumber}
+								className="w-full sm:w-auto shrink-0"
+							>
+								{isVerifyingGst ? "Verifying..." : "Verify GST"}
+							</Button.Root>
+						)}
 					</div>
 				</FormField>
 
-				{gstDetails && (
+				{watch("verification.gstVerified") && (
 					<div className="mt-4 rounded-xl bg-bg-white-0 p-3 sm:p-4 space-y-2 ring-1 ring-stroke-soft-200">
 						<div className="flex items-center gap-2 text-success-base text-label-sm font-medium">
 							<SealCheck className="size-5" weight="duotone" />
@@ -1133,15 +998,15 @@ function Step2BusinessAndVerification({
 						<div className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 space-y-1.5">
 							<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
 								<span className="font-medium text-text-strong-950 min-w-[100px]">Legal Name:</span>
-								<span className="text-text-strong-950">{gstDetails.legalName}</span>
+								<span className="text-text-strong-950">{watch("verification.gstLegalName")}</span>
 							</div>
 							<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
 								<span className="font-medium text-text-strong-950 min-w-[100px]">Trade Name:</span>
-								<span className="text-text-strong-950">{gstDetails.tradeName}</span>
+								<span className="text-text-strong-950">{watch("verification.gstTradeName")}</span>
 							</div>
 							<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
 								<span className="font-medium text-text-strong-950 min-w-[100px]">Status:</span>
-								<span className="text-success-base font-medium">{gstDetails.status}</span>
+								<span className="text-success-base font-medium">{watch("verification.gstStatus")}</span>
 							</div>
 						</div>
 					</div>
@@ -1236,35 +1101,35 @@ function Step2BusinessAndVerification({
 				label="Address" 
 				required 
 				error={errors.businessDetails?.address?.message}
-				hint={gstDetails?.address ? "Auto-filled from GST verification" : undefined}
+				hint={watch("verification.gstAddress") ? "Auto-filled from GST verification" : undefined}
 			>
 				<Input.Root>
 					<Input.Wrapper>
 						<Input.El
 							{...register("businessDetails.address")}
 							placeholder="123, Tech Park, Sector 5"
-							disabled={!!gstDetails?.address}
+							disabled={!!watch("verification.gstAddress")}
 						/>
 					</Input.Wrapper>
 				</Input.Root>
 			</FormField>
 
 			<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-				<FormField label="City" required error={errors.businessDetails?.city?.message}>
-					<Input.Root>
-						<Input.Wrapper>
-							<Input.El {...register("businessDetails.city")} placeholder="Bengaluru" />
-						</Input.Wrapper>
-					</Input.Root>
-				</FormField>
 				<FormField label="State" required error={errors.businessDetails?.state?.message}>
 					<Controller
 						name="businessDetails.state"
 						control={control}
 						render={({ field }) => (
-							<Select.Root value={field.value} onValueChange={field.onChange}>
+							<Select.Root
+								value={field.value}
+								onValueChange={(value) => {
+									field.onChange(value)
+									// Clear city when state changes (city dropdown will repopulate)
+									setValue("businessDetails.city", "", { shouldValidate: false })
+								}}
+							>
 								<Select.Trigger>
-									<Select.Value placeholder="Select" />
+									<Select.Value placeholder="Select state" />
 								</Select.Trigger>
 								<Select.Content>
 									{INDIAN_STATES.map((state) => (
@@ -1275,6 +1140,50 @@ function Step2BusinessAndVerification({
 								</Select.Content>
 							</Select.Root>
 						)}
+					/>
+				</FormField>
+				<FormField label="City" required error={errors.businessDetails?.city?.message}>
+					<Controller
+						name="businessDetails.city"
+						control={control}
+						render={({ field }) => {
+							const selectedState = watch("businessDetails.state")
+							const cities = selectedState ? getCitiesOfState(selectedState) : []
+							const hasNoCities = selectedState && cities.length === 0
+
+							// If state is selected but has no cities in database, show input field
+							if (hasNoCities) {
+								return (
+									<Input.Root>
+										<Input.Wrapper>
+											<Input.El
+												{...field}
+												placeholder="Enter city name"
+											/>
+										</Input.Wrapper>
+									</Input.Root>
+								)
+							}
+
+							return (
+								<Select.Root
+									value={field.value}
+									onValueChange={field.onChange}
+									disabled={!selectedState}
+								>
+									<Select.Trigger>
+										<Select.Value placeholder={selectedState ? "Select city" : "Select state first"} />
+									</Select.Trigger>
+									<Select.Content>
+										{cities.map((city) => (
+											<Select.Item key={city} value={city}>
+												{city}
+											</Select.Item>
+										))}
+									</Select.Content>
+								</Select.Root>
+							)
+						}}
 					/>
 				</FormField>
 				<FormField label="PIN Code" required error={errors.businessDetails?.pinCode?.message}>
@@ -1332,8 +1241,6 @@ function Step3Review({ watch, onEdit, termsAccepted, onTermsChange }: Step3Revie
 					Please verify all details before submitting
 				</p>
 			</div>
-
-			{/* Basic Information */}
 
 			{/* Basic Information */}
 			<div className="rounded-xl ring-1 ring-inset ring-stroke-soft-200 p-4 sm:p-5">
@@ -1422,8 +1329,7 @@ function Step3Review({ watch, onEdit, termsAccepted, onTermsChange }: Step3Revie
 							)}
 						</div>
 					</div>
-					{/* ❌ REMOVED: PAN display - PAN is only for shoppers, not organizations */}
-				</div>
+					</div>
 			</div>
 
 			{/* Terms Agreement */}

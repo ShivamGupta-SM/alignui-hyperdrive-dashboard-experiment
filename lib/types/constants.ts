@@ -1,19 +1,20 @@
-// Cache times (in milliseconds)
-export const STALE_TIMES = {
-	// Data that changes frequently (30 seconds)
-	REALTIME: 30 * 1000,
-	// Standard data (1 minute)
-	STANDARD: 60 * 1000,
-	// Data that rarely changes (5 minutes)
-	STATIC: 5 * 60 * 1000,
-} as const
+/**
+ * UI/Business Logic Constants
+ *
+ * SSOT references:
+ * - Query caching (STALE_TIME, PAGE_SIZE) → @/lib/utils/query-config
+ * - GST codes, campaign constants → @/lib/constants
+ * - Validation constants → @/lib/utils/validations
+ */
+
+import { PAGE_SIZE } from "@/lib/utils/query-config"
+import { THRESHOLDS as BASE_THRESHOLDS, LIMITS as BASE_LIMITS } from "@/lib/constants"
 
 // Business Logic Thresholds
+// Extended from @/lib/constants THRESHOLDS (SSOT)
 export const THRESHOLDS = {
-	// Hours after which an enrollment is considered overdue
-	ENROLLMENT_OVERDUE_HOURS: 48,
-	// Minimum wallet balance warning threshold (in rupees)
-	LOW_BALANCE_WARNING: 50000,
+	// SSOT: From @/lib/constants
+	ENROLLMENT_OVERDUE_HOURS: BASE_THRESHOLDS.ENROLLMENT_OVERDUE_HOURS,
 	// Password strength minimum for signup
 	MIN_PASSWORD_STRENGTH: 50,
 	// Approval rate threshold for positive delta display
@@ -22,45 +23,6 @@ export const THRESHOLDS = {
 	LOW_REJECTION_RATE: 15,
 	// Order value threshold for "high value" enrollments (in rupees)
 	HIGH_VALUE_ORDER: 25000,
-} as const
-
-// GST State Codes Mapping
-export const GST_STATE_CODES: Record<string, string> = {
-	"01": "Jammu & Kashmir",
-	"02": "Himachal Pradesh",
-	"03": "Punjab",
-	"04": "Chandigarh",
-	"05": "Uttarakhand",
-	"06": "Haryana",
-	"07": "Delhi",
-	"08": "Rajasthan",
-	"09": "Uttar Pradesh",
-	"10": "Bihar",
-	"11": "Sikkim",
-	"12": "Arunachal Pradesh",
-	"13": "Nagaland",
-	"14": "Manipur",
-	"15": "Mizoram",
-	"16": "Tripura",
-	"17": "Meghalaya",
-	"18": "Assam",
-	"19": "West Bengal",
-	"20": "Jharkhand",
-	"21": "Odisha",
-	"22": "Chhattisgarh",
-	"23": "Madhya Pradesh",
-	"24": "Gujarat",
-	"26": "Dadra and Nagar Haveli and Daman and Diu",
-	"27": "Maharashtra",
-	"29": "Karnataka",
-	"30": "Goa",
-	"31": "Lakshadweep",
-	"32": "Kerala",
-	"33": "Tamil Nadu",
-	"34": "Puducherry",
-	"35": "Andaman and Nicobar Islands",
-	"36": "Telangana",
-	"37": "Andhra Pradesh",
 } as const
 
 // Marketing Statistics (for landing page)
@@ -72,13 +34,13 @@ export const MARKETING_STATS = [
 ] as const
 
 // Time Duration Constants (in days unless otherwise noted)
+// SSOT: This is the source of truth for time-based constants
+// Note: CAMPAIGN_ENDING_SOON_DAYS is in @/lib/constants (SSOT for campaign constants)
 export const DURATIONS = {
 	// Session expiration in days
 	SESSION_EXPIRY_DAYS: 30,
 	// Team invitation expiration in days
 	INVITATION_EXPIRY_DAYS: 7,
-	// Days before campaign end to show "ending soon" warning
-	CAMPAIGN_ENDING_SOON_DAYS: 7,
 	// Default deadline for change requests in days
 	CHANGE_REQUEST_DEADLINE_DAYS: 7,
 	// Weeks of trend data to display
@@ -92,69 +54,22 @@ export const DURATIONS = {
 } as const
 
 // Pagination & List Limits
+// Extended from @/lib/constants LIMITS (SSOT)
 export const LIMITS = {
 	// Default page size for lists
-	DEFAULT_PAGE_SIZE: 20,
+	DEFAULT_PAGE_SIZE: PAGE_SIZE.DEFAULT,
 	// Pending enrollments limit on dashboard
 	PENDING_ENROLLMENTS_LIMIT: 10,
 	// Team members page size
-	TEAM_MEMBERS_PAGE_SIZE: 20,
+	TEAM_MEMBERS_PAGE_SIZE: PAGE_SIZE.SMALL,
 	// Category products page size
-	CATEGORY_PRODUCTS_PAGE_SIZE: 20,
+	CATEGORY_PRODUCTS_PAGE_SIZE: PAGE_SIZE.SMALL,
 	// Number of 2FA backup codes to generate
 	BACKUP_CODES_COUNT: 10,
-	// QR code size in pixels
-	QR_CODE_SIZE: 200,
+	// SSOT: From @/lib/constants
+	QR_CODE_SIZE: BASE_LIMITS.QR_CODE_SIZE,
 	// Rating stars count
 	RATING_STARS_COUNT: 5,
-} as const
-
-// Validation Boundaries
-// ⚠️ DEPRECATED: Use VALIDATION_CONSTANTS from @/lib/validations instead
-// This is kept for backward compatibility but will be removed in future
-// Import from validations.ts: import { VALIDATION_CONSTANTS } from "@/lib/utils/validations"
-import { VALIDATION_CONSTANTS } from "@/lib/utils/validations"
-
-export const VALIDATION = {
-	// Password
-	PASSWORD_MIN_LENGTH: VALIDATION_CONSTANTS.PASSWORD_MIN_LENGTH,
-	PASSWORD_SIMPLE_MIN_LENGTH: VALIDATION_CONSTANTS.PASSWORD_SIMPLE_MIN_LENGTH,
-	// Names
-	NAME_MIN_LENGTH: VALIDATION_CONSTANTS.NAME_MIN_LENGTH,
-	NAME_MAX_LENGTH: VALIDATION_CONSTANTS.NAME_MAX_LENGTH,
-	// Organization
-	ORG_NAME_MAX_LENGTH: VALIDATION_CONSTANTS.ORG_NAME_MAX_LENGTH,
-	// Product
-	PRODUCT_NAME_MIN_LENGTH: VALIDATION_CONSTANTS.PRODUCT_NAME_MIN_LENGTH,
-	PRODUCT_NAME_MAX_LENGTH: VALIDATION_CONSTANTS.PRODUCT_NAME_MAX_LENGTH,
-	PRODUCT_DESCRIPTION_MAX_LENGTH: VALIDATION_CONSTANTS.PRODUCT_DESCRIPTION_MAX_LENGTH,
-	// Campaign
-	CAMPAIGN_TITLE_MIN_LENGTH: VALIDATION_CONSTANTS.CAMPAIGN_TITLE_MIN_LENGTH,
-	CAMPAIGN_TITLE_MAX_LENGTH: VALIDATION_CONSTANTS.CAMPAIGN_TITLE_MAX_LENGTH,
-	CAMPAIGN_DESCRIPTION_MAX_LENGTH: VALIDATION_CONSTANTS.CAMPAIGN_DESCRIPTION_MAX_LENGTH,
-	// Enrollments
-	MAX_ENROLLMENTS_MIN: VALIDATION_CONSTANTS.MAX_ENROLLMENTS_MIN,
-	MAX_ENROLLMENTS_MAX: VALIDATION_CONSTANTS.MAX_ENROLLMENTS_MAX,
-	// Bill rate percentage (0-100)
-	BILL_RATE_MIN: 0,
-	BILL_RATE_MAX: 100,
-	// Submission deadline in days
-	SUBMISSION_DEADLINE_MIN_DAYS: VALIDATION_CONSTANTS.SUBMISSION_DEADLINE_MIN_DAYS,
-	SUBMISSION_DEADLINE_MAX_DAYS: VALIDATION_CONSTANTS.SUBMISSION_DEADLINE_MAX_DAYS,
-	// Wallet amounts (in rupees)
-	MIN_WITHDRAWAL_AMOUNT: VALIDATION_CONSTANTS.MIN_WITHDRAWAL_AMOUNT,
-	MIN_ADD_FUNDS_AMOUNT: VALIDATION_CONSTANTS.MIN_ADD_FUNDS_AMOUNT,
-	CREDIT_REQUEST_MIN: VALIDATION_CONSTANTS.CREDIT_REQUEST_MIN,
-	CREDIT_REQUEST_MAX: VALIDATION_CONSTANTS.CREDIT_REQUEST_MAX,
-	CREDIT_LIMIT_REQUEST_MIN: VALIDATION_CONSTANTS.CREDIT_LIMIT_REQUEST_MIN,
-	CREDIT_LIMIT_REQUEST_MAX: VALIDATION_CONSTANTS.CREDIT_LIMIT_REQUEST_MAX,
-	// Bank account
-	BANK_ACCOUNT_MIN_LENGTH: VALIDATION_CONSTANTS.BANK_ACCOUNT_NUMBER_MIN_LENGTH,
-	BANK_ACCOUNT_MAX_LENGTH: VALIDATION_CONSTANTS.BANK_ACCOUNT_NUMBER_MAX_LENGTH,
-	// 2FA code length
-	TWO_FA_CODE_LENGTH: VALIDATION_CONSTANTS.TWO_FA_CODE_LENGTH,
-	// Phone number digits
-	PHONE_NUMBER_LENGTH: 10,
 } as const
 
 // Campaign Statistics

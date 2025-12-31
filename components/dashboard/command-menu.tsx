@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useRouter, useParams } from "next/navigation"
 import * as Command from "@/components/ui/navigation/command-menu"
+import * as Kbd from "@/components/ui/primitives/kbd"
 import {
 	Plus,
 	ShoppingBag,
@@ -10,12 +11,10 @@ import {
 	Wallet,
 	House,
 	Megaphone,
-	FileText,
-	UsersThree,
 	Gear,
 	MagnifyingGlass,
-	Clock,
 } from "@phosphor-icons/react"
+import { routes } from "@/lib/routes"
 
 interface CommandMenuProps {
 	open: boolean
@@ -52,6 +51,11 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
 		}
 	}
 
+	// Early return if no orgId - command menu requires org context
+	if (!orgId) {
+		return null
+	}
+
 	return (
 		<Command.Dialog open={open} onOpenChange={onOpenChange}>
 			<Command.DialogTitle className="sr-only">Command Menu</Command.DialogTitle>
@@ -67,83 +71,81 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
 					value={search}
 					onValueChange={setSearch}
 				/>
-				<kbd className="hidden sm:flex items-center gap-0.5 text-paragraph-xs text-text-soft-400">
-					<span className="text-label-xs">⌘</span>K
-				</kbd>
+				<Kbd.Root className="hidden sm:flex">⌘K</Kbd.Root>
 			</div>
 
 			<Command.List>
 				{/* Quick Actions */}
 				<Command.Group heading="Quick Actions">
-					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/campaigns/create`)}>
+					<Command.Item onSelect={() => handleSelect(routes.dashboard.campaigns.create(orgId))}>
 						<Command.ItemIcon as={Plus} />
 						<span className="flex-1">Create new campaign</span>
-						<kbd className="text-paragraph-xs text-text-soft-400">⌘N</kbd>
+						<Kbd.Root>⌘N</Kbd.Root>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/products/new`)}>
+					<Command.Item onSelect={() => handleSelect(routes.dashboard.products.create(orgId))}>
 						<Command.ItemIcon as={ShoppingBag} />
 						<span className="flex-1">Add new product</span>
-						<kbd className="text-paragraph-xs text-text-soft-400">⌘P</kbd>
+						<Kbd.Root>⌘P</Kbd.Root>
 					</Command.Item>
 					<Command.Item onSelect={() => handleAction("invite-team")}>
 						<Command.ItemIcon as={UserPlus} />
 						<span className="flex-1">Invite team member</span>
-						<kbd className="text-paragraph-xs text-text-soft-400">⌘I</kbd>
+						<Kbd.Root>⌘I</Kbd.Root>
 					</Command.Item>
 					<Command.Item onSelect={() => handleAction("fund-wallet")}>
 						<Command.ItemIcon as={Wallet} />
 						<span className="flex-1">Add funds to wallet</span>
-						<kbd className="text-paragraph-xs text-text-soft-400">⌘F</kbd>
+						<Kbd.Root>⌘F</Kbd.Root>
 					</Command.Item>
 				</Command.Group>
 
 				{/* Navigation */}
 				<Command.Group heading="Navigation">
-					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}`)}>
+					<Command.Item onSelect={() => handleSelect(routes.dashboard.home(orgId))}>
 						<Command.ItemIcon as={House} />
 						<span className="flex-1">Go to Dashboard</span>
-						<kbd className="text-paragraph-xs text-text-soft-400">⌘1</kbd>
+						<Kbd.Root>⌘1</Kbd.Root>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/campaigns`)}>
+					<Command.Item onSelect={() => handleSelect(routes.dashboard.campaigns.list(orgId))}>
 						<Command.ItemIcon as={Megaphone} />
 						<span className="flex-1">Go to Campaigns</span>
-						<kbd className="text-paragraph-xs text-text-soft-400">⌘2</kbd>
+						<Kbd.Root>⌘2</Kbd.Root>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/enrollments`)}>
+					<Command.Item onSelect={() => handleSelect(routes.dashboard.enrollments.list(orgId))}>
 						<Command.ItemIcon as={UserPlus} />
 						<span className="flex-1">Go to Enrollments</span>
-						<kbd className="text-paragraph-xs text-text-soft-400">⌘3</kbd>
+						<Kbd.Root>⌘3</Kbd.Root>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/products`)}>
+					<Command.Item onSelect={() => handleSelect(routes.dashboard.products.list(orgId))}>
 						<Command.ItemIcon as={ShoppingBag} />
 						<span className="flex-1">Go to Products</span>
-						<kbd className="text-paragraph-xs text-text-soft-400">⌘4</kbd>
+						<Kbd.Root>⌘4</Kbd.Root>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/wallet`)}>
+					<Command.Item onSelect={() => handleSelect(routes.dashboard.wallet(orgId))}>
 						<Command.ItemIcon as={Wallet} />
 						<span className="flex-1">Go to Wallet</span>
-						<kbd className="text-paragraph-xs text-text-soft-400">⌘5</kbd>
+						<Kbd.Root>⌘5</Kbd.Root>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/settings`)}>
+					<Command.Item onSelect={() => handleSelect(routes.dashboard.settings(orgId))}>
 						<Command.ItemIcon as={Gear} />
 						<span className="flex-1">Go to Settings</span>
-						<kbd className="text-paragraph-xs text-text-soft-400">⌘,</kbd>
+						<Kbd.Root>⌘,</Kbd.Root>
 					</Command.Item>
 				</Command.Group>
 
-				{/* Recent */}
+				{/* Recent - using route helpers for consistency */}
 				<Command.Group heading="Recent">
-					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/campaigns/1`)}>
+					<Command.Item onSelect={() => handleSelect(routes.dashboard.campaigns.detail(orgId, "1"))}>
 						<Command.ItemIcon as={Megaphone} />
 						<span className="flex-1">Summer Sale Campaign</span>
 						<span className="text-paragraph-xs text-text-soft-400">Campaign</span>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/enrollments/1`)}>
+					<Command.Item onSelect={() => handleSelect(routes.dashboard.enrollments.detail(orgId, "1"))}>
 						<Command.ItemIcon as={UserPlus} />
 						<span className="flex-1">Rahul Mehta - Enrollment</span>
 						<span className="text-paragraph-xs text-text-soft-400">Enrollment</span>
 					</Command.Item>
-					<Command.Item onSelect={() => handleSelect(`/dashboard/${orgId}/products/1`)}>
+					<Command.Item onSelect={() => handleSelect(routes.dashboard.products.detail(orgId, "1"))}>
 						<Command.ItemIcon as={ShoppingBag} />
 						<span className="flex-1">Wireless Earbuds Max</span>
 						<span className="text-paragraph-xs text-text-soft-400">Product</span>

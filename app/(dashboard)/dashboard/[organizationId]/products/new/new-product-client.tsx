@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
+import { routes } from "@/lib/routes"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import Link from "next/link"
@@ -23,17 +25,17 @@ import {
 	CheckCircle,
 	X,
 	Lightbulb,
-	Warning,
 } from "@phosphor-icons/react"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import { useLocalStorage } from "@/hooks/state"
 import { CalloutWithActions } from "@/components/ui/feedback/callout"
+import { OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
 import { nanoid } from "nanoid"
 import { createProduct } from "@/features/products"
 import { toast } from "sonner"
 import { getErrorMessage } from "@/lib/utils/format"
 import { productFormSchema, type ProductFormInput } from "@/lib/utils/validations"
-import type { products } from "@/lib/api/encore-browser"
+import type { products } from "@/brand-client"
 
 type ProductCategory = products.ProductCategory
 
@@ -44,8 +46,7 @@ interface NewProductClientProps {
 // URL-based multi-tenancy: Get organizationId from URL params
 export function NewProductClient({ categories }: NewProductClientProps) {
 	const router = useRouter()
-	const params = useParams<{ organizationId: string }>()
-	const organizationId = params.organizationId
+	const { organizationId } = useCurrentOrganization()
 
 	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
 		"new-product-onboarding-alert-dismissed",
@@ -71,7 +72,7 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 								<Button.Root
 									variant="primary"
 									size="small"
-									onClick={() => router.push("/onboarding")}
+									onClick={() => router.push(routes.onboarding.root)}
 								>
 									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
 									Start Onboarding
@@ -99,25 +100,9 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 
 				{/* EMPTY STATE */}
 				{dismissedOnboardingAlert && (
-					<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-8 sm:p-12 text-center">
-						<div className="max-w-md mx-auto space-y-4">
-							<div className="flex justify-center">
-								<div className="flex size-16 items-center justify-center rounded-full bg-warning-lighter">
-									<Warning weight="duotone" className="size-8 text-warning-base" />
-								</div>
-							</div>
-							<div>
-								<h3 className="text-title-h6 text-text-strong-950">Organization Setup Required</h3>
-								<p className="text-paragraph-sm text-text-sub-600 mt-2">
-									Complete your organization setup to add products.
-								</p>
-							</div>
-							<Button.Root variant="primary" size="medium" onClick={() => router.push("/onboarding")}>
-								<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-								Start Onboarding
-							</Button.Root>
-						</div>
-					</div>
+					<OrganizationSetupRequiredEmptyState
+						description="Complete your organization setup to add products."
+					/>
 				)}
 			</div>
 		)
@@ -172,7 +157,7 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 					platformId: data.platformId || "amazon",
 					price: data.price || 0,
 					productLink: data.productLink || "",
-					productImages: uploadedImage ? [uploadedImage] : undefined,
+					productImages: uploadedImage ? [{ imageUrl: uploadedImage, isPrimary: true }] : undefined,
 				})
 
 				toast.success("Product created successfully")
@@ -187,7 +172,7 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 						description: "Please complete onboarding and wait for admin approval before adding products.",
 						action: {
 							label: "Go to Onboarding",
-							onClick: () => router.push("/onboarding")
+							onClick: () => router.push(routes.onboarding.root)
 						},
 						duration: 8000
 					})

@@ -5,8 +5,9 @@
  */
 
 import { cookies } from "next/headers"
-import { getEncoreClient, getAuthenticatedEncoreClient } from "@/lib/api/encore"
+import { getEncoreClient, getAuthenticatedEncoreClient } from "@/lib/api/server"
 import { initServerMocks } from "@/lib/init-mocks-server"
+import { getAuthTokenFromCookies } from "@/lib/constants"
 
 // Initialize MSW before any fetch calls (only in development with mocking enabled)
 if (typeof window === "undefined" && process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
@@ -17,6 +18,7 @@ if (typeof window === "undefined" && process.env.NODE_ENV === "development" && p
 
 /**
  * Get authenticated Encore client using auth-token from cookies
+ * SSOT: Uses AUTH_COOKIE_NAMES from @/lib/constants
  */
 export async function getAuthClient() {
 	// Ensure MSW is initialized before making fetch calls
@@ -25,7 +27,8 @@ export async function getAuthClient() {
 	}
 
 	const cookieStore = await cookies()
-	const token = cookieStore.get("auth-token")?.value
+	// SSOT: Use centralized cookie name checking
+	const token = getAuthTokenFromCookies((name) => cookieStore.get(name)?.value)
 
 	if (token) {
 		return getAuthenticatedEncoreClient(token)

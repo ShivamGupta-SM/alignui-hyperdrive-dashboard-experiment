@@ -1,7 +1,8 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 import { getCategoriesData } from "@/features/products/ssr"
 import { NewProductClient } from "./new-product-client"
-import type { products } from "@/lib/api/encore-client"
+import type { products } from "@/brand-client"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
 
 export const metadata: Metadata = {
@@ -13,8 +14,7 @@ export const metadata: Metadata = {
 	},
 }
 
-export default async function NewProductPage() {
-	// Industry Standard: Fetch data, let context handle organization state
+async function NewProductData() {
 	let categories: products.ProductCategory[] = []
 	try {
 		categories = await getCategoriesData()
@@ -23,6 +23,13 @@ export default async function NewProductPage() {
 		categories = []
 	}
 
-	// Industry Standard: Don't pass hasOrganization prop - use context instead
 	return <NewProductClient categories={categories} />
+}
+
+export default async function NewProductPage() {
+	return (
+		<Suspense fallback={<div className="p-8">Loading...</div>}>
+			<NewProductData />
+		</Suspense>
+	)
 }

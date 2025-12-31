@@ -1,19 +1,15 @@
-import type { Metadata } from "next"
+"use client"
+
 import Link from "next/link"
 import * as Button from "@/components/ui/primitives/button"
-
-export const metadata: Metadata = {
-  title: "404 - Page Not Found | Hypedrive",
-  description: "The page you're looking for doesn't exist or has been moved.",
-}
-
 import {
 	House,
 	ArrowRight,
 	MagnifyingGlass,
 	Compass,
 	Headset,
-} from "@phosphor-icons/react/dist/ssr"
+} from "@phosphor-icons/react"
+import { routes } from "@/lib/routes"
 
 export default function NotFound() {
 	return (
@@ -29,7 +25,7 @@ export default function NotFound() {
 					</span>
 				</Link>
 				<Button.Root variant="ghost" size="small" asChild>
-					<Link href="/sign-in">Sign In</Link>
+					<Link href={routes.auth.signIn}>Sign In</Link>
 				</Button.Root>
 			</header>
 
@@ -67,7 +63,7 @@ export default function NotFound() {
 						{/* Actions */}
 						<div className="flex flex-col sm:flex-row gap-3 mb-6 sm:mb-8">
 							<Button.Root variant="primary" size="medium" asChild className="flex-1 h-11">
-								<Link href="/dashboard">
+								<Link href={routes.dashboard.root}>
 									<Button.Icon>
 										<House className="size-5" />
 									</Button.Icon>

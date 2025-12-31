@@ -1,73 +1,20 @@
 // Dashboard Types
+// Re-export from Encore (source of truth) for backwards compatibility
 
-export interface DashboardStats {
-	// Wallet
-	walletBalance: number
-	heldAmount: number
-	avgDailySpend: number
-	lowBalanceThreshold: number
-	// Campaigns
-	totalCampaigns: number
-	activeCampaigns: number
-	draftCampaigns: number
-	pausedCampaigns: number
-	completedCampaigns: number
-	endingSoon: number
-	// Enrollments
-	totalEnrollments: number
-	pendingEnrollments: number
-	approvedEnrollments: number
-	rejectedEnrollments: number
-	overdueEnrollments: number
-	highValuePending: number
-	// Trends
-	enrollmentTrend: number
-	approvalRateTrend: number
-}
+import type { organizations } from "@/brand-client"
 
-export interface EnrollmentChartData {
-	date: string
-	enrollments: number
-	approved: number
-	rejected: number
-	pending: number
-}
+// Re-export Encore types as source of truth
+export type DashboardOverviewResponse = organizations.DashboardOverviewResponse
+export type DashboardStats = organizations.DashboardStats
+export type TopCampaign = organizations.TopCampaign
+export type PendingEnrollmentItem = organizations.PendingEnrollmentItem
+export type EnrollmentChartDataPoint = organizations.EnrollmentChartDataPoint
+export type EnrollmentDistribution = organizations.EnrollmentDistribution
 
-export interface TopCampaign {
-	id: string
-	name: string
-	productImage: string | null
-	enrollments: number
-	approvalRate: number
-	status: "active" | "ending" | "paused"
-	daysLeft: number
-}
+// Alias for backwards compatibility
+export type EnrollmentChartData = EnrollmentChartDataPoint
 
-export interface EnrollmentDistribution {
-	total: number
-	approved: number
-	rejected: number
-	pending: number
-}
-
-export interface PendingEnrollmentItem {
-	id: string
-	orderId: string
-	orderValue: number
-	createdAt: string
-	campaign: {
-		id: string
-		title: string
-		product: {
-			image: string | null
-		} | null
-	}
-	shopper: {
-		id: string
-		name: string
-	}
-}
-
+// Frontend-only type for activity feed (not in backend yet)
 export interface RecentActivity {
 	id: string
 	type: "campaign" | "enrollment" | "wallet" | "team"
@@ -76,11 +23,7 @@ export interface RecentActivity {
 	timestamp: Date
 }
 
-export interface DashboardData {
-	stats: DashboardStats
-	enrollmentChart: EnrollmentChartData[]
-	topCampaigns: TopCampaign[]
-	enrollmentDistribution: EnrollmentDistribution
-	pendingEnrollments: PendingEnrollmentItem[]
+// Composite type for dashboard data (matches DashboardOverviewResponse)
+export type DashboardData = DashboardOverviewResponse & {
 	recentActivity?: RecentActivity[]
 }

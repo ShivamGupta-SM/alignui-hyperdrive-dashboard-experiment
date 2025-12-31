@@ -3,7 +3,7 @@
 import * as React from "react"
 
 import * as Divider from "@/components/ui/layout/divider"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import { ArrowUp, ArrowDown, ArrowsDownUp } from "@phosphor-icons/react"
 import { Skeleton } from "@/components/ui/primitives/skeleton"
 

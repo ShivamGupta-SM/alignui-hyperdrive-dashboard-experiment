@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
 
+// Auth pages require dynamic rendering
+export const dynamic = "force-dynamic"
+
 export default async function AuthPage({
 	params,
 }: {

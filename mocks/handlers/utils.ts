@@ -10,14 +10,14 @@
 import { HttpResponse } from "msw"
 
 // Import Encore types for type safety
+// Note: Import from brand-client, not encore-browser, for proper type access
 import type {
 	wallets,
 	organizations,
 	campaigns,
 	enrollments,
 	products,
-	invoices,
-} from "@/lib/api/encore-browser"
+} from "@/brand-client"
 
 // =============================================================================
 // ENCORE URL HELPER
@@ -108,8 +108,8 @@ export function encoreUnauthorizedResponse(message: string) {
 // These enforce EXACT Encore types at compile time - NO EXCEPTIONS
 // =============================================================================
 
-/** Type-safe Wallet response */
-export function typedWalletResponse(wallet: wallets.OrganizationWalletResponse) {
+/** Type-safe Wallet response (OrganizationWalletResponse is in organizations namespace) */
+export function typedWalletResponse(wallet: organizations.OrganizationWalletResponse) {
 	return HttpResponse.json(wallet)
 }
 
@@ -123,8 +123,8 @@ export function typedTransactionListResponse(
 	return encoreListResponse(data, total, skip, take)
 }
 
-/** Type-safe ActiveHold list */
-export function typedHoldsResponse(holds: { holds: wallets.ActiveHold[] }) {
+/** Type-safe ActiveHold list (ActiveHold is in organizations namespace) */
+export function typedHoldsResponse(holds: { holds: organizations.ActiveHold[] }) {
 	return HttpResponse.json(holds)
 }
 
@@ -148,14 +148,14 @@ export function typedOrganizationListResponse(
 	return encoreListResponse(data, total, skip, take)
 }
 
-/** Type-safe Campaign response */
-export function typedCampaignResponse(campaign: campaigns.CampaignWithStats) {
+/** Type-safe Campaign response (CampaignWithStats is in organizations namespace) */
+export function typedCampaignResponse(campaign: organizations.CampaignWithStats) {
 	return HttpResponse.json(campaign)
 }
 
 /** Type-safe Campaign list */
 export function typedCampaignListResponse(
-	data: campaigns.CampaignWithStats[],
+	data: organizations.CampaignWithStats[],
 	total: number,
 	skip: number,
 	take: number
@@ -163,14 +163,14 @@ export function typedCampaignListResponse(
 	return encoreListResponse(data, total, skip, take)
 }
 
-/** Type-safe Enrollment response */
-export function typedEnrollmentResponse(enrollment: enrollments.EnrollmentWithRelations) {
+/** Type-safe Enrollment response (EnrollmentWithRelations is in organizations namespace) */
+export function typedEnrollmentResponse(enrollment: organizations.EnrollmentWithRelations) {
 	return HttpResponse.json(enrollment)
 }
 
 /** Type-safe Enrollment list */
 export function typedEnrollmentListResponse(
-	data: enrollments.EnrollmentWithRelations[],
+	data: organizations.EnrollmentWithRelations[],
 	total: number,
 	skip: number,
 	take: number
@@ -193,14 +193,14 @@ export function typedProductListResponse(
 	return encoreListResponse(data, total, skip, take)
 }
 
-/** Type-safe Invoice response */
-export function typedInvoiceResponse(invoice: invoices.Invoice) {
+/** Type-safe Invoice response (Invoice is in organizations namespace) */
+export function typedInvoiceResponse(invoice: organizations.Invoice) {
 	return HttpResponse.json(invoice)
 }
 
 /** Type-safe Invoice list */
 export function typedInvoiceListResponse(
-	data: invoices.Invoice[],
+	data: organizations.Invoice[],
 	total: number,
 	skip: number,
 	take: number
@@ -227,5 +227,5 @@ export function typedNotificationListResponse(
 // TYPE RE-EXPORTS
 // =============================================================================
 
-export type { wallets, organizations, campaigns, enrollments, products, invoices }
+export type { wallets, organizations, campaigns, enrollments, products }
 

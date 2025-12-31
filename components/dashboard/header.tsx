@@ -2,17 +2,19 @@
 
 import * as React from "react"
 import * as Avatar from "@/components/ui/primitives/avatar"
+import * as CompactButton from "@/components/ui/primitives/compact-button"
 import { Logo } from "@/components/ui/branding/logo"
 import {
 	NotificationCenter,
 	FallbackNotificationBell,
 } from "@/components/dashboard/notification-center"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 import { MagnifyingGlass, Command, SidebarSimple, X, SquaresFour } from "@phosphor-icons/react"
 
 import { useSession } from "@/features/auth"
+import { getInitial } from "@/lib/utils/string"
 
 interface HeaderProps {
 	unreadNotifications?: number
@@ -46,11 +48,6 @@ export function Header({
 
 	const isDark = mounted && resolvedTheme === "dark"
 
-	// Common button styles with semantic tokens
-	const iconButtonStyles = cn(
-		"flex items-center justify-center rounded-full shadow-sm ring-1 transition-all duration-200 hover:shadow-md active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2",
-		"bg-bg-white-0 text-text-sub-600 ring-stroke-soft-200 hover:text-text-strong-950"
-	)
 
 	return (
 		<header className="relative flex h-14 sm:h-16 items-center justify-between px-3 sm:px-4 lg:px-6 transition-colors duration-200 lg:border-b lg:border-stroke-soft-200">
@@ -58,10 +55,12 @@ export function Header({
 			<div className="flex items-center gap-1.5 sm:gap-2">
 				{/* Mobile Menu Toggle - Only visible on mobile */}
 				{onMobileMenuClick && (
-					<button
-						type="button"
+					<CompactButton.Root
+						variant="stroke"
+						size="xlarge"
+						fullRadius
 						onClick={onMobileMenuClick}
-						className={cn(iconButtonStyles, "lg:hidden size-11 sm:size-10 shrink-0 relative")}
+						className="lg:hidden shrink-0 relative"
 						aria-label={isMobileSidebarOpen ? "Close menu" : "Open menu"}
 						aria-expanded={isMobileSidebarOpen}
 					>
@@ -84,15 +83,17 @@ export function Header({
 							)}
 							weight="bold"
 						/>
-					</button>
+					</CompactButton.Root>
 				)}
 
 				{/* Desktop Sidebar Collapse Toggle - Hidden on mobile */}
 				{onSidebarCollapsedChange && (
-					<button
-						type="button"
+					<CompactButton.Root
+						variant="stroke"
+						size="xlarge"
+						fullRadius
 						onClick={() => onSidebarCollapsedChange(!sidebarCollapsed)}
-						className={cn(iconButtonStyles, "hidden lg:flex size-10 shrink-0")}
+						className="hidden lg:flex shrink-0"
 						aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
 					>
 						<SidebarSimple
@@ -102,26 +103,28 @@ export function Header({
 							)}
 							weight="duotone"
 						/>
-					</button>
+					</CompactButton.Root>
 				)}
 
 				{/* Search / Command Menu - Hidden on mobile when sidebar is open */}
-				<button
-					type="button"
+				<CompactButton.Root
+					variant="stroke"
+					size="xlarge"
+					fullRadius
 					onClick={onCommandMenuClick}
 					className={cn(
-						iconButtonStyles,
-						"size-11 sm:size-10 sm:w-auto sm:min-w-[180px] md:min-w-[220px] sm:px-3 shrink-0",
-						isMobileSidebarOpen && "hidden lg:flex" // Hide on mobile when sidebar open
+						"sm:w-auto sm:min-w-[180px] md:min-w-[220px] sm:px-3 sm:rounded-xl shrink-0",
+						isMobileSidebarOpen && "hidden lg:flex"
 					)}
-					aria-label="Open command menu to search"
+					aria-label="Open command menu (Cmd+K)"
 				>
-					<MagnifyingGlass className="size-4 shrink-0" weight="duotone" />
+					<MagnifyingGlass className="size-4 shrink-0" weight="duotone" aria-hidden="true" />
 					<span className="hidden sm:inline text-paragraph-sm ml-2">Search...</span>
 					<kbd className="hidden sm:flex ml-auto items-center gap-0.5 rounded bg-bg-weak-50 px-1.5 py-0.5 text-label-xs font-medium text-text-soft-400">
-						<Command className="size-3" />K
+						<Command className="size-3" aria-hidden="true" />
+						<span className="sr-only">Command+</span>K
 					</kbd>
-				</button>
+				</CompactButton.Root>
 			</div>
 
 			{/* Center: Logo - Only visible on mobile, always shown (sidebar has no logo) */}
@@ -140,26 +143,28 @@ export function Header({
 
 				{/* Profile Avatar - Opens Settings Panel */}
 				{user && onSettingsClick && (
-					<button
-						type="button"
+					<CompactButton.Root
+						variant="stroke"
+						size="xlarge"
+						fullRadius
 						onClick={onSettingsClick}
-						className={cn(iconButtonStyles, "size-11 sm:size-10 p-[3px]")}
+						className="p-[3px]"
 						aria-label="Open settings"
 					>
-					<Avatar.Root size="32" color="blue" className="size-full rounded-full overflow-hidden">
-						{"image" in user && user.image ? (
-							<Avatar.Image
-								src={user.image}
-								alt={user.name}
-								className="size-full object-cover"
-							/>
-						) : (
-							<span className="text-label-xs sm:text-label-sm font-semibold">
-								{user.name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
-							</span>
-						)}
-					</Avatar.Root>
-					</button>
+						<Avatar.Root size="32" color="blue" className="size-full rounded-full overflow-hidden">
+							{"image" in user && user.image ? (
+								<Avatar.Image
+									src={user.image}
+									alt={user.name}
+									className="size-full object-cover"
+								/>
+							) : (
+								<span className="text-label-xs sm:text-label-sm font-semibold">
+									{getInitial(user.name) || getInitial(user.email)}
+								</span>
+							)}
+						</Avatar.Root>
+					</CompactButton.Root>
 				)}
 			</div>
 		</header>

@@ -8,14 +8,18 @@ import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import * as Avatar from "@/components/ui/primitives/avatar"
 import * as StatusBadge from "@/components/ui/data-display/status-badge"
-import * as Switch from "@/components/ui/forms/switch"
+import * as Toggle from "@/components/ui/forms/toggle"
 import * as FileUpload from "@/components/ui/forms/file-upload"
 import * as TabMenu from "@/components/ui/navigation/tab-menu-horizontal"
 import * as List from "@/components/ui/data-display/list"
+import * as Modal from "@/components/ui/layout/modal"
 import { Metric, MetricGroup } from "@/components/ui/data-display/metric"
-import { getAvatarColor } from '@/utils/avatar-color'
+import { getAvatarColor } from '@/lib/utils'
 import { formatDateMedium } from "@/lib/utils/format"
+import { getInitial } from "@/lib/utils/string"
 import { logError } from "@/lib/logging/error-logger-simple"
+import { authKeys } from "@/features/auth/hooks/use-auth"
+import { organizationKeys } from "@/features/organizations/hooks/use-organizations"
 import {
   User as UserIcon,
   Lock,
@@ -32,11 +36,20 @@ import {
   Clock,
   Warning,
   Info,
+  LinkSimple,
+  SignOut,
+  Trash,
+  GoogleLogo,
+  GithubLogo,
+  MicrosoftOutlookLogo,
 } from '@phosphor-icons/react'
-import { cn } from '@/utils/cn'
-import type { auth } from "@/lib/api/encore-browser"
-import type { auth as authServer } from "@/lib/api/encore-client"
+import { cn } from '@/lib/utils'
+import type { auth } from "@/brand-client"
+// Server actions from settings (some delegate to auth internally)
 import { updateProfile, updatePassword, updateNotifications, enable2FA, disable2FA, revokeSession, revokeAllSessions } from '@/features/settings'
+import { listLinkedAccounts, unlinkAccount, leaveOrganization, deleteUser, useActiveMemberRole } from '@/features/auth'
+import { useOrganizations } from '@/features/organizations'
+import { useCurrentOrganization } from '@/hooks/shared/use-current-organization'
 import { FILE_SIZES } from '@/lib/types/constants'
 import { useUploadProfilePicture } from '@/features/storage'
 // User type matching the initialData structure
@@ -82,14 +95,13 @@ interface ProfileClientProps {
     sessions?: Array<{
       id: string
       device: string
-      browser: string
-      location: string
+      browser?: string
+      location?: string
       lastActive: string
       current: boolean
-      iconType: 'computer' | 'smartphone' | 'mac'
+      iconType?: 'computer' | 'smartphone' | 'mac'
       userAgent?: string
     }>
-    activeOrganizationId?: string
   }
 }
 
@@ -98,10 +110,12 @@ export function ProfileClient({ initialData }: ProfileClientProps = {}) {
   const [user, setUser] = useState<User | null>(initialData?.user || null)
   const [isSaving, setIsSaving] = useState(false)
 
-  const sessions = useMemo(() => {
+  const sessions = useMemo((): SessionData[] => {
     if (!initialData?.sessions) return []
     return initialData.sessions.map((session) => ({
       ...session,
+      browser: session.browser ?? 'Unknown',
+      location: session.location ?? 'Unknown',
       icon: getSessionIcon(session.userAgent?.includes('iPhone') ? 'smartphone' : session.userAgent?.includes('Mac') ? 'mac' : 'computer'),
     }))
   }, [initialData])
@@ -165,7 +179,7 @@ export function ProfileClient({ initialData }: ProfileClientProps = {}) {
             {user.image ? (
               <Avatar.Image src={user.image} alt={user.name || 'User'} />
             ) : (
-              (user.name || 'U').charAt(0).toUpperCase()
+              getInitial(user.name)
             )}
           </Avatar.Root>
           <div className="min-w-0">
@@ -229,7 +243,6 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
   const [phone, setPhone] = useState(user.phone || '')
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
-  const router = useRouter()
   const queryClient = useQueryClient()
   const uploadProfilePicture = useUploadProfilePicture()
 
@@ -264,9 +277,9 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
       if (updateResult?.data?.success) {
         toast.success("Avatar updated successfully")
         setUser((prev: User | null) => prev ? { ...prev, image: uploadResult.fileUrl } : null)
-        queryClient.invalidateQueries({ queryKey: ["profile", "session"] })
-        queryClient.invalidateQueries({ queryKey: ["session"] })
-        router.refresh()
+        // SSOT: Use authKeys.session() for consistent cache invalidation
+        queryClient.invalidateQueries({ queryKey: authKeys.session() })
+        // React Query cache invalidation handles UI update - no router.refresh() needed
       } else {
         toast.error(updateResult?.serverError || "Failed to update profile with new avatar")
       }
@@ -290,9 +303,9 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
       if (result?.data?.success) {
         toast.success("Profile updated successfully")
         setUser((prev: User | null) => prev ? { ...prev, name } : null)
-        queryClient.invalidateQueries({ queryKey: ["session"] })
-        queryClient.invalidateQueries({ queryKey: ["profile"] })
-        router.refresh()
+        // SSOT: Use authKeys.session() for consistent cache invalidation
+        queryClient.invalidateQueries({ queryKey: authKeys.session() })
+        // React Query cache invalidation handles UI update - no router.refresh() needed
       } else {
         toast.error(result?.serverError || "Failed to update profile")
       }
@@ -319,7 +332,7 @@ function ProfileTab({ user, setUser, isSaving, setIsSaving }: ProfileTabProps) {
               {user.image ? (
                 <Avatar.Image src={user.image} alt={user.name || 'User'} />
               ) : (
-                (user.name || 'U').charAt(0).toUpperCase()
+                getInitial(user.name)
               )}
             </Avatar.Root>
             {uploadingAvatar && (
@@ -454,7 +467,12 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(initialTwoFactor || false)
 
-  const router = useRouter()
+  // 2FA modal state
+  const [twoFAModalOpen, setTwoFAModalOpen] = useState(false)
+  const [twoFAPassword, setTwoFAPassword] = useState('')
+  const [twoFAAction, setTwoFAAction] = useState<'enable' | 'disable'>('enable')
+  const [twoFALoading, setTwoFALoading] = useState(false)
+
   const queryClient = useQueryClient()
 
   const handleChangePassword = async () => {
@@ -479,8 +497,9 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
         setCurrentPassword('')
         setNewPassword('')
         setConfirmPassword('')
-        queryClient.invalidateQueries({ queryKey: ["profile"] })
-        router.refresh()
+        // SSOT: Use authKeys.session() for consistent cache invalidation
+        queryClient.invalidateQueries({ queryKey: authKeys.session() })
+        // React Query cache invalidation handles UI update - no router.refresh() needed
       } else {
         toast.error(result?.serverError || "Failed to update password")
       }
@@ -491,54 +510,57 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
     }
   }
 
-  const handleToggle2FA = async (enabled: boolean) => {
-    if (enabled) {
-      // Enable 2FA - requires password verification
-      const password = prompt("Enter your password to enable 2FA:")
-      if (!password) {
-        setTwoFactorEnabled(false)
-        return
-      }
-      
-      try {
-        const result = await enable2FA({ password })
+  const handleToggle2FA = (enabled: boolean) => {
+    // Open modal to collect password
+    setTwoFAAction(enabled ? 'enable' : 'disable')
+    setTwoFAPassword('')
+    setTwoFAModalOpen(true)
+  }
+
+  const handleConfirm2FA = async () => {
+    if (!twoFAPassword) {
+      toast.error("Please enter your password")
+      return
+    }
+
+    setTwoFALoading(true)
+
+    try {
+      if (twoFAAction === 'enable') {
+        const result = await enable2FA({ password: twoFAPassword })
         if (result?.data?.success) {
           toast.success("2FA enabled successfully")
           setTwoFactorEnabled(true)
-          queryClient.invalidateQueries({ queryKey: ["profile"] })
-          router.refresh()
+          // SSOT: Use authKeys.session() for consistent cache invalidation
+          queryClient.invalidateQueries({ queryKey: authKeys.session() })
+          // React Query cache invalidation handles UI update - no router.refresh() needed
+          setTwoFAModalOpen(false)
         } else {
           toast.error(result?.serverError || "Failed to enable 2FA")
-          setTwoFactorEnabled(false)
         }
-      } catch {
-        toast.error("Something went wrong. Please try again.")
-        setTwoFactorEnabled(false)
-      }
-    } else {
-      // Disable 2FA - requires password verification
-      const password = prompt("Enter your password to disable 2FA:")
-      if (!password) {
-        setTwoFactorEnabled(true)
-        return
-      }
-      
-      try {
-        const result = await disable2FA({ password })
+      } else {
+        const result = await disable2FA({ password: twoFAPassword })
         if (result?.data?.success) {
           toast.success("2FA disabled successfully")
           setTwoFactorEnabled(false)
-          queryClient.invalidateQueries({ queryKey: ["profile"] })
-          router.refresh()
+          // SSOT: Use authKeys.session() for consistent cache invalidation
+          queryClient.invalidateQueries({ queryKey: authKeys.session() })
+          // React Query cache invalidation handles UI update - no router.refresh() needed
+          setTwoFAModalOpen(false)
         } else {
           toast.error(result?.serverError || "Failed to disable 2FA")
-          setTwoFactorEnabled(true)
         }
-      } catch {
-        toast.error("Something went wrong. Please try again.")
-        setTwoFactorEnabled(true)
       }
+    } catch {
+      toast.error("Something went wrong. Please try again.")
+    } finally {
+      setTwoFALoading(false)
     }
+  }
+
+  const handleCancelModal = () => {
+    setTwoFAModalOpen(false)
+    setTwoFAPassword('')
   }
 
   return (
@@ -633,20 +655,13 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
           </div>
           <h3 className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">Two-Factor Authentication</h3>
         </div>
-        <List.Root size="lg">
-          <List.Item>
-            <List.ItemContent>
-              <List.ItemTitle>Enable 2FA</List.ItemTitle>
-              <List.ItemDescription>Add an extra layer of security to your account with two-factor authentication</List.ItemDescription>
-            </List.ItemContent>
-            <List.ItemAction>
-              <Switch.Root
-                checked={twoFactorEnabled}
-                onCheckedChange={handleToggle2FA}
-              />
-            </List.ItemAction>
-          </List.Item>
-        </List.Root>
+        <Toggle.Root
+          checked={twoFactorEnabled}
+          onCheckedChange={handleToggle2FA}
+          size="medium"
+          label="Enable 2FA"
+          hint="Add an extra layer of security to your account with two-factor authentication"
+        />
         {twoFactorEnabled && (
           <div className="mt-5 pt-5 border-t border-stroke-soft-200">
             <div className="flex items-start gap-3 p-4 rounded-lg bg-success-lighter/30 ring-1 ring-inset ring-success-base/20">
@@ -664,13 +679,434 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
           </div>
         )}
       </div>
+
+      {/* 2FA Password Verification Modal */}
+      <Modal.Root open={twoFAModalOpen} onOpenChange={(open) => !open && handleCancelModal()}>
+        <Modal.Content>
+          <Modal.Header>
+            <Modal.Title>
+              {twoFAAction === 'enable' ? 'Enable' : 'Disable'} Two-Factor Authentication
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <p className="text-paragraph-sm text-text-sub-600 mb-4">
+              {twoFAAction === 'enable'
+                ? 'Enter your password to enable two-factor authentication for your account.'
+                : 'Enter your password to disable two-factor authentication.'}
+            </p>
+            <div>
+              <label htmlFor="twofa-password" className="block text-label-sm text-text-strong-950 mb-2 font-medium">
+                Password
+              </label>
+              <Input.Root>
+                <Input.Wrapper>
+                  <Input.Icon as={Lock} />
+                  <Input.El
+                    id="twofa-password"
+                    type="password"
+                    value={twoFAPassword}
+                    onChange={(e) => setTwoFAPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && handleConfirm2FA()}
+                  />
+                </Input.Wrapper>
+              </Input.Root>
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button.Root
+              variant="neutral"
+              onClick={handleCancelModal}
+              disabled={twoFALoading}
+            >
+              Cancel
+            </Button.Root>
+            <Button.Root
+              variant={twoFAAction === 'enable' ? 'primary' : 'error'}
+              onClick={handleConfirm2FA}
+              disabled={!twoFAPassword || twoFALoading}
+            >
+              {twoFALoading ? 'Verifying...' : twoFAAction === 'enable' ? 'Enable 2FA' : 'Disable 2FA'}
+            </Button.Root>
+          </Modal.Footer>
+        </Modal.Content>
+      </Modal.Root>
+
+      {/* Linked Accounts */}
+      <LinkedAccountsSection />
+
+      {/* Danger Zone */}
+      <DangerZoneSection />
     </div>
+  )
+}
+
+// Linked Accounts Section
+function LinkedAccountsSection() {
+  const queryClient = useQueryClient()
+  const [accounts, setAccounts] = useState<auth.LinkedAccountResponse[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [unlinking, setUnlinking] = useState<string | null>(null)
+
+  // Fetch linked accounts on mount
+  useEffect(() => {
+    async function fetchAccounts() {
+      try {
+        const result = await listLinkedAccounts({})
+        if (result?.data?.accounts) {
+          setAccounts(result.data.accounts)
+        }
+      } catch (error) {
+        logError(error, { source: "LinkedAccountsSection", data: { action: "fetchAccounts" } })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchAccounts()
+  }, [])
+
+  const getProviderIcon = (providerId: string) => {
+    switch (providerId) {
+      case 'google':
+        return GoogleLogo
+      case 'github':
+        return GithubLogo
+      case 'microsoft':
+        return MicrosoftOutlookLogo
+      default:
+        return LinkSimple
+    }
+  }
+
+  const getProviderName = (providerId: string) => {
+    switch (providerId) {
+      case 'google':
+        return 'Google'
+      case 'github':
+        return 'GitHub'
+      case 'microsoft':
+        return 'Microsoft'
+      default:
+        return providerId.charAt(0).toUpperCase() + providerId.slice(1)
+    }
+  }
+
+  const handleUnlink = async (account: auth.LinkedAccountResponse) => {
+    if (accounts.length <= 1) {
+      toast.error("You must have at least one linked account")
+      return
+    }
+
+    setUnlinking(account.id)
+    try {
+      const result = await unlinkAccount({ providerId: account.providerId, accountId: account.accountId })
+      if (result?.data?.success) {
+        toast.success(`${getProviderName(account.providerId)} account unlinked`)
+        setAccounts(accounts.filter(a => a.id !== account.id))
+        // SSOT: Use authKeys.session() for consistent cache invalidation
+        queryClient.invalidateQueries({ queryKey: authKeys.session() })
+        // React Query cache invalidation handles UI update - no router.refresh() needed
+      } else {
+        toast.error(result?.serverError || "Failed to unlink account")
+      }
+    } catch {
+      toast.error("Something went wrong. Please try again.")
+    } finally {
+      setUnlinking(null)
+    }
+  }
+
+  return (
+    <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10 ring-1 ring-inset ring-primary-base/10">
+          <LinkSimple className="size-5 text-primary-base" weight="duotone" />
+        </div>
+        <h3 className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">Linked Accounts</h3>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          <div className="h-14 bg-bg-soft-200 rounded-lg animate-pulse" />
+          <div className="h-14 bg-bg-soft-200 rounded-lg animate-pulse" />
+        </div>
+      ) : accounts.length === 0 ? (
+        <div className="text-center py-6">
+          <LinkSimple className="size-10 text-text-soft-400 mx-auto mb-3" weight="duotone" />
+          <p className="text-paragraph-sm text-text-sub-600">No linked accounts</p>
+          <p className="text-paragraph-xs text-text-soft-400 mt-1">
+            Sign in with a social provider to link your account
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {accounts.map((account) => {
+            const Icon = getProviderIcon(account.providerId)
+            return (
+              <div
+                key={account.id}
+                className="flex items-center justify-between p-3 rounded-lg bg-bg-weak-50 ring-1 ring-inset ring-stroke-soft-200"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-lg bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200">
+                    <Icon className="size-5 text-text-sub-600" weight="fill" />
+                  </div>
+                  <div>
+                    <p className="text-label-sm text-text-strong-950">{getProviderName(account.providerId)}</p>
+                    <p className="text-paragraph-xs text-text-sub-600">
+                      Connected {formatDateMedium(account.createdAt)}
+                    </p>
+                  </div>
+                </div>
+                <Button.Root
+                  variant="ghost"
+                  size="small"
+                  onClick={() => handleUnlink(account)}
+                  disabled={unlinking === account.id || accounts.length <= 1}
+                  title={accounts.length <= 1 ? "Cannot unlink the only account" : "Unlink account"}
+                >
+                  {unlinking === account.id ? 'Unlinking...' : 'Unlink'}
+                </Button.Root>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Danger Zone Section
+function DangerZoneSection() {
+  const router = useRouter()
+  const { organizationId } = useCurrentOrganization()
+  const queryClient = useQueryClient()
+  const { data: orgsData } = useOrganizations()
+  const { data: role } = useActiveMemberRole(organizationId)
+
+  const [leaveOrgModalOpen, setLeaveOrgModalOpen] = useState(false)
+  const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false)
+  const [isLeaving, setIsLeaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+
+  const organizations = orgsData?.organizations || []
+  const currentOrg = organizations.find(org => org.id === organizationId)
+  const isOwner = role === 'owner'
+  const hasMultipleOrgs = organizations.length > 1
+  // Owner cannot leave their own organization - they must transfer ownership or delete the org
+  const canLeaveOrg = !isOwner && organizations.length > 0
+
+  const handleLeaveOrg = async () => {
+    if (!organizationId) return
+
+    setIsLeaving(true)
+    try {
+      const result = await leaveOrganization({ organizationId })
+      if (result?.data?.success) {
+        toast.success("Left organization successfully")
+        // SSOT: Use proper query keys for consistent cache invalidation
+        queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+        queryClient.invalidateQueries({ queryKey: authKeys.session() })
+        setLeaveOrgModalOpen(false)
+        // Redirect to dashboard or first available org
+        const remainingOrgs = organizations.filter(org => org.id !== organizationId)
+        if (remainingOrgs.length > 0) {
+          router.push(`/dashboard/${remainingOrgs[0].id}`)
+        } else {
+          router.push('/onboarding')
+        }
+        // React Query cache invalidation handles UI update - no router.refresh() needed
+      } else {
+        toast.error(result?.serverError || "Failed to leave organization")
+      }
+    } catch {
+      toast.error("Something went wrong. Please try again.")
+    } finally {
+      setIsLeaving(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true)
+    try {
+      const result = await deleteUser({ password: deletePassword || undefined })
+      if (result?.data?.success) {
+        toast.success("Account deleted successfully")
+        queryClient.clear()
+        router.push('/sign-in')
+      } else {
+        toast.error(result?.serverError || "Failed to delete account")
+      }
+    } catch {
+      toast.error("Something went wrong. Please try again.")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="rounded-xl bg-error-lighter/30 ring-1 ring-inset ring-error-base/20 p-5 sm:p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex size-10 items-center justify-center rounded-full bg-error-base/10 ring-1 ring-inset ring-error-base/20">
+            <Warning className="size-5 text-error-base" weight="duotone" />
+          </div>
+          <h3 className="text-label-md sm:text-label-lg text-error-dark font-semibold">Danger Zone</h3>
+        </div>
+
+        <div className="space-y-4">
+          {/* Leave Organization */}
+          {canLeaveOrg && (
+            <div className="flex items-center justify-between p-4 rounded-lg bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200">
+              <div className="flex items-center gap-3">
+                <SignOut className="size-5 text-error-base" weight="duotone" />
+                <div>
+                  <p className="text-label-sm text-text-strong-950">Leave Organization</p>
+                  <p className="text-paragraph-xs text-text-sub-600">
+                    Leave this organization and lose access to its resources.
+                  </p>
+                </div>
+              </div>
+              <Button.Root
+                variant="error"
+                size="small"
+                onClick={() => setLeaveOrgModalOpen(true)}
+              >
+                Leave
+              </Button.Root>
+            </div>
+          )}
+
+          {/* Delete Account */}
+          <div className="flex items-center justify-between p-4 rounded-lg bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200">
+            <div className="flex items-center gap-3">
+              <Trash className="size-5 text-error-base" weight="duotone" />
+              <div>
+                <p className="text-label-sm text-text-strong-950">Delete Account</p>
+                <p className="text-paragraph-xs text-text-sub-600">
+                  Permanently delete your account and all associated data. This cannot be undone.
+                </p>
+              </div>
+            </div>
+            <Button.Root
+              variant="error"
+              size="small"
+              onClick={() => setDeleteAccountModalOpen(true)}
+            >
+              Delete
+            </Button.Root>
+          </div>
+        </div>
+      </div>
+
+      {/* Leave Organization Modal */}
+      <Modal.Root open={leaveOrgModalOpen} onOpenChange={setLeaveOrgModalOpen}>
+        <Modal.Content>
+          <Modal.Header>
+            <Modal.Title>Leave Organization</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-warning-lighter ring-1 ring-inset ring-warning-base/20 mb-4">
+              <Warning className="size-5 text-warning-base shrink-0 mt-0.5" weight="duotone" />
+              <p className="text-paragraph-sm text-warning-dark">
+                Are you sure you want to leave <strong>{currentOrg?.name || 'this organization'}</strong>?
+                You will lose access to all campaigns, enrollments, and other resources.
+              </p>
+            </div>
+            {hasMultipleOrgs ? (
+              <p className="text-paragraph-sm text-text-sub-600">
+                You will be redirected to another organization after leaving.
+              </p>
+            ) : (
+              <p className="text-paragraph-sm text-text-sub-600">
+                This is your only organization. You will need to create or join another organization after leaving.
+              </p>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button.Root
+              variant="neutral"
+              onClick={() => setLeaveOrgModalOpen(false)}
+              disabled={isLeaving}
+            >
+              Cancel
+            </Button.Root>
+            <Button.Root
+              variant="error"
+              onClick={handleLeaveOrg}
+              disabled={isLeaving}
+            >
+              {isLeaving ? 'Leaving...' : 'Leave Organization'}
+            </Button.Root>
+          </Modal.Footer>
+        </Modal.Content>
+      </Modal.Root>
+
+      {/* Delete Account Modal */}
+      <Modal.Root open={deleteAccountModalOpen} onOpenChange={setDeleteAccountModalOpen}>
+        <Modal.Content>
+          <Modal.Header>
+            <Modal.Title>Delete Account</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-error-lighter ring-1 ring-inset ring-error-base/20 mb-4">
+              <Warning className="size-5 text-error-base shrink-0 mt-0.5" weight="duotone" />
+              <div>
+                <p className="text-paragraph-sm text-error-dark font-medium mb-1">
+                  This action cannot be undone.
+                </p>
+                <p className="text-paragraph-sm text-error-dark">
+                  All your data, including organizations you own, campaigns, and settings will be permanently deleted.
+                </p>
+              </div>
+            </div>
+            <div>
+              <label htmlFor="delete-password" className="block text-label-sm text-text-strong-950 mb-2 font-medium">
+                Enter your password to confirm
+              </label>
+              <Input.Root>
+                <Input.Wrapper>
+                  <Input.Icon as={Lock} />
+                  <Input.El
+                    id="delete-password"
+                    type="password"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    placeholder="Enter your password"
+                  />
+                </Input.Wrapper>
+              </Input.Root>
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button.Root
+              variant="neutral"
+              onClick={() => {
+                setDeleteAccountModalOpen(false)
+                setDeletePassword('')
+              }}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button.Root>
+            <Button.Root
+              variant="error"
+              onClick={handleDeleteAccount}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete My Account'}
+            </Button.Root>
+          </Modal.Footer>
+        </Modal.Content>
+      </Modal.Root>
+    </>
   )
 }
 
 // Notifications Tab - Using List
 function NotificationsTab() {
-  const router = useRouter()
   const queryClient = useQueryClient()
   const [isSaving, setIsSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -724,8 +1160,9 @@ function NotificationsTab() {
       if (result?.data?.success) {
         setSaved(true)
         timeoutRef.current = setTimeout(() => setSaved(false), 2000)
-        queryClient.invalidateQueries({ queryKey: ["profile", "notifications"] })
-        router.refresh()
+        // SSOT: Use authKeys.session() for consistent cache invalidation
+        queryClient.invalidateQueries({ queryKey: authKeys.session() })
+        // React Query cache invalidation handles UI update - no router.refresh() needed
       } else {
         toast.error(result?.serverError || "Failed to save notifications")
       }
@@ -746,67 +1183,47 @@ function NotificationsTab() {
           </div>
           <h3 className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">Email Notifications</h3>
         </div>
-        <List.Root variant="divided" size="md">
-          <List.Item>
-            <List.ItemContent>
-              <List.ItemTitle>New Enrollments</List.ItemTitle>
-              <List.ItemDescription>Get notified when shoppers enroll in your campaigns</List.ItemDescription>
-            </List.ItemContent>
-            <List.ItemAction>
-              <Switch.Root
-                checked={emailNotifications.newEnrollments}
-                onCheckedChange={(checked) =>
-                  setEmailNotifications((prev) => ({ ...prev, newEnrollments: checked }))
-                }
-              />
-            </List.ItemAction>
-          </List.Item>
-          <List.Item>
-            <List.ItemContent>
-              <List.ItemTitle>Campaign Approvals</List.ItemTitle>
-              <List.ItemDescription>Get notified when your campaigns are approved or rejected</List.ItemDescription>
-            </List.ItemContent>
-            <List.ItemAction>
-              <Switch.Root
-                checked={emailNotifications.campaignApprovals}
-                onCheckedChange={(checked) =>
-                  setEmailNotifications((prev) => ({ ...prev, campaignApprovals: checked }))
-                }
-              />
-            </List.ItemAction>
-          </List.Item>
-          <List.Item>
-            <List.ItemContent>
-              <List.ItemTitle>Wallet Updates</List.ItemTitle>
-              <List.ItemDescription>Get notified about wallet transactions and balance changes</List.ItemDescription>
-            </List.ItemContent>
-            <List.ItemAction>
-              <Switch.Root
-                checked={emailNotifications.walletUpdates}
-                onCheckedChange={(checked) =>
-                  setEmailNotifications((prev) => ({ ...prev, walletUpdates: checked }))
-                }
-              />
-            </List.ItemAction>
-          </List.Item>
-          <List.Item>
-            <List.ItemContent>
-              <List.ItemTitle>Weekly Summary</List.ItemTitle>
-              <List.ItemDescription>Receive a weekly summary of your campaign performance</List.ItemDescription>
-            </List.ItemContent>
-            <List.ItemAction>
-              <Switch.Root
-                checked={emailNotifications.weeklySummary}
-                onCheckedChange={(checked) =>
-                  setEmailNotifications((prev) => ({ ...prev, weeklySummary: checked }))
-                }
-              />
-            </List.ItemAction>
-          </List.Item>
-        </List.Root>
+        <div className="space-y-4">
+          <Toggle.Root
+            checked={emailNotifications.newEnrollments}
+            onCheckedChange={(checked) =>
+              setEmailNotifications((prev) => ({ ...prev, newEnrollments: checked }))
+            }
+            size="medium"
+            label="New Enrollments"
+            hint="Get notified when shoppers enroll in your campaigns"
+          />
+          <Toggle.Root
+            checked={emailNotifications.campaignApprovals}
+            onCheckedChange={(checked) =>
+              setEmailNotifications((prev) => ({ ...prev, campaignApprovals: checked }))
+            }
+            size="medium"
+            label="Campaign Approvals"
+            hint="Get notified when your campaigns are approved or rejected"
+          />
+          <Toggle.Root
+            checked={emailNotifications.walletUpdates}
+            onCheckedChange={(checked) =>
+              setEmailNotifications((prev) => ({ ...prev, walletUpdates: checked }))
+            }
+            size="medium"
+            label="Wallet Updates"
+            hint="Get notified about wallet transactions and balance changes"
+          />
+          <Toggle.Root
+            checked={emailNotifications.weeklySummary}
+            onCheckedChange={(checked) =>
+              setEmailNotifications((prev) => ({ ...prev, weeklySummary: checked }))
+            }
+            size="medium"
+            label="Weekly Summary"
+            hint="Receive a weekly summary of your campaign performance"
+          />
+        </div>
       </div>
 
-      {/* Push Notifications - Using List */}
+      {/* Push Notifications */}
       <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-5">
           <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10 ring-1 ring-inset ring-primary-base/10">
@@ -814,59 +1231,43 @@ function NotificationsTab() {
           </div>
           <h3 className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">Push Notifications</h3>
         </div>
-        <List.Root variant="divided" size="md">
-          <List.Item>
-            <List.ItemContent>
-              <List.ItemTitle>Instant Alerts</List.ItemTitle>
-              <List.ItemDescription>Get real-time push notifications for important updates</List.ItemDescription>
-            </List.ItemContent>
-            <List.ItemAction>
-              <Switch.Root
-                checked={pushNotifications.instantAlerts}
-                onCheckedChange={(checked) =>
-                  setPushNotifications((prev) => ({ ...prev, instantAlerts: checked }))
-                }
-              />
-            </List.ItemAction>
-          </List.Item>
-          <List.Item>
-            <List.ItemContent>
-              <List.ItemTitle>Daily Digest</List.ItemTitle>
-              <List.ItemDescription>Receive a daily summary of all notifications</List.ItemDescription>
-            </List.ItemContent>
-            <List.ItemAction>
-              <Switch.Root
-                checked={pushNotifications.dailyDigest}
-                onCheckedChange={(checked) =>
-                  setPushNotifications((prev) => ({ ...prev, dailyDigest: checked }))
-                }
-              />
-            </List.ItemAction>
-          </List.Item>
-        </List.Root>
+        <div className="space-y-4">
+          <Toggle.Root
+            checked={pushNotifications.instantAlerts}
+            onCheckedChange={(checked) =>
+              setPushNotifications((prev) => ({ ...prev, instantAlerts: checked }))
+            }
+            size="medium"
+            label="Instant Alerts"
+            hint="Get real-time push notifications for important updates"
+          />
+          <Toggle.Root
+            checked={pushNotifications.dailyDigest}
+            onCheckedChange={(checked) =>
+              setPushNotifications((prev) => ({ ...prev, dailyDigest: checked }))
+            }
+            size="medium"
+            label="Daily Digest"
+            hint="Receive a daily summary of all notifications"
+          />
+        </div>
       </div>
 
       {/* Quiet Hours */}
       <div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-5 sm:p-6 shadow-sm">
-        <List.Root size="lg">
-          <List.Item>
-            <List.ItemIcon>
-              <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10 ring-1 ring-inset ring-primary-base/10">
-                <Clock className="size-5 text-primary-base" weight="duotone" />
-              </div>
-            </List.ItemIcon>
-            <List.ItemContent>
-              <List.ItemTitle>Quiet Hours</List.ItemTitle>
-              <List.ItemDescription>Pause notifications during specific hours</List.ItemDescription>
-            </List.ItemContent>
-            <List.ItemAction>
-              <Switch.Root
-                checked={quietHours.enabled}
-                onCheckedChange={(checked) => setQuietHours((prev) => ({ ...prev, enabled: checked }))}
-              />
-            </List.ItemAction>
-          </List.Item>
-        </List.Root>
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex size-10 items-center justify-center rounded-full bg-primary-alpha-10 ring-1 ring-inset ring-primary-base/10">
+            <Clock className="size-5 text-primary-base" weight="duotone" />
+          </div>
+          <h3 className="text-label-md sm:text-label-lg text-text-strong-950 font-semibold">Quiet Hours</h3>
+        </div>
+        <Toggle.Root
+          checked={quietHours.enabled}
+          onCheckedChange={(checked) => setQuietHours((prev) => ({ ...prev, enabled: checked }))}
+          size="medium"
+          label="Enable Quiet Hours"
+          hint="Pause notifications during specific hours"
+        />
         {quietHours.enabled && (
           <div className="flex items-center gap-4 pt-4 mt-4 border-t border-stroke-soft-200">
             <div className="flex-1">
@@ -920,11 +1321,11 @@ function NotificationsTab() {
 interface SessionData {
   id: string
   device: string
-  browser: string
-  location: string
+  browser?: string
+  location?: string
   lastActive: string
   current: boolean
-  iconType: 'computer' | 'smartphone' | 'mac'
+  iconType?: 'computer' | 'smartphone' | 'mac'
   userAgent?: string
   icon: React.ElementType
   ipAddress?: string
@@ -938,18 +1339,17 @@ interface SessionsTabProps {
 
 function SessionsTab({ sessions }: SessionsTabProps) {
   const [revoking, setRevoking] = useState<string | null>(null)
-  const router = useRouter()
   const queryClient = useQueryClient()
 
   const handleRevoke = async (sessionId: string) => {
     setRevoking(sessionId)
     try {
-      const result = await revokeSession({ sessionId })
+      const result = await revokeSession({ token: sessionId })
       if (result?.data?.success) {
         toast.success("Session revoked successfully")
-        queryClient.invalidateQueries({ queryKey: ["sessions"] })
-        queryClient.invalidateQueries({ queryKey: ["profile"] })
-        router.refresh()
+        // SSOT: Use authKeys.session() for consistent cache invalidation
+        queryClient.invalidateQueries({ queryKey: authKeys.session() })
+        // React Query cache invalidation handles UI update - no router.refresh() needed
       } else {
         toast.error(result?.serverError || "Failed to revoke session")
       }
@@ -969,10 +1369,10 @@ function SessionsTab({ sessions }: SessionsTabProps) {
     try {
       const result = await revokeAllSessions({})
       if (result?.data?.success) {
-        toast.success(result.data.message || "All other sessions signed out")
-        queryClient.invalidateQueries({ queryKey: ["sessions"] })
-        queryClient.invalidateQueries({ queryKey: ["profile"] })
-        router.refresh()
+        toast.success("All other sessions signed out")
+        // SSOT: Use authKeys.session() for consistent cache invalidation
+        queryClient.invalidateQueries({ queryKey: authKeys.session() })
+        // React Query cache invalidation handles UI update - no router.refresh() needed
       } else {
         toast.error(result?.serverError || "Failed to revoke sessions")
       }

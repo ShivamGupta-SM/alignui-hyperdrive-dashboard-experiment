@@ -14,8 +14,8 @@ export {
 	useProduct,
 	useCategories,
 	useCategory,
-	useCategoryByName,
 	useCategoryProducts,
+	useProductCampaigns,
 	// Mutations
 	useCreateProduct,
 	useUpdateProduct,

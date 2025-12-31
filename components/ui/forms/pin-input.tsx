@@ -4,8 +4,8 @@
 
 import * as React from "react"
 import { OTPInput, OTPInputContext } from "input-otp"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 const PIN_INPUT_ROOT_NAME = "PinInputRoot"
 const PIN_INPUT_GROUP_NAME = "PinInputGroup"

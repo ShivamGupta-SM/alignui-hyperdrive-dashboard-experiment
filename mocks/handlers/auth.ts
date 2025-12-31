@@ -221,7 +221,16 @@ export const authHandlers = [
 				image: mockUser.avatar,
 				createdAt: new Date().toISOString(),
 				updatedAt: new Date().toISOString(),
-				activeOrganizationId: activeOrg?.organizationId || "1", // Default to org "1" (seeded org)
+				activeOrganizationId: activeOrg?.organizationId || "1",
+				activeOrganization: activeOrg
+					? {
+							id: activeOrg.organizationId,
+							name: activeOrg.name,
+							slug: activeOrg.name.toLowerCase().replace(/\s+/g, "-"),
+							logo: activeOrg.logo || null,
+							approvalStatus: activeOrg.approvalStatus || "approved",
+						}
+					: undefined,
 			},
 		})
 	}),
@@ -299,23 +308,6 @@ export const authHandlers = [
 		}
 
 		return encoreResponse(newOrg)
-	}),
-
-	// POST /auth/organization/set-active - Set active organization
-	http.post(encoreUrl("/auth/organization/set-active"), async ({ request }) => {
-		const body = (await request.json()) as { organizationId: string | null }
-
-		// Ensure database is seeded
-		const { seedDatabase } = await import("@/mocks/db/seed")
-		await seedDatabase("full", body.organizationId || "1").catch(() => {
-			// Ignore if already seeded
-		})
-
-		// In a real app, this would set a cookie or session variable
-		// For mocking, we just return success
-		return encoreResponse({
-			success: true,
-		})
 	}),
 
 	// POST /auth/refresh

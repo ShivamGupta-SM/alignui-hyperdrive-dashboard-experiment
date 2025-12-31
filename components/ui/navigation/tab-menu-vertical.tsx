@@ -2,8 +2,8 @@
 
 import * as React from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
-import { cn } from "@/utils/cn"
-import { PolymorphicComponentProps } from "@/utils/polymorphic"
+import { cn } from "@/lib/utils"
+import { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 
 const TabMenuVerticalContent = TabsPrimitive.Content
 TabMenuVerticalContent.displayName = "TabMenuVerticalContent"

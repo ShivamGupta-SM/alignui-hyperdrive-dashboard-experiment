@@ -6,6 +6,7 @@
 
 import { http } from "msw"
 import { db } from "@/mocks/db"
+import type { TeamMember } from "@/mocks/db/schemas"
 import {
 	getAuthContext,
 	encoreUrl,
@@ -17,20 +18,20 @@ import {
 import { delay, DELAY } from "@/mocks/utils/delay"
 
 // Transform database member to Encore Member format
-function toEncoreMember(member: any) {
+function toEncoreMember(member: TeamMember) {
 	return {
 		id: member.id,
 		visitorUserId: member.userId || member.id,
 		organizationId: member.organizationId || "1",
 		role: member.role,
-		department: member.department || null,
-		jobTitle: member.position || null,
-		isActive: member.isActive ?? true,
+		department: null, // Not in schema
+		jobTitle: null, // Not in schema
+		isActive: true, // Default to active
 		user: {
 			name: member.name,
 			email: member.email,
 		},
-		createdAt: member.joinedAt instanceof Date ? member.joinedAt.toISOString() : member.joinedAt,
+		createdAt: member.joinedAt instanceof Date ? member.joinedAt.toISOString() : String(member.joinedAt),
 	}
 }
 
@@ -88,7 +89,8 @@ export const teamHandlers = [
 			return encoreErrorResponse("Cannot change owner role", 400)
 		}
 
-		return encoreResponse(toEncoreMember({ ...member, role: body.role || member.role }))
+		const newRole = (body.role || member.role) as "owner" | "admin" | "manager" | "viewer"
+		return encoreResponse(toEncoreMember({ ...member, role: newRole }))
 	}),
 
 	// DELETE /organizations/:orgId/members/:memberId - Remove member

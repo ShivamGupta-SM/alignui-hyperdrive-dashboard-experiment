@@ -7,6 +7,8 @@ import { Callout } from "@/components/ui/feedback/callout"
 import { WarningCircle, ArrowLeft, CheckCircle } from "@phosphor-icons/react"
 import Link from "next/link"
 import { getErrorMessage } from "@/lib/utils/format"
+import { capitalizeFirst } from "@/lib/utils/string"
+import { routes } from "@/lib/routes"
 
 /**
  * OAuth Callback Handler Page
@@ -32,9 +34,6 @@ export default function OAuthCallbackPage() {
 
 	useEffect(() => {
 		const abortController = new AbortController()
-		let timeoutId1: NodeJS.Timeout | null = null
-		let timeoutId2: NodeJS.Timeout | null = null
-		let timeoutId3: NodeJS.Timeout | null = null
 
 		async function handleCallback() {
 			if (error) {
@@ -49,53 +48,21 @@ export default function OAuthCallbackPage() {
 			// Check session to see if we're authenticated
 			if (code || state) {
 				try {
-					// Wait a moment for backend to process
-					await new Promise<void>((resolve) => {
-						if (abortController.signal.aborted) return
-						timeoutId1 = setTimeout(() => resolve(), 1000)
-					})
-
 					if (abortController.signal.aborted) return
 
-					// Check if we have a session
-					const { getSession, ensureActiveOrgAfterOAuth } = await import("@/app/actions")
+					// Check if we have a session - no artificial delay needed
+					// Backend processes OAuth synchronously before redirect
+					const { getSession } = await import("@/app/actions")
 					const sessionResult = await getSession({})
 
 					if (abortController.signal.aborted) return
 
 					if (sessionResult?.data?.session) {
-						// ✅ FIX: Ensure active organization is set after OAuth login
-						// This fixes the race condition and ensures active org is set before redirect
-						try {
-							const orgResult = await ensureActiveOrgAfterOAuth({})
-							if (abortController.signal.aborted) return
-
-							if (orgResult?.data?.success && orgResult?.data?.activeOrgSet) {
-								// Wait a bit more for session to refresh with active org
-								await new Promise<void>((resolve) => {
-									if (abortController.signal.aborted) return
-									timeoutId2 = setTimeout(() => resolve(), 500)
-								})
-							}
-
-							if (abortController.signal.aborted) return
-
-							if (!abortController.signal.aborted) {
-								setStatus("success")
-								// Redirect to dashboard after ensuring active org is set
-								timeoutId3 = setTimeout(() => {
-									if (!abortController.signal.aborted) {
-										router.push("/dashboard")
-										router.refresh()
-									}
-								}, 1500)
-							}
-						} catch (orgError) {
-							if (!abortController.signal.aborted) {
-								const { logWarn } = await import("@/lib/logging/error-logger-simple")
-								logWarn("Failed to set active organization", { source: "OAuthCallback", data: { error: orgError } })
-								// Log but don't fail - user can set manually later
-							}
+						if (!abortController.signal.aborted) {
+							setStatus("success")
+							// Use replace() - user shouldn't go back to OAuth callback page
+							router.replace(routes.dashboard.root)
+							router.refresh()
 						}
 					} else {
 						if (!abortController.signal.aborted) {
@@ -122,9 +89,6 @@ export default function OAuthCallbackPage() {
 
 		return () => {
 			abortController.abort()
-			if (timeoutId1) clearTimeout(timeoutId1)
-			if (timeoutId2) clearTimeout(timeoutId2)
-			if (timeoutId3) clearTimeout(timeoutId3)
 		}
 	}, [code, state, error, router])
 
@@ -133,7 +97,7 @@ export default function OAuthCallbackPage() {
 			<div className="flex min-h-screen flex-col bg-bg-white-0">
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 					<Button.Root variant="ghost" size="small" asChild>
-						<Link href="/sign-in">
+						<Link href={routes.auth.signIn}>
 							<Button.Icon>
 								<ArrowLeft className="size-5" />
 							</Button.Icon>
@@ -149,7 +113,7 @@ export default function OAuthCallbackPage() {
 								<CheckCircle weight="duotone" className="size-6 text-primary-base" />
 							</div>
 							<h1 className="text-title-h4 text-text-strong-950 mb-2">
-								Completing {provider ? provider.charAt(0).toUpperCase() + provider.slice(1) : "OAuth"} Sign In
+								Completing {provider ? capitalizeFirst(provider) : "OAuth"} Sign In
 							</h1>
 							<p className="text-paragraph-sm text-text-sub-600">
 								Please wait while we complete your authentication...
@@ -166,7 +130,7 @@ export default function OAuthCallbackPage() {
 			<div className="flex min-h-screen flex-col bg-bg-white-0">
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 					<Button.Root variant="ghost" size="small" asChild>
-						<Link href="/sign-in">
+						<Link href={routes.auth.signIn}>
 							<Button.Icon>
 								<ArrowLeft className="size-5" />
 							</Button.Icon>
@@ -189,7 +153,7 @@ export default function OAuthCallbackPage() {
 							</div>
 
 							<Button.Root variant="primary" className="w-full" asChild>
-								<Link href="/dashboard">Go to Dashboard</Link>
+								<Link href={routes.dashboard.root}>Go to Dashboard</Link>
 							</Button.Root>
 						</div>
 					</div>
@@ -202,7 +166,7 @@ export default function OAuthCallbackPage() {
 		<div className="flex min-h-screen flex-col bg-bg-white-0">
 			<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 				<Button.Root variant="ghost" size="small" asChild>
-					<Link href="/sign-in">
+					<Link href={routes.auth.signIn}>
 						<Button.Icon>
 							<ArrowLeft className="size-5" />
 						</Button.Icon>
@@ -232,7 +196,7 @@ export default function OAuthCallbackPage() {
 
 						<div className="space-y-4">
 							<Button.Root variant="primary" className="w-full" asChild>
-								<Link href="/sign-in">Try Again</Link>
+								<Link href={routes.auth.signIn}>Try Again</Link>
 							</Button.Root>
 							<Button.Root variant="ghost" className="w-full" asChild>
 								<Link href="/">Go Home</Link>

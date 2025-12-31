@@ -1,19 +1,13 @@
 import type { Metadata } from "next"
-import Link from "next/link"
-import * as Button from "@/components/ui/primitives/button"
 import {
-	BookOpen,
-	VideoCamera,
-	Code,
 	Question,
-	UsersThree,
 	Envelope,
 	Phone,
 	ChatCircle,
 	ArrowRight,
-	ArrowSquareOut,
 } from "@phosphor-icons/react/dist/ssr"
 import { HelpFAQs } from "@/components/help/help-faqs"
+import { EXTERNAL_URLS } from "@/lib/constants"
 
 export const metadata: Metadata = {
 	title: "Help & Support",
@@ -22,41 +16,11 @@ export const metadata: Metadata = {
 
 const quickLinks = [
 	{
-		id: "getting-started",
-		title: "Getting Started",
-		description: "Learn the basics of using Hypedrive",
-		icon: BookOpen,
-		href: "/docs/getting-started",
-	},
-	{
-		id: "video-tutorials",
-		title: "Video Tutorials",
-		description: "Step-by-step video walkthroughs",
-		icon: VideoCamera,
-		href: "/docs/tutorials",
-	},
-	{
-		id: "api-docs",
-		title: "API Documentation",
-		description: "Integration guides for developers",
-		icon: Code,
-		href: "/docs/api",
-		external: true,
-	},
-	{
 		id: "faqs",
 		title: "FAQs",
 		description: "Common questions answered",
 		icon: Question,
 		href: "#faqs",
-	},
-	{
-		id: "community",
-		title: "Community Forum",
-		description: "Ask the community",
-		icon: UsersThree,
-		href: "https://community.hypedrive.com",
-		external: true,
 	},
 	{
 		id: "contact",
@@ -169,48 +133,23 @@ export default function HelpPage() {
 			{/* Quick Links */}
 			<div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
 				<h2 className="text-label-md text-text-strong-950 mb-4">Quick Links</h2>
-				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 					{quickLinks.map((link) => {
 						const Icon = link.icon
-						const isExternal = link.external
-						const isAnchor = link.href.startsWith("#")
-
-						const content = (
-							<div className="flex items-start gap-4 p-4 rounded-10 bg-bg-weak-50 transition-colors hover:bg-bg-soft-200 cursor-pointer group">
-								<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-white-0">
-									<Icon className="size-5 text-text-sub-600" />
-								</div>
-								<div className="flex-1 min-w-0">
-									<div className="flex items-center gap-2">
-										<span className="text-label-sm text-text-strong-950">{link.title}</span>
-										{isExternal && <ArrowSquareOut className="size-3.5 text-text-soft-400" />}
-									</div>
-									<p className="text-paragraph-xs text-text-sub-600 mt-0.5">{link.description}</p>
-								</div>
-								<ArrowRight className="size-5 text-text-soft-400 group-hover:text-text-sub-600 transition-colors shrink-0" />
-							</div>
-						)
-
-						if (isAnchor) {
-							return (
-								<a key={link.id} href={link.href}>
-									{content}
-								</a>
-							)
-						}
-
-						if (isExternal) {
-							return (
-								<a key={link.id} href={link.href} target="_blank" rel="noopener noreferrer">
-									{content}
-								</a>
-							)
-						}
 
 						return (
-							<Link key={link.id} href={link.href}>
-								{content}
-							</Link>
+							<a key={link.id} href={link.href}>
+								<div className="flex items-start gap-4 p-4 rounded-10 bg-bg-weak-50 transition-colors hover:bg-bg-soft-200 cursor-pointer group">
+									<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-white-0">
+										<Icon className="size-5 text-text-sub-600" />
+									</div>
+									<div className="flex-1 min-w-0">
+										<span className="text-label-sm text-text-strong-950">{link.title}</span>
+										<p className="text-paragraph-xs text-text-sub-600 mt-0.5">{link.description}</p>
+									</div>
+									<ArrowRight className="size-5 text-text-soft-400 group-hover:text-text-sub-600 transition-colors shrink-0" />
+								</div>
+							</a>
 						)
 					})}
 				</div>
@@ -245,9 +184,16 @@ export default function HelpPage() {
 							<Phone weight="duotone" className="size-5 text-text-sub-600" />
 						</div>
 						<div>
-							<div className="text-label-sm text-text-strong-950">Phone</div>
-							<div className="text-paragraph-sm text-text-sub-600">+91 1800-XXX-XXXX</div>
-							<div className="text-paragraph-xs text-text-soft-400">Mon-Sat, 9 AM - 6 PM</div>
+							<div className="text-label-sm text-text-strong-950">WhatsApp</div>
+							<a
+								href={EXTERNAL_URLS.WHATSAPP_SUPPORT}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-paragraph-sm text-primary-base hover:underline"
+							>
+								+91 98765-43210
+							</a>
+							<div className="text-paragraph-xs text-text-soft-400">Mon-Sat, 9 AM - 6 PM IST</div>
 						</div>
 					</div>
 					<div className="flex items-center gap-4 p-4 rounded-10 bg-bg-weak-50">
@@ -255,16 +201,10 @@ export default function HelpPage() {
 							<ChatCircle weight="duotone" className="size-5 text-text-sub-600" />
 						</div>
 						<div>
-							<div className="text-label-sm text-text-strong-950">Live Chat</div>
-							<div className="text-paragraph-sm text-text-sub-600">Available 24/7</div>
+							<div className="text-label-sm text-text-strong-950">Response Time</div>
+							<div className="text-paragraph-sm text-text-sub-600">Within 24 hours</div>
 						</div>
 					</div>
-				</div>
-				<div className="mt-6 text-center">
-					<Button.Root variant="primary">
-						<Button.Icon><ChatCircle className="size-5" /></Button.Icon>
-						Start Live Chat
-					</Button.Root>
 				</div>
 			</div>
 		</div>

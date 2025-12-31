@@ -3,9 +3,9 @@
 "use client"
 
 import * as React from "react"
-import { tv, type VariantProps } from "@/utils/tv"
-import { cn } from "@/utils/cn"
-import type { PolymorphicComponentProps } from "@/utils/polymorphic"
+import { tv, type VariantProps } from "@/lib/utils"
+import { cn } from "@/lib/utils"
+import type { PolymorphicComponentProps } from "@/lib/utils/primitives/polymorphic"
 
 const EMPTY_STATE_ROOT_NAME = "EmptyStateRoot"
 const EMPTY_STATE_HEADER_NAME = "EmptyStateHeader"

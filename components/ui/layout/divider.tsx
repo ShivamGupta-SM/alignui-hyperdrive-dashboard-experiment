@@ -3,7 +3,7 @@
 // AlignUI Divider v0.1.0
 // Improvements: aria-orientation support, type exports
 
-import { tv, type VariantProps } from "@/utils/tv"
+import { tv, type VariantProps } from "@/lib/utils"
 
 const DIVIDER_ROOT_NAME = "DividerRoot"
 

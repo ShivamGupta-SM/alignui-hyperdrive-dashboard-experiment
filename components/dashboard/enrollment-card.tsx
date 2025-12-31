@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter, useParams } from "next/navigation"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import * as Avatar from "@/components/ui/primitives/avatar"
 import * as Badge from "@/components/ui/data-display/badge"
 import * as Button from "@/components/ui/primitives/button"
@@ -10,6 +10,8 @@ import * as Checkbox from "@/components/ui/forms/checkbox"
 import { ArrowSquareOut, SealCheck, CurrencyCircleDollar, Info } from "@phosphor-icons/react"
 import type { EnrollmentWithRelations } from "@/features/enrollments"
 import { ENROLLMENT_STATUS_CONFIG } from "@/lib/constants"
+import { getInitial } from "@/lib/utils/string"
+import { routes } from "@/lib/routes"
 
 // Color palette for avatar initials based on first letter
 const getAvatarColor = (name: string): "blue" | "purple" | "sky" | "yellow" | "red" => {
@@ -73,7 +75,7 @@ export const EnrollmentCard = React.memo(function EnrollmentCard({
 					</Avatar.Root>
 				) : (
 					<Avatar.Root size="40" color={getAvatarColor(shopperName)}>
-						{shopperName.charAt(0).toUpperCase()}
+						{getInitial(shopperName)}
 					</Avatar.Root>
 				)}
 
@@ -171,7 +173,8 @@ export function EnrollmentTableRow({
 	onSelect,
 }: EnrollmentTableRowProps) {
 	const router = useRouter()
-	const params = useParams<{ organizationId?: string }>()
+	const params = useParams<{ organizationId: string }>()
+	const organizationId = params.organizationId
 	const statusConfig = ENROLLMENT_STATUS_CONFIG[enrollment.status]
 
 	const formatCurrency = (amount: number) => {
@@ -180,9 +183,10 @@ export function EnrollmentTableRow({
 
 	const isReviewable = enrollment.status === "awaiting_review"
 
-	// Default navigation handlers if not provided
-	const handleReview = onReview || (() => router.push(`/dashboard/${params.organizationId}/enrollments/${enrollment.id}`))
-	const handleView = onView || (() => router.push(`/dashboard/${params.organizationId}/enrollments/${enrollment.id}`))
+	// Default navigation handlers using routes helper for type safety
+	const enrollmentUrl = routes.dashboard.enrollments.detail(organizationId, enrollment.id)
+	const handleReview = onReview || (() => router.push(enrollmentUrl))
+	const handleView = onView || (() => router.push(enrollmentUrl))
 
 	return (
 		<tr
@@ -193,7 +197,7 @@ export function EnrollmentTableRow({
 			)}
 			onClick={
 				!onSelect && !onReview && !onView
-					? () => router.push(`/dashboard/${params.organizationId}/enrollments/${enrollment.id}`)
+					? () => router.push(enrollmentUrl)
 					: undefined
 			}
 		>
@@ -213,7 +217,7 @@ export function EnrollmentTableRow({
 						</Avatar.Root>
 					) : (
 						<Avatar.Root size="32" color={getAvatarColor(enrollment.shopper?.displayName || "U")}>
-							{(enrollment.shopper?.displayName || "U").charAt(0).toUpperCase()}
+							{getInitial(enrollment.shopper?.displayName)}
 						</Avatar.Root>
 					)}
 					<span className="text-label-sm text-text-strong-950">

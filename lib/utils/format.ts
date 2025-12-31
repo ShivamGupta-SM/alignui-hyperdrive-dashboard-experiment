@@ -1,36 +1,7 @@
 // Centralized formatting utilities to prevent re-creation on every render
 
-// =============================================================================
-// Error Formatting
-// =============================================================================
-
-/**
- * Extract error message from unknown error type
- * Use this instead of: error instanceof Error ? error.message : "default"
- *
- * @example
- * catch (error) {
- *   toast.error(getErrorMessage(error, "Failed to save"))
- * }
- */
-export function getErrorMessage(error: unknown, defaultMessage: string = "An error occurred"): string {
-	if (typeof error === "string") return error
-	if (error instanceof Error) return error.message
-	return defaultMessage
-}
-
-/**
- * Extract error message for logging (stringifies unknown errors)
- * Use this for logging where you want to capture any error type
- *
- * @example
- * logError(error, { message: getErrorMessageForLog(error) })
- */
-export function getErrorMessageForLog(error: unknown): string {
-	if (typeof error === "string") return error
-	if (error instanceof Error) return error.message
-	return String(error)
-}
+// SSOT: Re-export error utility for backward compatibility
+export { getErrorMessage } from "@/lib/errors/encore-error-handler"
 
 // =============================================================================
 // Currency Formatting
@@ -111,13 +82,7 @@ export function formatDateWithWeekday(date: Date | string): string {
 	})
 }
 
-/**
- * Format a relative time (e.g., "2h ago", "3d ago")
- */
-export function formatTimeAgo(hoursAgo: number): string {
-	if (hoursAgo < 24) return `${hoursAgo}h ago`
-	return `${Math.floor(hoursAgo / 24)}d ago`
-}
+// NOTE: formatTimeAgo was removed - use formatTimeAgoShort from @/lib/utils/date directly
 
 // =============================================================================
 // Number Formatting

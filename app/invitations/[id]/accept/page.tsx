@@ -8,6 +8,7 @@ import { Callout } from "@/components/ui/feedback/callout"
 import { CheckCircle, WarningCircle, ArrowLeft, Envelope } from "@phosphor-icons/react"
 import { toast } from "sonner"
 import { getErrorMessage } from "@/lib/utils/format"
+import { routes } from "@/lib/routes"
 
 /**
  * Invitation Acceptance Page
@@ -67,14 +68,25 @@ export default function AcceptInvitationPage() {
 			const { getEncoreBrowserClient } = await import("@/lib/api/encore-browser")
 			const client = getEncoreBrowserClient()
 
-			const result = await client.auth.acceptInvitation({ invitationId })
+			// First get the invitation to get the organizationId
+			const invitationData = await client.auth.getInvitation({ invitationId })
+			if (!invitationData.invitation) {
+				setStatus("error")
+				setErrorMessage("Invitation not found or has expired")
+				setIsAccepting(false)
+				return
+			}
+
+			const { organizationId } = invitationData.invitation
+			const result = await client.auth.acceptInvitation(organizationId, invitationId)
 
 			if (result.success) {
 				setStatus("success")
 				toast.success("Invitation accepted! You've been added to the organization.")
-				// Redirect to dashboard after 2 seconds
+				// Redirect to the invited organization's dashboard after 2 seconds
+				// Use replace() - user shouldn't go back to invitation page
 				setTimeout(() => {
-					router.push("/dashboard")
+					router.replace(routes.dashboard.home(organizationId))
 					router.refresh()
 				}, 2000)
 			} else {
@@ -100,7 +112,7 @@ export default function AcceptInvitationPage() {
 			<div className="flex min-h-screen flex-col bg-bg-white-0">
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 					<Button.Root variant="ghost" size="small" asChild>
-						<Link href="/sign-in">
+						<Link href={routes.auth.signIn}>
 							<Button.Icon>
 								<ArrowLeft className="size-5" />
 							</Button.Icon>
@@ -131,7 +143,7 @@ export default function AcceptInvitationPage() {
 			<div className="flex min-h-screen flex-col bg-bg-white-0">
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 					<Button.Root variant="ghost" size="small" asChild>
-						<Link href="/sign-in">
+						<Link href={routes.auth.signIn}>
 							<Button.Icon>
 								<ArrowLeft className="size-5" />
 							</Button.Icon>
@@ -155,12 +167,12 @@ export default function AcceptInvitationPage() {
 
 							<div className="space-y-4">
 								<Button.Root variant="primary" className="w-full" asChild>
-									<Link href={`/sign-in?redirect=/invitations/${invitationId}/accept`}>
+									<Link href={`${routes.auth.signIn}?redirect=/invitations/${invitationId}/accept`}>
 										Sign In to Accept
 									</Link>
 								</Button.Root>
 								<Button.Root variant="ghost" className="w-full" asChild>
-									<Link href="/sign-up">Create Account</Link>
+									<Link href={routes.auth.signUp}>Create Account</Link>
 								</Button.Root>
 							</div>
 						</div>
@@ -175,7 +187,7 @@ export default function AcceptInvitationPage() {
 			<div className="flex min-h-screen flex-col bg-bg-white-0">
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 					<Button.Root variant="ghost" size="small" asChild>
-						<Link href="/dashboard">
+						<Link href={routes.dashboard.root}>
 							<Button.Icon>
 								<ArrowLeft className="size-5" />
 							</Button.Icon>
@@ -198,7 +210,7 @@ export default function AcceptInvitationPage() {
 							</div>
 
 							<Button.Root variant="primary" className="w-full" asChild>
-								<Link href="/dashboard">Go to Dashboard</Link>
+								<Link href={routes.dashboard.root}>Go to Dashboard</Link>
 							</Button.Root>
 						</div>
 					</div>
@@ -211,7 +223,7 @@ export default function AcceptInvitationPage() {
 		<div className="flex min-h-screen flex-col bg-bg-white-0">
 			<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
 				<Button.Root variant="ghost" size="small" asChild>
-					<Link href="/sign-in">
+					<Link href={routes.auth.signIn}>
 						<Button.Icon>
 							<ArrowLeft className="size-5" />
 						</Button.Icon>
@@ -241,7 +253,7 @@ export default function AcceptInvitationPage() {
 
 						<div className="space-y-4">
 							<Button.Root variant="primary" className="w-full" asChild>
-								<Link href="/sign-in">Go to Sign In</Link>
+								<Link href={routes.auth.signIn}>Go to Sign In</Link>
 							</Button.Root>
 							<Button.Root variant="ghost" className="w-full" asChild>
 								<Link href="/">Go Home</Link>

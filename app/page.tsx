@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from 'next/link'
-import { cn } from '@/utils/cn'
+import { cn } from '@/lib/utils'
 import * as Button from "@/components/ui/primitives/button"
 import { Logo } from "@/components/ui/branding/logo"
 import { Tracker } from "@/components/ui/data-display/tracker"
@@ -104,7 +104,7 @@ function HeroSection() {
           </div>
 
           {/* Stats Row */}
-          <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-3xl mx-auto">
+          <div className="mt-12 sm:mt-16 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 max-w-3xl mx-auto px-2 sm:px-0">
             {MARKETING_STATS.map((stat) => (
               <div key={stat.label} className="relative p-4 rounded-2xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200">
                 <div className="text-title-h4 text-text-strong-950 font-semibold">{stat.value}</div>
@@ -138,9 +138,9 @@ function HeroSection() {
               <Link href="/dashboard" className="block group">
                 <div className="aspect-[16/9] bg-bg-weak-50 p-6 sm:p-8 relative overflow-hidden">
                   {/* Dashboard Grid Mockup */}
-                  <div className="grid grid-cols-4 gap-4 h-full">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 h-full">
                     {/* Stat Cards Row */}
-                    <div className="col-span-4 grid grid-cols-4 gap-4">
+                    <div className="col-span-2 sm:col-span-4 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
                       {[
                         { label: 'Active Campaigns', value: '12', color: 'primary' },
                         { label: 'Pending Reviews', value: '48', color: 'warning' },
@@ -155,13 +155,13 @@ function HeroSection() {
                             stat.color === 'success' && 'text-success-base',
                             stat.color === 'information' && 'text-information-base',
                           )}>{stat.value}</div>
-                          <div className="text-[10px] sm:text-paragraph-xs text-text-soft-400 mt-0.5">{stat.label}</div>
+                          <div className="text-label-xs text-text-soft-400 mt-0.5">{stat.label}</div>
                         </div>
                       ))}
                     </div>
 
                     {/* Chart Area */}
-                    <div className="col-span-3 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 flex flex-col">
+                    <div className="col-span-2 sm:col-span-3 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-2 sm:p-4 flex flex-col">
                       <div className="text-label-xs text-text-sub-600 mb-3">Enrollment Trends</div>
                       <div className="flex-1 flex items-end gap-1">
                         {[40, 65, 45, 80, 55, 90, 70, 85, 60, 95, 75, 88].map((height) => (
@@ -175,7 +175,7 @@ function HeroSection() {
                     </div>
 
                     {/* Side Panel */}
-                    <div className="col-span-1 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-3 space-y-2">
+                    <div className="hidden sm:block sm:col-span-1 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-2 sm:p-3 space-y-2">
                       <div className="text-label-xs text-text-sub-600 mb-2">Recent</div>
                       {[1, 2, 3].map((i) => (
                         <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-bg-weak-50">
@@ -220,7 +220,7 @@ function LogosSection() {
         <p className="text-center text-label-sm text-text-soft-400 mb-8">
           TRUSTED BY LEADING BRANDS
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-6">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 sm:gap-x-8 lg:gap-x-12 gap-y-4 sm:gap-y-6">
           {brands.map((brand) => (
             <div key={brand} className="text-label-lg font-semibold text-text-disabled-300">
               {brand}
@@ -298,7 +298,7 @@ function FeaturesSection() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
           {features.map((feature, index) => (
             <div
               key={feature.title}
@@ -370,7 +370,7 @@ function HowItWorksSection() {
           {/* Connection line */}
           <div className="hidden lg:block absolute top-24 left-[calc(12.5%+24px)] right-[calc(12.5%+24px)] h-0.5 bg-gradient-to-r from-primary-base via-feature-base to-success-base" />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
             {steps.map((item, index) => (
               <div
                 key={item.step}
@@ -412,7 +412,7 @@ function MetricsSection() {
   return (
     <section className="py-24 sm:py-32">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full bg-information-lighter px-4 py-1.5 mb-4">
               <ChartLineUp weight="fill" className="size-4 text-information-base" />
@@ -456,16 +456,16 @@ function MetricsSection() {
             <div className="rounded-2xl bg-bg-white-0 p-6 shadow-custom-md ring-1 ring-stroke-soft-200">
               <h3 className="text-label-md text-text-strong-950 mb-4">Enrollment Distribution</h3>
               <Tracker data={trackerData} size="lg" className="mb-6" />
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center p-3 rounded-xl bg-success-lighter/50">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div className="text-center p-2 sm:p-3 rounded-xl bg-success-lighter/50">
                   <div className="text-title-h5 text-success-base font-semibold">850</div>
                   <div className="text-label-xs text-text-sub-600">Approved</div>
                 </div>
-                <div className="text-center p-3 rounded-xl bg-warning-lighter/50">
+                <div className="text-center p-2 sm:p-3 rounded-xl bg-warning-lighter/50">
                   <div className="text-title-h5 text-warning-base font-semibold">120</div>
                   <div className="text-label-xs text-text-sub-600">Pending</div>
                 </div>
-                <div className="text-center p-3 rounded-xl bg-error-lighter/50">
+                <div className="text-center p-2 sm:p-3 rounded-xl bg-error-lighter/50">
                   <div className="text-title-h5 text-error-base font-semibold">30</div>
                   <div className="text-label-xs text-text-sub-600">Rejected</div>
                 </div>
@@ -552,13 +552,13 @@ function PricingSection() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {plans.map((plan, index) => (
             <div
               key={plan.name}
               className={cn(
                 'relative rounded-2xl bg-bg-white-0 p-8 shadow-custom-sm ring-1 transition-all duration-300 hover:shadow-custom-md',
-                plan.popular ? 'ring-primary-base ring-2 scale-105' : 'ring-stroke-soft-200'
+                plan.popular ? 'ring-primary-base ring-2 md:scale-105' : 'ring-stroke-soft-200'
               )}
               style={{ "--animation-delay": `${index * ANIMATION.DELAY_INCREMENT}ms`, animationDelay: "var(--animation-delay)" } as React.CSSProperties}
             >
@@ -658,7 +658,7 @@ function CTASection() {
   return (
     <section className="py-24 sm:py-32">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="relative rounded-3xl bg-bg-strong-950 p-8 sm:p-16 overflow-hidden">
+        <div className="relative rounded-3xl bg-bg-strong-950 p-6 sm:p-10 lg:p-16 overflow-hidden">
           {/* Subtle texture */}
           <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
 
@@ -705,13 +705,13 @@ function Footer() {
       { label: 'Sign Up', href: '/sign-up' },
     ],
     Resources: [
-      { label: 'Help Center', href: '/dashboard/help' },
+      { label: 'Help Center', href: '/contact' },
       { label: 'API Docs', href: 'https://docs.hypedrive.com', external: true },
       { label: 'Support', href: 'mailto:support@hypedrive.com', external: true },
     ],
     Company: [
       { label: 'About', href: '#', disabled: true },
-      { label: 'Contact', href: 'mailto:hello@hypedrive.com', external: true },
+      { label: 'Contact', href: '/contact' },
     ],
     Legal: [
       { label: 'Privacy', href: '/privacy' },
@@ -722,7 +722,7 @@ function Footer() {
   return (
     <footer className="bg-bg-strong-950 text-text-white-0 py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-8 mb-12">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 sm:gap-6 lg:gap-8 mb-12">
           <div className="col-span-2">
             <div className="flex items-center gap-3 mb-4">
               <Logo width={110} height={24} forceTheme="dark" />

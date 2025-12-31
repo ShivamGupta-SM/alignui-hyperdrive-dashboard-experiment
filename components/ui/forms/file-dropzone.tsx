@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useEffect } from "react"
 import { useDropzone, type Accept, type FileRejection } from "react-dropzone"
-import { cn } from "@/utils/cn"
+import { cn } from "@/lib/utils"
 import { CloudArrowUp, X, FileText, Image } from "@phosphor-icons/react"
 import * as Button from "@/components/ui/primitives/button"
 

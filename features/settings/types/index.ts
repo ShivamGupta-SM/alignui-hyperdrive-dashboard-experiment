@@ -1,43 +1,52 @@
 /**
  * Settings Feature Types
- * 
+ *
  * @description
- * Single source of truth for all settings-related types.
+ * Settings-specific types. Shared types are imported from organizations module (SSOT).
  */
 
-import type { organizations } from "@/lib/api/encore-client"
+import type {
+	Organization as OrgType,
+	OrganizationBankAccount as BankAccountType,
+	GSTDetails as GSTDetailsType,
+} from "@/features/organizations/types"
 
-// Re-export from Encore client
-export type OrganizationBankAccount = organizations.OrganizationBankAccount
-export type GSTDetails = organizations.GSTDetails
-export type Organization = organizations.Organization
+// SSOT: Re-export shared types from organizations module (primary owner)
+export type {
+	Organization,
+	OrganizationBankAccount,
+	GSTDetails,
+	GSTDetailsResponse,
+	ActivityLogEntry,
+	ApprovalStatus,
+	AccountTier,
+	AddBankAccountRequest,
+	UpdateBankAccountRequest,
+	UpdateOrganizationRequest,
+} from "@/features/organizations/types"
 
 // Feature-specific types
+// Note: Frontend uses 'phone' and 'industry' which are mapped to 'phoneNumber' and 'industryCategory' in SSR layer
 export interface OrganizationSettings {
 	name: string
 	slug: string
 	website?: string
 	logo?: string
 	description?: string
-	phoneNumber?: string
+	phone?: string // Maps to phoneNumber in backend
+	email?: string
 	address?: string
-	industryCategory?: string
+	industry?: string // Maps to industryCategory in backend
 	contactPerson?: string
 	city?: string
 	state?: string
 	postalCode?: string
+	country?: string
 }
 
-export interface BankAccount {
-	id: string
-	bankName: string
-	accountNumber: string
-	accountHolderName: string
-	ifscCode: string
-	isDefault: boolean
-	isVerified: boolean
-	accountType: "current" | "savings"
-}
+// Use API type directly - OrganizationBankAccount has all fields
+// Note: API returns accountNumber (full) and accountNumberMasked (for display)
+export type BankAccount = BankAccountType
 
 export interface GstDetails {
 	gstNumber: string
@@ -45,12 +54,13 @@ export interface GstDetails {
 	tradeName?: string
 	state?: string
 	isVerified: boolean
+	verifiedAt?: string
 }
 
 export interface SettingsData {
-	organization: Organization
-	bankAccounts: OrganizationBankAccount[]
-	gstDetails: GSTDetails | null
+	organization: OrgType
+	bankAccounts: BankAccountType[]
+	gstDetails: GSTDetailsType | null
 }
 
 export interface AddBankAccountInput {
@@ -61,9 +71,8 @@ export interface AddBankAccountInput {
 	accountType: "current" | "savings"
 }
 
-export interface VerifyGstInput {
-	gstNumber: string
-}
+// NOTE: VerifyGstInput removed - GST verification now only happens during onboarding
+// via verifyGST action from @/features/organizations/actions/onboarding
 
 export type OrganizationActivityType =
 	| "campaign_created"
@@ -85,10 +94,10 @@ export type OrganizationActivityType =
 export interface OrganizationActivity {
 	id: string
 	action: string
-	type: OrganizationActivityType
+	type?: OrganizationActivityType
 	entityType: string
 	entityId: string
-	details: Record<string, unknown>
+	details: Record<string, unknown> | null
 	description?: string
 	actorName?: string
 	actorAvatar?: string
@@ -103,6 +112,3 @@ export interface OrganizationActivityResponse {
 	take: number
 	hasMore: boolean
 }
-
-
-

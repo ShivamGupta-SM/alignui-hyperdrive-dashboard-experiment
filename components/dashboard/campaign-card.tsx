@@ -5,6 +5,8 @@ import Image from "next/image"
 import * as Badge from "@/components/ui/data-display/badge"
 import * as ProgressBar from "@/components/ui/primitives/progress-bar"
 import * as Dropdown from "@/components/ui/layout/dropdown"
+import * as CompactButton from "@/components/ui/primitives/compact-button"
+import * as LinkButton from "@/components/ui/primitives/link-button"
 import {
 	DotsThree,
 	ChartBar,
@@ -19,12 +21,14 @@ import {
 	Image as ImageIcon,
 	User,
 } from "@phosphor-icons/react"
-import type { campaigns } from "@/lib/api/encore-browser"
+import type { organizations, shared } from "@/brand-client"
 import { CAMPAIGN_STATUS_CONFIG } from "@/lib/constants"
 import { formatDateShort } from "@/lib/utils/format"
+import { cn } from "@/lib/utils"
 
-// Accept both Campaign and CampaignWithStats
-type CampaignData = campaigns.Campaign | campaigns.CampaignWithStats
+// CampaignWithStats from organizations namespace (SSOT)
+type CampaignData = organizations.CampaignWithStats
+type CampaignStatus = shared.CampaignStatus
 
 interface CampaignCardProps {
 	campaign: CampaignData
@@ -57,17 +61,13 @@ export const CampaignCard = React.memo(function CampaignCard({
 	onDelete,
 	onSubmitForApproval,
 }: CampaignCardProps) {
-	const statusConfig = CAMPAIGN_STATUS_CONFIG[campaign.status]
-	// Check if campaign has stats (CampaignWithStats)
-	const hasStats = "currentEnrollments" in campaign
-	const currentEnrollments = hasStats
-		? (campaign as campaigns.CampaignWithStats).currentEnrollments
-		: 0
-	const approvedCount = hasStats ? (campaign as campaigns.CampaignWithStats).approvedCount : 0
-	const pendingCount = hasStats ? (campaign as campaigns.CampaignWithStats).pendingCount : 0
-	const rejectedCount = hasStats ? (campaign as campaigns.CampaignWithStats).rejectedCount : 0
-	const totalPayout = hasStats ? (campaign as campaigns.CampaignWithStats).totalPayout : 0
-	const product = hasStats ? (campaign as campaigns.CampaignWithStats).product : undefined
+	const statusConfig = CAMPAIGN_STATUS_CONFIG[campaign.status as CampaignStatus]
+	const [imageLoaded, setImageLoaded] = React.useState(false)
+	// CampaignWithStats always has stats
+	const currentEnrollments = campaign.currentEnrollments
+	const approvedCount = campaign.approvedCount
+	const pendingCount = campaign.pendingCount
+	const product = campaign.product
 
 	const progress =
 		campaign.maxEnrollments > 0
@@ -131,7 +131,7 @@ export const CampaignCard = React.memo(function CampaignCard({
 	}
 
 	const actions = getAvailableActions()
-	const productImage = product?.productImages?.[0] || null
+	const productImage = product?.productImages?.[0]?.imageUrl || null
 	const showProgress = ["active", "paused"].includes(campaign.status)
 	const showStats = ["active", "paused", "ended", "completed"].includes(campaign.status)
 
@@ -144,17 +144,25 @@ export const CampaignCard = React.memo(function CampaignCard({
 					<div className="shrink-0">
 						{productImage ? (
 							<div className="relative size-14 rounded-xl overflow-hidden bg-bg-weak-50 ring-1 ring-inset ring-stroke-soft-200">
+								{/* Loading skeleton */}
+								{!imageLoaded && (
+									<div className="absolute inset-0 bg-bg-weak-50 animate-pulse" />
+								)}
 								<Image
 									src={productImage}
-									alt="Product"
+									alt={`Product image for ${campaign.title}`}
 									fill
 									sizes="56px"
-									className="object-contain p-2"
+									className={cn(
+										"object-contain p-2 transition-opacity duration-300",
+										imageLoaded ? "opacity-100" : "opacity-0"
+									)}
+									onLoad={() => setImageLoaded(true)}
 								/>
 							</div>
 						) : (
 							<div className="size-14 rounded-xl bg-bg-weak-50 flex items-center justify-center ring-1 ring-inset ring-stroke-soft-200">
-								<ImageIcon className="size-6 text-text-soft-400" />
+								<ImageIcon className="size-6 text-text-soft-400" aria-hidden="true" />
 							</div>
 						)}
 					</div>
@@ -179,12 +187,14 @@ export const CampaignCard = React.memo(function CampaignCard({
 							{actions.length > 0 && (
 								<Dropdown.Root>
 									<Dropdown.Trigger asChild>
-										<button
-											type="button"
-											className="flex size-7 shrink-0 items-center justify-center rounded-lg text-text-soft-400 hover:text-text-strong-950 hover:bg-bg-weak-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base -mr-1"
+										<CompactButton.Root
+											variant="ghost"
+											size="medium"
+											className="-mr-1"
+											aria-label="Campaign actions"
 										>
-											<DotsThree weight="bold" className="size-5" />
-										</button>
+											<CompactButton.Icon><DotsThree weight="bold" /></CompactButton.Icon>
+										</CompactButton.Root>
 									</Dropdown.Trigger>
 									<Dropdown.Content align="end">
 										{actions.map((action, index) => (
@@ -266,29 +276,20 @@ export const CampaignCard = React.memo(function CampaignCard({
 			{/* Footer */}
 			<div className="flex items-center justify-between gap-2 px-4 py-2.5 border-t border-stroke-soft-200 mt-auto">
 				<div className="text-paragraph-xs min-w-0">
-					{campaign.status === "draft" ? (
-						<span className="text-warning-base font-medium">Complete setup to launch</span>
-					) : campaign.status === "pending_approval" ? (
-						<span className="text-information-base font-medium">Under review</span>
-					) : campaign.status === "active" ? (
-						<span className="text-success-base font-medium">Accepting enrollments</span>
-					) : campaign.status === "paused" ? (
-						<span className="text-text-soft-400 font-medium">Paused</span>
-					) : campaign.status === "completed" ? (
-						<span className="text-text-sub-600">Campaign ended</span>
-					) : (
-						<span className="text-text-soft-400">—</span>
-					)}
+					<span className={cn(statusConfig.footerColor, "font-medium")}>
+						{statusConfig.footerMessage}
+					</span>
 				</div>
 
-				<button
-					type="button"
+				<LinkButton.Root
+					variant="primary"
+					size="medium"
 					onClick={onView}
-					className="flex items-center gap-0.5 text-label-sm text-primary-base hover:text-primary-darker font-medium shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2 rounded"
+					aria-label={`View details for ${campaign.title}`}
 				>
 					View Details
-					<CaretRight weight="bold" className="size-4" />
-				</button>
+					<LinkButton.Icon as={CaretRight} weight="bold" />
+				</LinkButton.Root>
 			</div>
 		</div>
 	)
@@ -307,10 +308,10 @@ export const CampaignListItem = React.memo(function CampaignListItem({
 	onAction,
 	actionLabel = "Review",
 }: CampaignListItemProps) {
-	const statusConfig = CAMPAIGN_STATUS_CONFIG[campaign.status]
+	const statusConfig = CAMPAIGN_STATUS_CONFIG[campaign.status as CampaignStatus]
 	// Get product from CampaignWithStats if available
 	const campaignProduct = "product" in campaign ? campaign.product : undefined
-	const productImage = campaignProduct?.productImages?.[0] || null
+	const productImage = campaignProduct?.productImages?.[0]?.imageUrl || null
 
 	return (
 		<div className="flex items-center gap-3 py-3 border-b border-stroke-soft-200 last:border-0">
@@ -348,13 +349,9 @@ export const CampaignListItem = React.memo(function CampaignListItem({
 			</div>
 
 			{onAction && (
-				<button
-					type="button"
-					onClick={onAction}
-					className="text-label-sm text-primary-base hover:text-primary-darker font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-base focus-visible:ring-offset-2 rounded"
-				>
+				<LinkButton.Root variant="primary" size="medium" onClick={onAction}>
 					{actionLabel}
-				</button>
+				</LinkButton.Root>
 			)}
 		</div>
 	)

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
 import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import * as Textarea from "@/components/ui/forms/textarea"
@@ -14,11 +15,11 @@ interface SettingsTabProps {
 }
 
 export function SettingsTab({ campaign }: SettingsTabProps) {
+	const { organizationId } = useCurrentOrganization()
+
 	// State for form fields
 	const [title, setTitle] = useState(campaign.title)
 	const [description, setDescription] = useState(campaign.description)
-	// const [maxEnrollments, setMaxEnrollments] = useState(campaign.maxEnrollments?.toString() || '')
-	// const [submissionDeadline, setSubmissionDeadline] = useState(campaign.submissionDeadlineDays?.toString() || '')
 
 	const [isPending, startTransition] = useTransition()
 
@@ -26,12 +27,11 @@ export function SettingsTab({ campaign }: SettingsTabProps) {
 		startTransition(async () => {
 			try {
 				await updateCampaign({
+					organizationId,
 					id: campaign.id,
 					data: {
 						title,
 						description,
-						// maxEnrollments: maxEnrollments ? parseInt(maxEnrollments) : undefined,
-						// submissionDeadlineDays: submissionDeadline ? parseInt(submissionDeadline) : undefined
 					}
 				})
 				toast.success("Campaign settings updated")

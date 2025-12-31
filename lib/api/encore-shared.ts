@@ -3,7 +3,7 @@
  * Used by both browser and server client wrappers
  */
 
-import { Local, Environment } from "./encore-client"
+import { Local, Environment } from "@/brand-client"
 
 /**
  * Get base URL for Encore client based on environment

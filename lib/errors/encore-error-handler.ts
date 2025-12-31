@@ -3,34 +3,43 @@
  * This module provides proper type-safe error handling for APIError from the generated client
  */
 
-import { APIError, isAPIError } from "../api/encore-client"
-import type { ErrCode } from "../api/encore-client"
+import { isAPIError } from "@/brand-client"
+import type { ErrCode } from "@/brand-client"
+import { AUTH_COOKIE_NAMES } from "@/lib/constants"
 
 /**
- * Extract error message from any error, with proper type handling
+ * Extract error message from any error type
+ * SSOT: This is the ONLY error message utility - use this everywhere
+ *
+ * @param error - Any error type (APIError, Error, string, unknown)
+ * @param defaultMessage - Fallback message if extraction fails
+ *
+ * @example
+ * catch (error) {
+ *   toast.error(getErrorMessage(error, "Failed to save"))
+ * }
  */
-export function extractErrorMessage(error: unknown): string {
+export function getErrorMessage(error: unknown, defaultMessage = "An error occurred"): string {
 	if (isAPIError(error)) {
-		// This is a proper APIError from Encore backend
-		return error.message || "An error occurred"
+		return error.message || defaultMessage
 	}
 
 	if (error instanceof Error) {
 		const message = error.message
-		
-		// Provide user-friendly messages for common errors
+
+		// User-friendly messages for common errors
 		if (message.includes("unexpected response") || message.includes("Unexpected")) {
-			return "Backend server returned an unexpected response. The server might be down or experiencing issues. Please check if the backend server is running."
+			return "Backend server returned an unexpected response."
 		}
-		
+
 		if (message.includes("502") || message.includes("503") || message.includes("504")) {
-			return "Backend server is not responding. Please check if the backend server is running."
+			return "Backend server is not responding."
 		}
-		
+
 		if (message.includes("Failed to fetch") || message.includes("NetworkError")) {
-			return "Network error. Please check your internet connection and try again."
+			return "Network error. Please check your internet connection."
 		}
-		
+
 		return message
 	}
 
@@ -38,7 +47,7 @@ export function extractErrorMessage(error: unknown): string {
 		return error
 	}
 
-	return "An unexpected error occurred"
+	return defaultMessage
 }
 
 /**
@@ -129,7 +138,7 @@ export function getErrorDetails(error: unknown): {
 	}
 
 	return {
-		message: extractErrorMessage(error),
+		message: getErrorMessage(error),
 		isAPIError: false,
 	}
 }
@@ -137,13 +146,16 @@ export function getErrorDetails(error: unknown): {
 /**
  * Client-side: Handle authentication errors by redirecting to login
  * Use this in error boundaries and catch blocks on the client
+ * SSOT: Uses AUTH_COOKIE_NAMES from @/lib/constants
  */
 export function handleAuthError(error: unknown): void {
 	if (isAuthenticationError(error)) {
 		// Only run on client
 		if (typeof window !== "undefined") {
-			// Clear auth token cookie
-			document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+			// SSOT: Clear all auth cookies from centralized list
+			for (const cookieName of AUTH_COOKIE_NAMES) {
+				document.cookie = `${cookieName}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+			}
 
 			// Redirect to sign-in with return URL
 			const returnUrl = encodeURIComponent(window.location.pathname + window.location.search)
