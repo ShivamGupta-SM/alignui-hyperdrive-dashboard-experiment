@@ -1,12 +1,15 @@
 import { Suspense } from "react"
 import { getCampaignDetailData } from "@/features/campaigns/ssr"
 import { CampaignDetailClient } from "./campaign-detail-client"
+import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
+import { CampaignDetailLoading } from "@/components/dashboard/loading-skeletons"
 
 async function CampaignData({ organizationId, id }: { organizationId: string; id: string }) {
 	let data = null
 	try {
 		// Direct server fetch - pure RSC, URL-based multi-tenancy
+		// API validates campaign belongs to organizationId via org-scoped endpoint
 		data = await getCampaignDetailData(organizationId, id)
 	} catch (error) {
 		logSSRError(error, "getCampaignDetailData", "campaign-detail", { data: { organizationId, campaignId: id } })
@@ -35,8 +38,10 @@ export default async function CampaignDetailPage({
 	const { organizationId, id } = await params
 
 	return (
-		<Suspense fallback={<div className="p-8">Loading campaign...</div>}>
-			<CampaignData organizationId={organizationId} id={id} />
-		</Suspense>
+		<OrganizationGuard pageType="campaigns">
+			<Suspense fallback={<CampaignDetailLoading />}>
+				<CampaignData organizationId={organizationId} id={id} />
+			</Suspense>
+		</OrganizationGuard>
 	)
 }

@@ -11,7 +11,7 @@ import { revalidateTag } from "next/cache"
 import { z } from "zod"
 
 import { authAction, createOrgSchema, entitySchemas } from "@/lib/safe-action"
-import { getErrorMessage } from "@/lib/utils/format"
+import { getErrorMessage } from "@/lib/utils"
 import type { organizations as orgTypes } from "@/brand-client"
 
 // =============================================================================

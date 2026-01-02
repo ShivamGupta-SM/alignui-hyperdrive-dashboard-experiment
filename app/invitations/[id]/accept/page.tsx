@@ -7,7 +7,7 @@ import * as Button from "@/components/ui/primitives/button"
 import { Callout } from "@/components/ui/feedback/callout"
 import { CheckCircle, WarningCircle, ArrowLeft, Envelope } from "@phosphor-icons/react"
 import { toast } from "sonner"
-import { getErrorMessage } from "@/lib/utils/format"
+import { getErrorMessage } from "@/lib/utils"
 import { routes } from "@/lib/routes"
 
 /**

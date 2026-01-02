@@ -6,7 +6,7 @@ import * as Badge from "@/components/ui/data-display/badge"
 import * as Dropdown from "@/components/ui/layout/dropdown"
 import * as Modal from "@/components/ui/layout/modal"
 import { ConfirmationModal } from "@/components/dashboard/modals"
-import { cn } from "@/lib/utils"
+import { cn, getErrorMessage } from "@/lib/utils"
 import {
 	Plus,
 	PencilSimple,
@@ -29,7 +29,7 @@ import {
 } from "@/features/campaigns"
 import type { organizations, platforms, campaigns } from "@/brand-client"
 import { toast } from "sonner"
-import { getErrorMessage } from "@/lib/utils/format"
+import { useModalState } from "@/hooks"
 
 interface DeliverablesTabProps {
 	organizationId: string
@@ -40,7 +40,7 @@ interface DeliverablesTabProps {
 }
 
 export function DeliverablesTab({ organizationId, campaignId, deliverables, platforms, canEdit }: DeliverablesTabProps) {
-	const [isAddModalOpen, setIsAddModalOpen] = React.useState(false)
+	const [isAddModalOpen, openAddModal, closeAddModal, , setIsAddModalOpen] = useModalState()
 	const [editingId, setEditingId] = React.useState<string | null>(null)
 	const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
 
@@ -83,7 +83,7 @@ export function DeliverablesTab({ organizationId, campaignId, deliverables, plat
 		try {
 			await addDeliverable.mutateAsync({ campaignId, deliverableId, isRequired, instructions })
 			toast.success("Deliverable added")
-			setIsAddModalOpen(false)
+			closeAddModal()
 		} catch (error) {
 			toast.error(getErrorMessage(error, "Failed to add deliverable"))
 		}
@@ -118,7 +118,7 @@ export function DeliverablesTab({ organizationId, campaignId, deliverables, plat
 						<p className="text-paragraph-sm text-text-sub-600 mt-1">Define what shoppers need to submit</p>
 					</div>
 					{canEdit && availableDeliverables.length > 0 && (
-						<Button.Root variant="primary" size="small" onClick={() => setIsAddModalOpen(true)}>
+						<Button.Root variant="primary" size="small" onClick={openAddModal}>
 							<Button.Icon><Plus className="size-5" /></Button.Icon>
 							Add Deliverable
 						</Button.Root>
@@ -135,7 +135,7 @@ export function DeliverablesTab({ organizationId, campaignId, deliverables, plat
 						Add deliverables to define what content creators need to submit.
 					</p>
 					{canEdit && availableDeliverables.length > 0 && (
-						<Button.Root variant="primary" size="small" className="mt-4" onClick={() => setIsAddModalOpen(true)}>
+						<Button.Root variant="primary" size="small" className="mt-4" onClick={openAddModal}>
 							<Button.Icon><Plus className="size-5" /></Button.Icon>
 							Add First Deliverable
 						</Button.Root>
@@ -162,7 +162,7 @@ export function DeliverablesTab({ organizationId, campaignId, deliverables, plat
 					<p className="text-paragraph-sm text-text-sub-600 mt-1">{deliverables.length} deliverable{deliverables.length !== 1 ? "s" : ""} configured</p>
 				</div>
 				{canEdit && availableDeliverables.length > 0 && (
-					<Button.Root variant="primary" size="small" onClick={() => setIsAddModalOpen(true)}>
+					<Button.Root variant="primary" size="small" onClick={openAddModal}>
 						<Button.Icon><Plus className="size-5" /></Button.Icon>
 						Add Deliverable
 					</Button.Root>

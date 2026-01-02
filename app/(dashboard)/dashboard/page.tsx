@@ -1,8 +1,18 @@
+import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import { getAuthenticatedEncoreClient } from "@/lib/api/server"
 import { AUTH_COOKIE_PRIMARY } from "@/lib/constants"
 import Link from "next/link"
+
+export const metadata: Metadata = {
+	title: "Dashboard",
+	description: "Access your organization's dashboard",
+	openGraph: {
+		title: "Dashboard | Hypedrive",
+		description: "Access your organization's dashboard",
+	},
+}
 
 // Error types that indicate auth is invalid (should redirect to sign-in)
 function isAuthError(error: unknown): boolean {
@@ -57,6 +67,18 @@ export default async function DashboardRootPage() {
 		// Only draft/rejected orgs - go to onboarding
 		redirect("/onboarding")
 	} catch (error) {
+		// Next.js redirect() throws NEXT_REDIRECT error - this is expected behavior, rethrow it
+		if (error instanceof Error && error.message === "NEXT_REDIRECT") {
+			throw error
+		}
+
+		// Debug: Log actual errors (not redirect)
+		console.error("🚨 [Dashboard] Error loading organizations:", {
+			error,
+			errorMessage: error instanceof Error ? error.message : String(error),
+			errorName: error instanceof Error ? error.name : "Unknown",
+		})
+
 		// Only redirect to sign-in for auth errors (401, invalid token, etc)
 		// For network errors, show error UI instead of logging user out
 		if (isAuthError(error)) {

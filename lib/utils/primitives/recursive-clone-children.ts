@@ -17,13 +17,8 @@ export function recursiveCloneChildren(
 	uniqueId?: string,
 	asChild?: boolean
 ): React.ReactNode {
-	// During prerendering (server-side), return children as-is to avoid serialization issues
-	// with function components or non-serializable props
-	if (typeof window === "undefined") {
-		return children
-	}
-
-	// Client-side: process normally
+	// Process children consistently on both server and client to avoid hydration mismatch
+	// The previous approach of returning children as-is on server caused button/anchor mismatches
 	return React.Children.map(children, (child, index) => {
 		if (!React.isValidElement(child)) {
 			return child

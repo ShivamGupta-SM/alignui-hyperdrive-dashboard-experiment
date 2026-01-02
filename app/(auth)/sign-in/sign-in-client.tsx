@@ -9,9 +9,8 @@ import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import * as Checkbox from "@/components/ui/forms/checkbox"
 import { Callout } from "@/components/ui/feedback/callout"
-import { signInSchema, type SignInFormData } from "@/lib/utils/validations"
+import { signInSchema, type SignInFormData, getErrorMessage } from "@/lib/utils"
 import { logInfo, logError } from "@/lib/logging/error-logger-simple"
-import { getErrorMessage } from "@/lib/utils/format"
 import { routes, isValidInternalUrl } from "@/lib/routes"
 import {
 	GoogleLogo,

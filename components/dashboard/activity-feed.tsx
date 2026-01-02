@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@/lib/utils"
+import { cn, getTimeAgo } from "@/lib/utils"
 import {
 	useOrganizationActivity,
 	type OrganizationActivity,
@@ -25,7 +25,6 @@ import {
 	Spinner,
 	CaretDown,
 } from "@phosphor-icons/react"
-import { getTimeAgo } from "@/lib/utils/date"
 
 interface ActivityFeedProps {
 	organizationId: string

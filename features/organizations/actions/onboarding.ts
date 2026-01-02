@@ -11,8 +11,7 @@ import { z } from "zod"
 
 import { authAction } from "@/lib/safe-action"
 import { logInfo, logError } from "@/lib/logging"
-import { getErrorMessage } from "@/lib/utils/format"
-import { BUSINESS_TYPES, VALIDATION_CONSTANTS } from "@/lib/utils/validations"
+import { getErrorMessage, BUSINESS_TYPES, VALIDATION_CONSTANTS } from "@/lib/utils"
 import type { CompleteOnboardingResult } from "@/features/organizations/types"
 
 // =============================================================================

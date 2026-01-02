@@ -6,7 +6,7 @@ import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import * as Textarea from "@/components/ui/forms/textarea"
 import { Info } from "@phosphor-icons/react"
-import { formatCurrency } from "@/lib/utils/format"
+import { formatCurrency } from "@/lib/utils"
 
 interface CreditLimitRequestModalProps {
 	open: boolean

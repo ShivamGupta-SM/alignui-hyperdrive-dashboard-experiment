@@ -6,8 +6,7 @@ import * as Button from "@/components/ui/primitives/button"
 import { Callout } from "@/components/ui/feedback/callout"
 import { WarningCircle, ArrowLeft, CheckCircle } from "@phosphor-icons/react"
 import Link from "next/link"
-import { getErrorMessage } from "@/lib/utils/format"
-import { capitalizeFirst } from "@/lib/utils/string"
+import { getErrorMessage, capitalizeFirst } from "@/lib/utils"
 import { routes } from "@/lib/routes"
 
 /**

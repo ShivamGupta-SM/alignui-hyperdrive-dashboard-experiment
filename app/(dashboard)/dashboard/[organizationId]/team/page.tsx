@@ -4,6 +4,7 @@ import { getTeamData } from "@/features/team/ssr"
 import { TeamClient } from "./team-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
+import TeamLoading from "./loading"
 
 export const metadata: Metadata = {
 	title: "Team",
@@ -32,7 +33,7 @@ export default async function TeamPage({ params }: PageProps) {
 	const { organizationId } = await params
 	return (
 		<OrganizationGuard pageType="default">
-			<Suspense fallback={<div className="p-8">Loading team...</div>}>
+			<Suspense fallback={<TeamLoading />}>
 				<TeamData organizationId={organizationId} />
 			</Suspense>
 		</OrganizationGuard>

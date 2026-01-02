@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useTransition, useCallback } from "react"
+import { useModalState } from "@/hooks/ui"
 import { useRouter } from "next/navigation"
 import { routes } from "@/lib/routes"
 import { useForm, Controller } from "react-hook-form"
@@ -14,7 +15,7 @@ import * as Textarea from "@/components/ui/forms/textarea"
 import * as Dropdown from "@/components/ui/layout/dropdown"
 import * as CompactButton from "@/components/ui/primitives/compact-button"
 import * as LinkButton from "@/components/ui/primitives/link-button"
-import { NoProductsEmptyState, OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
+import { NoProductsEmptyState, OnboardingRequiredAlert, OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
 import { ConfirmationModal } from "@/components/dashboard"
 import * as FileUpload from "@/components/ui/forms/file-upload"
 import { FileDropzone } from "@/components/ui/forms/file-dropzone"
@@ -31,15 +32,12 @@ import {
 	Megaphone,
 	Tag,
 	ChartBar,
-	ArrowRight,
 	DotsThree,
 	CaretRight,
 } from "@phosphor-icons/react"
-import { cn } from "@/lib/utils"
-import { getErrorMessage } from "@/lib/utils/format"
+import { cn, getErrorMessage } from "@/lib/utils"
 import { toast } from "sonner"
 import { useLocalStorage, useProductSearchParams } from "@/hooks/state"
-import { CalloutWithActions } from "@/components/ui/feedback/callout"
 import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
 import * as Tooltip from "@/components/ui/layout/tooltip"
 import type { products, organizations } from "@/brand-client"
@@ -49,7 +47,7 @@ import {
 	deleteProduct,
 	bulkImportProducts,
 } from "@/features/products"
-import { productFormSchema, type ProductFormInput } from "@/lib/utils/validations"
+import { productFormSchema, type ProductFormInput } from "@/lib/utils"
 import { nanoid } from "nanoid"
 import { FILE_SIZES } from "@/lib/types/constants"
 import { getPlatformColor, DISPLAY_LIMITS } from "@/lib/constants"
@@ -91,12 +89,12 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 	const [searchParams, setSearchParams] = useProductSearchParams()
 	const { search, category: categoryFilter, platform: platformFilter } = searchParams
 
-	// All useState hooks must be called before early returns
-	const [isAddModalOpen, setIsAddModalOpen] = useState(false)
-	const [isBulkImportModalOpen, setIsBulkImportModalOpen] = useState(false)
+	// Modal states - using useModalState hook for consistent pattern
+	const [isAddModalOpen, openAddModal, closeAddModal] = useModalState()
+	const [isBulkImportModalOpen, openBulkImportModal, closeBulkImportModal] = useModalState()
+	const [isDeleteModalOpen, openDeleteModal, closeDeleteModal] = useModalState()
 	const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 	const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
-	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 	const [isPending, startTransition] = useTransition()
 
 	// Use server data directly
@@ -133,26 +131,29 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 	// Callbacks must be defined before any early returns to maintain React hooks order
 	const handleDeleteProduct = useCallback((productId: string) => {
 		setDeletingProductId(productId)
-		setIsDeleteModalOpen(true)
-	}, [])
+		openDeleteModal()
+	}, [openDeleteModal])
 
 	const confirmDeleteProduct = useCallback(async () => {
 		if (!deletingProductId) return
 
+		// Capture ID before resetting state to avoid race condition
+		const idToDelete = deletingProductId
+
+		// Reset state BEFORE closing modal to prevent stale data flash
+		setDeletingProductId(null)
+		closeDeleteModal()
+
 		startTransition(async () => {
 			try {
-				await deleteProduct({ organizationId, id: deletingProductId })
+				await deleteProduct({ organizationId, id: idToDelete })
 				toast.success("Product deleted successfully")
-				setIsDeleteModalOpen(false)
-				setDeletingProductId(null)
 				// React Query cache invalidation handles UI update - no router.refresh() needed
 			} catch (error) {
 				toast.error(getErrorMessage(error, "Failed to delete product"))
-			} finally {
-				setDeletingProductId(null)
 			}
 		})
-	}, [deletingProductId, organizationId])
+	}, [deletingProductId, organizationId, closeDeleteModal])
 
 	// Show onboarding alert if no organization
 	const showOnboardingAlert = !organizationId && !dismissedOnboardingAlert
@@ -163,33 +164,11 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 			<div className="space-y-5 sm:space-y-6">
 				{/* ONBOARDING ALERT */}
 				{showOnboardingAlert && (
-					<CalloutWithActions
-						variant="warning"
-						title="Complete Your Organization Setup"
-						dismissible
+					<OnboardingRequiredAlert
 						onDismiss={() => setDismissedOnboardingAlert(true)}
-						actions={
-							<>
-								<Button.Root
-									variant="primary"
-									size="small"
-									onClick={() => router.push(routes.onboarding.root)}
-								>
-									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-									Start Onboarding
-								</Button.Root>
-								<Button.Root
-									variant="ghost"
-									size="small"
-									onClick={() => setDismissedOnboardingAlert(true)}
-								>
-									Maybe Later
-								</Button.Root>
-							</>
-						}
-					>
-						To add and manage products, you need to complete your organization setup. This will only take a few minutes.
-					</CalloutWithActions>
+						onStartOnboarding={() => router.push(routes.onboarding.root)}
+						description="To add and manage products, you need to complete your organization setup. This will only take a few minutes."
+					/>
 				)}
 
 				{/* HEADER */}
@@ -215,7 +194,7 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 	return (
 		<div className="space-y-5 sm:space-y-6">
 			{/* Page Header */}
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+			<div className="flex items-start justify-between gap-4">
 				<div className="min-w-0">
 					<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Products</h1>
 					<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
@@ -226,7 +205,7 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 					<Button.Root
 						variant="neutral"
 						size="small"
-						onClick={() => setIsBulkImportModalOpen(true)}
+						onClick={openBulkImportModal}
 					>
 						<Button.Icon><CloudArrowUp className="size-5" /></Button.Icon>
 						<span className="hidden sm:inline">Import</span>
@@ -235,11 +214,11 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 						<Tooltip.Root>
 							<Tooltip.Trigger asChild>
 								<div>
-									<Button.Root 
-										variant="primary" 
-										size="small" 
+									<Button.Root
+										variant="primary"
+										size="small"
 										disabled={!isApproved}
-										onClick={() => setIsAddModalOpen(true)}
+										onClick={openAddModal}
 									>
 										<Button.Icon><Plus className="size-5" /></Button.Icon>
 										<span className="hidden sm:inline">Add Product</span>
@@ -248,7 +227,7 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 							</Tooltip.Trigger>
 							{!isApproved && (
 								<Tooltip.Content>
-									{organization?.approvalStatus === "draft" 
+									{organization?.approvalStatus === "draft"
 										? "Complete onboarding and wait for admin approval"
 										: organization?.approvalStatus === "pending"
 										? "Your application is under review"
@@ -260,38 +239,27 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 				</div>
 			</div>
 
-			{/* Stats - 4 column grid on all screens */}
-			<div className="grid grid-cols-4 gap-2 sm:gap-3">
+			{/* Stats - 2x2 grid on mobile, 4 cols on larger */}
+			<div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
 				{[
-					{ label: "Total", shortLabel: "Total", value: stats.total, icon: ShoppingBag },
-					{
-						label: "With Campaigns",
-						shortLabel: "Active",
-						value: stats.withCampaigns,
-						icon: Megaphone,
-					},
-					{
-						label: "Campaigns",
-						shortLabel: "Camp",
-						value: stats.totalCampaigns,
-						icon: ChartBar,
-					},
-					{ label: "Categories", shortLabel: "Categ", value: stats.categories, icon: Tag },
+					{ label: "Total Products", value: stats.total, icon: ShoppingBag },
+					{ label: "Active", value: stats.withCampaigns, icon: Megaphone },
+					{ label: "Campaigns", value: stats.totalCampaigns, icon: ChartBar },
+					{ label: "Categories", value: stats.categories, icon: Tag },
 				].map((stat) => (
 					<div
 						key={stat.label}
-						className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-2 sm:p-3 transition-all duration-200 hover:ring-stroke-sub-300 hover:shadow-sm"
+						className="flex items-center gap-3 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-3 sm:p-4"
 					>
-						<div className="flex size-7 sm:size-8 items-center justify-center rounded-lg bg-bg-weak-50 shrink-0">
-							<stat.icon weight="duotone" className="size-3.5 sm:size-4 text-text-sub-600" />
+						<div className="flex size-10 items-center justify-center rounded-lg bg-bg-weak-50 shrink-0">
+							<stat.icon weight="duotone" className="size-5 text-text-sub-600" />
 						</div>
-						<div className="min-w-0">
-							<div className="text-label-sm sm:text-label-lg text-text-strong-950 font-semibold">
+						<div>
+							<div className="text-title-h6 sm:text-title-h5 text-text-strong-950 font-semibold">
 								{stat.value}
 							</div>
-							<div className="text-[10px] sm:text-label-xs text-text-soft-400 truncate">
-								<span className="sm:hidden">{stat.shortLabel}</span>
-								<span className="hidden sm:inline">{stat.label}</span>
+							<div className="text-label-xs text-text-soft-400">
+								{stat.label}
 							</div>
 						</div>
 					</div>
@@ -413,7 +381,7 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 				open={isAddModalOpen || !!editingProduct}
 				onOpenChange={(open) => {
 					if (!open) {
-						setIsAddModalOpen(false)
+						closeAddModal()
 						setEditingProduct(null)
 					}
 				}}
@@ -426,7 +394,7 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 			{/* Delete Confirmation Modal */}
 			<ConfirmationModal
 				open={isDeleteModalOpen}
-				onOpenChange={setIsDeleteModalOpen}
+				onOpenChange={(open) => !open && closeDeleteModal()}
 				variant="danger"
 				title="Delete Product"
 				description="Are you sure you want to delete this product? This action cannot be undone and will affect all associated campaigns."
@@ -439,7 +407,7 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 			{/* Bulk Import Modal */}
 			<BulkImportModal
 				open={isBulkImportModalOpen}
-				onOpenChange={setIsBulkImportModalOpen}
+				onOpenChange={(open) => !open && closeBulkImportModal()}
 				categories={categories}
 				platforms={platforms}
 				organizationId={organizationId}

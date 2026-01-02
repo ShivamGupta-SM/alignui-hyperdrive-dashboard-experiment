@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo } from "react"
+import { useModalState } from "@/hooks/ui"
 import * as Button from "@/components/ui/primitives/button"
 import * as Badge from "@/components/ui/data-display/badge"
 import * as Modal from "@/components/ui/layout/modal"
@@ -12,7 +13,6 @@ import {
 	ShieldCheck,
 	Trash,
 	PencilSimple,
-	Spinner,
 	Key,
 	Lock,
 	Warning,
@@ -74,9 +74,10 @@ interface RolesManagementProps {
 }
 
 export function RolesManagement({ organizationId }: RolesManagementProps) {
-	const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-	const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+	// Modal states - using useModalState hook for consistent pattern
+	const [isCreateModalOpen, openCreateModal, closeCreateModal] = useModalState()
+	const [isEditModalOpen, openEditModal, closeEditModal] = useModalState()
+	const [isDeleteModalOpen, openDeleteModal, closeDeleteModal] = useModalState()
 	const [selectedRole, setSelectedRole] = useState<{
 		id: string
 		role: string
@@ -94,21 +95,46 @@ export function RolesManagement({ organizationId }: RolesManagementProps) {
 
 	const handleEditRole = useCallback((role: typeof selectedRole) => {
 		setSelectedRole(role)
-		setIsEditModalOpen(true)
-	}, [])
+		openEditModal()
+	}, [openEditModal])
 
 	const handleDeleteRole = useCallback((role: typeof selectedRole) => {
 		setSelectedRole(role)
-		setIsDeleteModalOpen(true)
-	}, [])
+		openDeleteModal()
+	}, [openDeleteModal])
 
 	// Check if role is built-in
 	const isBuiltInRole = (roleName: string) => BUILT_IN_ROLES.includes(roleName.toLowerCase())
 
+	// Show skeleton instead of blocking spinner for better UX
 	if (isLoadingRoles) {
 		return (
-			<div className="flex items-center justify-center p-8">
-				<Spinner className="size-6 animate-spin text-primary-base" />
+			<div className="space-y-4">
+				{/* Header skeleton */}
+				<div className="flex items-center justify-between">
+					<div className="space-y-2">
+						<div className="h-5 w-32 bg-bg-weak-50 rounded animate-pulse" />
+						<div className="h-4 w-64 bg-bg-weak-50 rounded animate-pulse" />
+					</div>
+					<div className="h-9 w-28 bg-bg-weak-50 rounded-lg animate-pulse" />
+				</div>
+				{/* Info banner skeleton */}
+				<div className="h-24 bg-bg-weak-50 rounded-xl animate-pulse" />
+				{/* Roles list skeleton */}
+				<div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
+					<div className="h-12 bg-bg-weak-50 border-b border-stroke-soft-200" />
+					<div className="divide-y divide-stroke-soft-200">
+						{[1, 2, 3].map((i) => (
+							<div key={i} className="flex items-center gap-3 p-4">
+								<div className="size-10 bg-bg-weak-50 rounded-lg animate-pulse" />
+								<div className="flex-1 space-y-2">
+									<div className="h-4 w-24 bg-bg-weak-50 rounded animate-pulse" />
+									<div className="h-3 w-16 bg-bg-weak-50 rounded animate-pulse" />
+								</div>
+							</div>
+						))}
+					</div>
+				</div>
 			</div>
 		)
 	}
@@ -126,7 +152,7 @@ export function RolesManagement({ organizationId }: RolesManagementProps) {
 				<Button.Root
 					variant="primary"
 					size="small"
-					onClick={() => setIsCreateModalOpen(true)}
+					onClick={openCreateModal}
 				>
 					<Button.Icon><Plus className="size-5" /></Button.Icon>
 					Create Role
@@ -166,7 +192,7 @@ export function RolesManagement({ organizationId }: RolesManagementProps) {
 						<Button.Root
 							variant="neutral"
 							size="small"
-							onClick={() => setIsCreateModalOpen(true)}
+							onClick={openCreateModal}
 						>
 							<Button.Icon><Plus className="size-5" /></Button.Icon>
 							Create First Role
@@ -243,10 +269,10 @@ export function RolesManagement({ organizationId }: RolesManagementProps) {
 			{/* Create Role Modal */}
 			<CreateRoleModal
 				open={isCreateModalOpen}
-				onOpenChange={setIsCreateModalOpen}
+				onOpenChange={(open) => !open && closeCreateModal()}
 				onSubmit={async (data) => {
 					await createRoleMutation.mutateAsync(data)
-					setIsCreateModalOpen(false)
+					closeCreateModal()
 				}}
 				isPending={createRoleMutation.isPending}
 			/>
@@ -255,7 +281,7 @@ export function RolesManagement({ organizationId }: RolesManagementProps) {
 			{selectedRole && (
 				<EditRoleModal
 					open={isEditModalOpen}
-					onOpenChange={setIsEditModalOpen}
+					onOpenChange={(open) => !open && closeEditModal()}
 					role={selectedRole}
 					isBuiltIn={isBuiltInRole(selectedRole.role)}
 					onSubmit={async (data) => {
@@ -263,7 +289,7 @@ export function RolesManagement({ organizationId }: RolesManagementProps) {
 							roleId: selectedRole.id,
 							permission: data.permission,
 						})
-						setIsEditModalOpen(false)
+						closeEditModal()
 					}}
 					isPending={updateRoleMutation.isPending}
 				/>
@@ -273,11 +299,11 @@ export function RolesManagement({ organizationId }: RolesManagementProps) {
 			{selectedRole && (
 				<DeleteRoleModal
 					open={isDeleteModalOpen}
-					onOpenChange={setIsDeleteModalOpen}
+					onOpenChange={(open) => !open && closeDeleteModal()}
 					role={selectedRole}
 					onConfirm={async () => {
 						await deleteRoleMutation.mutateAsync(selectedRole.id)
-						setIsDeleteModalOpen(false)
+						closeDeleteModal()
 					}}
 					isPending={deleteRoleMutation.isPending}
 				/>

@@ -18,9 +18,7 @@ import {
 	Check,
 	X,
 } from "@phosphor-icons/react"
-import { cn } from "@/lib/utils"
-import { signUpSchema, VALIDATION_CONSTANTS, type SignUpFormData } from "@/lib/utils/validations"
-import { getErrorMessage } from "@/lib/utils/format"
+import { cn, signUpSchema, VALIDATION_CONSTANTS, type SignUpFormData, getErrorMessage } from "@/lib/utils"
 import { routes, isValidInternalUrl } from "@/lib/routes"
 
 export function SignUpContent() {

@@ -15,7 +15,8 @@
 
 import { useCallback, useState } from "react"
 import { toast } from "sonner"
-import { exportToExcel, exportToCSV } from "@/lib/utils/excel"
+import { logError } from "@/lib/logging/error-logger-simple"
+import { exportToExcel, exportToCSV } from "@/lib/utils"
 
 // ============================================
 // Types
@@ -158,7 +159,7 @@ export function useExport<T extends Record<string, unknown>, R extends Record<st
 
 				toast.success(`${feature} exported successfully`)
 			} catch (error) {
-				console.error("Export error:", error)
+				logError(error, { source: "useExport", data: { feature, action: "export" } })
 				toast.error("Failed to export data")
 			} finally {
 				setIsExporting(false)

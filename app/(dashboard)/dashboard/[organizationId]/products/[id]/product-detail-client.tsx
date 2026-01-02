@@ -12,7 +12,7 @@ import * as StatusBadge from "@/components/ui/data-display/status-badge"
 import * as Dropdown from "@/components/ui/layout/dropdown"
 import * as LinkButton from "@/components/ui/primitives/link-button"
 import { ConfirmationModal } from "@/components/dashboard/modals"
-import { cn } from "@/lib/utils"
+import { cn, getErrorMessage, formatCurrency, formatDateMedium } from "@/lib/utils"
 import {
 	PencilSimple,
 	DotsThree,
@@ -31,10 +31,10 @@ import {
 	Plus,
 } from "@phosphor-icons/react"
 import { CAMPAIGN_STATUS_CONFIG, getCampaignStatusBadgeStatus } from "@/lib/constants"
+import type { CampaignStatus } from "@/features/campaigns/types"
 import { deleteProduct, productKeys, type ProductWithStats } from "@/features/products"
 import type { products, platforms } from "@/brand-client"
 import { toast } from "sonner"
-import { getErrorMessage, formatCurrency, formatDateMedium } from "@/lib/utils/format"
 
 interface ProductCampaign {
 	id: string
@@ -357,7 +357,7 @@ export function ProductDetailClient({ productId, initialData }: ProductDetailCli
 													{campaign.title}
 												</h3>
 												<StatusBadge.Root
-													status={getCampaignStatusBadgeStatus(campaign.status)}
+													status={getCampaignStatusBadgeStatus(campaign.status as CampaignStatus)}
 													variant="light"
 												>
 													<StatusBadge.Dot />

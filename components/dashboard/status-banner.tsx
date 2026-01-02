@@ -7,7 +7,7 @@
  * URL-based multi-tenancy: Uses useCurrentOrganization which auto-extracts
  * organizationId from URL params via useParams().
  *
- * SSOT: Uses STATUS_CHECKS from @/lib/utils/validations
+ * ✅ CLEANUP: Uses direct === comparison instead of STATUS_CHECKS
  *
  * Usage:
  * ```tsx
@@ -31,7 +31,6 @@ import {
   Info,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
-import { STATUS_CHECKS } from "@/lib/utils/validations"
 
 // =============================================================================
 // Types
@@ -119,19 +118,19 @@ export function StatusBanner() {
     return null
   }
 
-  // Get config based on status - SSOT: Uses STATUS_CHECKS
+  // Get config based on status - direct comparison
   let config: StatusConfig | null = null
 
-  if (STATUS_CHECKS.isDraft(approvalStatus)) {
+  if (approvalStatus === "draft") {
     config = STATUS_CONFIG.draft
-  } else if (STATUS_CHECKS.isPending(approvalStatus)) {
+  } else if (approvalStatus === "pending") {
     config = STATUS_CONFIG.pending
-  } else if (STATUS_CHECKS.isRejected(approvalStatus)) {
+  } else if (approvalStatus === "rejected") {
     config = {
       ...STATUS_CONFIG.rejected,
       message: (organization as { rejectionReason?: string }).rejectionReason || "Please review and update your application.",
     }
-  } else if (STATUS_CHECKS.isBanned(approvalStatus)) {
+  } else if (approvalStatus === "banned") {
     config = STATUS_CONFIG.banned
   }
 
@@ -183,12 +182,12 @@ export function StatusBadge() {
     banned: { label: "Suspended", bg: "bg-error-100", text: "text-error-700" },
   }
 
-  // SSOT: Uses STATUS_CHECKS for status determination
+  // Direct comparison for status determination
   let status: keyof typeof config | null = null
-  if (STATUS_CHECKS.isDraft(approvalStatus)) status = "draft"
-  else if (STATUS_CHECKS.isPending(approvalStatus)) status = "pending"
-  else if (STATUS_CHECKS.isRejected(approvalStatus)) status = "rejected"
-  else if (STATUS_CHECKS.isBanned(approvalStatus)) status = "banned"
+  if (approvalStatus === "draft") status = "draft"
+  else if (approvalStatus === "pending") status = "pending"
+  else if (approvalStatus === "rejected") status = "rejected"
+  else if (approvalStatus === "banned") status = "banned"
 
   if (!status) return null
 
@@ -216,7 +215,7 @@ export function StatusIndicator({ size = "sm" }: StatusIndicatorProps) {
 
   const iconSize = size === "sm" ? "size-4" : "size-5"
 
-  if (STATUS_CHECKS.isApproved(approvalStatus)) {
+  if (approvalStatus === "approved") {
     return (
       <div className="flex items-center gap-1.5 text-success-600">
         <CheckCircle className={iconSize} weight="duotone" />
@@ -225,7 +224,7 @@ export function StatusIndicator({ size = "sm" }: StatusIndicatorProps) {
     )
   }
 
-  if (STATUS_CHECKS.isPending(approvalStatus)) {
+  if (approvalStatus === "pending") {
     return (
       <div className="flex items-center gap-1.5 text-warning-600">
         <Clock className={iconSize} weight="duotone" />
@@ -234,7 +233,7 @@ export function StatusIndicator({ size = "sm" }: StatusIndicatorProps) {
     )
   }
 
-  if (STATUS_CHECKS.isDraft(approvalStatus)) {
+  if (approvalStatus === "draft") {
     return (
       <div className="flex items-center gap-1.5 text-neutral-500">
         <Pencil className={iconSize} weight="duotone" />
@@ -243,7 +242,7 @@ export function StatusIndicator({ size = "sm" }: StatusIndicatorProps) {
     )
   }
 
-  if (STATUS_CHECKS.isRejected(approvalStatus)) {
+  if (approvalStatus === "rejected") {
     return (
       <div className="flex items-center gap-1.5 text-error-600">
         <XCircle className={iconSize} weight="duotone" />
@@ -252,7 +251,7 @@ export function StatusIndicator({ size = "sm" }: StatusIndicatorProps) {
     )
   }
 
-  if (STATUS_CHECKS.isBanned(approvalStatus)) {
+  if (approvalStatus === "banned") {
     return (
       <div className="flex items-center gap-1.5 text-error-700">
         <Warning className={iconSize} weight="duotone" />
@@ -277,8 +276,9 @@ export function RestrictedFeatureBanner({ feature }: RestrictedFeatureBannerProp
   const { organization, isDraft, isPending: isApprovalPending, isRejected } = useCurrentOrganization()
   const approvalStatus = organization?.approvalStatus
 
-  // SSOT: Use needsAction check
-  if (!STATUS_CHECKS.needsAction(approvalStatus)) return null
+  // Only show for non-approved statuses that need action
+  const needsAction = approvalStatus === "draft" || approvalStatus === "pending" || approvalStatus === "rejected"
+  if (!needsAction) return null
 
   let message = ""
   let actionHref = "/onboarding"

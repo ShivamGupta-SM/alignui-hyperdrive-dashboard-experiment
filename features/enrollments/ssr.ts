@@ -58,7 +58,15 @@ export async function getEnrollmentsData(organizationId: string | null, status?:
 			}
 
 			const response = await client.organizations.listOrganizationEnrollments(organizationId, params)
-			return { enrollments: response.data, ...response }
+			// ✅ FIX Bug 16: Explicit return instead of spread to avoid exposing internal fields
+			return {
+				enrollments: response.data || [],
+				data: response.data || [],
+				total: response.total ?? 0,
+				skip: response.skip ?? 0,
+				take: response.take ?? SSR_PAGE_SIZE.DEFAULT,
+				hasMore: response.hasMore ?? false,
+			}
 		},
 		EMPTY_ENROLLMENTS_RESPONSE
 	)

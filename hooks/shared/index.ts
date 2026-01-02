@@ -18,8 +18,8 @@ export { useDebounceSearch, useDebounce } from "./use-debounce-search"
 export type { UseDebounceSearchOptions, UseDebounceSearchReturn } from "./use-debounce-search"
 
 // Draft form persistence hook
-export { useDraftForm, useDraftRestore } from "./use-draft-form"
-export type { UseDraftFormOptions, UseDraftFormReturn } from "./use-draft-form"
+export { useDraftForm } from "./use-draft-form"
+export type { UseDraftFormOptions } from "./use-draft-form"
 
 // Backend notification hooks (fallback when Novu not configured)
 export {

@@ -11,26 +11,29 @@ import { revalidateTag } from "next/cache"
 import { z } from "zod"
 
 import { authAction } from "@/lib/safe-action"
+import {
+	organizationIdSchema,
+	campaignIdSchema,
+	campaignStatusActionSchema,
+	CAMPAIGN_TYPES,
+} from "@/lib/utils"
 
 // =============================================================================
-// Schemas - All actions require organizationId for URL-based multi-tenancy
+// Schemas - Built on SSOT schemas from @/lib/utils/validations
 // =============================================================================
 
-const createCampaignSchema = z.object({
-	organizationId: z.string().min(1),
+const createCampaignSchema = organizationIdSchema.extend({
 	productId: z.string().min(1),
 	title: z.string().min(1),
 	description: z.string().optional(),
 	startDate: z.string(),
 	endDate: z.string(),
 	maxEnrollments: z.number().int().positive(),
-	campaignType: z.enum(["cashback", "barter", "hybrid"]),
+	campaignType: z.enum(CAMPAIGN_TYPES),
 	isPublic: z.boolean(),
 })
 
-const updateCampaignSchema = z.object({
-	organizationId: z.string().min(1),
-	id: z.string().min(1),
+const updateCampaignSchema = campaignIdSchema.extend({
 	data: z.object({
 		title: z.string().optional(),
 		description: z.string().optional(),
@@ -42,34 +45,12 @@ const updateCampaignSchema = z.object({
 	}),
 })
 
-const campaignIdSchema = z.object({
-	organizationId: z.string().min(1),
-	id: z.string().min(1),
-})
-
-const duplicateCampaignSchema = z.object({
-	organizationId: z.string().min(1),
-	id: z.string().min(1),
+const duplicateCampaignSchema = campaignIdSchema.extend({
 	newTitle: z.string().optional(),
 })
 
-// Note: CAMPAIGN_STATUS_ACTIONS is defined in types/index.ts as SSOT
-// We inline the enum here because "use server" files can only export async functions
-// and importing const arrays causes issues with Next.js server actions bundler
-const updateStatusSchema = z.object({
-	organizationId: z.string().min(1),
-	id: z.string().min(1),
-	action: z.enum([
-		"submit",
-		"activate",
-		"cancel",
-		"pause",
-		"resume",
-		"end",
-		"complete",
-		"archive",
-		"unarchive",
-	]),
+const updateStatusSchema = campaignIdSchema.extend({
+	action: campaignStatusActionSchema,
 	reason: z.string().optional(), // For pause action
 })
 

@@ -12,10 +12,9 @@ export default function BannedAccountPage() {
 	const router = useRouter()
 	const { signOut, isSigningOut } = useSignOut()
 
-	// Use central hook for onboarding status
+	// Use central hook for onboarding status (flattened state machine)
 	const {
 		state,
-		subState,
 		isLoading,
 		approvedOrgId,
 		rejectionReason,
@@ -24,8 +23,8 @@ export default function BannedAccountPage() {
 	// Track if we're redirecting to stop polling
 	const isRedirectingRef = useRef(false)
 
-	// Check if user has a banned org
-	const isBanned = state === "needs_onboarding" && subState === "has_banned"
+	// Check if user has a banned org (flattened state - no more subState)
+	const isBanned = state === "has_banned"
 
 	// Handle redirects based on onboarding status
 	useEffect(() => {
@@ -38,17 +37,17 @@ export default function BannedAccountPage() {
 			return
 		}
 
-		// Not banned? Go to appropriate page
+		// Not banned? Go to appropriate page based on flattened state
 		if (!isBanned && state !== "loading") {
 			isRedirectingRef.current = true
-			if (subState === "has_pending") {
+			if (state === "has_pending") {
 				router.replace(routes.onboarding.pending)
 			} else {
 				router.replace(routes.onboarding.root)
 			}
 			return
 		}
-	}, [state, subState, isLoading, approvedOrgId, router, isBanned])
+	}, [state, isLoading, approvedOrgId, router, isBanned])
 
 	const handleSupportClick = () => {
 		if (typeof window !== "undefined") {

@@ -45,6 +45,6 @@ export type {
 	UsePaginationReturn
 } from './use-pagination'
 
-// Modal state hooks
-export { useModal, useMultiModal } from './use-modal'
-export type { UseModalReturn, UseMultiModalReturn } from './use-modal'
+// Modal state hooks (unified - supports both tuple and object patterns)
+export { useModal, useMultiModal, useModalState } from './use-modal'
+export type { UseModalReturn, UseMultiModalReturn, UseModalStateReturn } from './use-modal'

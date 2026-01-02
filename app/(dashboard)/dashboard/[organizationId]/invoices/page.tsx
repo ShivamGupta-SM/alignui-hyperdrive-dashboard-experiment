@@ -4,6 +4,7 @@ import { getInvoicesData } from "@/features/invoices/ssr"
 import { InvoicesClient } from "./invoices-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logError } from "@/lib/logging/error-logger-simple"
+import InvoicesLoading from "./loading"
 
 export const metadata: Metadata = {
 	title: "Invoices",
@@ -33,7 +34,7 @@ export default async function InvoicesPage({ params }: PageProps) {
 	const { organizationId } = await params
 	return (
 		<OrganizationGuard>
-			<Suspense fallback={<div className="p-8">Loading invoices...</div>}>
+			<Suspense fallback={<InvoicesLoading />}>
 				<InvoicesData organizationId={organizationId} />
 			</Suspense>
 		</OrganizationGuard>

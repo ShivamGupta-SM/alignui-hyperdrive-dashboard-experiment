@@ -6,9 +6,9 @@ import * as Button from "@/components/ui/primitives/button"
 import * as Textarea from "@/components/ui/forms/textarea"
 import * as Checkbox from "@/components/ui/forms/checkbox"
 import { Warning } from "@phosphor-icons/react"
-import { cn } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
+import { logError } from "@/lib/logging/error-logger-simple"
 import { REJECTION_REASONS } from "@/lib/constants"
-import { formatCurrency } from "@/lib/utils/format"
 import { toast } from "sonner"
 
 interface RejectEnrollmentModalProps {
@@ -38,7 +38,7 @@ export function RejectEnrollmentModal({
 		try {
 			onConfirm(selectedReason, comments)
 		} catch (error) {
-			console.error("Rejection failed:", error)
+			logError(error, { source: "RejectEnrollmentModal", data: { action: "reject", selectedReason } })
 			toast.error("Failed to reject enrollment. Please try again.")
 		}
 	}, [selectedReason, comments, onConfirm])

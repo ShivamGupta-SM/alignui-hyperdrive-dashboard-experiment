@@ -10,8 +10,8 @@ import * as Input from "@/components/ui/forms/input"
 import * as Textarea from "@/components/ui/forms/textarea"
 import { ProgressCircle } from "@/components/ui/primitives/progress-circle"
 import * as Tooltip from "@/components/ui/layout/tooltip"
-import { Callout, CalloutWithActions } from "@/components/ui/feedback/callout"
-import { OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
+import { Callout } from "@/components/ui/feedback/callout"
+import { OnboardingRequiredAlert, OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
 import { PageHeaderSkeleton, WalletBalanceSkeleton, TransactionListSkeleton } from "@/components/dashboard/loading-skeletons"
 import { WithdrawalRequestModal } from "@/components/dashboard/modals"
 import {
@@ -28,7 +28,6 @@ import {
 	Clock,
 	Bank,
 	CheckCircle,
-	ArrowRight,
 } from "@phosphor-icons/react"
 import {
 	VisaIcon,
@@ -38,7 +37,7 @@ import {
 	PaypalIcon,
 	UnionPayIcon,
 } from "@/components/ui/branding/payment-icons"
-import { cn } from "@/lib/utils"
+import { cn, formatCurrency, formatCurrencyCompact, formatDateShort, getErrorMessage } from "@/lib/utils"
 import { useWalletSearchParams, useCopyWithField, useMultiModal } from "@/hooks"
 import { useMediaQuery, useLocalStorage } from "usehooks-ts"
 import { useRouter } from "next/navigation"
@@ -46,7 +45,6 @@ import { routes } from "@/lib/routes"
 import { BALANCE_THRESHOLDS } from "@/lib/constants"
 import { exportTransactions } from "@/lib/utils/excel"
 import { TRANSACTION_TYPE_CONFIG } from "@/lib/constants"
-import { formatCurrency, formatCurrencyCompact, formatDateShort, getErrorMessage } from "@/lib/utils/format"
 import { toast } from "sonner"
 import { requestCredit, useDepositAccount } from "@/features/wallet"
 import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
@@ -136,33 +134,11 @@ export function WalletClient({ initialData }: WalletClientProps) {
 			<div className="space-y-5 sm:space-y-6">
 				{/* ONBOARDING ALERT */}
 				{showOnboardingAlert && (
-					<CalloutWithActions
-						variant="warning"
-						title="Complete Your Organization Setup"
-						dismissible
+					<OnboardingRequiredAlert
 						onDismiss={() => setDismissedOnboardingAlert(true)}
-						actions={
-							<>
-								<Button.Root
-									variant="primary"
-									size="small"
-									onClick={() => router.push(routes.onboarding.root)}
-								>
-									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-									Start Onboarding
-								</Button.Root>
-								<Button.Root
-									variant="ghost"
-									size="small"
-									onClick={() => setDismissedOnboardingAlert(true)}
-								>
-									Maybe Later
-								</Button.Root>
-							</>
-						}
-					>
-						To access wallet features, add funds, and manage transactions, you need to complete your organization setup. This will only take a few minutes.
-					</CalloutWithActions>
+						onStartOnboarding={() => router.push(routes.onboarding.root)}
+						description="To access wallet features, add funds, and manage transactions, you need to complete your organization setup. This will only take a few minutes."
+					/>
 				)}
 
 				{/* HEADER */}
@@ -281,7 +257,7 @@ export function WalletClient({ initialData }: WalletClientProps) {
 		<Tooltip.Provider>
 			<div className="space-y-5 sm:space-y-6">
 				{/* Page Header */}
-				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+				<div className="flex items-start justify-between gap-4">
 					<div className="min-w-0">
 						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Wallet</h1>
 						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
@@ -293,19 +269,17 @@ export function WalletClient({ initialData }: WalletClientProps) {
 							variant="neutral"
 							size="small"
 							onClick={handleOpenCreditRequest}
-							className="flex-1 sm:flex-none"
 						>
 							<Button.Icon><ArrowUp className="size-5" /></Button.Icon>
-							<span className="sm:inline">Request Credit</span>
+							<span className="hidden sm:inline">Request Credit</span>
 						</Button.Root>
 						<Button.Root
 							variant="primary"
 							size="small"
 							onClick={handleOpenFundModal}
-							className="flex-1 sm:flex-none"
 						>
 							<Button.Icon><Plus className="size-5" /></Button.Icon>
-							<span className="sm:inline">Fund Wallet</span>
+							<span className="hidden sm:inline">Fund Wallet</span>
 						</Button.Root>
 					</div>
 				</div>

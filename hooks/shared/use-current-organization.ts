@@ -17,6 +17,7 @@
 import { useParams } from "next/navigation"
 import { useMemo } from "react"
 import { useOrganizations } from "@/features/organizations/hooks/use-organizations"
+import { useSession } from "@/features/auth"
 import type { OrganizationListItem } from "@/features/organizations/types"
 
 export interface UseCurrentOrganizationReturn {
@@ -24,8 +25,10 @@ export interface UseCurrentOrganizationReturn {
 	organization: OrganizationListItem | null
 	/** Organization ID from URL params */
 	organizationId: string
-	/** Whether organization data is loading */
+	/** Whether organization data is loading (considers session + orgs) */
 	isLoading: boolean
+	/** Whether initial load is complete */
+	isInitialLoading: boolean
 	/** Whether organization is approved */
 	isApproved: boolean
 	/** Whether organization is pending approval */
@@ -48,12 +51,17 @@ const EMPTY_ORGANIZATIONS: OrganizationListItem[] = []
 /**
  * Hook to get the current organization based on URL params
  * Centralizes organization lookup logic for all dashboard pages
+ *
+ * ✅ FIX: Considers both session AND organizations loading state
+ * to prevent race condition where orgId is available but orgs aren't loaded yet
  */
 export function useCurrentOrganization(): UseCurrentOrganizationReturn {
 	const params = useParams<{ organizationId: string }>()
 	const organizationId = params?.organizationId ?? ""
 
-	const { data: orgsData, isLoading, error } = useOrganizations()
+	// ✅ FIX: Track session loading state to prevent race condition
+	const { isPending: isSessionPending } = useSession()
+	const { data: orgsData, isPending: isOrgsLoading, error } = useOrganizations()
 
 	// Memoize organizations array to prevent unnecessary re-renders
 	const organizations = orgsData?.organizations ?? EMPTY_ORGANIZATIONS
@@ -67,10 +75,17 @@ export function useCurrentOrganization(): UseCurrentOrganizationReturn {
 	return useMemo(() => {
 		const approvalStatus = organization?.approvalStatus
 
+		// ✅ FIX: Composite loading state - considers both session AND orgs
+		// This prevents "org not found" flash when session is loading
+		const isInitialLoading = isSessionPending || isOrgsLoading
+		const isLoading = isInitialLoading
+
 		return {
 			organization,
 			organizationId,
 			isLoading,
+			isInitialLoading,
+			// ✅ FIX: Direct comparison instead of STATUS_CHECKS utility (cleaner)
 			isApproved: approvalStatus === "approved",
 			isPending: approvalStatus === "pending",
 			isDraft: approvalStatus === "draft",
@@ -79,7 +94,7 @@ export function useCurrentOrganization(): UseCurrentOrganizationReturn {
 			error: error as Error | null,
 			organizations,
 		}
-	}, [organization, organizationId, isLoading, error, organizations])
+	}, [organization, organizationId, isSessionPending, isOrgsLoading, error, organizations])
 }
 
 /**

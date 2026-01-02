@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
+import { useModalState } from "@/hooks/ui"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import Link from "next/link"
@@ -12,9 +13,7 @@ import * as Avatar from "@/components/ui/primitives/avatar"
 import * as Modal from "@/components/ui/layout/modal"
 import * as Textarea from "@/components/ui/forms/textarea"
 import * as Breadcrumb from "@/components/ui/navigation/breadcrumb"
-import { getAvatarColor } from "@/lib/utils"
-import { getErrorMessage, formatCurrency, formatDateMedium } from "@/lib/utils/format"
-import { getInitial } from "@/lib/utils/string"
+import { cn, getAvatarColor, getErrorMessage, formatCurrency, formatDateMedium, getInitial } from "@/lib/utils"
 import {
 	Check,
 	X,
@@ -34,7 +33,6 @@ import {
 	ClipboardText,
 	CaretRight,
 } from "@phosphor-icons/react"
-import { cn } from "@/lib/utils"
 import { ENROLLMENT_STATUS_CONFIG, REJECTION_REASONS, getEnrollmentStatusBadgeStatus } from "@/lib/constants"
 import type { Enrollment, EnrollmentStatus } from "@/features/enrollments"
 import { updateEnrollmentStatus, enrollmentKeys, requestChanges } from "@/features/enrollments"
@@ -66,9 +64,10 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 	const { organizationId } = useCurrentOrganization()
 	const queryClient = useQueryClient()
 
-	const [isApproveModalOpen, setIsApproveModalOpen] = React.useState(false)
-	const [isRejectModalOpen, setIsRejectModalOpen] = React.useState(false)
-	const [isChangesModalOpen, setIsChangesModalOpen] = React.useState(false)
+	// Modal states - using useModalState hook for consistent pattern
+	const [isApproveModalOpen, openApproveModal, closeApproveModal, toggleApproveModal, setIsApproveModalOpen] = useModalState()
+	const [isRejectModalOpen, openRejectModal, closeRejectModal, toggleRejectModal, setIsRejectModalOpen] = useModalState()
+	const [isChangesModalOpen, openChangesModal, closeChangesModal, toggleChangesModal, setIsChangesModalOpen] = useModalState()
 	const [rejectionReason, setRejectionReason] = React.useState("")
 	const [changesComment, setChangesComment] = React.useState("")
 	const [isProcessing, setIsProcessing] = React.useState(false)
@@ -94,7 +93,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 			const campaignId = enrollmentDetail?.campaignId ?? ""
 			await updateEnrollmentStatus({ organizationId, campaignId, id: enrollmentId, status: "approved" })
 			toast.success("Enrollment approved successfully")
-			setIsApproveModalOpen(false)
+			closeApproveModal()
 			// SSOT: Only invalidate affected queries - enrollment list, detail, and specific campaign stats
 			queryClient.invalidateQueries({ queryKey: enrollmentKeys.lists(organizationId) })
 			queryClient.invalidateQueries({ queryKey: enrollmentKeys.detail(organizationId, campaignId, enrollmentId) })
@@ -121,7 +120,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 			const campaignId = enrollmentDetail?.campaignId ?? ""
 			await updateEnrollmentStatus({ organizationId, campaignId, id: enrollmentId, status: "rejected", reason: rejectionReason })
 			toast.success("Enrollment rejected")
-			setIsRejectModalOpen(false)
+			closeRejectModal()
 			setRejectionReason("")
 			// SSOT: Only invalidate affected queries - enrollment list, detail, and specific campaign stats
 			queryClient.invalidateQueries({ queryKey: enrollmentKeys.lists(organizationId) })
@@ -149,7 +148,7 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 			const campaignId = enrollmentDetail?.campaignId ?? ""
 			await requestChanges({ organizationId, campaignId, id: enrollmentId, feedback: changesComment.trim() })
 			toast.success("Changes requested from shopper")
-			setIsChangesModalOpen(false)
+			closeChangesModal()
 			setChangesComment("")
 			// SSOT: Only invalidate enrollment queries - no campaign stats change on request changes
 			queryClient.invalidateQueries({ queryKey: enrollmentKeys.lists(organizationId) })

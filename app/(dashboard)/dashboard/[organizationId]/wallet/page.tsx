@@ -4,6 +4,7 @@ import { getWalletData } from "@/features/wallet/ssr"
 import { WalletClient } from "./wallet-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
+import WalletLoading from "./loading"
 
 export const metadata: Metadata = {
 	title: "Wallet",
@@ -29,15 +30,11 @@ async function WalletData({ organizationId }: { organizationId: string }) {
 	}
 }
 
-function WalletLoadingFallback() {
-	return <div className="p-8">Loading wallet...</div>
-}
-
 export default async function WalletPage({ params }: PageProps) {
 	const { organizationId } = await params
 	return (
 		<OrganizationGuard pageType="default">
-			<Suspense fallback={<WalletLoadingFallback />}>
+			<Suspense fallback={<WalletLoading />}>
 				<WalletData organizationId={organizationId} />
 			</Suspense>
 		</OrganizationGuard>

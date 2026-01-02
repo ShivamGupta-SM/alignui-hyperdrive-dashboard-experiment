@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
+import { useModalState } from "@/hooks/ui"
 import * as Button from "@/components/ui/primitives/button"
 import * as Badge from "@/components/ui/data-display/badge"
 import * as Avatar from "@/components/ui/primitives/avatar"
@@ -18,8 +19,7 @@ import {
 	UserMinus,
 	Spinner,
 } from "@phosphor-icons/react"
-import { getAvatarColor } from "@/lib/utils"
-import { formatDateShort } from "@/lib/utils/format"
+import { getAvatarColor, formatDateShort } from "@/lib/utils"
 import {
 	useTeams,
 	useCreateTeam,
@@ -47,10 +47,11 @@ interface TeamsManagementProps {
 }
 
 export function TeamsManagement({ organizationId }: TeamsManagementProps) {
-	const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-	const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-	const [isMembersModalOpen, setIsMembersModalOpen] = useState(false)
+	// Modal states - using useModalState hook for consistent pattern
+	const [isCreateModalOpen, openCreateModal, closeCreateModal] = useModalState()
+	const [isEditModalOpen, openEditModal, closeEditModal] = useModalState()
+	const [isDeleteModalOpen, openDeleteModal, closeDeleteModal] = useModalState()
+	const [isMembersModalOpen, openMembersModal, closeMembersModal] = useModalState()
 	const [selectedTeam, setSelectedTeam] = useState<TeamFromAPI | null>(null)
 
 	// Fetch teams
@@ -64,23 +65,51 @@ export function TeamsManagement({ organizationId }: TeamsManagementProps) {
 
 	const handleEditTeam = useCallback((team: TeamFromAPI) => {
 		setSelectedTeam(team)
-		setIsEditModalOpen(true)
-	}, [])
+		openEditModal()
+	}, [openEditModal])
 
 	const handleDeleteTeam = useCallback((team: TeamFromAPI) => {
 		setSelectedTeam(team)
-		setIsDeleteModalOpen(true)
-	}, [])
+		openDeleteModal()
+	}, [openDeleteModal])
 
 	const handleManageMembers = useCallback((team: TeamFromAPI) => {
 		setSelectedTeam(team)
-		setIsMembersModalOpen(true)
-	}, [])
+		openMembersModal()
+	}, [openMembersModal])
 
+	// Show skeleton instead of blocking spinner for better UX
 	if (isLoadingTeams) {
 		return (
-			<div className="flex items-center justify-center p-8">
-				<Spinner className="size-6 animate-spin text-primary-base" />
+			<div className="space-y-4">
+				{/* Header skeleton */}
+				<div className="flex items-center justify-between">
+					<div className="space-y-2">
+						<div className="h-5 w-20 bg-bg-weak-50 rounded animate-pulse" />
+						<div className="h-4 w-72 bg-bg-weak-50 rounded animate-pulse" />
+					</div>
+					<div className="h-9 w-28 bg-bg-weak-50 rounded-lg animate-pulse" />
+				</div>
+				{/* Teams grid skeleton */}
+				<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+					{[1, 2, 3].map((i) => (
+						<div
+							key={i}
+							className="rounded-xl bg-bg-white-0 p-4 ring-1 ring-inset ring-stroke-soft-200"
+						>
+							<div className="flex items-start justify-between mb-3">
+								<div className="flex items-center gap-3">
+									<div className="size-10 bg-bg-weak-50 rounded-lg animate-pulse" />
+									<div className="h-4 w-24 bg-bg-weak-50 rounded animate-pulse" />
+								</div>
+							</div>
+							<div className="flex items-center justify-between pt-3 border-t border-stroke-soft-200">
+								<div className="h-3 w-20 bg-bg-weak-50 rounded animate-pulse" />
+								<div className="h-7 w-20 bg-bg-weak-50 rounded-lg animate-pulse" />
+							</div>
+						</div>
+					))}
+				</div>
 			</div>
 		)
 	}
@@ -98,7 +127,7 @@ export function TeamsManagement({ organizationId }: TeamsManagementProps) {
 				<Button.Root
 					variant="primary"
 					size="small"
-					onClick={() => setIsCreateModalOpen(true)}
+					onClick={openCreateModal}
 				>
 					<Button.Icon><Plus className="size-5" /></Button.Icon>
 					Create Team
@@ -118,7 +147,7 @@ export function TeamsManagement({ organizationId }: TeamsManagementProps) {
 					<Button.Root
 						variant="neutral"
 						size="small"
-						onClick={() => setIsCreateModalOpen(true)}
+						onClick={openCreateModal}
 					>
 						<Button.Icon><Plus className="size-5" /></Button.Icon>
 						Create First Team
@@ -183,10 +212,10 @@ export function TeamsManagement({ organizationId }: TeamsManagementProps) {
 			{/* Create Team Modal */}
 			<CreateTeamModal
 				open={isCreateModalOpen}
-				onOpenChange={setIsCreateModalOpen}
+				onOpenChange={(open) => !open && closeCreateModal()}
 				onSubmit={async (data) => {
 					await createTeamMutation.mutateAsync(data)
-					setIsCreateModalOpen(false)
+					closeCreateModal()
 				}}
 				isPending={createTeamMutation.isPending}
 			/>
@@ -195,14 +224,14 @@ export function TeamsManagement({ organizationId }: TeamsManagementProps) {
 			{selectedTeam && (
 				<EditTeamModal
 					open={isEditModalOpen}
-					onOpenChange={setIsEditModalOpen}
+					onOpenChange={(open) => !open && closeEditModal()}
 					team={selectedTeam}
 					onSubmit={async (data) => {
 						await updateTeamMutation.mutateAsync({
 							teamId: selectedTeam.id,
 							data,
 						})
-						setIsEditModalOpen(false)
+						closeEditModal()
 					}}
 					isPending={updateTeamMutation.isPending}
 				/>
@@ -212,11 +241,11 @@ export function TeamsManagement({ organizationId }: TeamsManagementProps) {
 			{selectedTeam && (
 				<DeleteTeamModal
 					open={isDeleteModalOpen}
-					onOpenChange={setIsDeleteModalOpen}
+					onOpenChange={(open) => !open && closeDeleteModal()}
 					team={selectedTeam}
 					onConfirm={async () => {
 						await removeTeamMutation.mutateAsync(selectedTeam.id)
-						setIsDeleteModalOpen(false)
+						closeDeleteModal()
 					}}
 					isPending={removeTeamMutation.isPending}
 				/>
@@ -226,7 +255,7 @@ export function TeamsManagement({ organizationId }: TeamsManagementProps) {
 			{selectedTeam && (
 				<TeamMembersModal
 					open={isMembersModalOpen}
-					onOpenChange={setIsMembersModalOpen}
+					onOpenChange={(open) => !open && closeMembersModal()}
 					team={selectedTeam}
 					organizationId={organizationId}
 				/>

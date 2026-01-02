@@ -75,6 +75,6 @@ export {
 	type CampaignFormData,
 	type CreateCampaignBody,
 	type UpdateCampaignBody,
-} from "@/lib/utils/validations"
+} from "@/lib/utils"
 
 // SSR Data Fetching - Import directly from @/features/campaigns/ssr in server components

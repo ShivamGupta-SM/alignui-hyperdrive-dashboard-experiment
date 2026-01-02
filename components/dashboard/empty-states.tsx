@@ -4,6 +4,7 @@ import Link from "next/link"
 import type { ElementType, ReactNode } from "react"
 import * as Button from "@/components/ui/primitives/button"
 import * as EmptyState from "@/components/ui/feedback/empty-state"
+import { CalloutWithActions } from "@/components/ui/feedback/callout"
 import {
 	Rocket,
 	Megaphone,
@@ -599,6 +600,71 @@ export function AllNotificationsReadEmptyState() {
 			size="small"
 			showPattern={false}
 		/>
+	)
+}
+
+// ============================================
+// ONBOARDING REQUIRED ALERT
+// Dismissible callout for prompting org setup
+// ============================================
+
+interface OnboardingRequiredAlertProps {
+	/** Handler when user dismisses the alert */
+	onDismiss: () => void
+	/** Handler when user clicks "Start Onboarding" */
+	onStartOnboarding: () => void
+	/** Custom title (optional) */
+	title?: string
+	/** Custom description (optional) */
+	description?: string
+}
+
+/**
+ * OnboardingRequiredAlert - Dismissible warning callout for organization setup
+ *
+ * Use this when you need to show a dismissible warning that prompts the user
+ * to complete their organization setup. Replaces ~20 lines of inline JSX.
+ *
+ * @example
+ * <OnboardingRequiredAlert
+ *   onDismiss={handleDismissAlert}
+ *   onStartOnboarding={handleStartOnboarding}
+ * />
+ */
+export function OnboardingRequiredAlert({
+	onDismiss,
+	onStartOnboarding,
+	title = "Complete Your Organization Setup",
+	description = "To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.",
+}: OnboardingRequiredAlertProps) {
+	return (
+		<CalloutWithActions
+			variant="warning"
+			title={title}
+			dismissible
+			onDismiss={onDismiss}
+			actions={
+				<>
+					<Button.Root
+						variant="primary"
+						size="small"
+						onClick={onStartOnboarding}
+					>
+						<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
+						Start Onboarding
+					</Button.Root>
+					<Button.Root
+						variant="ghost"
+						size="small"
+						onClick={onDismiss}
+					>
+						Maybe Later
+					</Button.Root>
+				</>
+			}
+		>
+			{description}
+		</CalloutWithActions>
 	)
 }
 

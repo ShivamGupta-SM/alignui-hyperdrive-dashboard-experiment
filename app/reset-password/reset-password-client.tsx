@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, useReducer } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams, useParams } from "next/navigation"
 import { useForm } from "react-hook-form"
@@ -9,10 +9,42 @@ import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import { Callout } from "@/components/ui/feedback/callout"
 import { ArrowLeft, Lock, Eye, EyeSlash, WarningCircle } from "@phosphor-icons/react"
-import { resetPasswordSchema, type ResetPasswordFormData } from "@/lib/utils/validations"
-import { getSafeRedirectUrl } from "@/lib/utils/url-validation"
+import { resetPasswordSchema, getSafeRedirectUrl, type ResetPasswordFormData } from "@/lib/utils"
 import { TIMEOUTS } from "@/lib/constants"
 import { routes } from "@/lib/routes"
+
+// ✅ FIX: State machine pattern for page states
+// Replaces 3 separate useState flags that could have invalid combinations
+type PageState =
+	| { status: "validating" }
+	| { status: "invalid"; error: string }
+	| { status: "ready" }
+	| { status: "submitting" }
+	| { status: "success" }
+
+type PageAction =
+	| { type: "VALIDATE_SUCCESS" }
+	| { type: "VALIDATE_ERROR"; error: string }
+	| { type: "SUBMIT_START" }
+	| { type: "SUBMIT_SUCCESS" }
+	| { type: "SUBMIT_ERROR"; error: string }
+
+function pageReducer(state: PageState, action: PageAction): PageState {
+	switch (action.type) {
+		case "VALIDATE_SUCCESS":
+			return { status: "ready" }
+		case "VALIDATE_ERROR":
+			return { status: "invalid", error: action.error }
+		case "SUBMIT_START":
+			return { status: "submitting" }
+		case "SUBMIT_SUCCESS":
+			return { status: "success" }
+		case "SUBMIT_ERROR":
+			return { status: "ready" } // Go back to ready so user can retry
+		default:
+			return state
+	}
+}
 
 function ResetPasswordContent() {
 	const router = useRouter()
@@ -26,11 +58,8 @@ function ResetPasswordContent() {
 
 	const [showPassword, setShowPassword] = useState(false)
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-	const [isLoading, setIsLoading] = useState(false)
-	const [isValidating, setIsValidating] = useState(true)
-	const [isValid, setIsValid] = useState(false)
-	const [error, setError] = useState("")
-	const [success, setSuccess] = useState(false)
+	const [pageState, dispatch] = useReducer(pageReducer, { status: "validating" })
+	const [submitError, setSubmitError] = useState("")
 
 	const {
 		register,
@@ -48,50 +77,47 @@ function ResetPasswordContent() {
 	// This avoids issues with the token validation endpoint
 	useEffect(() => {
 		if (!token) {
-			setIsValidating(false)
-			setIsValid(false)
-			setError("Invalid or missing reset token")
+			dispatch({ type: "VALIDATE_ERROR", error: "Invalid or missing reset token" })
 			return
 		}
 
 		// Token exists, show the form
 		// Actual validation will happen when user submits the password
-		setIsValid(true)
-		setIsValidating(false)
+		dispatch({ type: "VALIDATE_SUCCESS" })
 	}, [token])
 
 	const onSubmit = async (data: ResetPasswordFormData) => {
-		setError("")
+		setSubmitError("")
 
 		if (!token) {
-			setError("Invalid reset token")
+			setSubmitError("Invalid reset token")
 			return
 		}
 
-		setIsLoading(true)
+		dispatch({ type: "SUBMIT_START" })
 
 		try {
 			const { resetPassword } = await import("@/app/actions")
 			const result = await resetPassword({ token, newPassword: data.password })
 
 			if (result?.data?.success) {
-				setSuccess(true)
+				dispatch({ type: "SUBMIT_SUCCESS" })
 				// Redirect to callbackURL if provided and valid, otherwise to sign-in
 				const redirectUrl = getSafeRedirectUrl(callbackURL || null, routes.auth.signIn)
 				setTimeout(() => {
 					router.push(redirectUrl)
 				}, TIMEOUTS.SAVED_INDICATOR)
 			} else {
-				setError(result?.serverError || "Failed to reset password")
+				setSubmitError(result?.serverError || "Failed to reset password")
+				dispatch({ type: "SUBMIT_ERROR", error: result?.serverError || "Failed to reset password" })
 			}
-		} catch (err) {
-			setError("Failed to reset password. Please try again.")
-		} finally {
-			setIsLoading(false)
+		} catch {
+			setSubmitError("Failed to reset password. Please try again.")
+			dispatch({ type: "SUBMIT_ERROR", error: "Failed to reset password. Please try again." })
 		}
 	}
 
-	if (isValidating) {
+	if (pageState.status === "validating") {
 		return (
 			<div className="flex min-h-screen flex-col bg-bg-white-0">
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
@@ -114,7 +140,7 @@ function ResetPasswordContent() {
 		)
 	}
 
-	if (!isValid) {
+	if (pageState.status === "invalid") {
 		return (
 			<div className="flex min-h-screen flex-col bg-bg-white-0">
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
@@ -135,7 +161,7 @@ function ResetPasswordContent() {
 								</div>
 								<h1 className="text-title-h4 text-text-strong-950 mb-2">Invalid Reset Link</h1>
 								<p className="text-paragraph-sm text-text-sub-600">
-									{error || "This password reset link is invalid or has expired"}
+									{pageState.error || "This password reset link is invalid or has expired"}
 								</p>
 							</div>
 
@@ -154,7 +180,7 @@ function ResetPasswordContent() {
 		)
 	}
 
-	if (success) {
+	if (pageState.status === "success") {
 		return (
 			<div className="flex min-h-screen flex-col bg-bg-white-0">
 				<header className="flex items-center justify-between px-6 py-4 border-b border-stroke-soft-200">
@@ -215,9 +241,9 @@ function ResetPasswordContent() {
 							</p>
 						</div>
 
-						{error && (
+						{submitError && (
 							<Callout variant="error" size="sm" className="mb-6">
-								{error}
+								{submitError}
 							</Callout>
 						)}
 
@@ -307,8 +333,8 @@ function ResetPasswordContent() {
 								)}
 							</div>
 
-							<Button.Root type="submit" variant="primary" className="w-full" disabled={isLoading}>
-								{isLoading ? "Resetting..." : "Reset Password"}
+							<Button.Root type="submit" variant="primary" className="w-full" disabled={pageState.status === "submitting"}>
+								{pageState.status === "submitting" ? "Resetting..." : "Reset Password"}
 							</Button.Root>
 						</form>
 					</div>

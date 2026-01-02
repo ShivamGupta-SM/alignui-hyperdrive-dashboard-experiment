@@ -8,6 +8,7 @@ import { getCampaignsData } from "@/features/campaigns/ssr"
 import { EnrollmentsClient } from "./enrollments-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logSSRError, logError } from "@/lib/logging/error-logger-simple"
+import EnrollmentsLoading from "./loading"
 
 export const metadata: Metadata = {
 	title: "Enrollments",
@@ -57,7 +58,7 @@ export default async function EnrollmentsPage({ params, searchParams }: PageProp
 
 	return (
 		<OrganizationGuard pageType="enrollments">
-			<Suspense fallback={<div className="p-8">Loading enrollments...</div>}>
+			<Suspense fallback={<EnrollmentsLoading />}>
 				<EnrollmentsData organizationId={organizationId} statusFilter={statusFilter} campaignFilter={campaignFilter} />
 			</Suspense>
 		</OrganizationGuard>

@@ -10,8 +10,8 @@ import * as Input from "@/components/ui/forms/input"
 import * as Avatar from "@/components/ui/primitives/avatar"
 import * as Badge from "@/components/ui/data-display/badge"
 import { FormField } from "@/components/ui/forms/form-field"
-import { cn } from "@/lib/utils"
-import { useSettingsSearchParams } from "@/hooks"
+import { cn, getInitial } from "@/lib/utils"
+import { useModalState, useSettingsSearchParams } from "@/hooks"
 import { useQueryClient } from "@tanstack/react-query"
 import { settingsKeys, updateOrganization, verifyBankAccount, addBankAccount, updateOrganizationLogo, removeOrganizationLogo } from "@/features/settings"
 import { organizationKeys } from "@/features/organizations"
@@ -19,7 +19,6 @@ import { requestOrgLogoUploadUrl } from "@/features/storage"
 import { FILE_SIZES } from "@/lib/types/constants"
 import * as Dropdown from "@/components/ui/layout/dropdown"
 import { useNotificationPreferences, useUpdateNotificationPreferences } from "@/features/notifications/hooks/use-notifications"
-import { getInitial } from "@/lib/utils/string"
 import * as Switch from "@/components/ui/forms/switch"
 import type { organizations } from "@/brand-client"
 import {
@@ -47,7 +46,7 @@ import {
 	bankAccountBodySchema,
 	type UpdateOrganizationBody,
 	type BankAccountBody,
-} from "@/lib/utils/validations"
+} from "@/lib/utils"
 import * as Modal from "@/components/ui/layout/modal"
 import * as BottomSheet from "@/components/ui/layout/bottom-sheet"
 import * as Radio from "@/components/ui/forms/radio"
@@ -117,21 +116,7 @@ export function SettingsClient({ initialData }: SettingsClientProps = {}) {
 
 	// Use server data - must be provided from server
 	if (!initialData) {
-		return (
-			<div className="animate-fade-in">
-				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-					<div className="min-w-0">
-						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Settings</h1>
-						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
-							Manage your organization settings
-						</p>
-					</div>
-				</div>
-				<div className="rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-8 text-center">
-					<p className="text-paragraph-sm text-text-sub-600">Loading settings...</p>
-				</div>
-			</div>
-		)
+		return <SettingsPageLoading />
 	}
 
 	const data = initialData
@@ -617,7 +602,7 @@ function BankAccountsSection({
 	bankAccounts: SettingsData["bankAccounts"]
 	organizationId: string
 }) {
-	const [showAddModal, setShowAddModal] = useState(false)
+	const [showAddModal, openAddModal, closeAddModal, , setShowAddModal] = useModalState()
 	const queryClient = useQueryClient()
 
 	const handleRemove = async (accountId: string) => {
@@ -660,7 +645,7 @@ function BankAccountsSection({
 			<SettingsCard
 				title="Bank Accounts"
 				action={
-					<Button.Root variant="primary" size="small" onClick={() => setShowAddModal(true)}>
+					<Button.Root variant="primary" size="small" onClick={openAddModal}>
 						<Button.Icon><Plus className="size-5" /></Button.Icon>
 						Add Account
 					</Button.Root>
@@ -677,7 +662,7 @@ function BankAccountsSection({
 								<p className="text-paragraph-sm text-text-sub-600 mb-4">
 									Add a bank account to enable withdrawals
 								</p>
-								<Button.Root variant="primary" size="small" onClick={() => setShowAddModal(true)}>
+								<Button.Root variant="primary" size="small" onClick={openAddModal}>
 									<Button.Icon><Plus className="size-5" /></Button.Icon>
 									Add Bank Account
 								</Button.Root>

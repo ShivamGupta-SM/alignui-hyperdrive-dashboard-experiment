@@ -27,6 +27,9 @@ export type {
 	PageClientProps,
 	DetailPageClientProps,
 	SSRListResponse,
+	BulkOperationError,
+	BulkOperationResult,
+	PartialUpdateResult,
 } from "./base"
 export type { ApiResponse, PaginatedResponse, ApiErrorResponse, ApiError } from "./api"
 // User types - re-export from features/team (source of truth)
@@ -41,9 +44,8 @@ export type { RecentActivity, DashboardData } from "./dashboard"
 // =============================================================================
 
 // Re-export from their actual source locations
-export { STALE_TIME } from "@/lib/utils/query-config"
+export { STALE_TIME, VALIDATION_CONSTANTS } from "@/lib/utils"
 export { GST_STATE_CODES } from "@/lib/constants"
-export { VALIDATION_CONSTANTS } from "@/lib/utils/validations"
 
 // Constants from local file
 export {

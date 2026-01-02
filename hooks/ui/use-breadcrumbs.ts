@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import { useMemo } from "react"
-import { capitalizeFirst } from "@/lib/utils/string"
+import { capitalizeFirst } from "@/lib/utils"
 
 export interface BreadcrumbItem {
 	label: string

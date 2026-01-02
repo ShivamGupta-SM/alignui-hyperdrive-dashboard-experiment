@@ -562,3 +562,132 @@ export function HeaderSkeleton() {
 		</header>
 	)
 }
+
+// Campaign Detail Page Loading
+export function CampaignDetailLoading() {
+	return (
+		<div className="space-y-6">
+			<PageHeaderSkeleton />
+			<div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+				<div className="lg:col-span-2 space-y-6">
+					<div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+						<Skeleton className="h-6 w-48 mb-4" />
+						<Skeleton className="h-4 w-full mb-2" />
+						<Skeleton className="h-4 w-3/4 mb-4" />
+						<div className="grid grid-cols-2 gap-4">
+							<div>
+								<Skeleton className="h-4 w-20 mb-2" />
+								<Skeleton className="h-6 w-32" />
+							</div>
+							<div>
+								<Skeleton className="h-4 w-20 mb-2" />
+								<Skeleton className="h-6 w-32" />
+							</div>
+						</div>
+					</div>
+					<ChartSkeleton />
+				</div>
+				<div className="space-y-6">
+					<StatCardSkeleton />
+					<StatCardSkeleton />
+					<StatCardSkeleton />
+				</div>
+			</div>
+		</div>
+	)
+}
+
+// Enrollment Detail Page Loading
+export function EnrollmentDetailLoading() {
+	return (
+		<div className="space-y-6">
+			<PageHeaderSkeleton />
+			<div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+				<div className="lg:col-span-2 space-y-6">
+					<div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+						<div className="flex items-center gap-4 mb-6">
+							<Skeleton className="size-16 rounded-full" />
+							<div className="flex-1">
+								<Skeleton className="h-6 w-40 mb-2" />
+								<Skeleton className="h-4 w-32" />
+							</div>
+							<Skeleton className="h-8 w-24 rounded-full" />
+						</div>
+						<div className="space-y-4">
+							<Skeleton className="h-4 w-full" />
+							<Skeleton className="h-4 w-3/4" />
+						</div>
+					</div>
+					<ActivityFeedSkeleton count={4} />
+				</div>
+				<div className="space-y-6">
+					<FormSkeleton />
+				</div>
+			</div>
+		</div>
+	)
+}
+
+// Product Detail Page Loading
+export function ProductDetailLoading() {
+	return (
+		<div className="space-y-6">
+			<PageHeaderSkeleton />
+			<div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+				<div className="lg:col-span-2 space-y-6">
+					<div className="rounded-20 bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-6">
+						<div className="flex gap-6">
+							<Skeleton className="size-32 rounded-lg shrink-0" />
+							<div className="flex-1">
+								<Skeleton className="h-6 w-48 mb-2" />
+								<Skeleton className="h-4 w-full mb-2" />
+								<Skeleton className="h-4 w-3/4 mb-4" />
+								<div className="flex gap-2">
+									<Skeleton className="h-6 w-16 rounded-full" />
+									<Skeleton className="h-6 w-20 rounded-full" />
+								</div>
+							</div>
+						</div>
+					</div>
+					<CardGridSkeleton count={2} />
+				</div>
+				<div className="space-y-6">
+					<StatCardSkeleton />
+					<StatCardSkeleton />
+				</div>
+			</div>
+		</div>
+	)
+}
+
+// Create Campaign Page Loading
+export function CreateCampaignLoading() {
+	return (
+		<div className="space-y-6">
+			<PageHeaderSkeleton />
+			<FormSkeleton />
+			<FormSkeleton />
+		</div>
+	)
+}
+
+// New Product Page Loading
+export function NewProductLoading() {
+	return (
+		<div className="space-y-6">
+			<PageHeaderSkeleton />
+			<FormSkeleton />
+		</div>
+	)
+}
+
+// Profile Page Loading
+export function ProfilePageLoading() {
+	return (
+		<div className="space-y-6">
+			<PageHeaderSkeleton />
+			<ProfileCardSkeleton />
+			<FormSkeleton />
+		</div>
+	)
+}

@@ -37,18 +37,17 @@ import {
 	Lock,
 	Info,
 } from "@phosphor-icons/react"
-import { cn } from "@/lib/utils"
-import { formatDateShort, formatDateMedium, formatDateWithWeekday, getErrorMessage } from "@/lib/utils/format"
-import { OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
+import { cn, formatDateMedium, formatDateWithWeekday, getErrorMessage } from "@/lib/utils"
+import { useModalState } from "@/hooks/ui"
+import { OnboardingRequiredAlert, OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
 import { useLocalStorage } from "@/hooks/state"
-import { CalloutWithActions } from "@/components/ui/feedback/callout"
 import {
 	CAMPAIGN_TYPE_OPTIONS,
 	DELIVERABLE_TYPE_OPTIONS,
 	DEFAULT_SUBMISSION_DEADLINE_DAYS,
 } from "@/lib/constants"
 import { createCampaign, updateCampaignStatus, type CampaignType } from "@/features/campaigns"
-import { campaignFormSchema, type CampaignFormInput } from "@/lib/utils/validations"
+import { campaignFormSchema, type CampaignFormInput } from "@/lib/utils"
 import type { DeliverableType } from "@/features/campaigns/types"
 import type { ProductWithStats } from "@/features/products"
 
@@ -90,33 +89,11 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 			<div className="space-y-5 sm:space-y-6">
 				{/* ONBOARDING ALERT */}
 				{showOnboardingAlert && (
-					<CalloutWithActions
-						variant="warning"
-						title="Complete Your Organization Setup"
-						dismissible
+					<OnboardingRequiredAlert
 						onDismiss={() => setDismissedOnboardingAlert(true)}
-						actions={
-							<>
-								<Button.Root
-									variant="primary"
-									size="small"
-									onClick={() => router.push(routes.onboarding.root)}
-								>
-									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-									Start Onboarding
-								</Button.Root>
-								<Button.Root
-									variant="ghost"
-									size="small"
-									onClick={() => setDismissedOnboardingAlert(true)}
-								>
-									Maybe Later
-								</Button.Root>
-							</>
-						}
-					>
-						To create campaigns, you need to complete your organization setup. This will only take a few minutes.
-					</CalloutWithActions>
+						onStartOnboarding={() => router.push(routes.onboarding.root)}
+						description="To create campaigns, you need to complete your organization setup. This will only take a few minutes."
+					/>
 				)}
 
 				{/* HEADER */}
@@ -709,15 +686,11 @@ interface Step2Props {
 }
 
 function Step2Schedule({ register, control, errors, watch, setValue }: Step2Props) {
-	const [startDateOpen, setStartDateOpen] = useState(false)
-	const [endDateOpen, setEndDateOpen] = useState(false)
+	const [startDateOpen, openStartDate, closeStartDate, toggleStartDate, setStartDateOpen] = useModalState(false)
+	const [endDateOpen, openEndDate, closeEndDate, toggleEndDate, setEndDateOpen] = useModalState(false)
 	const startDate = watch("startDate")
 	const endDate = watch("endDate")
 
-	const formatDate = (date?: Date): string => {
-		if (!date) return "Select date"
-		return formatDateWithWeekday(date)
-	}
 
 	return (
 		<div className="space-y-8">
@@ -750,7 +723,7 @@ function Step2Schedule({ register, control, errors, watch, setValue }: Step2Prop
 											startDate ? "text-text-strong-950" : "text-text-soft-400"
 										)}
 									>
-										{formatDate(startDate)}
+										{startDate ? formatDateWithWeekday(startDate) : "Select date"}
 									</span>
 								</button>
 							</Popover.Trigger>
@@ -786,7 +759,7 @@ function Step2Schedule({ register, control, errors, watch, setValue }: Step2Prop
 											endDate ? "text-text-strong-950" : "text-text-soft-400"
 										)}
 									>
-										{formatDate(endDate)}
+										{endDate ? formatDateWithWeekday(endDate) : "Select date"}
 									</span>
 								</button>
 							</Popover.Trigger>
@@ -1043,11 +1016,6 @@ function Step4Review({ watch, onEdit, products }: Step4Props) {
 	const formData = watch()
 	const product = products.find((p) => p.id === formData.productId)
 
-	const formatDate = (date?: Date): string => {
-		if (!date) return "Not set"
-		return formatDateMedium(date)
-	}
-
 	const ReviewSection = ({
 		title,
 		step,
@@ -1096,7 +1064,7 @@ function Step4Review({ watch, onEdit, products }: Step4Props) {
 				<ReviewSection title="Schedule & Limits" step={2}>
 					<ReviewRow
 						label="Period"
-						value={`${formatDate(formData.startDate)} - ${formatDate(formData.endDate)}`}
+						value={`${formData.startDate ? formatDateMedium(formData.startDate) : "Not set"} - ${formData.endDate ? formatDateMedium(formData.endDate) : "Not set"}`}
 					/>
 					<ReviewRow
 						label="Max Enrollments"

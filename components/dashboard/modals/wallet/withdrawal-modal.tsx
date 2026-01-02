@@ -6,8 +6,8 @@ import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import * as Radio from "@/components/ui/forms/radio"
 import { Bank } from "@phosphor-icons/react"
-import { cn } from "@/lib/utils"
-import { formatCurrency } from "@/lib/utils/format"
+import { cn, formatCurrency } from "@/lib/utils"
+import { logError } from "@/lib/logging/error-logger-simple"
 import { useParams } from "next/navigation"
 import { useBankAccounts } from "@/features/settings"
 import { requestWithdrawal } from "@/features/wallet"
@@ -224,7 +224,7 @@ export function WithdrawalRequestModal({
 					toast.error(result?.serverError || "Failed to submit withdrawal request")
 				}
 			} catch (error) {
-				console.error("Withdrawal request failed:", error)
+				logError(error, { source: "WithdrawalModal", data: { action: "withdrawalRequest", amount } })
 				toast.error("Failed to submit withdrawal request. Please try again.")
 			}
 		})

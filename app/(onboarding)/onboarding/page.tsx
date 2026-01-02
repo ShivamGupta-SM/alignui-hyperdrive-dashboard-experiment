@@ -23,7 +23,7 @@ import {
 	WarningCircle,
 } from "@phosphor-icons/react"
 import { BUSINESS_TYPE_OPTIONS, INDUSTRY_CATEGORY_OPTIONS, INDIAN_STATES, getStateFromGSTCode, getCitiesOfState, STORAGE_KEYS, clearOnboardingStorage } from "@/lib/constants"
-import { onboardingFormSchema, onboardingDraftSchema, type OnboardingFormInput } from "@/lib/utils/validations"
+import { onboardingFormSchema, onboardingDraftSchema, type OnboardingFormInput, getErrorMessage } from "@/lib/utils"
 import type { BusinessType, IndustryCategory, OrganizationDraft } from "@/features/organizations/types"
 import { useSession } from "@/features/auth"
 import { useLogoPreview } from "@/features/storage"
@@ -31,8 +31,6 @@ import { useOnboardingStatus } from "@/features/organizations/hooks/use-onboardi
 import { useOrganizations } from "@/features/organizations/hooks/use-organizations"
 import { toast } from "sonner"
 import { logInfo, logError } from "@/lib/logging/error-logger-simple"
-import { getErrorMessage } from "@/lib/utils/format"
-import { useOnboardingStore } from "@/lib/stores/onboarding-store"
 
 const steps = [
 	{ label: "Basic Info", value: 1 },
@@ -47,33 +45,29 @@ export default function OnboardingPage() {
 	// ✅ PAGE-LEVEL PROTECTION: Use central hook for onboarding status
 	const {
 		state,
-		subState,
+		needsOnboarding,
 		isLoading: isStatusLoading,
 		approvedOrgId,
 		targetOrgId,
-		rejectionReason
+		rejectionReason,
+		refetch, // ✅ FIX Bug 3: Add refetch for polling
 	} = useOnboardingStatus()
 
-	// ✅ ZUSTAND: Single store replaces 8 useState calls
-	const {
-		currentStep,
-		setCurrentStep,
-		isLoading,
-		setIsLoading,
-		isVerifyingGst,
-		setIsVerifyingGst,
-		termsAccepted,
-		setTermsAccepted,
-		organizationId,
-		setOrganizationId,
-		draftSaved,
-		draftRestored,
-		setIsLoadingDraft,
-		setDraftRestored,
-		logoFile,
-		setLogoFile,
-		reset: resetOnboardingStore,
-	} = useOnboardingStore()
+	// ✅ LOCAL STATE: Only for transient UI state (not persisted)
+	// Loading states
+	const [isLoading, setIsLoading] = useState(false)
+	const [isVerifyingGst, setIsVerifyingGst] = useState(false)
+	const [, setIsLoadingDraft] = useState(true)
+
+	// Organization ID from API (not form state)
+	const [organizationId, setOrganizationId] = useState<string | null>(null)
+
+	// Draft state - local only
+	const [draftSaved] = useState(false)
+	const [draftRestored, setDraftRestored] = useState(false)
+
+	// Logo file - local only (not persisted, File objects can't be serialized)
+	const [logoFile, setLogoFile] = useState<File | null>(null)
 
 	// Use React Query hook for organizations - cached automatically
 	const { data: orgsData } = useOrganizations()
@@ -82,6 +76,7 @@ export default function OnboardingPage() {
 	const fieldRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>>(new Map())
 
 	// ✅ PAGE-LEVEL PROTECTION: Handle redirects based on onboarding status
+	// Uses flattened state machine - no more subState checks needed
 	useEffect(() => {
 		if (isStatusLoading) return
 
@@ -92,7 +87,7 @@ export default function OnboardingPage() {
 		}
 
 		// Has pending? Go to pending page
-		if (state === "needs_onboarding" && subState === "has_pending") {
+		if (state === "has_pending") {
 			router.replace(routes.onboarding.pending)
 			return
 		}
@@ -101,7 +96,20 @@ export default function OnboardingPage() {
 		if (targetOrgId && !organizationId) {
 			setOrganizationId(targetOrgId)
 		}
-	}, [state, subState, isStatusLoading, approvedOrgId, targetOrgId, organizationId, router])
+	}, [state, isStatusLoading, approvedOrgId, targetOrgId, organizationId, router])
+
+	// ✅ FIX Bug 3: Poll for status updates when user needs onboarding
+	// This ensures auto-redirect if admin approves org while user is on form
+	useEffect(() => {
+		// Only poll when user needs onboarding (not loading, not ready, not error)
+		if (!needsOnboarding) return
+
+		const interval = setInterval(() => {
+			refetch()
+		}, 30000) // 30 seconds - matches pending page polling interval
+
+		return () => clearInterval(interval)
+	}, [needsOnboarding, refetch])
 
 	// RHF form setup
 	const {
@@ -118,6 +126,11 @@ export default function OnboardingPage() {
 		resolver: zodResolver(onboardingFormSchema),
 		mode: "onChange",
 		defaultValues: {
+			// UI state - managed by RHF for single source of truth (persisted with auto-save)
+			_ui: {
+				currentStep: 1,
+				termsAccepted: false,
+			},
 			basicInfo: {
 				name: "",
 				description: "",
@@ -140,6 +153,12 @@ export default function OnboardingPage() {
 			},
 		},
 	})
+
+	// ✅ UI STATE: Derived from RHF form state (persisted via auto-save)
+	const currentStep = watch("_ui.currentStep") ?? 1
+	const termsAccepted = watch("_ui.termsAccepted") ?? false
+	const setCurrentStep = (step: number) => setValue("_ui.currentStep", step)
+	const setTermsAccepted = (accepted: boolean) => setValue("_ui.termsAccepted", accepted)
 
 	// Watch website field for logo preview
 	const websiteValue = watch("basicInfo.website")
@@ -582,8 +601,27 @@ export default function OnboardingPage() {
 				label: "Clear",
 				onClick: () => {
 					clearOnboardingStorage()
-					reset() // React Hook Form reset
-					resetOnboardingStore() // Zustand store reset
+					// Reset RHF form to initial state (includes UI state like currentStep)
+					reset({
+						_ui: { currentStep: 1, termsAccepted: false },
+						basicInfo: { name: "", description: "", website: "" },
+						businessDetails: {
+							businessType: "pvt_ltd",
+							industryCategory: "electronics",
+							contactPerson: "",
+							phone: "",
+							address: "",
+							city: "",
+							state: "",
+							pinCode: "",
+						},
+						verification: {
+							gstNumber: "",
+							gstVerified: false,
+							cinNumber: "",
+						},
+					})
+					setDraftRestored(false)
 					logInfo("Draft cleared by user", { source: "Onboarding" })
 					toast.success("Draft cleared")
 				},
@@ -593,7 +631,7 @@ export default function OnboardingPage() {
 	}
 
 	// Show loading while checking onboarding status or during redirect
-	if (isStatusLoading || state === "ready" || (state === "needs_onboarding" && subState === "has_pending")) {
+	if (isStatusLoading || state === "ready" || state === "has_pending") {
 		return (
 			<div className="flex items-center justify-center min-h-[50vh]">
 				<div className="flex flex-col items-center gap-4">
@@ -612,7 +650,7 @@ export default function OnboardingPage() {
 	return (
 		<div className="w-full h-full flex flex-col">
 			{/* Rejection Banner - Show if org was rejected */}
-			{state === "needs_onboarding" && subState === "has_rejected" && rejectionReason && (
+			{state === "has_rejected" && rejectionReason && (
 				<div className="mb-4 flex items-start gap-3 rounded-lg bg-error-lighter p-4 ring-1 ring-error-base/20">
 					<WarningCircle className="size-5 text-error-base shrink-0 mt-0.5" weight="duotone" />
 					<div className="flex-1 min-w-0">

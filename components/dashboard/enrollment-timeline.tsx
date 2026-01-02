@@ -1,9 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@/lib/utils"
-import { formatDateShort } from "@/lib/utils/format"
-import { formatTimeAgoShort } from "@/lib/utils/date"
+import { cn, formatDateShort, formatTimeAgoShort } from "@/lib/utils"
 import type { EnrollmentTransitionHistoryItem } from "@/features/enrollments"
 import {
 	CheckCircle,

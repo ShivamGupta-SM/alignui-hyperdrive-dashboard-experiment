@@ -52,9 +52,11 @@ export async function getInvoicesData(organizationId: string) {
 				}
 			})
 
+			// ✅ FIX Bug 16: Explicit return instead of spread to avoid exposing internal fields
 			return {
 				invoices: invoicesResponse.data || [],
-				...invoicesResponse,
+				data: invoicesResponse.data || [],
+				total: invoicesResponse.total ?? 0,
 				organization: orgResult
 					? {
 							id: orgResult.id,

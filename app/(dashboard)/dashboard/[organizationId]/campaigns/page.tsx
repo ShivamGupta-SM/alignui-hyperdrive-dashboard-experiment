@@ -5,7 +5,9 @@ import { CampaignsClient } from "./campaigns-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logError } from "@/lib/logging/error-logger-simple"
 import type { CampaignWithStats, CampaignStatus } from "@/features/campaigns"
+import type { ProductWithStats } from "@/features/products"
 import { isValidCampaignStatus } from "@/lib/utils/validators"
+import CampaignsLoading from "./loading"
 
 export const metadata: Metadata = {
 	title: "Campaigns",
@@ -28,20 +30,23 @@ async function CampaignsData({ organizationId, statusFilter }: { organizationId:
 	let initialData: {
 		campaigns: CampaignWithStats[]
 		total?: number
+		products: ProductWithStats[]
 	}
 
 	try {
 		const data = await getCampaignsData(organizationId, statusFilter)
-		// SSOT: Use standardized 'data' field from ssr.ts
+		// SSOT: Use standardized 'data' field from ssr.ts - includes products for modal
 		initialData = {
 			campaigns: data.data ?? [],
 			total: data.total,
+			products: data.products ?? [],
 		}
 	} catch (error) {
 		logError(error, { source: "CampaignsPage", data: { action: "fetch campaigns data", statusFilter } })
 		initialData = {
 			campaigns: [],
 			total: 0,
+			products: [],
 		}
 	}
 
@@ -62,7 +67,7 @@ export default async function CampaignsPage({ params, searchParams }: PageProps)
 			message={guardMessage}
 			pageType="campaigns"
 		>
-			<Suspense fallback={<div className="p-8">Loading campaigns...</div>}>
+			<Suspense fallback={<CampaignsLoading />}>
 				<CampaignsData organizationId={organizationId} statusFilter={statusFilter} />
 			</Suspense>
 		</OrganizationGuard>

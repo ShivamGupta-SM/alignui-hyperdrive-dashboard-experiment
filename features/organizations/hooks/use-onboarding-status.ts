@@ -2,40 +2,81 @@
  * Onboarding Status Hook
  *
  * Determines navigation state based on user's organizations.
+ *
+ * ✅ REFACTORED: Flattened state machine from 2 enums to 1
+ * Previously: OnboardingState + OnboardingSubState
+ * Now: Single OnboardingState covers all cases
  */
 
 "use client"
 
 import { useMemo } from "react"
 import { useOrganization } from "./use-organizations"
-import { STATUS_CHECKS } from "@/lib/utils/validations"
 import type { Organization } from "../types"
 
 // =============================================================================
-// Types
+// Types - Flattened State Machine
 // =============================================================================
 
+/**
+ * Single-level onboarding state (no more subState)
+ *
+ * States that need user action:
+ * - no_orgs: New user, needs to create org
+ * - has_draft: Has incomplete org, needs to complete form
+ * - has_rejected: Org rejected, needs to fix and resubmit
+ *
+ * States that are waiting:
+ * - loading: Fetching data
+ * - has_pending: Waiting for admin approval
+ * - has_banned: Account suspended
+ *
+ * Terminal states:
+ * - ready: Has approved org, can access dashboard
+ * - error: Network/API error
+ */
 export type OnboardingState =
-	| "loading"           // Still fetching data
-	| "error"             // Network/API error
-	| "needs_onboarding"  // No approved org
-	| "ready"             // Has approved org - can access dashboard
+	| "loading"       // Fetching data
+	| "error"         // Network/API error
+	| "no_orgs"       // New user - create first org
+	| "has_draft"     // Incomplete org - complete form
+	| "has_pending"   // Waiting for approval
+	| "has_rejected"  // Rejected - fix and resubmit
+	| "has_banned"    // Account banned
+	| "ready"         // Approved - can access dashboard
 
+/**
+ * @deprecated Use `OnboardingState` directly. Kept for backwards compatibility.
+ * Will be removed in future version.
+ */
 export type OnboardingSubState =
-	| "no_orgs"           // Create first org
-	| "has_draft"         // Complete form
-	| "has_pending"       // Waiting for approval
-	| "has_rejected"      // Fix and resubmit
-	| "has_banned"        // Account banned - contact support
+	| "no_orgs"
+	| "has_draft"
+	| "has_pending"
+	| "has_rejected"
+	| "has_banned"
 
 export interface OnboardingStatus {
+	/** Current onboarding state */
 	state: OnboardingState
+	/**
+	 * @deprecated Use `state` directly. This is now always null.
+	 * Kept for backwards compatibility during migration.
+	 */
 	subState: OnboardingSubState | null
+	/** Whether data is loading */
 	isLoading: boolean
+	/** Whether user needs to complete onboarding */
+	needsOnboarding: boolean
+	/** Whether user can access dashboard */
 	canAccessDashboard: boolean
+	/** ID of approved org (if any) */
 	approvedOrgId: string | null
+	/** ID of target org to work with */
 	targetOrgId: string | null
+	/** Rejection reason (if rejected/banned) */
 	rejectionReason: string | null
+	/** Manual refetch function */
 	refetch: () => void
 }
 
@@ -60,21 +101,21 @@ export function useOnboardingStatus(): OnboardingStatus {
 		approvedOrg,
 		pendingOrg,
 		draftOrg,
-		isPending,
-		isFetching,
+		isInitialLoading,
+		isRefetching,
 		isOrgsError,
 		isSessionError,
 		refetch,
 	} = useOrganization()
 
 	return useMemo(() => {
-		// Loading state - check both isPending AND isFetching to prevent redirect loops
-		// isPending = initial load, isFetching = refetch/invalidation
-		if (isPending || isFetching) {
+		// Loading state - check both isInitialLoading AND isRefetching to prevent redirect loops
+		if (isInitialLoading || isRefetching) {
 			return {
-				state: "loading",
-				subState: null,
+				state: "loading" as const,
+				subState: null, // @deprecated - kept for backwards compatibility
 				isLoading: true,
+				needsOnboarding: false,
 				canAccessDashboard: false,
 				approvedOrgId: null,
 				targetOrgId: null,
@@ -86,9 +127,10 @@ export function useOnboardingStatus(): OnboardingStatus {
 		// Error state
 		if (isSessionError || isOrgsError) {
 			return {
-				state: "error",
+				state: "error" as const,
 				subState: null,
 				isLoading: false,
+				needsOnboarding: false,
 				canAccessDashboard: false,
 				approvedOrgId: null,
 				targetOrgId: null,
@@ -101,9 +143,10 @@ export function useOnboardingStatus(): OnboardingStatus {
 		const orgsArray = Array.isArray(organizations) ? organizations : []
 		if (orgsArray.length === 0) {
 			return {
-				state: "needs_onboarding",
-				subState: "no_orgs",
+				state: "no_orgs" as const,
+				subState: "no_orgs" as const, // @deprecated
 				isLoading: false,
+				needsOnboarding: true,
 				canAccessDashboard: false,
 				approvedOrgId: null,
 				targetOrgId: null,
@@ -115,9 +158,10 @@ export function useOnboardingStatus(): OnboardingStatus {
 		// Has approved org = ready for dashboard
 		if (approvedOrg) {
 			return {
-				state: "ready",
+				state: "ready" as const,
 				subState: null,
 				isLoading: false,
+				needsOnboarding: false,
 				canAccessDashboard: true,
 				approvedOrgId: approvedOrg.id,
 				targetOrgId: approvedOrg.id,
@@ -126,42 +170,42 @@ export function useOnboardingStatus(): OnboardingStatus {
 			}
 		}
 
-		// Determine target org and sub-state based on priority: pending > draft > rejected > banned
-		// Find the "best" org to show/work with
+		// Determine target org based on priority: pending > draft > rejected > banned
 		const targetOrg = pendingOrg || draftOrg || orgsArray[0]
 		const targetOrgId = targetOrg?.id || null
 		const approvalStatus = targetOrg?.approvalStatus
 
-		let subState: OnboardingSubState = "has_draft"
-		let rejectionReason: string | null = null
-
 		// Cast to get rejectionReason
 		const org = targetOrg as Organization | null | undefined
 
-		// SSOT: Using STATUS_CHECKS helpers from @/lib/utils/validations
-		if (STATUS_CHECKS.isPending(approvalStatus)) {
-			subState = "has_pending"
-		} else if (STATUS_CHECKS.isRejected(approvalStatus)) {
-			subState = "has_rejected"
+		// ✅ FIX: Direct comparison instead of STATUS_CHECKS (cleaner, more readable)
+		let state: OnboardingState = "has_draft"
+		let rejectionReason: string | null = null
+
+		if (approvalStatus === "pending") {
+			state = "has_pending"
+		} else if (approvalStatus === "rejected") {
+			state = "has_rejected"
 			rejectionReason = org?.rejectionReason || null
-		} else if (STATUS_CHECKS.isBanned(approvalStatus)) {
-			subState = "has_banned"
+		} else if (approvalStatus === "banned") {
+			state = "has_banned"
 			rejectionReason = org?.rejectionReason || null
-		} else if (STATUS_CHECKS.isDraft(approvalStatus)) {
-			subState = "has_draft"
+		} else if (approvalStatus === "draft") {
+			state = "has_draft"
 		}
 
 		return {
-			state: "needs_onboarding",
-			subState,
+			state,
+			subState: state as OnboardingSubState, // @deprecated - mirrors state for compatibility
 			isLoading: false,
+			needsOnboarding: true,
 			canAccessDashboard: false,
 			approvedOrgId: null,
 			targetOrgId,
 			rejectionReason,
 			refetch,
 		}
-	}, [isPending, isFetching, isSessionError, isOrgsError, organizations, approvedOrg, pendingOrg, draftOrg, refetch])
+	}, [isInitialLoading, isRefetching, isSessionError, isOrgsError, organizations, approvedOrg, pendingOrg, draftOrg, refetch])
 }
 
 // =============================================================================
@@ -170,38 +214,40 @@ export function useOnboardingStatus(): OnboardingStatus {
 
 /**
  * Get redirect URL based on onboarding status
+ * Uses flattened state machine (no more subState checks)
  */
 export function getRedirectUrl(status: OnboardingStatus): string | null {
-	if (status.isLoading) return null
-	if (status.state === "error") return null
-
-	if (status.state === "ready" && status.approvedOrgId) {
-		return `/dashboard/${status.approvedOrgId}`
-	}
-
-	if (status.state === "needs_onboarding") {
-		if (status.subState === "has_pending") {
+	switch (status.state) {
+		case "loading":
+		case "error":
+			return null
+		case "ready":
+			return status.approvedOrgId ? `/dashboard/${status.approvedOrgId}` : null
+		case "has_pending":
 			return ONBOARDING_ROUTES.pending
-		}
-		if (status.subState === "has_banned") {
+		case "has_banned":
 			return ONBOARDING_ROUTES.banned
-		}
-		return ONBOARDING_ROUTES.form
+		case "no_orgs":
+		case "has_draft":
+		case "has_rejected":
+			return ONBOARDING_ROUTES.form
+		default:
+			return null
 	}
-
-	return null
 }
 
 /**
  * Get user-friendly message for current state
+ * Uses flattened state machine (no more subState checks)
  */
 export function getOnboardingMessage(status: OnboardingStatus): string {
-	if (status.state === "loading") return "Loading..."
-	if (status.state === "error") return "Something went wrong. Please try again."
-	if (status.state === "ready") return "Welcome back!"
-
-	// needs_onboarding sub-states
-	switch (status.subState) {
+	switch (status.state) {
+		case "loading":
+			return "Loading..."
+		case "error":
+			return "Something went wrong. Please try again."
+		case "ready":
+			return "Welcome back!"
 		case "no_orgs":
 			return "Let's set up your organization"
 		case "has_draft":

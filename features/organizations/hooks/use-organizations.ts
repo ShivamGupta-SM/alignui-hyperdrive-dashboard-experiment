@@ -8,8 +8,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { client } from "@/lib/api/client"
-import { STALE_TIME, GC_TIME, PAGE_SIZE, DEFAULT_RETRY_CONFIG, createMutationErrorHandler, createGlobalQueryKeyFactory } from "@/lib/utils/query-config"
-import { STATUS_CHECKS } from "@/lib/utils/validations"
+import { STALE_TIME, GC_TIME, PAGE_SIZE, DEFAULT_RETRY_CONFIG, createMutationErrorHandler, createGlobalQueryKeyFactory } from "@/lib/utils"
 import { useSession } from "@/features/auth"
 import { toast } from "sonner"
 import { verifyGST } from "../actions/onboarding"
@@ -29,20 +28,37 @@ export const organizationKeys = {
 	activity: (id: string) => [...organizationKeys.all, "activity", id] as const,
 	campaignStats: (id: string) => [...organizationKeys.all, "campaignStats", id] as const,
 	bankAccounts: (id: string) => [...organizationKeys.all, "bankAccounts", id] as const,
+	bankAccount: (orgId: string, bankAccountId: string, showFull?: boolean) =>
+		[...organizationKeys.bankAccounts(orgId), bankAccountId, showFull ?? false] as const,
+	invitations: (id: string) => [...organizationKeys.all, "invitations", id] as const,
+	dashboardOverview: (id: string) => [...organizationKeys.all, "dashboard-overview", id] as const,
 }
 
 // ============================================
 // QUERIES - Direct Client Usage
 // ============================================
 
+interface UseOrganizationsOptions {
+	/** Override enabled state (default: auto-enabled when session is ready) */
+	enabled?: boolean
+}
+
 /**
  * Get user's organizations
  *
  * Waits for session to be loaded before fetching to prevent
  * race condition where orgs are fetched before auth cookie is available.
+ *
+ * @param options.enabled - Override to disable fetching (e.g., when SSR data is available)
  */
-export function useOrganizations() {
+export function useOrganizations(options: UseOrganizationsOptions = {}) {
 	const { data: session, isPending: isSessionPending } = useSession()
+
+	// If enabled is explicitly set to false, don't fetch
+	// Otherwise, wait for session and use session-based enabling
+	const shouldEnable = options.enabled === false
+		? false
+		: !isSessionPending && !!session?.user
 
 	return useQuery({
 		queryKey: organizationKeys.lists(),
@@ -51,7 +67,7 @@ export function useOrganizations() {
 			return { organizations: result.organizations || [] }
 		},
 		// Wait for session to load before fetching organizations
-		enabled: !isSessionPending && !!session?.user,
+		enabled: shouldEnable,
 		staleTime: STALE_TIME.MEDIUM,
 		gcTime: GC_TIME.LONG,
 		...DEFAULT_RETRY_CONFIG,
@@ -73,63 +89,12 @@ export function useOrganizationById(id: string) {
 }
 
 // ============================================
-// URL-BASED ORGANIZATION DETAIL HOOK
-// ============================================
-
-/**
- * Get organization detail with full data
- *
- * Use this when you need the full organization object with members.
- * For just checking status/approval, use useCurrentOrganization from @/hooks/shared.
- *
- * @param organizationId - Organization ID from URL params (useParams)
- * @deprecated Prefer useCurrentOrganization from @/hooks/shared for most use cases.
- *             Only use this hook when you need full org details including members.
- */
-export function useOrganizationWithDetails(organizationId: string) {
-	const { data: orgsData, isPending: isLoadingOrgs } = useOrganizations()
-	const { data: orgDetail, isPending: isLoadingDetail } = useOrganizationById(organizationId)
-
-	// Find org in list for basic info (has approvalStatus)
-	const organizations = orgsData?.organizations || []
-	const organizationFromList = organizations.find((org) => org.id === organizationId)
-
-	// Merge detail with list item (detail has members, list has approvalStatus)
-	const organization = orgDetail
-		? { ...orgDetail, approvalStatus: organizationFromList?.approvalStatus }
-		: organizationFromList
-
-	// Derived status flags - use list item for approvalStatus (it's the source)
-	// SSOT: Using STATUS_CHECKS helpers from @/lib/utils/validations
-	const approvalStatus = organizationFromList?.approvalStatus
-	const isApproved = STATUS_CHECKS.isApproved(approvalStatus)
-	const isApprovalPending = STATUS_CHECKS.isPending(approvalStatus)
-	const isDraft = STATUS_CHECKS.isDraft(approvalStatus)
-	const isRejected = STATUS_CHECKS.isRejected(approvalStatus)
-	const isBanned = STATUS_CHECKS.isBanned(approvalStatus)
-
-	return {
-		// Data
-		organization,
-		organizationId,
-
-		// Status flags
-		isApproved,
-		isApprovalPending,
-		isDraft,
-		isRejected,
-		isBanned,
-		approvalStatus,
-
-		// Loading
-		isLoading: isLoadingOrgs || isLoadingDetail,
-		isPending: isLoadingOrgs || isLoadingDetail,
-	}
-}
-
-// ============================================
 // ORGANIZATIONS LIST HOOK (for navigation/onboarding)
 // ============================================
+
+// NOTE: useOrganizationWithDetails was REMOVED (was deprecated)
+// Use useCurrentOrganization from @/hooks/shared instead
+// For full org details with members, use useOrganizationById(id) directly
 
 /**
  * Organizations list hook - for navigation and onboarding checks
@@ -184,17 +149,16 @@ export function useOrganization() {
 	})
 
 	// Derived state from organizations list
-	// SSOT: Using STATUS_CHECKS helpers from @/lib/utils/validations
-	const isPending = isLoadingOrgs
+	// ✅ CLEANUP: Direct comparison instead of STATUS_CHECKS (cleaner, more readable)
 	const orgsArray = Array.isArray(organizations) ? organizations : []
-	const hasApprovedOrg = orgsArray.some((org) => STATUS_CHECKS.isApproved(org.approvalStatus))
-	const hasPendingOrg = orgsArray.some((org) => STATUS_CHECKS.isPending(org.approvalStatus))
-	const hasDraftOrg = orgsArray.some((org) => STATUS_CHECKS.isDraft(org.approvalStatus))
+	const hasApprovedOrg = orgsArray.some((org) => org.approvalStatus === "approved")
+	const hasPendingOrg = orgsArray.some((org) => org.approvalStatus === "pending")
+	const hasDraftOrg = orgsArray.some((org) => org.approvalStatus === "draft")
 	const draftOrg = orgsArray.find(
-		(org) => STATUS_CHECKS.isDraft(org.approvalStatus) || STATUS_CHECKS.isPending(org.approvalStatus)
+		(org) => org.approvalStatus === "draft" || org.approvalStatus === "pending"
 	)
-	const pendingOrg = orgsArray.find((org) => STATUS_CHECKS.isPending(org.approvalStatus))
-	const approvedOrg = orgsArray.find((org) => STATUS_CHECKS.isApproved(org.approvalStatus))
+	const pendingOrg = orgsArray.find((org) => org.approvalStatus === "pending")
+	const approvedOrg = orgsArray.find((org) => org.approvalStatus === "approved")
 	const needsOnboarding = !hasApprovedOrg
 
 	return {
@@ -210,11 +174,13 @@ export function useOrganization() {
 		approvedOrg,
 		needsOnboarding,
 
-		// Loading States
-		isPending,
-		isFetching: isFetchingOrgs,
-		isLoading: isPending,
-		isPendingOrgs: isLoadingOrgs,
+		// ✅ FIX: Consolidated loading states with clear naming
+		// isInitialLoading: First load only (no data yet)
+		// isRefetching: Background refresh (data exists, refreshing)
+		// isLoading: Any loading state (either initial or refetching)
+		isInitialLoading: isLoadingOrgs,
+		isRefetching: isFetchingOrgs && !isLoadingOrgs,
+		isLoading: isLoadingOrgs || isFetchingOrgs,
 		isOrgsError,
 		isSessionError: !!sessionError,
 		isVerifyingGST: verifyGSTMutation.isPending,
@@ -290,7 +256,7 @@ export function useOrganizationStats(orgId: string) {
  */
 export function useBankAccount(organizationId: string, bankAccountId: string, showFull?: boolean) {
 	return useQuery({
-		queryKey: [...organizationKeys.bankAccounts(organizationId), bankAccountId, showFull ?? false] as const,
+		queryKey: organizationKeys.bankAccount(organizationId, bankAccountId, showFull),
 		queryFn: () => client.organizations.getBankAccount(organizationId, bankAccountId, { showFull }),
 		enabled: !!organizationId && !!bankAccountId,
 		staleTime: STALE_TIME.MEDIUM,
@@ -304,7 +270,7 @@ export function useBankAccount(organizationId: string, bankAccountId: string, sh
  */
 export function useOrganizationInvitations(organizationId: string) {
 	return useQuery({
-		queryKey: ["organization-invitations", organizationId] as const,
+		queryKey: organizationKeys.invitations(organizationId),
 		queryFn: () => client.auth.listInvitations(organizationId),
 		enabled: !!organizationId,
 		staleTime: STALE_TIME.SHORT,
@@ -355,7 +321,7 @@ export function useUpdateBankAccount(organizationId: string) {
  */
 export function useDashboardOverview(organizationId: string) {
 	return useQuery({
-		queryKey: ["dashboard-overview", organizationId] as const,
+		queryKey: organizationKeys.dashboardOverview(organizationId),
 		queryFn: () => client.organizations.getDashboardOverview(organizationId, {}),
 		enabled: !!organizationId,
 		staleTime: STALE_TIME.SHORT,

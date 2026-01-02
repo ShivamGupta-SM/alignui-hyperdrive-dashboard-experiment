@@ -147,51 +147,13 @@ export function toPageLimit(skip = 0, take = DEFAULT_PAGE_SIZE): { page: number;
 }
 
 // ============================================
-// Mutation Error Handler - SSOT
+// Mutation Error Handler - Re-export from SSOT
 // ============================================
 
-/**
- * Default error handler for mutations
- * Can be used with useMutation's onError option
- *
- * @example
- * useMutation({
- *   mutationFn: ...,
- *   onError: (error) => handleMutationError(error, "Failed to update"),
- * })
- */
-export function handleMutationError(
-	error: Error,
-	fallbackMessage = "An error occurred"
-): void {
-	// Import dynamically to avoid issues with SSR
-	const message = error.message || fallbackMessage
-	console.error("[Mutation Error]", message, error)
-
-	// Toast will be shown by component if needed
-	// This is just for logging and standardization
-}
-
-/**
- * Creates a default onError handler for mutations
- * Use this in useMutation options for consistent error handling
- *
- * @example
- * export function useCreateCampaign(orgId: string) {
- *   return useMutation({
- *     mutationFn: ...,
- *     onSuccess: ...,
- *     onError: createMutationErrorHandler("create campaign"),
- *   })
- * }
- */
-export function createMutationErrorHandler(
-	actionName: string
-): (error: Error) => void {
-	return (error: Error) => {
-		handleMutationError(error, `Failed to ${actionName}`)
-	}
-}
+// SSOT: createMutationErrorHandler is defined in error-logger-simple.ts
+// Import for internal use and re-export for external consumers
+import { createMutationErrorHandler as _createMutationErrorHandler } from "@/lib/logging/error-logger-simple"
+export const createMutationErrorHandler = _createMutationErrorHandler
 
 // ============================================
 // Query Key Factory - SSOT
@@ -408,7 +370,7 @@ export function createMutationHook<
 	TKeys extends BaseQueryKeyFactory<string>
 >(
 	options: CreateMutationHookOptions<TInput, TOutput, TKeys>
-): (orgId: string) => UseMutationResult<TOutput, Error, TInput> {
+): (orgId: string) => UseMutationResult<TOutput, unknown, TInput> {
 	const {
 		action,
 		keys,
@@ -460,73 +422,47 @@ export function createMutationHook<
 }
 
 /**
- * Creates a simple mutation hook without organization context
- * Use for global mutations (auth, profile, etc.)
+ * Creates a global mutation hook (non-org-scoped)
  *
- * @example
- * export const useUpdateProfile = createSimpleMutationHook({
+ * Unified factory that handles:
+ * - Global mutations (no org context)
+ * - Mutations where orgId comes from input
+ * - Static or dynamic invalidation keys
+ *
+ * @example Static invalidation (global auth)
+ * ```tsx
+ * export const useUpdateProfile = createGlobalMutationHook({
  *   action: authActions.updateProfile,
  *   invalidateKeys: [authKeys.session()],
  *   successMessage: "Profile updated",
  *   errorAction: "update profile",
  * })
- */
-export interface CreateSimpleMutationHookOptions<TInput, TOutput> {
-	action: (input: TInput) => Promise<TOutput>
-	invalidateKeys?: QueryKey[]
-	successMessage?: string
-	errorAction: string
-}
-
-export function createSimpleMutationHook<TInput, TOutput>(
-	options: CreateSimpleMutationHookOptions<TInput, TOutput>
-): () => UseMutationResult<TOutput, Error, TInput> {
-	const { action, invalidateKeys, successMessage, errorAction } = options
-
-	return function useMutationHook() {
-		const qc = useQueryClient()
-
-		return useMutation({
-			mutationFn: action,
-			onSuccess: () => {
-				if (invalidateKeys) {
-					for (const key of invalidateKeys) {
-						qc.invalidateQueries({ queryKey: key })
-					}
-				}
-				if (successMessage) {
-					toast.success(successMessage)
-				}
-			},
-			onError: createMutationErrorHandler(errorAction),
-		})
-	}
-}
-
-/**
- * Creates a mutation hook that takes organizationId from input (not hook parameter)
- * Use when organizationId is part of the input data
+ * ```
  *
- * @example
- * export const useAcceptInvitation = createFlexMutationHook({
+ * @example Dynamic invalidation (org from input)
+ * ```tsx
+ * export const useAcceptInvitation = createGlobalMutationHook({
  *   action: actions.acceptInvitation,
  *   getOrgId: (input) => input.organizationId,
  *   invalidateKeys: (orgId) => [organizationKeys.lists()],
  *   successMessage: "Invitation accepted",
  *   errorAction: "accept invitation",
  * })
+ * ```
  */
-export interface CreateFlexMutationHookOptions<TInput, TOutput> {
+export interface CreateGlobalMutationHookOptions<TInput, TOutput> {
 	action: (input: TInput) => Promise<TOutput>
+	/** Extract orgId from input for dynamic invalidation */
 	getOrgId?: (input: TInput) => string
-	invalidateKeys?: (orgId: string | undefined) => QueryKey[]
+	/** Static keys or function for dynamic keys based on orgId */
+	invalidateKeys?: QueryKey[] | ((orgId: string | undefined) => QueryKey[])
 	successMessage?: string
 	errorAction: string
 }
 
-export function createFlexMutationHook<TInput, TOutput>(
-	options: CreateFlexMutationHookOptions<TInput, TOutput>
-): () => UseMutationResult<TOutput, Error, TInput> {
+export function createGlobalMutationHook<TInput, TOutput>(
+	options: CreateGlobalMutationHookOptions<TInput, TOutput>
+): () => UseMutationResult<TOutput, unknown, TInput> {
 	const { action, getOrgId, invalidateKeys, successMessage, errorAction } = options
 
 	return function useMutationHook() {
@@ -535,9 +471,13 @@ export function createFlexMutationHook<TInput, TOutput>(
 		return useMutation({
 			mutationFn: action,
 			onSuccess: (_, input) => {
-				const orgId = getOrgId?.(input)
 				if (invalidateKeys) {
-					for (const key of invalidateKeys(orgId)) {
+					const orgId = getOrgId?.(input)
+					// Handle both static array and dynamic function
+					const keys = typeof invalidateKeys === 'function'
+						? invalidateKeys(orgId)
+						: invalidateKeys
+					for (const key of keys) {
 						qc.invalidateQueries({ queryKey: key })
 					}
 				}
@@ -549,3 +489,17 @@ export function createFlexMutationHook<TInput, TOutput>(
 		})
 	}
 }
+
+// ============================================
+// Backward Compatibility Aliases
+// ============================================
+
+/**
+ * @deprecated Use `createGlobalMutationHook` instead
+ */
+export const createSimpleMutationHook = createGlobalMutationHook
+
+/**
+ * @deprecated Use `createGlobalMutationHook` instead
+ */
+export const createFlexMutationHook = createGlobalMutationHook

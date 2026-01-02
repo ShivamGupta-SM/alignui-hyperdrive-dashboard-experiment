@@ -3,7 +3,7 @@
  *
  * @description
  * Centralized debounce search hook for consistent search behavior.
- * Replaces duplicated debounce logic in campaigns-client and enrollments-client.
+ * Uses usehooks-ts for the core debounce logic.
  *
  * @example
  * ```tsx
@@ -13,7 +13,8 @@
 
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo } from "react"
+import { useDebounceValue } from "usehooks-ts"
 
 export interface UseDebounceSearchOptions {
 	/** Initial search query */
@@ -46,21 +47,10 @@ export function useDebounceSearch(options: UseDebounceSearchOptions = {}): UseDe
 	const { initialQuery = "", delay = 300, minLength = 2 } = options
 
 	const [query, setQueryState] = useState(initialQuery)
-	const [debouncedQuery, setDebouncedQuery] = useState(initialQuery)
-	const [isDebouncing, setIsDebouncing] = useState(false)
+	const [debouncedQuery] = useDebounceValue(query, delay)
 
-	// Debounce the query
-	useEffect(() => {
-		setIsDebouncing(true)
-		const timer = setTimeout(() => {
-			setDebouncedQuery(query)
-			setIsDebouncing(false)
-		}, delay)
-
-		return () => {
-			clearTimeout(timer)
-		}
-	}, [query, delay])
+	// Check if currently debouncing (query differs from debounced value)
+	const isDebouncing = query !== debouncedQuery
 
 	const setQuery = useCallback((newQuery: string) => {
 		setQueryState(newQuery)
@@ -68,8 +58,6 @@ export function useDebounceSearch(options: UseDebounceSearchOptions = {}): UseDe
 
 	const clearQuery = useCallback(() => {
 		setQueryState("")
-		setDebouncedQuery("")
-		setIsDebouncing(false)
 	}, [])
 
 	const isSearchActive = useMemo(() => {
@@ -88,20 +76,9 @@ export function useDebounceSearch(options: UseDebounceSearchOptions = {}): UseDe
 
 /**
  * Hook for debounced value (generic version)
- * For cases where you need to debounce any value, not just search
+ * Re-export from usehooks-ts for convenience
  */
 export function useDebounce<T>(value: T, delay: number = 300): T {
-	const [debouncedValue, setDebouncedValue] = useState(value)
-
-	useEffect(() => {
-		const timer = setTimeout(() => {
-			setDebouncedValue(value)
-		}, delay)
-
-		return () => {
-			clearTimeout(timer)
-		}
-	}, [value, delay])
-
+	const [debouncedValue] = useDebounceValue(value, delay)
 	return debouncedValue
 }

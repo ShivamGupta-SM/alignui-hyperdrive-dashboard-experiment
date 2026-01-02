@@ -2,33 +2,58 @@
 
 import { useCallback, useMemo, useState } from "react"
 
+// ============================================
+// Types
+// ============================================
+
+export type UseModalReturn<T = undefined> = readonly [
+	isOpen: boolean,
+	open: () => void,
+	close: () => void,
+	toggle: () => void,
+	setIsOpen: React.Dispatch<React.SetStateAction<boolean>>
+] & {
+	isOpen: boolean
+	data: T | undefined
+	open: () => void
+	openWith: (value: T) => void
+	close: () => void
+	toggle: () => void
+	props: { open: boolean; onOpenChange: (value: boolean) => void }
+	setData: React.Dispatch<React.SetStateAction<T | undefined>>
+	setIsOpen: React.Dispatch<React.SetStateAction<boolean>>
+}
+
+// ============================================
+// Unified Modal Hook
+// ============================================
+
 /**
- * Modal State Hook
+ * useModal - Universal modal state management hook
  *
- * Provides consistent modal state management with open/close handlers.
- * Reduces boilerplate for managing modal open/close state.
+ * Supports two usage patterns:
+ * 1. Simple tuple return for basic open/close
+ * 2. Object return with data support for complex modals
  *
- * @example Basic usage
+ * @example Simple usage (tuple pattern)
  * ```tsx
- * const deleteModal = useModal()
+ * const [isOpen, open, close, toggle] = useModal()
  *
- * return (
- *   <>
- *     <Button onClick={deleteModal.open}>Delete</Button>
- *     <DeleteModal {...deleteModal.props} />
- *   </>
- * )
+ * <Button onClick={open}>Open</Button>
+ * <Modal open={isOpen} onOpenChange={(v) => !v && close()}>...</Modal>
  * ```
  *
- * @example With data
+ * @example With data (object pattern)
  * ```tsx
- * const editModal = useModal<User>()
+ * const modal = useModal<User>()
  *
- * <Button onClick={() => editModal.openWith(user)}>Edit</Button>
- * <EditModal {...editModal.props} data={editModal.data} />
+ * <Button onClick={() => modal.openWith(user)}>Edit</Button>
+ * <Modal {...modal.props}>
+ *   <UserForm data={modal.data} />
+ * </Modal>
  * ```
  */
-export function useModal<T = undefined>(initialOpen = false) {
+export function useModal<T = undefined>(initialOpen = false): UseModalReturn<T> {
 	const [isOpen, setIsOpen] = useState(initialOpen)
 	const [data, setData] = useState<T | undefined>(undefined)
 
@@ -43,7 +68,6 @@ export function useModal<T = undefined>(initialOpen = false) {
 
 	const close = useCallback(() => {
 		setIsOpen(false)
-		// Clear data after a delay to allow exit animations
 		setTimeout(() => setData(undefined), 300)
 	}, [])
 
@@ -51,22 +75,22 @@ export function useModal<T = undefined>(initialOpen = false) {
 		setIsOpen((prev) => !prev)
 	}, [])
 
-	// Standard props for modal components
 	const props = useMemo(
 		() => ({
 			open: isOpen,
 			onOpenChange: (value: boolean) => {
-				if (!value) {
-					close()
-				} else {
-					setIsOpen(true)
-				}
+				if (!value) close()
+				else setIsOpen(true)
 			},
 		}),
 		[isOpen, close]
 	)
 
-	return {
+	// Create tuple array
+	const tuple = [isOpen, open, close, toggle, setIsOpen] as const
+
+	// Attach object properties to tuple
+	return Object.assign(tuple, {
 		isOpen,
 		data,
 		open,
@@ -75,53 +99,33 @@ export function useModal<T = undefined>(initialOpen = false) {
 		toggle,
 		props,
 		setData,
-	}
+		setIsOpen,
+	}) as UseModalReturn<T>
 }
 
 /**
  * Multi-Modal State Hook
  *
  * Manages multiple modals with a single hook, ensuring only one is open at a time.
- * Useful for pages with many modals that shouldn't overlap.
  *
  * @example
  * ```tsx
  * const modals = useMultiModal(["delete", "edit", "create"] as const)
  *
- * return (
- *   <>
- *     <Button onClick={() => modals.open("delete")}>Delete</Button>
- *     <Button onClick={() => modals.open("edit")}>Edit</Button>
- *
- *     <DeleteModal open={modals.isOpen("delete")} onOpenChange={(open) => modals.setOpen("delete", open)} />
- *     <EditModal open={modals.isOpen("edit")} onOpenChange={(open) => modals.setOpen("edit", open)} />
- *   </>
- * )
+ * <Button onClick={() => modals.open("delete")}>Delete</Button>
+ * <DeleteModal {...modals.getProps("delete")} />
  * ```
  */
 export function useMultiModal<T extends readonly string[]>(modalNames: T) {
 	type ModalName = T[number]
 	const [activeModal, setActiveModal] = useState<ModalName | null>(null)
 
-	const open = useCallback((name: ModalName) => {
-		setActiveModal(name)
-	}, [])
-
-	const close = useCallback(() => {
-		setActiveModal(null)
-	}, [])
-
-	const isOpen = useCallback(
-		(name: ModalName) => activeModal === name,
-		[activeModal]
-	)
+	const open = useCallback((name: ModalName) => setActiveModal(name), [])
+	const close = useCallback(() => setActiveModal(null), [])
+	const isOpen = useCallback((name: ModalName) => activeModal === name, [activeModal])
 
 	const setOpen = useCallback((name: ModalName, value: boolean) => {
-		if (value) {
-			setActiveModal(name)
-		} else {
-			setActiveModal(null)
-		}
+		setActiveModal(value ? name : null)
 	}, [])
 
 	const getProps = useCallback(
@@ -132,15 +136,15 @@ export function useMultiModal<T extends readonly string[]>(modalNames: T) {
 		[activeModal, setOpen]
 	)
 
-	return {
-		activeModal,
-		open,
-		close,
-		isOpen,
-		setOpen,
-		getProps,
-	}
+	return { activeModal, open, close, isOpen, setOpen, getProps }
 }
 
-export type UseModalReturn<T = undefined> = ReturnType<typeof useModal<T>>
 export type UseMultiModalReturn<T extends readonly string[]> = ReturnType<typeof useMultiModal<T>>
+
+// ============================================
+// Backward Compatibility
+// ============================================
+
+/** @deprecated Use `useModal` instead */
+export const useModalState = useModal
+export type UseModalStateReturn = ReturnType<typeof useModal>

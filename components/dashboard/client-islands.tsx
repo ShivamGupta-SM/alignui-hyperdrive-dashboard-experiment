@@ -9,14 +9,13 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { cn } from "@/lib/utils"
+import { cn, getHoursAgo, formatTimeAgoShort as formatTimeAgo } from "@/lib/utils"
 import * as Button from "@/components/ui/primitives/button"
 import { Plus } from "@phosphor-icons/react"
 import { THRESHOLDS, ANIMATION } from "@/lib/types/constants"
-import { getHoursAgo, formatTimeAgoShort as formatTimeAgo } from "@/lib/utils/date"
+import { useFormattedDate, useHydratedTime } from "@/hooks/ui/use-mounted"
 
 // ============================================
 // Dashboard Header (needs client for date formatting)
@@ -36,17 +35,7 @@ export function DashboardHeader({
 	createButtonLabel = "New Campaign",
 	createButtonHref,
 }: DashboardHeaderProps) {
-	const [dateString, setDateString] = useState<string>("")
-
-	useEffect(() => {
-		setDateString(
-			new Date().toLocaleDateString("en-IN", {
-				weekday: "long",
-				day: "numeric",
-				month: "short",
-			})
-		)
-	}, [])
+	const dateString = useFormattedDate()
 
 	const href = createButtonHref ?? `/dashboard/${organizationId}/campaigns/create`
 
@@ -91,14 +80,7 @@ interface PriorityEnrollmentItemProps {
 }
 
 export function PriorityEnrollmentItem({ enrollment, organizationId }: PriorityEnrollmentItemProps) {
-	const [currentTime, setCurrentTime] = useState<number | null>(null)
-
-	useEffect(() => {
-		setCurrentTime(Date.now())
-		const interval = setInterval(() => setCurrentTime(Date.now()), ANIMATION.TIME_UPDATE_INTERVAL)
-		return () => clearInterval(interval)
-	}, [])
-
+	const currentTime = useHydratedTime(ANIMATION.TIME_UPDATE_INTERVAL)
 	const hoursAgo = currentTime ? getHoursAgo(enrollment.createdAt, currentTime) : 0
 	const overdue = hoursAgo > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS
 	const highValue = (enrollment.orderValue || 0) >= THRESHOLDS.HIGH_VALUE_ORDER
@@ -213,16 +195,11 @@ interface LiveTimeDisplayProps {
 
 export function LiveTimeDisplay({
 	timestamp,
-	format = "short",
+	// format prop reserved for future use (full date format)
+	format: _format = "short",
 	updateInterval = ANIMATION.TIME_UPDATE_INTERVAL,
 }: LiveTimeDisplayProps) {
-	const [currentTime, setCurrentTime] = useState<number | null>(null)
-
-	useEffect(() => {
-		setCurrentTime(Date.now())
-		const interval = setInterval(() => setCurrentTime(Date.now()), updateInterval)
-		return () => clearInterval(interval)
-	}, [updateInterval])
+	const currentTime = useHydratedTime(updateInterval)
 
 	if (!currentTime) return <span className="invisible">...</span>
 

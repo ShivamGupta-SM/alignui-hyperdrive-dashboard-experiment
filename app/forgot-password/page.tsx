@@ -8,8 +8,7 @@ import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import { Callout } from "@/components/ui/feedback/callout"
 import { ArrowLeft, Envelope, WarningCircle } from "@phosphor-icons/react"
-import { forgotPasswordSchema, type ForgotPasswordFormData } from "@/lib/utils/validations"
-import { validateCallbackUrlServer } from "@/lib/utils/url-validation"
+import { forgotPasswordSchema, validateCallbackUrlServer, type ForgotPasswordFormData } from "@/lib/utils"
 import { routes } from "@/lib/routes"
 
 export default function ForgotPasswordPage() {

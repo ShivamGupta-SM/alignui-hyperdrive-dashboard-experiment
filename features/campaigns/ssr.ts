@@ -20,6 +20,7 @@ const EMPTY_CAMPAIGNS_RESPONSE = {
 	skip: 0,
 	take: SSR_PAGE_SIZE.DEFAULT,
 	hasMore: false,
+	products: [],
 }
 
 /**
@@ -47,9 +48,21 @@ export async function getCampaignsData(organizationId: string, status?: string) 
 				params.status = status
 			}
 
-			const response = await client.organizations.listCampaigns(organizationId, params)
-			// SSOT: Clean response format - only 'data' field
-			return { data: response.data, total: response.total, skip: response.skip, take: response.take, hasMore: response.hasMore }
+			// Fetch campaigns and products in parallel for modal-based campaign creation
+			const [campaignsResponse, productsResponse] = await Promise.all([
+				client.organizations.listCampaigns(organizationId, params),
+				client.organizations.listOrganizationProducts(organizationId, { skip: 0, take: SSR_PAGE_SIZE.LARGE }),
+			])
+
+			// SSOT: Clean response format with products for campaign creation modal
+			return {
+				data: campaignsResponse.data,
+				total: campaignsResponse.total,
+				skip: campaignsResponse.skip,
+				take: campaignsResponse.take,
+				hasMore: campaignsResponse.hasMore,
+				products: productsResponse.data || [],
+			}
 		},
 		EMPTY_CAMPAIGNS_RESPONSE
 	)

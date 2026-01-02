@@ -14,7 +14,7 @@ import { useEffect, useState } from "react"
 import { MagnifyingGlass, Command, SidebarSimple, X, SquaresFour } from "@phosphor-icons/react"
 
 import { useSession } from "@/features/auth"
-import { getInitial } from "@/lib/utils/string"
+import { getInitial } from "@/lib/utils"
 
 interface HeaderProps {
 	unreadNotifications?: number

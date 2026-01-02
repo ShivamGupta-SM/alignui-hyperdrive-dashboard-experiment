@@ -5,7 +5,8 @@
  * content that depends on client-side state (like Date.now(), window, etc.)
  */
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { logWarn } from "@/lib/logging"
 
 /**
  * Returns true after component has mounted on the client.
@@ -96,9 +97,22 @@ export function useFormattedDate(
 ): string {
 	const [dateString, setDateString] = useState("")
 
+	// Use ref to track options and avoid re-running effect on every render
+	const optionsRef = useRef(options)
+	const optionsKey = JSON.stringify(options)
+	const prevOptionsKeyRef = useRef(optionsKey)
+
+	// Only update ref when options actually change
+	if (prevOptionsKeyRef.current !== optionsKey) {
+		optionsRef.current = options
+		prevOptionsKeyRef.current = optionsKey
+	}
+
 	useEffect(() => {
-		setDateString(new Date().toLocaleDateString(locale, options))
-	}, [locale, JSON.stringify(options)])
+		setDateString(new Date().toLocaleDateString(locale, optionsRef.current))
+		// optionsKey triggers re-run when options change (ref doesn't trigger effects)
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [locale, optionsKey])
 
 	return dateString
 }
@@ -130,25 +144,28 @@ export function useHydratedLocalStorage<T>(
 				setStoredValue(JSON.parse(item))
 			}
 		} catch (error) {
-			console.warn(`Error reading localStorage key "${key}":`, error)
+			logWarn(`Error reading localStorage key "${key}"`, { source: "useHydratedLocalStorage", data: { key, error } })
 		}
 		setIsHydrated(true)
 	}, [key])
 
 	// Setter that persists to localStorage
-	const setValue = useMemo(
-		() => (value: T | ((prev: T) => T)) => {
+	// Using useCallback with functional update to avoid stale closure
+	const setValue = useCallback(
+		(value: T | ((prev: T) => T)) => {
 			try {
-				const valueToStore = value instanceof Function ? value(storedValue) : value
-				setStoredValue(valueToStore)
-				if (typeof window !== "undefined") {
-					localStorage.setItem(key, JSON.stringify(valueToStore))
-				}
+				setStoredValue((prev) => {
+					const valueToStore = value instanceof Function ? value(prev) : value
+					if (typeof window !== "undefined") {
+						localStorage.setItem(key, JSON.stringify(valueToStore))
+					}
+					return valueToStore
+				})
 			} catch (error) {
-				console.warn(`Error setting localStorage key "${key}":`, error)
+				logWarn(`Error setting localStorage key "${key}"`, { source: "useHydratedLocalStorage", data: { key, error } })
 			}
 		},
-		[key, storedValue]
+		[key]
 	)
 
 	return [storedValue, setValue, isHydrated]

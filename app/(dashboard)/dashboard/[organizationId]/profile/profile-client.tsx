@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
@@ -14,9 +14,7 @@ import * as TabMenu from "@/components/ui/navigation/tab-menu-horizontal"
 import * as List from "@/components/ui/data-display/list"
 import * as Modal from "@/components/ui/layout/modal"
 import { Metric, MetricGroup } from "@/components/ui/data-display/metric"
-import { getAvatarColor } from '@/lib/utils'
-import { formatDateMedium } from "@/lib/utils/format"
-import { getInitial } from "@/lib/utils/string"
+import { cn, getAvatarColor, formatDateMedium, getInitial } from '@/lib/utils'
 import { logError } from "@/lib/logging/error-logger-simple"
 import { authKeys } from "@/features/auth/hooks/use-auth"
 import { organizationKeys } from "@/features/organizations/hooks/use-organizations"
@@ -43,13 +41,12 @@ import {
   GithubLogo,
   MicrosoftOutlookLogo,
 } from '@phosphor-icons/react'
-import { cn } from '@/lib/utils'
 import type { auth } from "@/brand-client"
 // Server actions from settings (some delegate to auth internally)
 import { updateProfile, updatePassword, updateNotifications, enable2FA, disable2FA, revokeSession, revokeAllSessions } from '@/features/settings'
 import { listLinkedAccounts, unlinkAccount, leaveOrganization, deleteUser, useActiveMemberRole } from '@/features/auth'
 import { useOrganizations } from '@/features/organizations'
-import { useCurrentOrganization } from '@/hooks/shared/use-current-organization'
+import { useCurrentOrganization, useModalState } from '@/hooks'
 import { FILE_SIZES } from '@/lib/types/constants'
 import { useUploadProfilePicture } from '@/features/storage'
 // User type matching the initialData structure
@@ -468,7 +465,7 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(initialTwoFactor || false)
 
   // 2FA modal state
-  const [twoFAModalOpen, setTwoFAModalOpen] = useState(false)
+  const [twoFAModalOpen, openTwoFAModal, closeTwoFAModal] = useModalState()
   const [twoFAPassword, setTwoFAPassword] = useState('')
   const [twoFAAction, setTwoFAAction] = useState<'enable' | 'disable'>('enable')
   const [twoFALoading, setTwoFALoading] = useState(false)
@@ -514,7 +511,7 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
     // Open modal to collect password
     setTwoFAAction(enabled ? 'enable' : 'disable')
     setTwoFAPassword('')
-    setTwoFAModalOpen(true)
+    openTwoFAModal()
   }
 
   const handleConfirm2FA = async () => {
@@ -534,7 +531,7 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
           // SSOT: Use authKeys.session() for consistent cache invalidation
           queryClient.invalidateQueries({ queryKey: authKeys.session() })
           // React Query cache invalidation handles UI update - no router.refresh() needed
-          setTwoFAModalOpen(false)
+          closeTwoFAModal()
         } else {
           toast.error(result?.serverError || "Failed to enable 2FA")
         }
@@ -546,7 +543,7 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
           // SSOT: Use authKeys.session() for consistent cache invalidation
           queryClient.invalidateQueries({ queryKey: authKeys.session() })
           // React Query cache invalidation handles UI update - no router.refresh() needed
-          setTwoFAModalOpen(false)
+          closeTwoFAModal()
         } else {
           toast.error(result?.serverError || "Failed to disable 2FA")
         }
@@ -559,7 +556,7 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
   }
 
   const handleCancelModal = () => {
-    setTwoFAModalOpen(false)
+    closeTwoFAModal()
     setTwoFAPassword('')
   }
 
@@ -885,8 +882,8 @@ function DangerZoneSection() {
   const { data: orgsData } = useOrganizations()
   const { data: role } = useActiveMemberRole(organizationId)
 
-  const [leaveOrgModalOpen, setLeaveOrgModalOpen] = useState(false)
-  const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false)
+  const [leaveOrgModalOpen, openLeaveOrgModal, closeLeaveOrgModal] = useModalState()
+  const [deleteAccountModalOpen, openDeleteAccountModal, closeDeleteAccountModal] = useModalState()
   const [isLeaving, setIsLeaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletePassword, setDeletePassword] = useState('')
@@ -909,7 +906,7 @@ function DangerZoneSection() {
         // SSOT: Use proper query keys for consistent cache invalidation
         queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
         queryClient.invalidateQueries({ queryKey: authKeys.session() })
-        setLeaveOrgModalOpen(false)
+        closeLeaveOrgModal()
         // Redirect to dashboard or first available org
         const remainingOrgs = organizations.filter(org => org.id !== organizationId)
         if (remainingOrgs.length > 0) {
@@ -972,7 +969,7 @@ function DangerZoneSection() {
               <Button.Root
                 variant="error"
                 size="small"
-                onClick={() => setLeaveOrgModalOpen(true)}
+                onClick={openLeaveOrgModal}
               >
                 Leave
               </Button.Root>
@@ -993,7 +990,7 @@ function DangerZoneSection() {
             <Button.Root
               variant="error"
               size="small"
-              onClick={() => setDeleteAccountModalOpen(true)}
+              onClick={openDeleteAccountModal}
             >
               Delete
             </Button.Root>
@@ -1002,7 +999,7 @@ function DangerZoneSection() {
       </div>
 
       {/* Leave Organization Modal */}
-      <Modal.Root open={leaveOrgModalOpen} onOpenChange={setLeaveOrgModalOpen}>
+      <Modal.Root open={leaveOrgModalOpen} onOpenChange={(open) => !open && closeLeaveOrgModal()}>
         <Modal.Content>
           <Modal.Header>
             <Modal.Title>Leave Organization</Modal.Title>
@@ -1028,7 +1025,7 @@ function DangerZoneSection() {
           <Modal.Footer>
             <Button.Root
               variant="neutral"
-              onClick={() => setLeaveOrgModalOpen(false)}
+              onClick={closeLeaveOrgModal}
               disabled={isLeaving}
             >
               Cancel
@@ -1045,7 +1042,7 @@ function DangerZoneSection() {
       </Modal.Root>
 
       {/* Delete Account Modal */}
-      <Modal.Root open={deleteAccountModalOpen} onOpenChange={setDeleteAccountModalOpen}>
+      <Modal.Root open={deleteAccountModalOpen} onOpenChange={(open) => !open && closeDeleteAccountModal()}>
         <Modal.Content>
           <Modal.Header>
             <Modal.Title>Delete Account</Modal.Title>
@@ -1084,7 +1081,7 @@ function DangerZoneSection() {
             <Button.Root
               variant="neutral"
               onClick={() => {
-                setDeleteAccountModalOpen(false)
+                closeDeleteAccountModal()
                 setDeletePassword('')
               }}
               disabled={isDeleting}
@@ -1383,11 +1380,8 @@ function SessionsTab({ sessions }: SessionsTabProps) {
     }
   }
 
-  // Use centralized formatting from lib/format.ts directly
-  const formatDate = (dateStr: string | undefined): string => {
-    if (!dateStr) return 'Unknown'
-    return formatDateMedium(dateStr)
-  }
+  // Null-safe date formatting - uses SSOT from @/lib/utils/format
+  const safeFormatDate = (dateStr: string | undefined) => dateStr ? formatDateMedium(dateStr) : 'Unknown'
 
   return (
     <div className="space-y-6">
@@ -1426,8 +1420,8 @@ function SessionsTab({ sessions }: SessionsTabProps) {
                   </div>
                   <div className="text-paragraph-xs text-text-sub-600 mt-1 space-y-0.5">
                     <div>IP: {session.ipAddress || 'Unknown'}</div>
-                    <div>Last updated: {formatDate(session.updatedAt)}</div>
-                    <div>Signed in: {formatDate(session.createdAt)}</div>
+                    <div>Last updated: {safeFormatDate(session.updatedAt)}</div>
+                    <div>Signed in: {safeFormatDate(session.createdAt)}</div>
                   </div>
                 </List.ItemContent>
                 {!isCurrent && (

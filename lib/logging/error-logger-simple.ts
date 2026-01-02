@@ -277,4 +277,24 @@ export function createQueryErrorHandler(
 	}
 }
 
-
+/**
+ * Unified Logger Object
+ * 
+ * Provides convenient access to all logging functions through a single import.
+ * 
+ * @example
+ * import { logger } from "@/lib/logging"
+ * 
+ * logger.error(error, { source: "MyComponent" })
+ * logger.warn("Something suspicious")
+ * logger.info("Operation completed")
+ * logger.debug("Debug info")
+ */
+export const logger = {
+	error: logError,
+	warn: logWarn,
+	info: logInfo,
+	debug: logDebug,
+	ssr: logSSRError,
+	api: logAPIError,
+} as const

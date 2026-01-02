@@ -1,12 +1,33 @@
 /**
  * Centralized Date/Time Utilities
  *
- * All date/time formatting and calculations should use these functions
- * to prevent duplication and ensure consistency across the app.
+ * Using date-fns for battle-tested, tree-shakeable date operations.
+ * All date/time formatting and calculations should use these functions.
  */
+
+import {
+	formatDistanceToNow,
+	differenceInHours,
+	differenceInDays,
+	isToday as dateFnsIsToday,
+	subDays,
+	getWeek,
+	parseISO,
+} from "date-fns"
 
 import { THRESHOLDS } from "@/lib/types/constants"
 import { CAMPAIGN_ENDING_SOON_DAYS } from "@/lib/constants"
+
+// =============================================================================
+// Helper to normalize date input
+// =============================================================================
+
+function toDate(date: Date | string): Date {
+	if (typeof date === "string") {
+		return parseISO(date)
+	}
+	return date
+}
 
 // =============================================================================
 // Time Ago Calculations
@@ -19,24 +40,24 @@ import { CAMPAIGN_ENDING_SOON_DAYS } from "@/lib/constants"
  * @returns Number of hours ago (floored)
  */
 export function getHoursAgo(date: Date | string, referenceTime: number = Date.now()): number {
-	const dateMs = new Date(date).getTime()
-	return Math.floor((referenceTime - dateMs) / (1000 * 60 * 60))
+	return differenceInHours(new Date(referenceTime), toDate(date))
 }
 
 /**
  * Get time ago as human-readable string
  * @param date - Date to format
- * @param referenceTime - Reference timestamp (defaults to now)
+ * @param referenceTime - Reference timestamp (defaults to now, accepts null for hydration safety)
  * @returns Formatted string like "Just now", "2h ago", "3 days ago"
  */
-export function getTimeAgo(date: Date | string, referenceTime: number = Date.now()): string {
-	const diffMs = referenceTime - new Date(date).getTime()
-	const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+export function getTimeAgo(date: Date | string, referenceTime: number | null = Date.now()): string {
+	const now = referenceTime ?? Date.now()
+	const dateObj = toDate(date)
+	const diffHours = differenceInHours(new Date(now), dateObj)
 
 	if (diffHours < 1) return "Just now"
 	if (diffHours < 24) return `${diffHours}h ago`
 
-	const diffDays = Math.floor(diffHours / 24)
+	const diffDays = differenceInDays(new Date(now), dateObj)
 	if (diffDays === 1) return "1 day ago"
 	if (diffDays < 7) return `${diffDays} days ago`
 
@@ -47,6 +68,14 @@ export function getTimeAgo(date: Date | string, referenceTime: number = Date.now
 	const diffMonths = Math.floor(diffDays / 30)
 	if (diffMonths === 1) return "1 month ago"
 	return `${diffMonths} months ago`
+}
+
+/**
+ * Get relative time using date-fns formatDistanceToNow
+ * More accurate relative time for display purposes
+ */
+export function getRelativeTime(date: Date | string): string {
+	return formatDistanceToNow(toDate(date), { addSuffix: true })
 }
 
 /**
@@ -66,22 +95,24 @@ export function formatTimeAgoShort(hoursAgo: number): string {
 /**
  * Check if a date is overdue based on enrollment threshold
  * @param date - Date to check
- * @param referenceTime - Reference timestamp (defaults to now)
+ * @param referenceTime - Reference timestamp (defaults to now, accepts null for hydration safety)
  * @returns True if overdue (more than ENROLLMENT_OVERDUE_HOURS hours ago)
  */
-export function isOverdue(date: Date | string, referenceTime: number = Date.now()): boolean {
-	const diffMs = referenceTime - new Date(date).getTime()
-	return diffMs > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS * 60 * 60 * 1000
+export function isOverdue(date: Date | string, referenceTime: number | null = Date.now()): boolean {
+	const now = referenceTime ?? Date.now()
+	const hours = differenceInHours(new Date(now), toDate(date))
+	return hours > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS
 }
 
 /**
  * Check if a campaign is ending soon
  * @param endDate - Campaign end date
- * @param referenceTime - Reference timestamp (defaults to now)
+ * @param referenceTime - Reference timestamp (defaults to now, accepts null for hydration safety)
  * @returns True if ending within CAMPAIGN_ENDING_SOON_DAYS days
  */
-export function isEndingSoon(endDate: Date | string, referenceTime: number = Date.now()): boolean {
-	const daysUntilEnd = getDaysUntil(endDate, referenceTime)
+export function isEndingSoon(endDate: Date | string, referenceTime: number | null = Date.now()): boolean {
+	const now = referenceTime ?? Date.now()
+	const daysUntilEnd = getDaysUntil(endDate, now)
 	return daysUntilEnd <= CAMPAIGN_ENDING_SOON_DAYS && daysUntilEnd > 0
 }
 
@@ -96,8 +127,7 @@ export function isEndingSoon(endDate: Date | string, referenceTime: number = Dat
  * @returns Number of days (can be negative if in past)
  */
 export function getDaysUntil(date: Date | string, referenceTime: number = Date.now()): number {
-	const targetMs = new Date(date).getTime()
-	return Math.ceil((targetMs - referenceTime) / (1000 * 60 * 60 * 24))
+	return differenceInDays(toDate(date), new Date(referenceTime))
 }
 
 /**
@@ -107,8 +137,7 @@ export function getDaysUntil(date: Date | string, referenceTime: number = Date.n
  * @returns Number of days since (floored)
  */
 export function getDaysSince(date: Date | string, referenceTime: number = Date.now()): number {
-	const dateMs = new Date(date).getTime()
-	return Math.floor((referenceTime - dateMs) / (1000 * 60 * 60 * 24))
+	return differenceInDays(new Date(referenceTime), toDate(date))
 }
 
 // =============================================================================
@@ -121,13 +150,7 @@ export function getDaysSince(date: Date | string, referenceTime: number = Date.n
  * @returns True if same calendar day
  */
 export function isToday(date: Date | string): boolean {
-	const d = new Date(date)
-	const today = new Date()
-	return (
-		d.getDate() === today.getDate() &&
-		d.getMonth() === today.getMonth() &&
-		d.getFullYear() === today.getFullYear()
-	)
+	return dateFnsIsToday(toDate(date))
 }
 
 /**
@@ -137,7 +160,9 @@ export function isToday(date: Date | string): boolean {
  * @returns True if date is before reference time
  */
 export function isPast(date: Date | string, referenceTime: number = Date.now()): boolean {
-	return new Date(date).getTime() < referenceTime
+	const dateObj = toDate(date)
+	// For referenceTime comparison, use direct comparison
+	return dateObj.getTime() < referenceTime
 }
 
 /**
@@ -147,7 +172,8 @@ export function isPast(date: Date | string, referenceTime: number = Date.now()):
  * @returns True if date is after reference time
  */
 export function isFuture(date: Date | string, referenceTime: number = Date.now()): boolean {
-	return new Date(date).getTime() > referenceTime
+	const dateObj = toDate(date)
+	return dateObj.getTime() > referenceTime
 }
 
 // =============================================================================
@@ -162,7 +188,7 @@ export function isFuture(date: Date | string, referenceTime: number = Date.now()
  */
 export function getDateRange(days: number, referenceTime: number = Date.now()): { startDate: string; endDate: string } {
 	const endDate = new Date(referenceTime)
-	const startDate = new Date(referenceTime - days * 24 * 60 * 60 * 1000)
+	const startDate = subDays(endDate, days)
 
 	return {
 		startDate: startDate.toISOString(),
@@ -176,11 +202,7 @@ export function getDateRange(days: number, referenceTime: number = Date.now()): 
  * @returns Week number (1-52)
  */
 export function getWeekNumber(date: Date | string): number {
-	const d = new Date(date)
-	d.setHours(0, 0, 0, 0)
-	d.setDate(d.getDate() + 4 - (d.getDay() || 7))
-	const yearStart = new Date(d.getFullYear(), 0, 1)
-	return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
+	return getWeek(toDate(date))
 }
 
 // =============================================================================
@@ -194,7 +216,7 @@ export function getWeekNumber(date: Date | string): number {
  * @returns True if deadline is within 24 hours
  */
 export function isDeadlineApproaching(deadline: Date | string, referenceTime: number = Date.now()): boolean {
-	const hoursUntil = getDaysUntil(deadline, referenceTime) * 24
+	const hoursUntil = differenceInHours(toDate(deadline), new Date(referenceTime))
 	return hoursUntil > 0 && hoursUntil <= 24
 }
 

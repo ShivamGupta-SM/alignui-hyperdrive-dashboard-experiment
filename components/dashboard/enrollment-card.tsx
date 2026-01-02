@@ -10,7 +10,7 @@ import * as Checkbox from "@/components/ui/forms/checkbox"
 import { ArrowSquareOut, SealCheck, CurrencyCircleDollar, Info } from "@phosphor-icons/react"
 import type { EnrollmentWithRelations } from "@/features/enrollments"
 import { ENROLLMENT_STATUS_CONFIG } from "@/lib/constants"
-import { getInitial } from "@/lib/utils/string"
+import { getInitial } from "@/lib/utils"
 import { routes } from "@/lib/routes"
 
 // Color palette for avatar initials based on first letter

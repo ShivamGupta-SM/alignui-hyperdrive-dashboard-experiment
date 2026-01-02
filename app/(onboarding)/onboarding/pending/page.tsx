@@ -10,10 +10,9 @@ import { useOnboardingStatus } from "@/features/organizations/hooks/use-onboardi
 export default function PendingApprovalPage() {
 	const router = useRouter()
 
-	// Use central hook for onboarding status
+	// Use central hook for onboarding status (flattened state machine)
 	const {
 		state,
-		subState,
 		isLoading,
 		approvedOrgId,
 		refetch
@@ -22,8 +21,8 @@ export default function PendingApprovalPage() {
 	// Track if we're redirecting to stop polling
 	const isRedirectingRef = useRef(false)
 
-	// Check if user has a pending org
-	const isPending = state === "needs_onboarding" && subState === "has_pending"
+	// Check if user has a pending org (flattened state - no more subState)
+	const isPending = state === "has_pending"
 
 	// Auto-poll every 30 seconds to check for approval
 	useEffect(() => {

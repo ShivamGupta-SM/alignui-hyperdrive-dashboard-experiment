@@ -8,7 +8,8 @@ export interface CurrencyInputProps
 	value?: number | null
 	onValueChange?: (value: number | null) => void
 	currency?: "INR" | "USD" | "EUR"
-	size?: "small" | "medium" | "large"
+	/** Size variant aligned with Input/Select: xsmall (h-8), small (h-9), medium (h-10) */
+	size?: "xsmall" | "small" | "medium"
 	error?: boolean
 	className?: string
 }
@@ -19,10 +20,11 @@ const currencyConfig = {
 	EUR: { prefix: "€", thousandSeparator: ".", decimalSeparator: ",", locale: "de-DE" },
 }
 
+// Size styles aligned with Input/Select components for consistency
 const sizeStyles = {
-	small: "h-8 px-2.5 text-paragraph-sm",
+	xsmall: "h-8 px-2 text-paragraph-sm",
+	small: "h-9 px-2.5 text-paragraph-sm",
 	medium: "h-10 px-3 text-paragraph-sm",
-	large: "h-12 px-4 text-paragraph-md",
 }
 
 /**
@@ -176,7 +178,8 @@ export interface NumberInputProps
 	extends Omit<NumericFormatProps, "value" | "onValueChange" | "size"> {
 	value?: number | null
 	onValueChange?: (value: number | null) => void
-	size?: "small" | "medium" | "large"
+	/** Size variant aligned with Input/Select: xsmall (h-8), small (h-9), medium (h-10) */
+	size?: "xsmall" | "small" | "medium"
 	error?: boolean
 	suffix?: string
 	className?: string

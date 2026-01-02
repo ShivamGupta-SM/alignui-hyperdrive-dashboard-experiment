@@ -1,9 +1,8 @@
 "use client"
 
-import { cn } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
 import { Wallet, Clock, Check } from "@phosphor-icons/react"
 import { SimpleStatCard } from "@/components/dashboard/stat-card"
-import { formatCurrency } from "@/lib/utils/format"
 
 interface DashboardMetricsProps {
 	organizationId: string

@@ -7,6 +7,92 @@ import { db } from "@/mocks/db"
 import { getAuthContext, encoreUrl, encoreResponse, encoreNotFoundResponse, encoreErrorResponse } from "./utils"
 import { delay, DELAY } from "@/mocks/utils/delay"
 
+// ============================================================================
+// HELPER: Update organization (shared by PUT and PATCH)
+// ============================================================================
+
+interface UpdateOrgBody {
+	name?: string
+	email?: string
+	logo?: string
+	description?: string
+	website?: string
+	businessType?: string
+	industryCategory?: string
+	contactPerson?: string
+	phoneNumber?: string
+	address?: string
+	city?: string
+	state?: string
+	postalCode?: string
+	country?: string
+	cinNumber?: string
+}
+
+/**
+ * Shared helper for updating organization
+ * Used by both PUT and PATCH handlers to avoid duplication
+ * @param id - Organization ID
+ * @param body - Update body
+ * @param includeFullResponse - Whether to include all fields in response (PATCH) or minimal (PUT)
+ */
+function updateOrganization(id: string, body: UpdateOrgBody, includeFullResponse: boolean) {
+	let org = db.organizationSettings.findFirst((q) => q.where({ organizationId: id }))
+
+	// If organization doesn't exist, create it (for onboarding flow)
+	if (!org) {
+		db.organizationSettings.create({
+			organizationId: id,
+			name: body.name || "New Organization",
+			email: body.email || "",
+			logo: body.logo || undefined,
+		})
+		org = db.organizationSettings.findFirst((q) => q.where({ organizationId: id }))
+	}
+
+	if (!org) {
+		return { success: false, response: encoreNotFoundResponse("Organization") }
+	}
+
+	// Update organization in database
+	const updated = { ...org, ...body }
+	db.organizationSettings.delete((q) => q.where({ organizationId: id }))
+	db.organizationSettings.create(updated)
+
+	// Build response based on handler type
+	const baseResponse = {
+		id: updated.organizationId,
+		name: updated.name,
+		slug: String(updated.name).toLowerCase().replace(/\s+/g, "-"),
+		logo: updated.logo,
+	}
+
+	if (includeFullResponse) {
+		return {
+			success: true,
+			response: encoreResponse({
+				...baseResponse,
+				description: body.description || null,
+				website: body.website || null,
+				businessType: body.businessType || null,
+				industryCategory: body.industryCategory || null,
+				contactPerson: body.contactPerson || null,
+				phoneNumber: body.phoneNumber || null,
+				address: body.address || null,
+				city: body.city || null,
+				state: body.state || null,
+				postalCode: body.postalCode || null,
+				country: body.country || "IN",
+				cinNumber: body.cinNumber || null,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+			}),
+		}
+	}
+
+	return { success: true, response: encoreResponse(baseResponse) }
+}
+
 export const organizationsHandlers = [
 	// GET /organizations/me - Get my organizations
 	http.get(encoreUrl("/organizations/me"), async () => {
@@ -81,87 +167,17 @@ export const organizationsHandlers = [
 	// PATCH /organizations/:id - Update organization (Encore uses PATCH, not PUT)
 	http.patch(encoreUrl("/organizations/:id"), async ({ params, request }) => {
 		const { id } = params as { id: string }
-		const body = (await request.json()) as Record<string, unknown>
-
-		let org = db.organizationSettings.findFirst((q) => q.where({ organizationId: id }))
-
-		// If organization doesn't exist, create it (for onboarding flow)
-		// This can happen when auth.createOrganization creates it but update is called immediately
-		if (!org) {
-			// Create organization with basic data
-			db.organizationSettings.create({
-				organizationId: id,
-				name: (body.name as string) || "New Organization",
-				email: (body.email as string) || "",
-				logo: (body.logo as string) || undefined,
-			})
-			org = db.organizationSettings.findFirst((q) => q.where({ organizationId: id }))
-		}
-
-		if (!org) {
-			return encoreNotFoundResponse("Organization")
-		}
-
-		// Update organization in database - use findFirst + manual update pattern
-		const updated = { ...org, ...body }
-		db.organizationSettings.delete((q) => q.where({ organizationId: id }))
-		db.organizationSettings.create(updated)
-
-		return encoreResponse({
-			id: updated.organizationId,
-			name: updated.name,
-			slug: String(updated.name).toLowerCase().replace(/\s+/g, "-"),
-			logo: updated.logo,
-			description: (body.description as string) || null,
-			website: (body.website as string) || null,
-			businessType: (body.businessType as string) || null,
-			industryCategory: (body.industryCategory as string) || null,
-			contactPerson: (body.contactPerson as string) || null,
-			phoneNumber: (body.phoneNumber as string) || null,
-			address: (body.address as string) || null,
-			city: (body.city as string) || null,
-			state: (body.state as string) || null,
-			postalCode: (body.postalCode as string) || null,
-			country: (body.country as string) || "IN",
-			cinNumber: (body.cinNumber as string) || null,
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		})
+		const body = (await request.json()) as UpdateOrgBody
+		const result = updateOrganization(id, body, true)
+		return result.response
 	}),
 
-	// PUT /organizations/:id - Legacy support (redirects to PATCH)
+	// PUT /organizations/:id - Legacy support (minimal response)
 	http.put(encoreUrl("/organizations/:id"), async ({ params, request }) => {
 		const { id } = params as { id: string }
-		const body = (await request.json()) as Record<string, unknown>
-
-		let org = db.organizationSettings.findFirst((q) => q.where({ organizationId: id }))
-
-		// If organization doesn't exist, create it (for onboarding flow)
-		if (!org) {
-			db.organizationSettings.create({
-				organizationId: id,
-				name: (body.name as string) || "New Organization",
-				email: (body.email as string) || "",
-				logo: (body.logo as string) || undefined,
-			})
-			org = db.organizationSettings.findFirst((q) => q.where({ organizationId: id }))
-		}
-
-		if (!org) {
-			return encoreNotFoundResponse("Organization")
-		}
-
-		const updated = { ...org, ...body }
-		// Update organization in database - use findFirst + manual update pattern
-		db.organizationSettings.delete((q) => q.where({ organizationId: id }))
-		db.organizationSettings.create(updated)
-
-		return encoreResponse({
-			id: updated.organizationId,
-			name: updated.name,
-			slug: String(updated.name).toLowerCase().replace(/\s+/g, "-"),
-			logo: updated.logo,
-		})
+		const body = (await request.json()) as UpdateOrgBody
+		const result = updateOrganization(id, body, false)
+		return result.response
 	}),
 
 	// POST /organizations - Create organization

@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react"
+import { useModalState } from "@/hooks/ui"
 import { cn } from "@/lib/utils"
 
 // Types
@@ -51,7 +52,7 @@ const NETWORK_PRESETS: NetworkPreset[] = [
 ]
 
 export function MSWDevTools() {
-	const [isOpen, setIsOpen] = useState(false)
+	const [isOpen, open, close, toggle, setIsOpen] = useModalState(false)
 	const [activeTab, setActiveTab] = useState<"database" | "network" | "requests">("database")
 	const [networkPreset, setNetworkPreset] = useState("fast")
 	const [dbStats, setDbStats] = useState<DbStats | null>(null)
@@ -161,7 +162,7 @@ export function MSWDevTools() {
 		<>
 			{/* Toggle Button */}
 			<button
-				onClick={() => setIsOpen(!isOpen)}
+				onClick={toggle}
 				className={cn(
 					"fixed bottom-4 right-4 z-50",
 					"w-12 h-12 rounded-full",
@@ -206,7 +207,7 @@ export function MSWDevTools() {
 								MSW DevTools
 							</h3>
 							<button
-								onClick={() => setIsOpen(false)}
+								onClick={close}
 								className="text-text-soft-400 hover:text-text-strong-950 dark:hover:text-white"
 							>
 								<svg

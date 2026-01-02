@@ -64,28 +64,34 @@ export function DashboardEnrollmentTrend({
 					<div className="text-title-h6 sm:text-title-h4 text-text-strong-950 font-semibold">
 						{metrics.totalEnrollments}
 					</div>
-					<div className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">Total</div>
+					<div className="text-[10px] sm:text-paragraph-sm text-text-sub-600 mt-0.5">Total</div>
 				</div>
 				<div className="p-2 sm:p-4 text-center">
 					<div className="text-title-h6 sm:text-title-h4 text-success-base font-semibold">
 						{metrics.approvedCount}
 					</div>
-					<div className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5 hidden sm:block">Approved</div>
-					<div className="text-paragraph-xs text-text-sub-600 mt-0.5 sm:hidden">Ok</div>
+					<div className="text-[10px] sm:text-paragraph-sm text-text-sub-600 mt-0.5">
+						<span className="sm:hidden">Appr</span>
+						<span className="hidden sm:inline">Approved</span>
+					</div>
 				</div>
 				<div className="p-2 sm:p-4 text-center">
 					<div className="text-title-h6 sm:text-title-h4 text-error-base font-semibold">
 						{metrics.rejectedCount}
 					</div>
-					<div className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5 hidden sm:block">Rejected</div>
-					<div className="text-paragraph-xs text-text-sub-600 mt-0.5 sm:hidden">No</div>
+					<div className="text-[10px] sm:text-paragraph-sm text-text-sub-600 mt-0.5">
+						<span className="sm:hidden">Rej</span>
+						<span className="hidden sm:inline">Rejected</span>
+					</div>
 				</div>
 				<div className="p-2 sm:p-4 text-center">
 					<div className="text-title-h6 sm:text-title-h4 text-warning-base font-semibold">
 						{metrics.pendingCount}
 					</div>
-					<div className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5 hidden sm:block">Pending</div>
-					<div className="text-paragraph-xs text-text-sub-600 mt-0.5 sm:hidden">Wait</div>
+					<div className="text-[10px] sm:text-paragraph-sm text-text-sub-600 mt-0.5">
+						<span className="sm:hidden">Pend</span>
+						<span className="hidden sm:inline">Pending</span>
+					</div>
 				</div>
 			</div>
 		</div>

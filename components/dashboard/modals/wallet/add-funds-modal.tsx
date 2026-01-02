@@ -5,9 +5,8 @@ import * as Modal from "@/components/ui/layout/modal"
 import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import { QrCode } from "@phosphor-icons/react"
-import { cn } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
 import { EXTERNAL_URLS } from "@/lib/constants"
-import { formatCurrency } from "@/lib/utils/format"
 
 interface AddFundsModalProps {
 	open: boolean

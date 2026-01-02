@@ -21,7 +21,7 @@ const meta: Meta<typeof CurrencyInput> = {
 		},
 		size: {
 			control: "select",
-			options: ["small", "medium", "large"],
+			options: ["xsmall", "small", "medium"],
 		},
 	},
 }
@@ -69,7 +69,7 @@ export const Currencies: Story = {
 	},
 }
 
-// All sizes
+// All sizes - aligned with Input/Select: xsmall (h-8), small (h-9), medium (h-10)
 export const Sizes: Story = {
 	render: function SizesDemo() {
 		const [value, setValue] = useState<number | null>(50000)
@@ -77,16 +77,16 @@ export const Sizes: Story = {
 		return (
 			<div className="w-64 flex flex-col gap-4">
 				<div>
-					<label className="text-label-sm text-text-sub-600 mb-1.5 block">Small</label>
+					<label className="text-label-sm text-text-sub-600 mb-1.5 block">XSmall (h-8)</label>
+					<CurrencyInput value={value} onValueChange={setValue} size="xsmall" />
+				</div>
+				<div>
+					<label className="text-label-sm text-text-sub-600 mb-1.5 block">Small (h-9)</label>
 					<CurrencyInput value={value} onValueChange={setValue} size="small" />
 				</div>
 				<div>
-					<label className="text-label-sm text-text-sub-600 mb-1.5 block">Medium (default)</label>
+					<label className="text-label-sm text-text-sub-600 mb-1.5 block">Medium (h-10, default)</label>
 					<CurrencyInput value={value} onValueChange={setValue} size="medium" />
-				</div>
-				<div>
-					<label className="text-label-sm text-text-sub-600 mb-1.5 block">Large</label>
-					<CurrencyInput value={value} onValueChange={setValue} size="large" />
 				</div>
 			</div>
 		)

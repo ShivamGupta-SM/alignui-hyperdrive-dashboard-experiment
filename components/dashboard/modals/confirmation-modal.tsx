@@ -5,6 +5,7 @@ import * as Modal from "@/components/ui/layout/modal"
 import * as Button from "@/components/ui/primitives/button"
 import { Warning, Info } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
+import { logError } from "@/lib/logging/error-logger-simple"
 import { toast } from "sonner"
 
 export interface ConfirmationModalProps {
@@ -64,7 +65,7 @@ export function ConfirmationModal({
 		try {
 			onConfirm()
 		} catch (error) {
-			console.error("Confirmation action failed:", error)
+			logError(error, { source: "ConfirmationModal", data: { action: "confirm" } })
 			toast.error("Action failed. Please try again.")
 		}
 	}, [onConfirm])

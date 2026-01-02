@@ -4,6 +4,7 @@ import { getSettingsData } from "@/features/settings/ssr"
 import { SettingsClient } from "./settings-client"
 import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logError } from "@/lib/logging/error-logger-simple"
+import SettingsLoading from "./loading"
 
 export const metadata: Metadata = {
 	title: "Settings",
@@ -33,7 +34,7 @@ export default async function SettingsPage({ params }: PageProps) {
 	const { organizationId } = await params
 	return (
 		<OrganizationGuard pageType="default">
-			<Suspense fallback={<div className="p-8">Loading settings...</div>}>
+			<Suspense fallback={<SettingsLoading />}>
 				<SettingsData organizationId={organizationId} />
 			</Suspense>
 		</OrganizationGuard>

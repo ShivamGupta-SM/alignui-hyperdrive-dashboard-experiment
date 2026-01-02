@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname, useParams } from "next/navigation"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
+import { logError } from "@/lib/logging/error-logger-simple"
 import { AvatarWithFallback } from "@/components/ui/primitives/avatar"
 import * as Badge from "@/components/ui/data-display/badge"
 import * as Button from "@/components/ui/primitives/button"
@@ -41,7 +42,7 @@ import { useSignOut } from "@/features/auth"
 import { StatusBadge } from "@/components/dashboard/status-banner"
 import { useRouter } from "next/navigation"
 import type { OrganizationListItem } from "@/features/organizations/types"
-import { getInitial } from "@/lib/utils/string"
+import { getInitial } from "@/lib/utils"
 import { toast } from "sonner"
 import { routes } from "@/lib/routes"
 import { useQueryClient } from "@tanstack/react-query"
@@ -52,6 +53,8 @@ interface SidebarProps {
 	pendingEnrollments?: number
 	onMobileClose?: () => void
 	onSettingsClick?: () => void
+	/** SSR-fetched organizations - prevents client-side loading flash */
+	initialOrganizations?: OrganizationListItem[]
 }
 
 // Navigation items - hrefs are generated dynamically based on organizationId
@@ -222,6 +225,7 @@ export function Sidebar({
 	pendingEnrollments = 0,
 	onMobileClose,
 	onSettingsClick,
+	initialOrganizations = [],
 }: SidebarProps) {
 	const router = useRouter()
 	const pathname = usePathname()
@@ -230,8 +234,15 @@ export function Sidebar({
 	const { setTheme, resolvedTheme } = useTheme()
 	const { data: session } = useSession()
 	const user = session?.user
-	const { data: organizationsData, isPending: isLoadingOrgs } = useOrganizations()
-	const organizations = organizationsData?.organizations || []
+
+	// Use SSR data when available, fall back to client fetch for updates
+	const hasSSRData = initialOrganizations.length > 0
+	const { data: organizationsData, isPending: isLoadingOrgs } = useOrganizations({
+		// Only fetch client-side if no SSR data provided
+		enabled: !hasSSRData,
+	})
+	// Prefer SSR data, fall back to client-fetched data
+	const organizations = hasSSRData ? initialOrganizations : (organizationsData?.organizations || [])
 	const currentOrganization = organizations.find(org => org.id === organizationId) || null
 	const { signOut: handleSignOut } = useSignOut()
 	const queryClient = useQueryClient()
@@ -268,15 +279,22 @@ export function Sidebar({
 				return
 			}
 
-			// Invalidate all queries to ensure fresh data for new org
-			await queryClient.invalidateQueries()
+			// ✅ FIX: Targeted cache removal - only remove queries for the OLD org
+			// This prevents data leaks and unnecessary refetches
+			queryClient.removeQueries({
+				predicate: (query) => {
+					const key = query.queryKey
+					// Remove queries that contain the old orgId
+					return key.some(k => k === organizationId)
+				}
+			})
 
 			// ✅ PURE URL: Just navigate! No session sync needed.
 			// Layout validates access. Multi-tab support. Zero DB writes.
 			router.push(routes.dashboard.home(org.id))
 			toast.success(`Switched to ${org.name}`)
 		} catch (error) {
-			console.error("Failed to switch organization:", error)
+			logError(error, { source: "Sidebar", data: { action: "switchOrganization" } })
 			toast.error("Failed to switch organization. Please try again.")
 		} finally {
 			// Reset switching state after a short delay to allow navigation
@@ -333,7 +351,7 @@ export function Sidebar({
 					onCreateOrganization={handleCreateOrganization}
 					collapsed={collapsed}
 					isDarkMode={isDarkMode}
-					isLoading={isLoadingOrgs || isSwitching}
+					isLoading={(!hasSSRData && isLoadingOrgs) || isSwitching}
 				/>
 			</div>
 
@@ -613,7 +631,7 @@ function OrganizationSwitcher({
 		}
 	}, [])
 
-	// If no organizations or no current organization, show create button
+	// Show skeleton while loading - non-blocking, allows layout to render
 	if (isLoading) {
 		return (
 			<div
@@ -625,12 +643,16 @@ function OrganizationSwitcher({
 				aria-busy="true"
 				aria-label="Loading organizations"
 			>
-				{!collapsed && <div className="size-10 rounded-full bg-bg-weak-50 animate-pulse" />}
-				{!collapsed && (
-					<div className="flex-1 space-y-1.5">
-						<div className="h-4 bg-bg-weak-50 rounded w-3/4 animate-pulse" />
-						<div className="h-3 bg-bg-weak-50 rounded w-1/2 animate-pulse" />
-					</div>
+				{collapsed ? (
+					<div className="size-6 bg-bg-weak-50 rounded-full animate-pulse" />
+				) : (
+					<>
+						<div className="size-10 rounded-full bg-bg-weak-50 animate-pulse" />
+						<div className="flex-1 space-y-1.5">
+							<div className="h-4 bg-bg-weak-50 rounded w-3/4 animate-pulse" />
+							<div className="h-3 bg-bg-weak-50 rounded w-1/2 animate-pulse" />
+						</div>
+					</>
 				)}
 			</div>
 		)

@@ -1,8 +1,9 @@
-'use client'
+"use client"
 
 import Link from 'next/link'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useModalState } from "@/hooks/ui"
 import * as Button from "@/components/ui/primitives/button"
 import { Logo } from "@/components/ui/branding/logo"
 import {
@@ -11,7 +12,7 @@ import {
 } from '@phosphor-icons/react'
 
 export function NavigationClient() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mobileMenuOpen, openMobileMenu, closeMobileMenu, toggleMobileMenu] = useModalState(false)
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-bg-white-0/80 backdrop-blur-xl border-b border-stroke-soft-200/60 pt-[env(safe-area-inset-top)]">
@@ -50,7 +51,7 @@ export function NavigationClient() {
               variant="ghost"
               size="small"
               className="md:hidden"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              onClick={toggleMobileMenu}
             >
               <Button.Icon><List className="size-5" /></Button.Icon>
             </Button.Root>

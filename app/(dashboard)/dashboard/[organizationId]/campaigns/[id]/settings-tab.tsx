@@ -8,7 +8,7 @@ import * as Textarea from "@/components/ui/forms/textarea"
 import * as Switch from "@/components/ui/forms/switch"
 import { toast } from "sonner"
 import { updateCampaign, type CampaignWithStats } from "@/features/campaigns"
-import { getErrorMessage } from "@/lib/utils/format"
+import { getErrorMessage } from "@/lib/utils"
 
 interface SettingsTabProps {
 	campaign: CampaignWithStats

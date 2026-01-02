@@ -401,6 +401,39 @@ export const campaignStatusSchema = z.enum([
 	"archived",
 ])
 
+// ==========================================
+// REUSABLE ACTION SCHEMA FRAGMENTS
+// For use in server actions that need organizationId
+// ==========================================
+
+/** Organization ID schema - used in all org-scoped server actions */
+export const organizationIdSchema = z.object({
+	organizationId: z.string().min(1, "Organization ID is required"),
+})
+
+/** Campaign ID schema - for actions targeting a specific campaign */
+export const campaignIdSchema = organizationIdSchema.extend({
+	id: z.string().min(1, "Campaign ID is required"),
+})
+
+/** Campaign status action values - SSOT for status updates */
+export const CAMPAIGN_STATUS_ACTION_VALUES = [
+	"submit",
+	"activate",
+	"cancel",
+	"pause",
+	"resume",
+	"end",
+	"complete",
+	"archive",
+	"unarchive",
+] as const
+
+/** Campaign status action schema */
+export const campaignStatusActionSchema = z.enum(CAMPAIGN_STATUS_ACTION_VALUES)
+
+export type CampaignStatusActionValue = (typeof CAMPAIGN_STATUS_ACTION_VALUES)[number]
+
 // SSOT: ENROLLMENT_STATUSES is centralized in @/lib/constants (imported and re-exported at top of file)
 
 export type EnrollmentStatusValue = (typeof ENROLLMENT_STATUSES)[number]
@@ -560,7 +593,16 @@ export type Verify2FABody = z.infer<typeof verify2FABodySchema>
 // ONBOARDING SCHEMAS
 // ==========================================
 
+// UI state schema - used in onboarding form for RHF-managed step/terms
+const onboardingUIStateSchema = z.object({
+	currentStep: z.number().min(1).max(3),
+	termsAccepted: z.boolean(),
+})
+
 export const onboardingFormSchema = z.object({
+	// UI state - managed by RHF for single source of truth
+	// Required in input type (no defaults) - RHF provides via defaultValues
+	_ui: onboardingUIStateSchema,
 	basicInfo: z.object({
 		name: z
 			.string()
@@ -687,6 +729,11 @@ export type OnboardingFormInput = z.infer<typeof onboardingFormSchema>
  * Allows partial data since drafts may be incomplete
  */
 export const onboardingDraftSchema = z.object({
+	// UI state - persisted with form data
+	_ui: z.object({
+		currentStep: z.number().optional().default(1),
+		termsAccepted: z.boolean().optional().default(false),
+	}).optional().default({ currentStep: 1, termsAccepted: false }),
 	basicInfo: z.object({
 		name: z.string().optional().default(""),
 		description: z.string().optional().default(""),

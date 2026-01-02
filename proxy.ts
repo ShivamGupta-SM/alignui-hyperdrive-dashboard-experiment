@@ -18,18 +18,14 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { AUTH_COOKIE_NAMES } from "@/lib/constants"
+import { logDebug } from "@/lib/logging/error-logger-simple"
 
 /**
  * Proxy logging utility
- * Note: Proxy runs on Node.js runtime, so we can use standard logging
+ * Uses centralized logDebug for consistent logging across codebase
  */
 function logProxy(message: string, data?: Record<string, unknown>) {
-	// In production, these logs go to Node.js runtime logs
-	// In development, they appear in terminal
-	if (process.env.NODE_ENV === "development") {
-		// eslint-disable-next-line no-console
-		console.log(`[Proxy] ${message}`, data || "")
-	}
+	logDebug(message, { source: "Proxy", data })
 }
 
 export function proxy(request: NextRequest) {

@@ -4,7 +4,8 @@ import * as React from "react"
 import { usePreferences, useNovu } from "@novu/react"
 import * as Switch from "@/components/ui/forms/switch"
 import { cn } from "@/lib/utils"
-import { Bell, Envelope, DeviceMobile, ChatCircle, Info, Spinner } from "@phosphor-icons/react"
+import { logError } from "@/lib/logging/error-logger-simple"
+import { Bell, Envelope, DeviceMobile, ChatCircle, Info } from "@phosphor-icons/react"
 import { isNovuEnabled } from "@/hooks/shared/use-novu"
 
 // Channel configuration for display
@@ -85,8 +86,20 @@ function NovuPreferencesPanelLoading() {
 					</p>
 				</div>
 			</div>
-			<div className="flex items-center justify-center p-8">
-				<Spinner className="size-6 text-primary-base animate-spin" />
+			{/* Skeleton instead of blocking spinner */}
+			<div className="space-y-3">
+				{[1, 2, 3, 4].map((i) => (
+					<div key={i} className="flex items-center justify-between gap-4 p-3 rounded-lg bg-bg-weak-50/50">
+						<div className="flex items-center gap-3">
+							<div className="size-8 bg-bg-weak-50 rounded-lg animate-pulse" />
+							<div className="space-y-1.5">
+								<div className="h-4 w-16 bg-bg-weak-50 rounded animate-pulse" />
+								<div className="h-3 w-32 bg-bg-weak-50 rounded animate-pulse" />
+							</div>
+						</div>
+						<div className="h-6 w-10 bg-bg-weak-50 rounded-full animate-pulse" />
+					</div>
+				))}
 			</div>
 		</div>
 	)
@@ -192,7 +205,7 @@ function NovuPreferencesPanelWithNovu() {
 					},
 				})
 			} catch (err) {
-				console.error("Failed to update preference:", err)
+				logError(err, { source: "NovuPreferences", data: { workflowId, channelType, action: "updatePreference" } })
 			} finally {
 				setIsUpdating(false)
 			}

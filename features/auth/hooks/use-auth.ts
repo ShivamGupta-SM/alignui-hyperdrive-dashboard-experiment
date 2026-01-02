@@ -35,7 +35,7 @@ export const authKeys = {
 export function useSession() {
 	const queryClient = useQueryClient()
 
-	const { data, isLoading, error, refetch } = useQuery({
+	const { data, isPending, error, refetch } = useQuery({
 		queryKey: authKeys.session(),
 		queryFn: async () => {
 			// Single call - getSession() returns both session and user
@@ -64,7 +64,7 @@ export function useSession() {
 
 	return {
 		data: data || null,
-		isPending: isLoading,
+		isPending,
 		error,
 		refetch: async () => {
 			queryClient.invalidateQueries({ queryKey: authKeys.session() })

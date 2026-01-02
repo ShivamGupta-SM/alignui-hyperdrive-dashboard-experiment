@@ -26,12 +26,13 @@ import {
 	Scan,
 } from "@phosphor-icons/react"
 import { useState } from "react"
+import { useModalState } from "@/hooks/ui"
 
 // ============================================
 // Navigation
 // ============================================
 function Navigation() {
-	const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+	const [mobileMenuOpen, openMobileMenu, closeMobileMenu, toggleMobileMenu] = useModalState(false)
 
 	const navItems = [
 		{ label: "Features", href: "#features" },
@@ -74,7 +75,7 @@ function Navigation() {
 						<button
 							type="button"
 							className="md:hidden flex items-center justify-center size-10 text-text-sub-600 hover:text-text-strong-950 hover:bg-bg-weak-50 rounded-lg transition-colors"
-							onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+							onClick={toggleMobileMenu}
 							aria-label="Toggle menu"
 						>
 							{mobileMenuOpen ? (
@@ -94,7 +95,7 @@ function Navigation() {
 								key={item.label}
 								href={item.href}
 								className="block px-4 py-3 text-label-sm text-text-sub-600 hover:text-text-strong-950 hover:bg-bg-weak-50 rounded-lg transition-colors"
-								onClick={() => setMobileMenuOpen(false)}
+								onClick={closeMobileMenu}
 							>
 								{item.label}
 							</Link>

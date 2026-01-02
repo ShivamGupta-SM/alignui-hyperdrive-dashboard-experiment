@@ -5,18 +5,18 @@ import * as Badge from "@/components/ui/data-display/badge"
 import * as StatusBadge from "@/components/ui/data-display/status-badge"
 import * as Table from "@/components/ui/data-display/table"
 import { Tracker } from "@/components/ui/data-display/tracker"
-import { CalloutWithActions } from "@/components/ui/feedback/callout"
+import { OnboardingRequiredAlert, OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
 import * as Checkbox from "@/components/ui/forms/checkbox"
 import * as Select from "@/components/ui/forms/select"
 import * as Tooltip from "@/components/ui/layout/tooltip"
 import * as Pagination from "@/components/ui/navigation/pagination"
 import * as Avatar from "@/components/ui/primitives/avatar"
 import * as Button from "@/components/ui/primitives/button"
-import { OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
 import { PageHeaderSkeleton, ListSkeleton } from "@/components/dashboard/loading-skeletons"
 import type { Enrollment } from "@/features/enrollments"
 import { useBulkApproveEnrollments, useBulkRejectEnrollments } from "@/features/enrollments"
-import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
+import { useCurrentOrganization } from "@/hooks/shared"
+import { useStableTime } from "@/hooks/ui/use-mounted"
 import { useEnrollmentSearchParams } from "@/hooks"
 import {
 	ENROLLMENT_STATUS_TABS,
@@ -24,11 +24,7 @@ import {
 	getEnrollmentStatusBadgeStatus,
 } from "@/lib/constants"
 import { exportEnrollments } from "@/lib/utils/excel"
-import { formatCurrency, formatDateMedium, getErrorMessage } from "@/lib/utils/format"
-import { getInitial } from "@/lib/utils/string"
-import { getTimeAgo, isOverdue } from "@/lib/utils/date"
-import { getAvatarColor } from "@/lib/utils"
-import { cn } from "@/lib/utils"
+import { cn, getAvatarColor, formatCurrency, formatDateMedium, getErrorMessage, getInitial, getTimeAgo, isOverdue } from "@/lib/utils"
 import {
 	ArrowRight,
 	ArrowsDownUp,
@@ -58,7 +54,7 @@ import {
 	useReactTable,
 } from "@tanstack/react-table"
 import { useRouter } from "next/navigation"
-import { type ChangeEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type ChangeEvent, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { useDebounceValue } from "usehooks-ts"
 import { useHydratedLocalStorage } from "@/hooks/ui"
@@ -115,9 +111,8 @@ export function EnrollmentsClient({
 	const { organization, organizationId, isLoading: isOrgLoading } = useCurrentOrganization()
 	const hasOrganization = !!organization
 
-	// Stable reference time to avoid re-renders (using ref instead of useMemo for primitives)
-	const referenceTimeRef = useRef(Date.now())
-	const referenceTime = referenceTimeRef.current
+	// Stable reference time to avoid re-renders
+	const referenceTime = useStableTime()
 
 	const [selectedIds, setSelectedIds] = useState<string[]>([])
 	const [viewMode, setViewMode] = useState<"list" | "compact">("list")
@@ -167,32 +162,15 @@ export function EnrollmentsClient({
 			<div className="space-y-5 sm:space-y-6">
 				{/* ONBOARDING ALERT */}
 				{showOnboardingAlert && (
-					<CalloutWithActions
-						variant="warning"
-						title="Complete Your Organization Setup"
-						dismissible
+					<OnboardingRequiredAlert
 						onDismiss={handleDismissOnboardingAlert}
-						actions={
-							<>
-								<Button.Root variant="primary" size="small" onClick={handleStartOnboarding}>
-									<Button.Icon>
-										<ArrowRight className="size-5" />
-									</Button.Icon>
-									Start Onboarding
-								</Button.Root>
-								<Button.Root variant="ghost" size="small" onClick={handleDismissOnboardingAlert}>
-									Maybe Later
-								</Button.Root>
-							</>
-						}
-					>
-						To view and manage enrollments, you need to complete your organization setup. This will
-						only take a few minutes.
-					</CalloutWithActions>
+						onStartOnboarding={handleStartOnboarding}
+						description="To view and manage enrollments, you need to complete your organization setup. This will only take a few minutes."
+					/>
 				)}
 
 				{/* HEADER */}
-				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+				<div className="flex items-start justify-between gap-4">
 					<div className="min-w-0">
 						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Enrollments</h1>
 						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
@@ -577,7 +555,7 @@ export function EnrollmentsClient({
 							variant="ghost"
 							size="xsmall"
 							onClick={() =>
-								router.push(`/dashboard/${params.organizationId}/enrollments/${row.original.id}`)
+								router.push(`/dashboard/${organizationId}/enrollments/${row.original.id}`)
 							}
 						>
 							View
@@ -657,29 +635,30 @@ export function EnrollmentsClient({
 				)}
 
 				{/* Header */}
-				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+				<div className="flex items-start justify-between gap-4">
 					<div className="min-w-0">
 						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Enrollments</h1>
 						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5">
 							Review and manage campaign enrollments
 						</p>
 					</div>
-					<Tooltip.Root>
-						<Tooltip.Trigger asChild>
-							<Button.Root
-								variant="neutral"
-								size="small"
-								onClick={handleExport}
-								className="shrink-0"
-							>
-								<Button.Icon>
-									<DownloadSimple className="size-5" />
-								</Button.Icon>
-								<span className="hidden sm:inline">Export</span>
-							</Button.Root>
-						</Tooltip.Trigger>
-						<Tooltip.Content>Export enrollments to Excel</Tooltip.Content>
-					</Tooltip.Root>
+					<div className="flex items-center gap-2 shrink-0">
+						<Tooltip.Root>
+							<Tooltip.Trigger asChild>
+								<Button.Root
+									variant="neutral"
+									size="small"
+									onClick={handleExport}
+								>
+									<Button.Icon>
+										<DownloadSimple className="size-5" />
+									</Button.Icon>
+									<span className="hidden sm:inline">Export</span>
+								</Button.Root>
+							</Tooltip.Trigger>
+							<Tooltip.Content>Export enrollments to Excel</Tooltip.Content>
+						</Tooltip.Root>
+					</div>
 				</div>
 
 				{/* Stats + Tracker */}
@@ -916,7 +895,7 @@ export function EnrollmentsClient({
 												)}
 												onClick={() =>
 													router.push(
-														`/dashboard/${params.organizationId}/enrollments/${row.original.id}`
+														`/dashboard/${organizationId}/enrollments/${row.original.id}`
 													)
 												}
 											>
@@ -1052,7 +1031,7 @@ export function EnrollmentsClient({
 										formatCurrency={formatCurrency}
 										onClick={() =>
 											router.push(
-												`/dashboard/${params.organizationId}/enrollments/${enrollment.id}`
+												`/dashboard/${organizationId}/enrollments/${enrollment.id}`
 											)
 										}
 									/>

@@ -19,7 +19,7 @@ import { z } from "zod"
 import { authAction } from "@/lib/safe-action"
 import type { shared, organizations } from "@/brand-client"
 // SSOT: Import enrollment statuses from validations
-import { ENROLLMENT_STATUSES } from "@/lib/utils/validations"
+import { ENROLLMENT_STATUSES } from "@/lib/utils"
 
 // =============================================================================
 // Schemas - All actions require organizationId for URL-based multi-tenancy

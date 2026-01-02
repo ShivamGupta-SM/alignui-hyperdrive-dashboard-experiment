@@ -2,13 +2,11 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { cn } from "@/lib/utils"
+import { cn, formatCurrency, formatTimeAgoShort } from "@/lib/utils"
 import * as Button from "@/components/ui/primitives/button"
 import { ArrowRight } from "@phosphor-icons/react"
 import { THRESHOLDS } from "@/lib/types/constants"
 import { DISPLAY_LIMITS } from "@/lib/constants"
-import { formatCurrency } from "@/lib/utils/format"
-import { formatTimeAgoShort } from "@/lib/utils/date"
 
 interface PriorityEnrollment {
 	id: string

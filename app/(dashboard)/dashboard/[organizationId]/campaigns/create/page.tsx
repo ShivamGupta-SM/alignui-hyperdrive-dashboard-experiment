@@ -4,6 +4,7 @@ import { getProductsData } from "@/features/products/ssr"
 import { CreateCampaignClient } from "./create-campaign-client"
 import type { ProductWithStats } from "@/features/products"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
+import { CreateCampaignLoading } from "@/components/dashboard/loading-skeletons"
 
 export const metadata: Metadata = {
 	title: "Create Campaign",
@@ -36,7 +37,7 @@ export default async function CreateCampaignPage({ params }: PageProps) {
 	const { organizationId } = await params
 
 	return (
-		<Suspense fallback={<div className="p-8">Loading...</div>}>
+		<Suspense fallback={<CreateCampaignLoading />}>
 			<CreateCampaignData organizationId={organizationId} />
 		</Suspense>
 	)

@@ -2,7 +2,9 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { getEnrollmentDetailData } from "@/features/enrollments/ssr"
 import { EnrollmentDetailClient } from "./enrollment-detail-client"
+import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
+import { EnrollmentDetailLoading } from "@/components/dashboard/loading-skeletons"
 
 interface PageParams {
 	organizationId: string
@@ -28,6 +30,7 @@ export async function generateMetadata({
 async function EnrollmentData({ organizationId, id }: { organizationId: string; id: string }) {
 	let data = null
 	try {
+		// API validates enrollment belongs to organizationId via org-scoped endpoint
 		data = await getEnrollmentDetailData(organizationId, id)
 	} catch (error) {
 		logSSRError(error, "getEnrollmentDetailData", "enrollment-detail", { data: { organizationId, enrollmentId: id } })
@@ -45,8 +48,10 @@ export default async function EnrollmentDetailPage({
 	const { organizationId, id } = await params
 
 	return (
-		<Suspense fallback={<div className="p-8">Loading enrollment...</div>}>
-			<EnrollmentData organizationId={organizationId} id={id} />
-		</Suspense>
+		<OrganizationGuard pageType="enrollments">
+			<Suspense fallback={<EnrollmentDetailLoading />}>
+				<EnrollmentData organizationId={organizationId} id={id} />
+			</Suspense>
+		</OrganizationGuard>
 	)
 }

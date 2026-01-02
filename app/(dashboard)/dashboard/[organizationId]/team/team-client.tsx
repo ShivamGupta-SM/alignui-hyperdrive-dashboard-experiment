@@ -15,11 +15,9 @@ import * as Textarea from "@/components/ui/forms/textarea"
 import * as Radio from "@/components/ui/forms/radio"
 import * as Select from "@/components/ui/forms/select"
 import * as List from "@/components/ui/data-display/list"
-import { OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
+import { OnboardingRequiredAlert, OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
 import { PageHeaderSkeleton, TeamListSkeleton } from "@/components/dashboard/loading-skeletons"
-import { getAvatarColor } from "@/lib/utils"
-import { formatDateMedium, getErrorMessage } from "@/lib/utils/format"
-import { capitalizeFirst, getInitial } from "@/lib/utils/string"
+import { cn, getAvatarColor, formatDateMedium, getErrorMessage, capitalizeFirst, getInitial } from "@/lib/utils"
 import {
 	Plus,
 	User,
@@ -29,19 +27,17 @@ import {
 	Eye,
 	Info,
 	Warning,
-	ArrowRight,
 } from "@phosphor-icons/react"
-import { cn } from "@/lib/utils"
 import { ROLE_OPTIONS } from "@/lib/constants"
-import { inviteMember, removeMember, useCancelInvitation, useUpdateMemberRole } from "@/features/team"
+import { inviteMember, removeMember, useCancelInvitation, useUpdateMemberRole, teamKeys } from "@/features/team"
 import { toast } from "sonner"
 import { useSession } from "@/features/auth"
-import { inviteMemberSchema, VALIDATION_CONSTANTS, type InviteMemberFormData } from "@/lib/utils/validations"
+import { inviteMemberSchema, VALIDATION_CONSTANTS, type InviteMemberFormData } from "@/lib/utils"
 import { useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { routes } from "@/lib/routes"
 import { useLocalStorage } from "@/hooks/state"
-import { CalloutWithActions } from "@/components/ui/feedback/callout"
+import { useModal } from "@/hooks/ui"
 import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
 import type { auth } from "@/brand-client"
 
@@ -128,33 +124,11 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 			<div className="space-y-5 sm:space-y-6">
 				{/* ONBOARDING ALERT */}
 				{showOnboardingAlert && (
-					<CalloutWithActions
-						variant="warning"
-						title="Complete Your Organization Setup"
-						dismissible
+					<OnboardingRequiredAlert
 						onDismiss={() => setDismissedOnboardingAlert(true)}
-						actions={
-							<>
-								<Button.Root
-									variant="primary"
-									size="small"
-									onClick={() => router.push(routes.onboarding.root)}
-								>
-									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-									Start Onboarding
-								</Button.Root>
-								<Button.Root
-									variant="ghost"
-									size="small"
-									onClick={() => setDismissedOnboardingAlert(true)}
-								>
-									Maybe Later
-								</Button.Root>
-							</>
-						}
-					>
-						To manage team members and invitations, you need to complete your organization setup. This will only take a few minutes.
-					</CalloutWithActions>
+						onStartOnboarding={() => router.push(routes.onboarding.root)}
+						description="To manage team members and invitations, you need to complete your organization setup. This will only take a few minutes."
+					/>
 				)}
 
 				{/* HEADER */}
@@ -176,9 +150,8 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 			</div>
 		)
 	}
-	const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
-	const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false)
-	const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
+	const inviteModal = useModal()
+	const removeModal = useModal<TeamMember>()
 
 	// Fetch team data (hydrated from SSR)
 	const { data: session } = useSession()
@@ -245,14 +218,13 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 
 	// Stable callbacks for member actions
 	const handleRemoveMember = useCallback((member: TeamMember) => {
-		setSelectedMember(member)
-		setIsRemoveModalOpen(true)
-	}, [])
+		removeModal.openWith(member)
+	}, [removeModal])
 
 	return (
 		<div className="space-y-5 sm:space-y-6">
 			{/* Page Header */}
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+			<div className="flex items-start justify-between gap-4">
 				<div className="min-w-0">
 					<div className="flex items-center gap-3">
 						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Team</h1>
@@ -280,7 +252,7 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 				<Button.Root
 					variant="primary"
 					size="small"
-					onClick={() => setIsInviteModalOpen(true)}
+					onClick={inviteModal.open}
 					className="shrink-0"
 				>
 					<Button.Icon><Plus className="size-5" /></Button.Icon>
@@ -599,13 +571,12 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 			</div>
 
 			{/* Invite Modal */}
-			<InviteMemberModal open={isInviteModalOpen} onOpenChange={setIsInviteModalOpen} organizationId={organizationId} />
+			<InviteMemberModal {...inviteModal.props} organizationId={organizationId} />
 
 			{/* Remove Member Modal */}
 			<RemoveMemberModal
-				open={isRemoveModalOpen}
-				onOpenChange={setIsRemoveModalOpen}
-				member={selectedMember}
+				{...removeModal.props}
+				member={removeModal.data ?? null}
 				organizationId={organizationId}
 			/>
 		</div>
@@ -647,8 +618,8 @@ function InviteMemberModal({
 				await inviteMember({ organizationId, email, role })
 				toast.success("Invitation sent successfully")
 				onOpenChange(false)
-				queryClient.invalidateQueries({ queryKey: ["team"] })
-				queryClient.invalidateQueries({ queryKey: ["invitations"] })
+				queryClient.invalidateQueries({ queryKey: teamKeys.members(organizationId) })
+				queryClient.invalidateQueries({ queryKey: teamKeys.invitations(organizationId) })
 				// React Query cache invalidation handles UI update - no router.refresh() needed
 			} catch (err) {
 				setError(getErrorMessage(err, "Failed to send invitation"))
@@ -788,8 +759,7 @@ function RemoveMemberModal({
 				toast.success("Member removed successfully")
 				onOpenChange(false)
 				// Invalidate team queries to refetch updated member list
-				queryClient.invalidateQueries({ queryKey: ["team"] })
-				queryClient.invalidateQueries({ queryKey: ["members"] })
+				queryClient.invalidateQueries({ queryKey: teamKeys.members(organizationId) })
 				// React Query cache invalidation handles UI update - no router.refresh() needed
 			} catch (e) {
 				toast.error(getErrorMessage(e, "An error occurred"))

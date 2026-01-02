@@ -9,21 +9,21 @@ import {
 	Clock,
 	CheckCircle,
 	WarningCircle,
-	Building,
 } from "@phosphor-icons/react"
 import { DISPLAY_LIMITS } from "@/lib/constants"
 import { STORAGE_KEYS } from "@/lib/constants/storage-keys"
 import { toast } from "sonner"
-import { OnboardingSetupCard } from "@/components/dashboard/empty-states"
+import { OnboardingSetupCard, OnboardingRequiredAlert } from "@/components/dashboard/empty-states"
 import { CalloutWithActions, Callout } from "@/components/ui/feedback/callout"
 import * as Tooltip from "@/components/ui/layout/tooltip"
 import { useRouter } from "next/navigation"
 import { useLocalStorage } from "@/hooks/state"
 import { useDashboard } from "@/hooks/shared/use-dashboard"
-import { getHoursAgo } from "@/lib/utils/date"
-import { useHydratedTime, useFormattedDate } from "@/hooks/ui"
+import { getHoursAgo } from "@/lib/utils"
+import { useStableTime, useFormattedDate } from "@/hooks/ui"
 import { routes } from "@/lib/routes"
 import type { OrganizationListItem } from "@/features/organizations/types"
+import type { DashboardData } from "@/hooks/shared/use-dashboard"
 
 // Split components for better code splitting
 import {
@@ -33,7 +33,7 @@ import {
 	DashboardEnrollmentTrend,
 	DashboardPriorityQueue,
 	DashboardAlertBar,
-} from "./components"
+} from "./_components"
 
 interface DashboardClientProps {
 	organizationId: string
@@ -41,6 +41,8 @@ interface DashboardClientProps {
 	initialOrganization?: OrganizationListItem | null
 	/** All organizations fetched server-side - for redirect logic */
 	initialOrganizations?: OrganizationListItem[]
+	/** Dashboard data fetched server-side - prevents loading flash */
+	initialDashboardData?: DashboardData | null
 }
 
 // URL-based multi-tenancy: organizationId from URL params
@@ -49,9 +51,12 @@ export function DashboardClient({
 	organizationId,
 	initialOrganization,
 	initialOrganizations = [],
+	initialDashboardData,
 }: DashboardClientProps) {
 	const router = useRouter()
-	const currentTime = useHydratedTime()
+	// useStableTime: stable reference time (set once on mount) - doesn't cause re-renders
+	// Better for "hours ago" calculations that don't need real-time updates
+	const currentTime = useStableTime()
 	const formattedDate = useFormattedDate()
 	const [isResubmitting, setIsResubmitting] = useState(false)
 	const [isRedirecting, setIsRedirecting] = useState(false)
@@ -85,10 +90,12 @@ export function DashboardClient({
 	}, [hasOrganization, organizationsList, router, isRedirecting])
 
 	// Fetch dashboard data using organizationId from URL
+	// Uses SSR initialData to prevent loading flash (blank → spinner → content)
 	const { data, isLoading: isDashboardLoading } = useDashboard({
 		organizationId,
 		days: 7,
 		enabled: hasOrganization,
+		initialData: initialDashboardData,
 	})
 
 	// Map pending enrollments with hours ago calculation (only after hydration)
@@ -128,6 +135,106 @@ export function DashboardClient({
 		router.push(routes.onboarding.root)
 	}, [router])
 
+	// ALL useMemo hooks MUST be called before any early returns (Rules of Hooks)
+	// Map top campaigns - use product image from API
+	const topCampaigns = useMemo(() => {
+		if (!data?.topCampaigns || !Array.isArray(data.topCampaigns)) return []
+		return data.topCampaigns.slice(0, DISPLAY_LIMITS.TOP_CAMPAIGNS).map((c) => ({
+			id: c.id,
+			name: c.name,
+			enrollments: c.enrollments,
+			approvalRate: c.approvalRate,
+			status: c.status,
+			daysLeft: c.daysLeft,
+			image: c.productImage ?? undefined,
+		}))
+	}, [data?.topCampaigns])
+
+	// Derived metrics - calculate from data if available
+	const metrics = useMemo(() => {
+		if (!data?.stats || !data?.enrollmentDistribution) {
+			return {
+				activeCampaigns: 0,
+				pausedCampaigns: 0,
+				endingSoon: 0,
+				pendingTotal: 0,
+				pendingOverdue: 0,
+				pendingHigh: 0,
+				totalEnrollments: 0,
+				approvedCount: 0,
+				rejectedCount: 0,
+				pendingCount: 0,
+				enrollmentsTrend: 0,
+				approvalRateTrend: 0,
+			}
+		}
+		return {
+			activeCampaigns: data.stats.activeCampaigns ?? 0,
+			pausedCampaigns: data.stats.pausedCampaigns ?? 0,
+			endingSoon: data.stats.endingSoon ?? 0,
+			pendingTotal: data.stats.pendingEnrollments ?? 0,
+			pendingOverdue: data.stats.overdueEnrollments ?? 0,
+			pendingHigh: data.stats.highValuePending ?? 0,
+			totalEnrollments: data.enrollmentDistribution.total ?? 0,
+			approvedCount: data.enrollmentDistribution.approved ?? 0,
+			rejectedCount: data.enrollmentDistribution.rejected ?? 0,
+			pendingCount: data.enrollmentDistribution.pending ?? 0,
+			enrollmentsTrend: data.stats.enrollmentTrend ?? 0,
+			approvalRateTrend: data.stats.approvalRateTrend ?? 0,
+		}
+	}, [data?.stats, data?.enrollmentDistribution])
+
+	// Wallet data
+	const wallet = useMemo(() => {
+		if (!data?.stats) {
+			return { available: 0, held: 0, avgDailySpend: 0, lowBalanceThreshold: 0 }
+		}
+		return {
+			available: data.stats.walletBalance ?? 0,
+			held: data.stats.heldAmount ?? 0,
+			avgDailySpend: data.stats.avgDailySpend ?? 0,
+			lowBalanceThreshold: data.stats.lowBalanceThreshold ?? 0,
+		}
+	}, [data?.stats])
+
+	// Enrollment chart data
+	const enrollmentChartData = useMemo(() => {
+		if (!data?.enrollmentChart || !Array.isArray(data.enrollmentChart)) return []
+		return data.enrollmentChart.map((d) => ({ value: d.enrollments ?? 0 }))
+	}, [data?.enrollmentChart])
+
+	// Memoize calculations
+	const approvalRate = useMemo(
+		() => (metrics.totalEnrollments > 0
+			? Math.round((metrics.approvedCount / metrics.totalEnrollments) * 100)
+			: 0),
+		[metrics.totalEnrollments, metrics.approvedCount]
+	)
+
+	const runwayDays = useMemo(
+		() => (wallet.avgDailySpend > 0 ? Math.floor(wallet.available / wallet.avgDailySpend) : 0),
+		[wallet.avgDailySpend, wallet.available]
+	)
+
+	const isLowBalance = useMemo(
+		() => wallet.available < wallet.lowBalanceThreshold,
+		[wallet.available, wallet.lowBalanceThreshold]
+	)
+
+	const hasOverdue = useMemo(
+		() => metrics.pendingOverdue > 0,
+		[metrics.pendingOverdue]
+	)
+
+	const trackerData = useMemo(
+		() => [
+			{ status: "success" as const, count: metrics.approvedCount },
+			{ status: "warning" as const, count: metrics.pendingCount },
+			{ status: "error" as const, count: metrics.rejectedCount },
+		],
+		[metrics.approvedCount, metrics.pendingCount, metrics.rejectedCount]
+	)
+
 	// Show skeleton while redirecting or loading dashboard data
 	const shouldShowSkeleton =
 		isRedirecting ||                          // Actively redirecting
@@ -146,33 +253,10 @@ export function DashboardClient({
 			<div className="space-y-5 sm:space-y-6">
 				{/* ONBOARDING ALERT */}
 				{showOnboardingAlert && (
-					<CalloutWithActions
-						variant="warning"
-						title="Complete Your Organization Setup"
-						dismissible
+					<OnboardingRequiredAlert
 						onDismiss={handleDismissAlert}
-						actions={
-							<>
-								<Button.Root
-									variant="primary"
-									size="small"
-									onClick={handleStartOnboarding}
-								>
-									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-									Start Onboarding
-								</Button.Root>
-								<Button.Root
-									variant="ghost"
-									size="small"
-									onClick={handleDismissAlert}
-								>
-									Maybe Later
-								</Button.Root>
-							</>
-						}
-					>
-						To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
-					</CalloutWithActions>
+						onStartOnboarding={handleStartOnboarding}
+					/>
 				)}
 
 				{/* HEADER */}
@@ -201,176 +285,26 @@ export function DashboardClient({
 		return <DashboardSkeleton />
 	}
 
-	// At this point, data is guaranteed to be non-null
-	const safeData = data
-
-	// Transform API data to UI format - STRICT (no fallbacks, will fail if data is wrong)
-	const wallet = {
-		available: safeData.stats.walletBalance ?? 0,
-		held: safeData.stats.heldAmount ?? 0,
-		avgDailySpend: safeData.stats.avgDailySpend ?? 0,
-		lowBalanceThreshold: safeData.stats.lowBalanceThreshold ?? 0,
-	}
-
-	const metrics = {
-		activeCampaigns: safeData.stats.activeCampaigns ?? 0,
-		pausedCampaigns: safeData.stats.pausedCampaigns ?? 0,
-		endingSoon: safeData.stats.endingSoon ?? 0,
-		pendingTotal: safeData.stats.pendingEnrollments ?? 0,
-		pendingOverdue: safeData.stats.overdueEnrollments ?? 0,
-		pendingHigh: safeData.stats.highValuePending ?? 0,
-		totalEnrollments: safeData.enrollmentDistribution.total ?? 0,
-		approvedCount: safeData.enrollmentDistribution.approved ?? 0,
-		rejectedCount: safeData.enrollmentDistribution.rejected ?? 0,
-		pendingCount: safeData.enrollmentDistribution.pending ?? 0,
-		enrollmentsTrend: safeData.stats.enrollmentTrend ?? 0,
-		approvalRateTrend: safeData.stats.approvalRateTrend ?? 0,
-	}
-
-	const enrollmentChartData = (safeData.enrollmentChart && Array.isArray(safeData.enrollmentChart))
-		? safeData.enrollmentChart.map((d) => ({ value: d.enrollments ?? 0 }))
-		: []
-
-	// Map top campaigns - use product image from API (memoized)
-	const topCampaigns = useMemo(() => {
-		return (safeData.topCampaigns && Array.isArray(safeData.topCampaigns))
-			? safeData.topCampaigns.slice(0, DISPLAY_LIMITS.TOP_CAMPAIGNS).map((c) => ({
-				id: c.id,
-				name: c.name,
-				enrollments: c.enrollments,
-				approvalRate: c.approvalRate,
-				status: c.status,
-				daysLeft: c.daysLeft,
-				image: c.productImage ?? undefined,
-			}))
-			: []
-	}, [safeData.topCampaigns])
-
-	// Memoize calculations
-	const approvalRate = useMemo(
-		() => (metrics.totalEnrollments > 0
-			? Math.round((metrics.approvedCount / metrics.totalEnrollments) * 100)
-			: 0),
-		[metrics.totalEnrollments, metrics.approvedCount]
-	)
-	const runwayDays = useMemo(
-		() => (wallet.avgDailySpend > 0 ? Math.floor(wallet.available / wallet.avgDailySpend) : 0),
-		[wallet.avgDailySpend, wallet.available]
-	)
-	const isLowBalance = useMemo(
-		() => wallet.available < wallet.lowBalanceThreshold,
-		[wallet.available, wallet.lowBalanceThreshold]
-	)
-	const hasOverdue = useMemo(
-		() => metrics.pendingOverdue > 0,
-		[metrics.pendingOverdue]
-	)
-
-	const trackerData = useMemo(
-		() => [
-			{ status: "success" as const, count: metrics.approvedCount },
-			{ status: "warning" as const, count: metrics.pendingCount },
-			{ status: "error" as const, count: metrics.rejectedCount },
-		],
-		[metrics.approvedCount, metrics.pendingCount, metrics.rejectedCount]
-	)
-
-	// If no organization, show minimal dashboard with alert
-	if (!hasOrganization) {
-		return (
-			<div className="space-y-5 sm:space-y-6">
-				{/* HEADER */}
-				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-					<div className="min-w-0">
-						<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Dashboard</h1>
-						<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5 min-h-5">
-							{formattedDate || <span className="invisible">Loading...</span>}
-						</p>
-					</div>
-				</div>
-
-				{/* EMPTY STATE - No organization */}
-				<OnboardingSetupCard
-					variant="warning"
-					onAction={handleStartOnboarding}
-				/>
-			</div>
-		)
-	}
-
+	// At this point we have organization and data - render full dashboard
 	return (
 		<div className="space-y-4 sm:space-y-6">
-			{/* ONBOARDING ALERT - Show if no organization */}
-			{showOnboardingAlert && (
-				<div className="rounded-xl border border-stroke-soft-200 bg-bg-weak-50 p-6 sm:p-8">
-					<div className="flex items-start gap-4">
-						<div className="flex shrink-0">
-							<div className="flex size-12 items-center justify-center rounded-xl bg-primary-base">
-								<Building weight="duotone" className="size-6 text-white" />
-							</div>
-						</div>
-
-						<div className="flex-1 space-y-3">
-							<div>
-								<h3 className="text-title-h6 font-semibold text-text-strong-950">
-									Complete Your Organization Setup
-								</h3>
-								<p className="mt-2 text-paragraph-sm text-text-sub-600">
-									To access all dashboard features, create campaigns, and manage enrollments, you need to complete your organization setup. This will only take a few minutes.
-								</p>
-							</div>
-
-							<div className="flex flex-wrap items-center gap-3">
-								<Button.Root
-									variant="primary"
-									size="small"
-									onClick={handleStartOnboarding}
-								>
-									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-									Start Onboarding
-								</Button.Root>
-								<Button.Root
-									variant="ghost"
-									size="small"
-									onClick={handleDismissAlert}
-								>
-									Maybe Later
-								</Button.Root>
-							</div>
-						</div>
-
-						<button
-							type="button"
-							onClick={handleDismissAlert}
-							className="shrink-0 rounded-lg p-1.5 text-text-sub-500 transition-colors hover:bg-bg-soft-200 hover:text-text-strong-950"
-							aria-label="Dismiss"
-						>
-							<svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-							</svg>
-						</button>
-					</div>
-				</div>
-			)}
-
 			{/* HEADER */}
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+			<div className="flex items-start justify-between gap-4">
 				<div className="min-w-0">
 					<h1 className="text-title-h5 sm:text-title-h4 text-text-strong-950">Dashboard</h1>
 					<p className="text-paragraph-xs sm:text-paragraph-sm text-text-sub-600 mt-0.5 min-h-5">
 						{formattedDate || <span className="invisible">Loading...</span>}
 					</p>
 				</div>
-				{hasOrganization && (
+				<div className="flex items-center gap-2 shrink-0">
 					<Tooltip.Provider>
 						<Tooltip.Root>
 							<Tooltip.Trigger asChild>
 								<div>
-									<Button.Root 
-										variant="primary" 
-										size="small" 
-										asChild 
-										className="shrink-0"
+									<Button.Root
+										variant="primary"
+										size="small"
+										asChild
 										disabled={organization?.approvalStatus !== "approved"}
 									>
 										<Link href={`/dashboard/${organizationId}/campaigns/create`}>
@@ -382,7 +316,7 @@ export function DashboardClient({
 							</Tooltip.Trigger>
 							{organization?.approvalStatus !== "approved" && (
 								<Tooltip.Content>
-									{organization?.approvalStatus === "draft" 
+									{organization?.approvalStatus === "draft"
 										? "Complete onboarding and wait for admin approval"
 										: organization?.approvalStatus === "pending"
 										? "Your application is under review"
@@ -391,7 +325,7 @@ export function DashboardClient({
 							)}
 						</Tooltip.Root>
 					</Tooltip.Provider>
-				)}
+				</div>
 			</div>
 
 			{/* APPROVAL STATUS BANNER */}
@@ -496,16 +430,14 @@ export function DashboardClient({
 				</>
 			)}
 
-			{/* ALERT BAR - Only show if has organization and data */}
-			{hasOrganization && safeData && (
-				<DashboardAlertBar
-					organizationId={organizationId}
-					hasOverdue={hasOverdue}
-					isLowBalance={isLowBalance}
-					pendingOverdue={metrics.pendingOverdue}
-					runwayDays={runwayDays}
-				/>
-			)}
+			{/* ALERT BAR */}
+			<DashboardAlertBar
+				organizationId={organizationId}
+				hasOverdue={hasOverdue}
+				isLowBalance={isLowBalance}
+				pendingOverdue={metrics.pendingOverdue}
+				runwayDays={runwayDays}
+			/>
 
 			{/* METRICS */}
 			<DashboardMetrics
@@ -541,23 +473,13 @@ export function DashboardClient({
 				/>
 			</div>
 
-			{/* PRIORITY QUEUE - Only show if has organization and data */}
-			{hasOrganization && safeData && (
-				<DashboardPriorityQueue
-					organizationId={organizationId}
-					priorityEnrollments={priorityEnrollments}
-					pendingTotal={metrics.pendingTotal}
-					hasOverdue={hasOverdue}
-				/>
-			)}
-
-			{/* EMPTY STATE - Show if no organization and alert dismissed */}
-			{!hasOrganization && dismissedOnboardingAlert && (
-				<OnboardingSetupCard
-					variant="warning-minimal"
-					onAction={handleStartOnboarding}
-				/>
-			)}
+			{/* PRIORITY QUEUE */}
+			<DashboardPriorityQueue
+				organizationId={organizationId}
+				priorityEnrollments={priorityEnrollments}
+				pendingTotal={metrics.pendingTotal}
+				hasOverdue={hasOverdue}
+			/>
 		</div>
 	)
 }

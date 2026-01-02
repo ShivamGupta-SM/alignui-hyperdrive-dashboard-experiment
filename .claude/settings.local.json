@@ -16,7 +16,13 @@
       "Bash(pnpm remove:*)",
       "Bash(del \"c:\\\\Users\\\\Shivam Gupta\\\\Downloads\\\\BACKEND+FRONTEND\\\\Hypedrive Brand\\\\brand-client.ts\")",
       "Bash(grep:*)",
-      "Bash(del \"c:\\\\Users\\\\Shivam Gupta\\\\Downloads\\\\BACKEND+FRONTEND\\\\Hypedrive Brand\\\\app\\\\\\(dashboard\\)\\\\dashboard\\\\[organizationId]\\\\campaigns\\\\campaigns-wrapper.tsx\")"
+      "Bash(del \"c:\\\\Users\\\\Shivam Gupta\\\\Downloads\\\\BACKEND+FRONTEND\\\\Hypedrive Brand\\\\app\\\\\\(dashboard\\)\\\\dashboard\\\\[organizationId]\\\\campaigns\\\\campaigns-wrapper.tsx\")",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(ls:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npx next dev:*)",
+      "Bash(taskkill:*)"
     ]
   }
 }

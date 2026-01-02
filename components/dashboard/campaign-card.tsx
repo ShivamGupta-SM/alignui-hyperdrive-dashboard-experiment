@@ -23,8 +23,7 @@ import {
 } from "@phosphor-icons/react"
 import type { organizations, shared } from "@/brand-client"
 import { CAMPAIGN_STATUS_CONFIG } from "@/lib/constants"
-import { formatDateShort } from "@/lib/utils/format"
-import { cn } from "@/lib/utils"
+import { cn, formatDateShort } from "@/lib/utils"
 
 // CampaignWithStats from organizations namespace (SSOT)
 type CampaignData = organizations.CampaignWithStats

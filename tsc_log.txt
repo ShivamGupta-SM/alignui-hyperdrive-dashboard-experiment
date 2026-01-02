@@ -1,0 +1,12 @@
+﻿app/(dashboard)/dashboard/[organizationId]/enrollments/[id]/enrollment-detail-client.tsx(564,25): error TS2552: Cannot find name 'setIsChangesModalOpen'. Did you mean 'isChangesModalOpen'?
+app/(dashboard)/dashboard/[organizationId]/enrollments/[id]/enrollment-detail-client.tsx(574,25): error TS2552: Cannot find name 'setIsRejectModalOpen'. Did you mean 'isRejectModalOpen'?
+app/(dashboard)/dashboard/[organizationId]/enrollments/[id]/enrollment-detail-client.tsx(581,55): error TS2552: Cannot find name 'setIsApproveModalOpen'. Did you mean 'isApproveModalOpen'?
+app/(dashboard)/dashboard/[organizationId]/enrollments/[id]/enrollment-detail-client.tsx(601,24): error TS2552: Cannot find name 'setIsChangesModalOpen'. Did you mean 'isChangesModalOpen'?
+app/(dashboard)/dashboard/[organizationId]/enrollments/[id]/enrollment-detail-client.tsx(612,24): error TS2552: Cannot find name 'setIsRejectModalOpen'. Did you mean 'isRejectModalOpen'?
+app/(dashboard)/dashboard/[organizationId]/enrollments/[id]/enrollment-detail-client.tsx(622,24): error TS2552: Cannot find name 'setIsApproveModalOpen'. Did you mean 'isApproveModalOpen'?
+app/(dashboard)/dashboard/[organizationId]/enrollments/[id]/enrollment-detail-client.tsx(638,56): error TS2552: Cannot find name 'setIsApproveModalOpen'. Did you mean 'isApproveModalOpen'?
+app/(dashboard)/dashboard/[organizationId]/enrollments/[id]/enrollment-detail-client.tsx(687,51): error TS2552: Cannot find name 'setIsApproveModalOpen'. Did you mean 'isApproveModalOpen'?
+app/(dashboard)/dashboard/[organizationId]/enrollments/[id]/enrollment-detail-client.tsx(698,55): error TS2552: Cannot find name 'setIsRejectModalOpen'. Did you mean 'isRejectModalOpen'?
+app/(dashboard)/dashboard/[organizationId]/enrollments/[id]/enrollment-detail-client.tsx(729,51): error TS2304: Cannot find name 'setIsRejectModalOpen'.
+app/(dashboard)/dashboard/[organizationId]/enrollments/[id]/enrollment-detail-client.tsx(744,56): error TS2552: Cannot find name 'setIsChangesModalOpen'. Did you mean 'isChangesModalOpen'?
+app/(dashboard)/dashboard/[organizationId]/enrollments/[id]/enrollment-detail-client.tsx(767,51): error TS2304: Cannot find name 'setIsChangesModalOpen'.

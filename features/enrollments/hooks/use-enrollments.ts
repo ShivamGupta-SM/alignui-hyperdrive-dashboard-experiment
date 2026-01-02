@@ -316,13 +316,13 @@ export function useRequestChanges(orgId: string) {
 
 /**
  * Extend enrollment deadline
- * Direct client call - no server action needed for simple update
+ * ✅ FIX: Uses server action for consistent validation and cache revalidation
  */
 export function useExtendDeadline(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
 		mutationFn: ({ campaignId, id, expiresAt }: { campaignId: string; id: string; expiresAt: string }) =>
-			client.organizations.extendEnrollmentDeadline(orgId, campaignId, id, { expiresAt }),
+			actions.extendDeadline({ organizationId: orgId, campaignId, id, expiresAt }),
 		onSuccess: (_, { campaignId, id }) => {
 			qc.invalidateQueries({ queryKey: enrollmentKeys.detail(orgId, campaignId, id) })
 			qc.invalidateQueries({ queryKey: enrollmentKeys.lists(orgId) })

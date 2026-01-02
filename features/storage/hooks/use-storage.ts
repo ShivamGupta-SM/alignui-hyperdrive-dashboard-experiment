@@ -17,7 +17,8 @@ import type { storage } from "@/brand-client"
 // ============================================
 export const storageKeys = {
 	all: ["storage"] as const,
-	files: () => [...storageKeys.all, "files"] as const,
+	// ✅ FIX Bug 26: Org-scoped query keys to prevent data leaks between orgs
+	files: (orgId: string) => [...storageKeys.all, "files", orgId] as const,
 	logoPreview: (domain: string) => [...storageKeys.all, "logo-preview", domain] as const,
 }
 
@@ -26,12 +27,14 @@ export const storageKeys = {
 // ============================================
 
 /**
- * List files
+ * List files for a specific organization
+ * ✅ FIX Bug 26: Now requires orgId for cache isolation
  */
-export function useFiles() {
+export function useFiles(orgId: string) {
 	return useQuery({
-		queryKey: storageKeys.files(),
+		queryKey: storageKeys.files(orgId),
 		queryFn: () => client.storage.listFiles(),
+		enabled: !!orgId,
 		staleTime: STALE_TIME.MEDIUM,
 		...DEFAULT_RETRY_CONFIG,
 	})
@@ -120,13 +123,14 @@ export function useRequestOrgLogoUploadUrl() {
 
 /**
  * Delete file
+ * ✅ FIX Bug 26: Now requires orgId for proper cache invalidation
  */
-export function useDeleteFile() {
+export function useDeleteFile(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
 		mutationFn: (key: string) => client.storage.deleteFile(key),
 		onSuccess: () => {
-			qc.invalidateQueries({ queryKey: storageKeys.files() })
+			qc.invalidateQueries({ queryKey: storageKeys.files(orgId) })
 		},
 		onError: createMutationErrorHandler("delete file"),
 	})

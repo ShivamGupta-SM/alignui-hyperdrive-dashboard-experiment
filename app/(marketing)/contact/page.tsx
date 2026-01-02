@@ -9,6 +9,7 @@ import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import { Logo } from "@/components/ui/branding/logo"
 import { EXTERNAL_URLS, CONTACT_INFO } from "@/lib/constants"
+import { logDebug } from "@/lib/logging"
 import {
 	Envelope,
 	Phone,
@@ -48,9 +49,7 @@ export default function ContactPage() {
 		// Simulate API call - replace with actual API call
 		await new Promise((resolve) => setTimeout(resolve, 1000))
 		// TODO: Replace with actual API call to backend
-		if (process.env.NODE_ENV === 'development') {
-			console.log("Contact form submitted:", data)
-		}
+		logDebug("Contact form submitted", { source: "ContactPage", data: { name: data.name, email: data.email, company: data.company } })
 		setIsSubmitting(false)
 		setIsSuccess(true)
 		reset()

@@ -13,7 +13,6 @@ import { z } from "zod"
 
 import { authAction } from "@/lib/safe-action"
 import { logInfo } from "@/lib/logging"
-import { STATUS_CHECKS } from "@/lib/utils/validations"
 import type { CreateOrgActionResponse } from "../types"
 
 // =============================================================================
@@ -36,9 +35,9 @@ export const getExistingDraftOrganization = authAction
 		})
 
 		const orgs = await ctx.client.auth.listOrganizations()
-		// SSOT: Using STATUS_CHECKS helpers from @/lib/utils/validations
+		// ✅ CLEANUP: Direct comparison instead of STATUS_CHECKS (cleaner, more readable)
 		const existing = orgs.organizations.find(
-			(o) => STATUS_CHECKS.isDraft(o.approvalStatus) || STATUS_CHECKS.isPending(o.approvalStatus)
+			(o) => o.approvalStatus === "draft" || o.approvalStatus === "pending"
 		)
 
 		if (existing) {

@@ -14,11 +14,11 @@
 export type * from "./types"
 
 // Hooks
+// NOTE: useOrganizationWithDetails was REMOVED - use useCurrentOrganization from @/hooks/shared
 export {
 	organizationKeys,
 	useOrganizations,
 	useOrganizationById,
-	useOrganizationWithDetails,
 	useOrganization,
 	useUpdateOrganization,
 	useOrganizationCampaignStats,

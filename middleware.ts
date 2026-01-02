@@ -18,11 +18,9 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-// SSOT: Import auth cookie constants
-// Note: Can't import from @/lib/constants in middleware (Edge Runtime)
-// So we duplicate the constant here but reference the SSOT in comments
-// SSOT Source: @/lib/constants - AUTH_COOKIE_NAMES
-const AUTH_COOKIE_NAMES = ["auth-token", "better-auth.session_token"] as const
+// SSOT: Import from edge-compatible constants
+// These are Edge Runtime safe (no external dependencies)
+import { AUTH_COOKIE_NAMES } from "@/lib/constants/edge"
 
 // ============================================================================
 // ROUTE CONSTANTS - Centralized route definitions
@@ -114,6 +112,8 @@ function isValidOrganizationId(orgId: string): boolean {
 
 /**
  * Extract organizationId from dashboard URL
+ *
+ * Standard URL pattern: /dashboard/{orgId}/...
  * Returns null if not a dashboard org-specific route
  */
 function extractOrganizationId(pathname: string): string | null {

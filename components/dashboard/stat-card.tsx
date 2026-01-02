@@ -2,8 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { cn } from "@/lib/utils"
-import { formatCurrencyCompact, formatCurrency } from "@/lib/utils/format"
+import { cn, formatCurrencyCompact, formatCurrency } from "@/lib/utils"
 
 import { Wallet } from "@phosphor-icons/react"
 

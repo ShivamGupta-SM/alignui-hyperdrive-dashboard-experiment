@@ -31,9 +31,16 @@ export type DashboardData = organizations.DashboardOverviewResponse
 
 /**
  * Fetch dashboard overview data
+ *
+ * @param options.initialData - SSR-fetched data to prevent loading flash
  */
-export function useDashboard(options: { organizationId: string; days?: number; enabled?: boolean }) {
-	const { organizationId, days = 7, enabled = true } = options
+export function useDashboard(options: {
+	organizationId: string
+	days?: number
+	enabled?: boolean
+	initialData?: DashboardData | null
+}) {
+	const { organizationId, days = 7, enabled = true, initialData } = options
 
 	return useQuery<DashboardData | null>({
 		queryKey: dashboardKeys.stats(organizationId, days),
@@ -56,8 +63,10 @@ export function useDashboard(options: { organizationId: string; days?: number; e
 		enabled: enabled && !!organizationId,
 		staleTime: STALE_TIME.SHORT,
 		gcTime: STALE_TIME.MEDIUM,
-		retry: 2, // Allow retries for transient network errors
+		retry: 2,
 		retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-		refetchOnWindowFocus: true, // Refresh when user returns to tab
+		refetchOnWindowFocus: true,
+		// SSR data hydration - prevents loading flash (blank → spinner → content)
+		initialData: initialData ?? undefined,
 	})
 }

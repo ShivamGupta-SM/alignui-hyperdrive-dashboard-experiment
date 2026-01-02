@@ -35,10 +35,11 @@ import {
 	List,
 } from "@phosphor-icons/react"
 import { useState } from "react"
+import { useModalState } from "@/hooks/ui"
 
 // Navigation Component
 function Navigation() {
-	const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+	const [mobileMenuOpen, openMobileMenu, closeMobileMenu, toggleMobileMenu] = useModalState(false)
 
 	return (
 		<header className="fixed top-0 left-0 right-0 z-50 bg-bg-white-0/80 backdrop-blur-xl border-b border-stroke-soft-200/60 pt-[env(safe-area-inset-top)]">
@@ -89,7 +90,7 @@ function Navigation() {
 							variant="ghost"
 							size="small"
 							className="md:hidden"
-							onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+							onClick={toggleMobileMenu}
 						>
 							<Button.Icon><List className="size-5" /></Button.Icon>
 						</Button.Root>

@@ -21,7 +21,8 @@ import * as Table from "@/components/ui/data-display/table"
 import * as Checkbox from "@/components/ui/forms/checkbox"
 import * as Avatar from "@/components/ui/primitives/avatar"
 import * as Badge from "@/components/ui/data-display/badge"
-import { cn } from "@/lib/utils"
+import { cn, getAvatarColor, getErrorMessage, formatCurrency, formatDateMedium, getTimeAgo, isOverdue, getInitial } from "@/lib/utils"
+import { useStableTime } from "@/hooks/ui/use-mounted"
 import {
 	PauseCircle,
 	PlayCircle,
@@ -67,8 +68,6 @@ import {
 } from "@/features/campaigns"
 import type { platforms, organizations } from "@/brand-client"
 import { toast } from "sonner"
-import { getErrorMessage, formatCurrency, formatDateMedium } from "@/lib/utils/format"
-import { getTimeAgo, isOverdue } from "@/lib/utils/date"
 import {
 	type ColumnDef,
 	type SortingState,
@@ -81,8 +80,6 @@ import {
 	getSortedRowModel,
 	useReactTable,
 } from "@tanstack/react-table"
-import { getAvatarColor } from "@/lib/utils"
-import { getInitial } from "@/lib/utils/string"
 import { SettingsTab } from "./settings-tab"
 import { DeliverablesTab } from "./deliverables-tab"
 import { InlineBackButton } from "@/components/ui/navigation/back-button"
@@ -128,23 +125,24 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 
 	const [isPending, startTransition] = React.useTransition()
 
+	// Hydration-safe reference time - prevents server/client mismatch
+	const referenceTime = useStableTime()
+
 	const statusConfig = campaign ? CAMPAIGN_STATUS_CONFIG[campaign.status] : null
 
 	const getDaysRemaining = () => {
-		if (!campaign) return 0
-		const now = new Date()
+		if (!campaign || !referenceTime) return 0
 		const end = new Date(campaign.endDate)
-		const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+		const diff = Math.ceil((end.getTime() - referenceTime) / (1000 * 60 * 60 * 24))
 		return Math.max(0, diff)
 	}
 
 	const getProgressPercentage = () => {
-		if (!campaign) return 0
-		const now = new Date()
+		if (!campaign || !referenceTime) return 0
 		const start = new Date(campaign.startDate)
 		const end = new Date(campaign.endDate)
 		const total = end.getTime() - start.getTime()
-		const elapsed = now.getTime() - start.getTime()
+		const elapsed = referenceTime - start.getTime()
 		return Math.min(100, Math.max(0, (elapsed / total) * 100))
 	}
 

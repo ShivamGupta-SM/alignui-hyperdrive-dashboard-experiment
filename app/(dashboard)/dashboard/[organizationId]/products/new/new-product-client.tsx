@@ -26,15 +26,13 @@ import {
 	X,
 	Lightbulb,
 } from "@phosphor-icons/react"
-import { cn } from "@/lib/utils"
+import { cn, getErrorMessage } from "@/lib/utils"
 import { useLocalStorage } from "@/hooks/state"
-import { CalloutWithActions } from "@/components/ui/feedback/callout"
-import { OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
+import { OnboardingRequiredAlert, OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
 import { nanoid } from "nanoid"
 import { createProduct } from "@/features/products"
 import { toast } from "sonner"
-import { getErrorMessage } from "@/lib/utils/format"
-import { productFormSchema, type ProductFormInput } from "@/lib/utils/validations"
+import { productFormSchema, type ProductFormInput } from "@/lib/utils"
 import type { products } from "@/brand-client"
 
 type ProductCategory = products.ProductCategory
@@ -62,33 +60,11 @@ export function NewProductClient({ categories }: NewProductClientProps) {
 			<div className="space-y-5 sm:space-y-6">
 				{/* ONBOARDING ALERT */}
 				{showOnboardingAlert && (
-					<CalloutWithActions
-						variant="warning"
-						title="Complete Your Organization Setup"
-						dismissible
+					<OnboardingRequiredAlert
 						onDismiss={() => setDismissedOnboardingAlert(true)}
-						actions={
-							<>
-								<Button.Root
-									variant="primary"
-									size="small"
-									onClick={() => router.push(routes.onboarding.root)}
-								>
-									<Button.Icon><ArrowRight className="size-5" /></Button.Icon>
-									Start Onboarding
-								</Button.Root>
-								<Button.Root
-									variant="ghost"
-									size="small"
-									onClick={() => setDismissedOnboardingAlert(true)}
-								>
-									Maybe Later
-								</Button.Root>
-							</>
-						}
-					>
-						To add products, you need to complete your organization setup. This will only take a few minutes.
-					</CalloutWithActions>
+						onStartOnboarding={() => router.push(routes.onboarding.root)}
+						description="To add products, you need to complete your organization setup. This will only take a few minutes."
+					/>
 				)}
 
 				{/* HEADER */}

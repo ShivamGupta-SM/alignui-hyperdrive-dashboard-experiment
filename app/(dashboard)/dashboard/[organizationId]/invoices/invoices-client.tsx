@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useCurrentOrganization } from '@/hooks/shared/use-current-organization'
@@ -20,14 +20,13 @@ import {
   X,
   SpinnerGap,
 } from '@phosphor-icons/react'
-import { cn } from '@/lib/utils'
+import { cn, formatCurrency, formatCurrencyCompact, formatDateShort, formatDateMedium as formatDateFull, getErrorMessage } from '@/lib/utils'
 import { useInvoiceSearchParams } from '@/hooks'
 import { useStableTime } from '@/hooks/ui'
 import { useDebounceValue, useMediaQuery } from 'usehooks-ts'
 import { exportInvoices } from '@/lib/utils/excel'
 import { toast } from 'sonner'
 import type { organizations } from "@/brand-client"
-import { formatCurrency, formatCurrencyCompact, formatDateShort, formatDateMedium, getErrorMessage } from "@/lib/utils/format"
 import { logError } from "@/lib/logging/error-logger-simple"
 import { TIMEOUTS, PLATFORM_INFO } from '@/lib/constants'
 
@@ -283,15 +282,9 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
     setSearchParams({ period: value as "all" | "this_month" | "last_month" | "last_3_months", page: 1 })
   }, [setSearchParams])
 
-  // Formatting functions - directly use lib functions
-  const formatDate = (date: Date | string | undefined): string => {
-    if (!date) return '-'
-    return formatDateShort(date)
-  }
-  const formatDateFull = (date: Date | string | undefined): string => {
-    if (!date) return '-'
-    return formatDateMedium(date)
-  }
+  // Null-safe date formatting - uses SSOT from @/lib/utils/format
+  const safeFormatDate = (date: Date | string | undefined) => date ? formatDateShort(date) : '-'
+  const safeFormatDateFull = (date: Date | string | undefined) => date ? formatDateFull(date) : '-'
 
   const filteredInvoices = useMemo(() => {
     let result = allInvoices
@@ -432,7 +425,7 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
               key={invoice.id}
               invoice={invoice}
               formatCurrency={formatCurrency}
-              formatDate={formatDate}
+              formatDate={safeFormatDate}
               onView={() => setSelectedInvoice(invoice)}
             />
           ))}
@@ -445,7 +438,7 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
         organization={organization}
         onClose={() => setSelectedInvoice(null)}
         formatCurrency={formatCurrency}
-        formatDate={formatDateFull}
+        formatDate={safeFormatDateFull}
         onDownloadPDF={handleDownloadPDF}
         downloadingId={downloadingId}
         onExportEnrollments={handleExportEnrollments}

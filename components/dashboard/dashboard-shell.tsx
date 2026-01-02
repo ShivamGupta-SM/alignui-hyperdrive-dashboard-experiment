@@ -3,50 +3,47 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter, usePathname, useParams } from "next/navigation"
-import { useQueryClient } from "@tanstack/react-query"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { Header } from "@/components/dashboard/header"
 import { NotificationsDrawer } from "@/components/dashboard/notifications-drawer"
 import { CommandMenu } from "@/components/dashboard/command-menu"
 import { SettingsPanel } from "@/components/dashboard/settings-panel"
 import { StatusBanner } from "@/components/dashboard/status-banner"
-import { useBreadcrumbs, useIsDesktop, useKeyboardShortcut } from "@/hooks/ui"
-import { useSignOut, useSession } from "@/features/auth"
-import type { Notification as NotificationItem } from "@/lib/types/notification"
-import { useUIStore } from "@/lib/stores/ui-store"
+import { useBreadcrumbs, useIsDesktop, useKeyboardShortcut, useModalState } from "@/hooks/ui"
+import { useLocalStorage } from "@/hooks/state/use-local-storage"
 import { useNotifications as useBackendNotifications, useUnreadNotificationCount as useBackendUnreadCount, useMarkAllNotificationsRead as useBackendMarkAllRead, useMarkNotificationRead as useBackendMarkRead, useDashboard } from "@/hooks/shared"
-import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { isValidInternalUrl } from "@/lib/routes"
 
+import type { OrganizationListItem } from "@/features/organizations/types"
+
 interface DashboardShellProps {
 	children: React.ReactNode
+	/** SSR-fetched organizations for sidebar - prevents client-side loading flash */
+	initialOrganizations?: OrganizationListItem[]
 }
 
-export function DashboardShell({ children }: DashboardShellProps) {
-	return <DashboardShellInner>{children}</DashboardShellInner>
+export function DashboardShell({ children, initialOrganizations }: DashboardShellProps) {
+	return <DashboardShellInner initialOrganizations={initialOrganizations}>{children}</DashboardShellInner>
 }
 
-function DashboardShellInner({ children }: { children: React.ReactNode }) {
+function DashboardShellInner({ children, initialOrganizations = [] }: { children: React.ReactNode; initialOrganizations?: OrganizationListItem[] }) {
 	const router = useRouter()
 	const pathname = usePathname()
 	const params = useParams<{ organizationId: string }>()
 	const organizationId = params.organizationId || ""
-	const queryClient = useQueryClient()
-	const { theme, setTheme, resolvedTheme } = useTheme()
-	const {
-		sidebarCollapsed,
-		setSidebarCollapsed,
-		notificationsDrawerOpen,
-		setNotificationsDrawerOpen,
-		commandMenuOpen,
-		setCommandMenuOpen,
-		settingsPanelOpen,
-		setSettingsPanelOpen,
-	} = useUIStore()
 
-	// Mobile menu uses local state (as per UIState design)
-	const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
+	// Sidebar collapsed state - persisted to localStorage, hydration-safe
+	const [storedSidebarCollapsed, setSidebarCollapsed, , sidebarHydrated] = useLocalStorage("sidebar-collapsed", false)
+	const sidebarCollapsed = sidebarHydrated ? storedSidebarCollapsed : false
+
+	// Drawer/Panel states - local state (no persistence needed)
+	const [notificationsDrawerOpen, , , , setNotificationsDrawerOpen] = useModalState(false)
+	const [commandMenuOpen, , , , setCommandMenuOpen] = useModalState(false)
+	const [settingsPanelOpen, , , , setSettingsPanelOpen] = useModalState(false)
+
+	// Mobile menu uses local state
+	const [mobileMenuOpen, , , , setMobileMenuOpen] = useModalState(false)
 	const mobileSidebarOpen = mobileMenuOpen
 	const setMobileSidebarOpen = setMobileMenuOpen
 
@@ -57,34 +54,30 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 	const backendUnreadCount = useBackendUnreadCount()
 	const backendMarkAllRead = useBackendMarkAllRead()
 	const backendMarkRead = useBackendMarkRead()
-	
+
 	// Use backend data (which syncs with Novu when enabled)
 	const notificationsData = backendNotifications.data?.notifications
 		? { data: backendNotifications.data.notifications }
 		: { data: [] }
-	
-	const unreadCount = backendUnreadCount.data ?? 0
-	
+
+	const unreadCount = backendUnreadCount.data?.count ?? 0
+
 	const markAllRead = () => {
 		backendMarkAllRead.mutate()
 	}
-	
-	const markRead = (id: string) => {
-		backendMarkRead.mutate(id)
-	}
 
-	// Prevent hydration mismatch by using consistent initial state
-	// MUST be declared before useDashboard to avoid "Cannot access before initialization" error
-	const [mounted, setMounted] = React.useState(false)
-	React.useEffect(() => {
-		setMounted(true)
-	}, [])
+	// Note: Backend doesn't support single notification marking, so this marks all as read
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	const markRead = (_id: string) => {
+		backendMarkRead.mutate()
+	}
 
 	// Dashboard data for pending enrollments count
 	// URL-based multi-tenancy: organizationId from URL params
+	// No need for mounted check - SSR data is available immediately
 	const dashboardQuery = useDashboard({
 		organizationId,
-		enabled: mounted && !!organizationId, // Only fetch after mount and if org exists
+		enabled: !!organizationId,
 	})
 	const pendingEnrollmentsCount = dashboardQuery.data?.stats?.pendingEnrollments ?? 0
 
@@ -120,66 +113,14 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 		{ enabled: mobileSidebarOpen }
 	)
 
-	// Sign out - single source of truth
-	const { signOut: handleSignOut } = useSignOut("/sign-in")
-
 	const handleMobileSidebarToggle = React.useCallback(() => {
 		setMobileMenuOpen(!mobileMenuOpen)
 	}, [mobileMenuOpen, setMobileMenuOpen])
 
-	// Don't render until mounted to prevent hydration mismatch
-	// The skeleton must match the exact structure and dimensions of the real layout
-	if (!mounted) {
-		return (
-			<div
-				className="h-dvh lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 pb-[env(safe-area-inset-bottom,0px)]"
-			>
-				{/* Desktop skeleton */}
-				<div className="hidden lg:flex h-full gap-3">
-					{/* Placeholder sidebar - matches collapsed=false width */}
-					<div className="w-[280px] shrink-0" />
-					{/* Main Content Card */}
-					<div className="flex flex-1 flex-col overflow-hidden min-w-0 rounded-2xl bg-bg-white-0 border border-stroke-soft-200 shadow-md ring-1 ring-black/3 dark:ring-white/3">
-						{/* Placeholder header - matches h-14 sm:h-16 */}
-						<div className="h-16 border-b border-stroke-soft-200" />
-						{/* Page Content */}
-							<main className="flex-1 overflow-y-auto">
-								<div 
-									className="container mx-auto max-w-7xl px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
-								>
-									{children}
-								</div>
-							</main>
-					</div>
-				</div>
-
-				{/* Mobile skeleton - matches mobile layout structure */}
-				<div className="lg:hidden flex flex-col h-full">
-					{/* Mobile Header placeholder */}
-					<div className="shrink-0 px-2 pt-2">
-						<div className="h-14 sm:h-16" />
-					</div>
-					{/* Content Area */}
-					<div className="flex-1 relative overflow-hidden px-2 pb-2">
-						<div className="relative z-10 flex flex-col h-full bg-bg-white-0 rounded-2xl border border-stroke-soft-200 shadow-md ring-1 ring-black/3 dark:ring-white/3">
-							<main className="flex-1 overflow-y-auto">
-								<div
-									className="container mx-auto max-w-7xl px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
-								>
-									{children}
-								</div>
-							</main>
-						</div>
-					</div>
-				</div>
-			</div>
-		)
-	}
-
 	return (
 			<div
 			className="h-dvh lg:p-3 bg-linear-to-br from-bg-weak-50 via-bg-weak-50 to-bg-soft-200 transition-colors duration-200"
-				style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+				style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
 			>
 			{/* ============================================ */}
 			{/* DESKTOP LAYOUT - Traditional Inset Sidebar */}
@@ -192,13 +133,14 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 						onCollapsedChange={setSidebarCollapsed}
 						pendingEnrollments={pendingEnrollmentsCount}
 						onSettingsClick={() => setSettingsPanelOpen(true)}
+						initialOrganizations={initialOrganizations}
 					/>
 				</div>
 
 				{/* Main Area - Desktop */}
-				<div className="flex flex-1 flex-col overflow-hidden min-w-0">
+				<div className="flex flex-1 flex-col min-w-0">
 					{/* Content Card - Top aligned with sidebar */}
-					<div className="flex flex-1 flex-col overflow-hidden rounded-2xl bg-bg-white-0 border border-stroke-soft-200 shadow-md ring-1 ring-black/3 dark:ring-white/3 transition-colors duration-200">
+					<div className="flex flex-1 flex-col rounded-2xl bg-bg-white-0 border border-stroke-soft-200 shadow-md ring-1 ring-black/3 dark:ring-white/3 transition-colors duration-200">
 						{/* Header first - aligns with sidebar logo */}
 						<Header
 							unreadNotifications={unreadCount}
@@ -211,7 +153,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 						{/* Breadcrumbs - Below header, above content */}
 						{breadcrumbItems.length > 0 && (
 							<nav
-								className="flex items-center gap-1.5 px-4 lg:px-6 py-2 border-b border-stroke-soft-200 bg-bg-weak-50/50"
+								className="shrink-0 flex items-center gap-1.5 px-4 lg:px-6 py-2 border-b border-stroke-soft-200 bg-bg-weak-50/50"
 								aria-label="Breadcrumb"
 							>
 								{breadcrumbItems.map((item, index) => {
@@ -243,9 +185,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 								})}
 							</nav>
 						)}
-						<main className="flex-1 overflow-y-auto overscroll-contain -webkit-overflow-scrolling-touch">
+						<main className="flex-1 min-h-0 overflow-y-auto overscroll-contain -webkit-overflow-scrolling-touch">
 							<div
-								className="container mx-auto max-w-7xl px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
+								className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8"
 							>
 								{/* Status banner for non-approved organizations */}
 								<StatusBanner />
@@ -294,6 +236,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 							setSettingsPanelOpen(true)
 							setMobileSidebarOpen(false)
 						}}
+						initialOrganizations={initialOrganizations}
 					/>
 					</div>
 
@@ -310,11 +253,11 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 					>
 						{/* Page Content */}
 						<main
-							className="flex-1 overflow-y-auto overscroll-contain"
+							className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
 							style={{ WebkitOverflowScrolling: "touch" }}
 						>
 							<div
-								className="container mx-auto max-w-7xl px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
+								className="container mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8"
 							>
 								{/* Status banner for non-approved organizations */}
 								<StatusBanner />

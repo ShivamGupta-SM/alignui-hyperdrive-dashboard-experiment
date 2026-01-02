@@ -2,7 +2,9 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { getProfileData } from "@/features/settings/ssr"
 import { ProfileClient } from "./profile-client"
+import { OrganizationGuard } from "@/components/dashboard/organization-guard"
 import { logSSRError } from "@/lib/logging/error-logger-simple"
+import { ProfilePageLoading } from "@/components/dashboard/loading-skeletons"
 
 export const metadata: Metadata = {
 	title: "Profile",
@@ -14,7 +16,8 @@ export const metadata: Metadata = {
 }
 
 async function ProfileData() {
-	// Profile page doesn't require organization - it's user-specific
+	// Profile data is user-specific, but page is under [organizationId] route
+	// OrganizationGuard validates user has access to org in URL
 	let data = null
 	try {
 		data = await getProfileData()
@@ -28,8 +31,10 @@ async function ProfileData() {
 
 export default async function ProfilePage() {
 	return (
-		<Suspense fallback={<div className="p-8">Loading profile...</div>}>
-			<ProfileData />
-		</Suspense>
+		<OrganizationGuard pageType="default">
+			<Suspense fallback={<ProfilePageLoading />}>
+				<ProfileData />
+			</Suspense>
+		</OrganizationGuard>
 	)
 }

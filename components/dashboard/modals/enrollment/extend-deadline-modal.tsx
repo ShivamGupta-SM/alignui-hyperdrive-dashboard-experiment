@@ -6,6 +6,7 @@ import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import * as Textarea from "@/components/ui/forms/textarea"
 import { Info } from "@phosphor-icons/react"
+import { formatDateMedium } from "@/lib/utils"
 
 interface ExtendDeadlineModalProps {
 	open: boolean
@@ -29,13 +30,6 @@ export function ExtendDeadlineModal({
 	const [newDeadline, setNewDeadline] = React.useState("")
 	const [reason, setReason] = React.useState("")
 
-	const formatDate = (date: Date) => {
-		return new Date(date).toLocaleDateString("en-IN", {
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-		})
-	}
 
 	const handleConfirm = () => {
 		onConfirm(new Date(newDeadline), reason)
@@ -59,7 +53,7 @@ export function ExtendDeadlineModal({
 
 					<div className="rounded-10 bg-bg-weak-50 p-3">
 						<span className="text-paragraph-sm text-text-sub-600">Current Deadline:</span>
-						<div className="text-label-sm text-text-strong-950">{formatDate(currentDeadline)}</div>
+						<div className="text-label-sm text-text-strong-950">{formatDateMedium(currentDeadline)}</div>
 					</div>
 
 					<div>

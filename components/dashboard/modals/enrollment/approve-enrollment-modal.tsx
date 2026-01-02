@@ -3,7 +3,7 @@
 import * as Modal from "@/components/ui/layout/modal"
 import * as Button from "@/components/ui/primitives/button"
 import { Check } from "@phosphor-icons/react"
-import { formatCurrency } from "@/lib/utils/format"
+import { formatCurrency } from "@/lib/utils"
 
 interface ApproveEnrollmentModalProps {
 	open: boolean
