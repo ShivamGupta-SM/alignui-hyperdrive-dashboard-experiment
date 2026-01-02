@@ -50,10 +50,11 @@ export function useWallet(orgId: string) {
 /**
  * Get wallet transactions
  * FIX: Changed staleTime from LONG to SHORT - users expect to see recent transactions
+ * FIX: Added pagination params to query key to avoid stale cache when paginating
  */
 export function useWalletTransactions(orgId: string, params?: { skip?: number; take?: number }) {
 	return useQuery({
-		queryKey: walletKeys.transactions(orgId),
+		queryKey: [...walletKeys.transactions(orgId), params?.skip ?? 0, params?.take ?? PAGE_SIZE.MEDIUM] as const,
 		queryFn: () =>
 			client.organizations.getOrganizationWalletTransactions(orgId, {
 				skip: params?.skip ?? 0,

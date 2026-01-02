@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
-import { useModalState } from "@/hooks/ui"
+import { useModal } from "@/hooks/ui"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import Link from "next/link"
@@ -64,10 +64,10 @@ export function EnrollmentDetailClient({ enrollmentId, initialData }: Enrollment
 	const { organizationId } = useCurrentOrganization()
 	const queryClient = useQueryClient()
 
-	// Modal states - using useModalState hook for consistent pattern
-	const [isApproveModalOpen, openApproveModal, closeApproveModal, toggleApproveModal, setIsApproveModalOpen] = useModalState()
-	const [isRejectModalOpen, openRejectModal, closeRejectModal, toggleRejectModal, setIsRejectModalOpen] = useModalState()
-	const [isChangesModalOpen, openChangesModal, closeChangesModal, toggleChangesModal, setIsChangesModalOpen] = useModalState()
+	// Modal states - using useModal hook for consistent pattern
+	const [isApproveModalOpen, openApproveModal, closeApproveModal, toggleApproveModal, setIsApproveModalOpen] = useModal()
+	const [isRejectModalOpen, openRejectModal, closeRejectModal, toggleRejectModal, setIsRejectModalOpen] = useModal()
+	const [isChangesModalOpen, openChangesModal, closeChangesModal, toggleChangesModal, setIsChangesModalOpen] = useModal()
 	const [rejectionReason, setRejectionReason] = React.useState("")
 	const [changesComment, setChangesComment] = React.useState("")
 	const [isProcessing, setIsProcessing] = React.useState(false)

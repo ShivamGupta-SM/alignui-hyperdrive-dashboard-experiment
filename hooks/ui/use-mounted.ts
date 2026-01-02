@@ -5,8 +5,7 @@
  * content that depends on client-side state (like Date.now(), window, etc.)
  */
 
-import { useState, useEffect, useCallback, useRef } from "react"
-import { logWarn } from "@/lib/logging"
+import { useState, useEffect, useRef } from "react"
 
 /**
  * Returns true after component has mounted on the client.
@@ -117,56 +116,3 @@ export function useFormattedDate(
 	return dateString
 }
 
-/**
- * Hydration-safe localStorage hook.
- * Prevents hydration mismatch by only reading localStorage after mount.
- *
- * @param key - localStorage key
- * @param initialValue - Initial value (used during SSR and before hydration)
- * @returns [value, setValue, isHydrated] tuple
- *
- * @example
- * const [viewMode, setViewMode, isHydrated] = useHydratedLocalStorage('view-mode', 'list')
- * if (!isHydrated) return <Skeleton />
- */
-export function useHydratedLocalStorage<T>(
-	key: string,
-	initialValue: T
-): [T, (value: T | ((prev: T) => T)) => void, boolean] {
-	const [isHydrated, setIsHydrated] = useState(false)
-	const [storedValue, setStoredValue] = useState<T>(initialValue)
-
-	// Read from localStorage after mount (hydration-safe)
-	useEffect(() => {
-		try {
-			const item = localStorage.getItem(key)
-			if (item !== null) {
-				setStoredValue(JSON.parse(item))
-			}
-		} catch (error) {
-			logWarn(`Error reading localStorage key "${key}"`, { source: "useHydratedLocalStorage", data: { key, error } })
-		}
-		setIsHydrated(true)
-	}, [key])
-
-	// Setter that persists to localStorage
-	// Using useCallback with functional update to avoid stale closure
-	const setValue = useCallback(
-		(value: T | ((prev: T) => T)) => {
-			try {
-				setStoredValue((prev) => {
-					const valueToStore = value instanceof Function ? value(prev) : value
-					if (typeof window !== "undefined") {
-						localStorage.setItem(key, JSON.stringify(valueToStore))
-					}
-					return valueToStore
-				})
-			} catch (error) {
-				logWarn(`Error setting localStorage key "${key}"`, { source: "useHydratedLocalStorage", data: { key, error } })
-			}
-		},
-		[key]
-	)
-
-	return [storedValue, setValue, isHydrated]
-}

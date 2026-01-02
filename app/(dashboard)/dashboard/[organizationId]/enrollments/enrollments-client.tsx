@@ -57,7 +57,7 @@ import { useRouter } from "next/navigation"
 import { type ChangeEvent, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { useDebounceValue } from "usehooks-ts"
-import { useHydratedLocalStorage } from "@/hooks/ui"
+import { useLocalStorage } from "@/hooks/state"
 import { routes } from "@/lib/routes"
 
 /**
@@ -123,7 +123,7 @@ export function EnrollmentsClient({
 	const bulkReject = useBulkRejectEnrollments(organizationId)
 
 	// Dismiss onboarding alert state (persisted in localStorage with hydration guard)
-	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useHydratedLocalStorage<boolean>(
+	const [dismissedOnboardingAlert, setDismissedOnboardingAlert] = useLocalStorage<boolean>(
 		"enrollments-onboarding-alert-dismissed",
 		false
 	)

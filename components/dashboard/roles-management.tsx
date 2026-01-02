@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo } from "react"
-import { useModalState } from "@/hooks/ui"
+import { useModal } from "@/hooks/ui"
 import * as Button from "@/components/ui/primitives/button"
 import * as Badge from "@/components/ui/data-display/badge"
 import * as Modal from "@/components/ui/layout/modal"
@@ -74,10 +74,10 @@ interface RolesManagementProps {
 }
 
 export function RolesManagement({ organizationId }: RolesManagementProps) {
-	// Modal states - using useModalState hook for consistent pattern
-	const [isCreateModalOpen, openCreateModal, closeCreateModal] = useModalState()
-	const [isEditModalOpen, openEditModal, closeEditModal] = useModalState()
-	const [isDeleteModalOpen, openDeleteModal, closeDeleteModal] = useModalState()
+	// Modal states - using useModal hook for consistent pattern
+	const [isCreateModalOpen, openCreateModal, closeCreateModal] = useModal()
+	const [isEditModalOpen, openEditModal, closeEditModal] = useModal()
+	const [isDeleteModalOpen, openDeleteModal, closeDeleteModal] = useModal()
 	const [selectedRole, setSelectedRole] = useState<{
 		id: string
 		role: string

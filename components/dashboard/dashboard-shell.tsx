@@ -9,7 +9,7 @@ import { NotificationsDrawer } from "@/components/dashboard/notifications-drawer
 import { CommandMenu } from "@/components/dashboard/command-menu"
 import { SettingsPanel } from "@/components/dashboard/settings-panel"
 import { StatusBanner } from "@/components/dashboard/status-banner"
-import { useBreadcrumbs, useIsDesktop, useKeyboardShortcut, useModalState } from "@/hooks/ui"
+import { useBreadcrumbs, useIsDesktop, useKeyboardShortcut, useModal } from "@/hooks/ui"
 import { useLocalStorage } from "@/hooks/state/use-local-storage"
 import { useNotifications as useBackendNotifications, useUnreadNotificationCount as useBackendUnreadCount, useMarkAllNotificationsRead as useBackendMarkAllRead, useMarkNotificationRead as useBackendMarkRead, useDashboard } from "@/hooks/shared"
 import { cn } from "@/lib/utils"
@@ -38,12 +38,12 @@ function DashboardShellInner({ children, initialOrganizations = [] }: { children
 	const sidebarCollapsed = sidebarHydrated ? storedSidebarCollapsed : false
 
 	// Drawer/Panel states - local state (no persistence needed)
-	const [notificationsDrawerOpen, , , , setNotificationsDrawerOpen] = useModalState(false)
-	const [commandMenuOpen, , , , setCommandMenuOpen] = useModalState(false)
-	const [settingsPanelOpen, , , , setSettingsPanelOpen] = useModalState(false)
+	const [notificationsDrawerOpen, , , , setNotificationsDrawerOpen] = useModal(false)
+	const [commandMenuOpen, , , , setCommandMenuOpen] = useModal(false)
+	const [settingsPanelOpen, , , , setSettingsPanelOpen] = useModal(false)
 
 	// Mobile menu uses local state
-	const [mobileMenuOpen, , , , setMobileMenuOpen] = useModalState(false)
+	const [mobileMenuOpen, , , , setMobileMenuOpen] = useModal(false)
 	const mobileSidebarOpen = mobileMenuOpen
 	const setMobileSidebarOpen = setMobileMenuOpen
 

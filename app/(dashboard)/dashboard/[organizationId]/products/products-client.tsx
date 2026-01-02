@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useTransition, useCallback } from "react"
-import { useModalState } from "@/hooks/ui"
+import { useModal } from "@/hooks/ui"
 import { useRouter } from "next/navigation"
 import { routes } from "@/lib/routes"
 import { useForm, Controller } from "react-hook-form"
@@ -89,10 +89,10 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 	const [searchParams, setSearchParams] = useProductSearchParams()
 	const { search, category: categoryFilter, platform: platformFilter } = searchParams
 
-	// Modal states - using useModalState hook for consistent pattern
-	const [isAddModalOpen, openAddModal, closeAddModal] = useModalState()
-	const [isBulkImportModalOpen, openBulkImportModal, closeBulkImportModal] = useModalState()
-	const [isDeleteModalOpen, openDeleteModal, closeDeleteModal] = useModalState()
+	// Modal states - using useModal hook for consistent pattern
+	const [isAddModalOpen, openAddModal, closeAddModal] = useModal()
+	const [isBulkImportModalOpen, openBulkImportModal, closeBulkImportModal] = useModal()
+	const [isDeleteModalOpen, openDeleteModal, closeDeleteModal] = useModal()
 	const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 	const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
 	const [isPending, startTransition] = useTransition()

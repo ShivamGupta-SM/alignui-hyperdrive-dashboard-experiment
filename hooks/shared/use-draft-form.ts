@@ -35,6 +35,7 @@ export function useDraftForm<T extends Record<string, unknown>>(
 ) {
 	const { storageKey, watch, onRestore, saveDelay = 1000, enabled = true } = options
 	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const restoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const isRestoringRef = useRef(false)
 
 	// Restore on mount
@@ -45,10 +46,13 @@ export function useDraftForm<T extends Record<string, unknown>>(
 			if (saved && onRestore) {
 				isRestoringRef.current = true
 				onRestore(JSON.parse(saved) as T)
-				setTimeout(() => { isRestoringRef.current = false }, 100)
+				restoreTimeoutRef.current = setTimeout(() => { isRestoringRef.current = false }, 100)
 			}
 		} catch {
 			localStorage.removeItem(storageKey)
+		}
+		return () => {
+			if (restoreTimeoutRef.current) clearTimeout(restoreTimeoutRef.current)
 		}
 	}, [storageKey, onRestore, enabled])
 

@@ -70,7 +70,8 @@ export function DashboardClient({
 
 	// Use server-fetched organization data (passed as props) - no client-side fetch needed
 	const organizationsList = initialOrganizations
-	const organization = initialOrganization as (OrganizationListItem & { gstVerified?: boolean }) | null | undefined
+	// gstVerified is now part of OrganizationListItem type - no unsafe assertion needed
+	const organization = initialOrganization
 	const hasOrganization = !!organization
 
 	// Simplified redirect logic - no state machine needed
@@ -87,7 +88,10 @@ export function DashboardClient({
 		} else {
 			router.replace(routes.onboarding.root)
 		}
-	}, [hasOrganization, organizationsList, router, isRedirecting])
+		// Note: isRedirecting is intentionally excluded - it's set inside the effect
+		// and including it would cause unnecessary re-runs
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [hasOrganization, organizationsList, router])
 
 	// Fetch dashboard data using organizationId from URL
 	// Uses SSR initialData to prevent loading flash (blank → spinner → content)

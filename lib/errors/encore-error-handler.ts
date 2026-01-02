@@ -8,6 +8,18 @@ import type { ErrCode } from "@/brand-client"
 import { AUTH_COOKIE_NAMES } from "@/lib/constants"
 
 /**
+ * Sanitize error message to prevent any potential XSS
+ * Note: React already escapes JSX text content, but this adds defense in depth
+ */
+function sanitizeMessage(message: string): string {
+	// Truncate excessively long messages (could be attack payloads)
+	const MAX_LENGTH = 500
+	const truncated = message.length > MAX_LENGTH ? `${message.slice(0, MAX_LENGTH)}...` : message
+	// Remove any HTML-like content as error messages should be plain text
+	return truncated.replace(/<[^>]*>/g, "")
+}
+
+/**
  * Extract error message from any error type
  * SSOT: This is the ONLY error message utility - use this everywhere
  *
@@ -21,7 +33,7 @@ import { AUTH_COOKIE_NAMES } from "@/lib/constants"
  */
 export function getErrorMessage(error: unknown, defaultMessage = "An error occurred"): string {
 	if (isAPIError(error)) {
-		return error.message || defaultMessage
+		return sanitizeMessage(error.message || defaultMessage)
 	}
 
 	if (error instanceof Error) {
@@ -40,11 +52,11 @@ export function getErrorMessage(error: unknown, defaultMessage = "An error occur
 			return "Network error. Please check your internet connection."
 		}
 
-		return message
+		return sanitizeMessage(message)
 	}
 
 	if (typeof error === "string") {
-		return error
+		return sanitizeMessage(error)
 	}
 
 	return defaultMessage

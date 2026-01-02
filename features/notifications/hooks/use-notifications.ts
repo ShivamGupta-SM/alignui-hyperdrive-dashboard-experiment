@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { client } from "@/lib/api/client"
 import { STALE_TIME, REFETCH_INTERVAL, createMutationErrorHandler } from "@/lib/utils/query-config"
+import { markAllNotificationsAsRead } from "../actions/notifications"
 
 // =============================================================================
 // Query Keys
@@ -60,12 +61,19 @@ export function useNotificationPreferences() {
 
 /**
  * Hook to mark all notifications as read
+ * ✅ FIX Bug 19: Uses server action for consistent validation and error handling
  */
 export function useMarkAllAsRead() {
 	const qc = useQueryClient()
 
 	return useMutation({
-		mutationFn: () => client.notifications.markAllAsRead(),
+		mutationFn: async () => {
+			const result = await markAllNotificationsAsRead({})
+			if (!result?.data?.success) {
+				throw new Error(result?.serverError || "Failed to mark notifications as read")
+			}
+			return result.data
+		},
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: notificationKeys.all })
 		},

@@ -26,13 +26,13 @@ import {
 	Scan,
 } from "@phosphor-icons/react"
 import { useState } from "react"
-import { useModalState } from "@/hooks/ui"
+import { useModal } from "@/hooks/ui"
 
 // ============================================
 // Navigation
 // ============================================
 function Navigation() {
-	const [mobileMenuOpen, openMobileMenu, closeMobileMenu, toggleMobileMenu] = useModalState(false)
+	const [mobileMenuOpen, openMobileMenu, closeMobileMenu, toggleMobileMenu] = useModal(false)
 
 	const navItems = [
 		{ label: "Features", href: "#features" },

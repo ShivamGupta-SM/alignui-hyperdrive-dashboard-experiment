@@ -35,7 +35,7 @@ import { useCurrentOrganization } from "@/hooks"
 import { useTeamMembers, useInviteMember } from "@/features/team"
 import { useNotificationPreferences, useUpdateNotificationPreferences } from "@/features/notifications"
 import { useUpdateProfile, useUpdatePassword } from "@/features/settings"
-import { useModalState } from "@/hooks/ui"
+import { useModal } from "@/hooks/ui"
 import { DISPLAY_LIMITS } from "@/lib/constants"
 import { getInitial } from "@/lib/utils"
 import { routes } from "@/lib/routes"
@@ -879,7 +879,7 @@ function TeamSubPanel() {
 	const inviteMember = useInviteMember(orgId)
 
 	const [inviteEmail, setInviteEmail] = React.useState("")
-	const [showInviteForm, openInviteForm, closeInviteForm, toggleInviteForm, setShowInviteForm] = useModalState(false)
+	const [showInviteForm, openInviteForm, closeInviteForm, toggleInviteForm, setShowInviteForm] = useModal(false)
 
 	// Transform team data to display format
 	const teamMembers = React.useMemo(() => {

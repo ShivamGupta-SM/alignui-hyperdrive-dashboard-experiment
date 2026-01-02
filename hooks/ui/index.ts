@@ -31,8 +31,7 @@ export {
 	useIsMounted,
 	useHydratedTime,
 	useStableTime,
-	useFormattedDate,
-	useHydratedLocalStorage
+	useFormattedDate
 } from './use-mounted'
 
 // Pagination hooks
@@ -46,5 +45,5 @@ export type {
 } from './use-pagination'
 
 // Modal state hooks (unified - supports both tuple and object patterns)
-export { useModal, useMultiModal, useModalState } from './use-modal'
-export type { UseModalReturn, UseMultiModalReturn, UseModalStateReturn } from './use-modal'
+export { useModal, useMultiModal } from './use-modal'
+export type { UseModalReturn, UseMultiModalReturn } from './use-modal'

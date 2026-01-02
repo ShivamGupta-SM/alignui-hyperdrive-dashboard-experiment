@@ -48,7 +48,7 @@ import {
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 import { useQueryClient } from "@tanstack/react-query"
-import { useCampaignSearchParams, useCurrentOrganization, useDebounceSearch, useModalState } from "@/hooks"
+import { useCampaignSearchParams, useCurrentOrganization, useDebounceSearch, useModal } from "@/hooks"
 import { useStableTime } from "@/hooks/ui/use-mounted"
 import { exportCampaigns } from "@/lib/utils/excel"
 import { CAMPAIGN_STATUS_TABS, CAMPAIGN_TYPE_OPTIONS, DELIVERABLE_TYPE_OPTIONS, DEFAULT_SUBMISSION_DEADLINE_DAYS } from "@/lib/constants"
@@ -64,8 +64,8 @@ import {
 } from "@/features/campaigns"
 import type { ProductWithStats } from "@/features/products"
 
-// Simplified wrapper component - avoids unnecessary useCallback overhead
-// The parent already provides stable handlers via useCallback
+// Wrapper component with memoized handlers for optimal performance
+// useCallback ensures stable function references for memo() to work effectively
 const CampaignCardWrapper = memo(function CampaignCardWrapper({
 	campaign,
 	onStatusChange,
@@ -80,22 +80,42 @@ const CampaignCardWrapper = memo(function CampaignCardWrapper({
 	organizationId: string
 }) {
 	const router = useRouter()
+	const campaignId = campaign.id
+
+	// Memoize handlers to prevent CampaignCard re-renders
+	const handleView = useCallback(() => {
+		router.push(`/dashboard/${organizationId}/campaigns/${campaignId}`)
+	}, [router, organizationId, campaignId])
+
+	const handleEdit = useCallback(() => {
+		router.push(`/dashboard/${organizationId}/campaigns/${campaignId}?mode=edit`)
+	}, [router, organizationId, campaignId])
+
+	const handlePause = useCallback(() => onStatusChange(campaignId, "paused"), [onStatusChange, campaignId])
+	const handleResume = useCallback(() => onStatusChange(campaignId, "active"), [onStatusChange, campaignId])
+	const handleEnd = useCallback(() => onStatusChange(campaignId, "ended"), [onStatusChange, campaignId])
+	const handleComplete = useCallback(() => onStatusChange(campaignId, "completed"), [onStatusChange, campaignId])
+	const handleArchive = useCallback(() => onStatusChange(campaignId, "archived"), [onStatusChange, campaignId])
+	const handleCancel = useCallback(() => onStatusChange(campaignId, "cancelled"), [onStatusChange, campaignId])
+	const handleSubmitForApproval = useCallback(() => onStatusChange(campaignId, "pending_approval"), [onStatusChange, campaignId])
+	const handleDuplicate = useCallback(() => onDuplicate(campaignId), [onDuplicate, campaignId])
+	const handleDelete = useCallback(() => onDelete(campaignId), [onDelete, campaignId])
 
 	return (
 		<CampaignCard
 			campaign={campaign}
-			onView={() => router.push(`/dashboard/${organizationId}/campaigns/${campaign.id}`)}
-			onManage={() => router.push(`/dashboard/${organizationId}/campaigns/${campaign.id}`)}
-			onPause={() => onStatusChange(campaign.id, "paused")}
-			onResume={() => onStatusChange(campaign.id, "active")}
-			onEnd={() => onStatusChange(campaign.id, "ended")}
-			onComplete={() => onStatusChange(campaign.id, "completed")}
-			onArchive={() => onStatusChange(campaign.id, "archived")}
-			onCancel={() => onStatusChange(campaign.id, "cancelled")}
-			onDuplicate={() => onDuplicate(campaign.id)}
-			onEdit={() => router.push(`/dashboard/${organizationId}/campaigns/${campaign.id}?mode=edit`)}
-			onDelete={() => onDelete(campaign.id)}
-			onSubmitForApproval={() => onStatusChange(campaign.id, "pending_approval")}
+			onView={handleView}
+			onManage={handleView}
+			onPause={handlePause}
+			onResume={handleResume}
+			onEnd={handleEnd}
+			onComplete={handleComplete}
+			onArchive={handleArchive}
+			onCancel={handleCancel}
+			onDuplicate={handleDuplicate}
+			onEdit={handleEdit}
+			onDelete={handleDelete}
+			onSubmitForApproval={handleSubmitForApproval}
 		/>
 	)
 })
@@ -134,8 +154,8 @@ export function CampaignsClient({
 	const queryClient = useQueryClient()
 	const [isPending, startTransition] = useTransition()
 	const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null)
-	const [isDeleteModalOpen, openDeleteModal, closeDeleteModal] = useModalState()
-	const [isCreateModalOpen, openCreateModal, closeCreateModal] = useModalState()
+	const [isDeleteModalOpen, openDeleteModal, closeDeleteModal] = useModal()
+	const [isCreateModalOpen, openCreateModal, closeCreateModal] = useModal()
 
 	// SSOT: Use centralized organization hook instead of duplicating logic
 	const { organization, organizationId, isApproved } = useCurrentOrganization()
@@ -573,8 +593,8 @@ function CampaignModal({ open, onOpenChange, products, organizationId }: Campaig
 	const [currentStep, setCurrentStep] = useState(1)
 
 	// Date picker states
-	const [startDateOpen, , , , setStartDateOpen] = useModalState(false)
-	const [endDateOpen, , , , setEndDateOpen] = useModalState(false)
+	const [startDateOpen, , , , setStartDateOpen] = useModal(false)
+	const [endDateOpen, , , , setEndDateOpen] = useModal(false)
 
 	// RHF form setup
 	const {

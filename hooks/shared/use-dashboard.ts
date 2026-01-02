@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query"
 import { client } from "@/lib/api/client"
 import type { organizations } from "@/brand-client"
 import { logWarn, logError } from "@/lib/logging/error-logger-simple"
-import { STALE_TIME } from "@/lib/utils/query-config"
+import { STALE_TIME, GC_TIME } from "@/lib/utils/query-config"
 
 // ============================================
 // Query Keys
@@ -62,7 +62,7 @@ export function useDashboard(options: {
 		},
 		enabled: enabled && !!organizationId,
 		staleTime: STALE_TIME.SHORT,
-		gcTime: STALE_TIME.MEDIUM,
+		gcTime: GC_TIME.MEDIUM,
 		retry: 2,
 		retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
 		refetchOnWindowFocus: true,

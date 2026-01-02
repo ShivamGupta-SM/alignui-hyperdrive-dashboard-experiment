@@ -46,7 +46,7 @@ import type { auth } from "@/brand-client"
 import { updateProfile, updatePassword, updateNotifications, enable2FA, disable2FA, revokeSession, revokeAllSessions } from '@/features/settings'
 import { listLinkedAccounts, unlinkAccount, leaveOrganization, deleteUser, useActiveMemberRole } from '@/features/auth'
 import { useOrganizations } from '@/features/organizations'
-import { useCurrentOrganization, useModalState } from '@/hooks'
+import { useCurrentOrganization, useModal } from '@/hooks'
 import { FILE_SIZES } from '@/lib/types/constants'
 import { useUploadProfilePicture } from '@/features/storage'
 // User type matching the initialData structure
@@ -465,7 +465,7 @@ function SecurityTab({ twoFactorEnabled: initialTwoFactor }: SecurityTabProps) {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(initialTwoFactor || false)
 
   // 2FA modal state
-  const [twoFAModalOpen, openTwoFAModal, closeTwoFAModal] = useModalState()
+  const [twoFAModalOpen, openTwoFAModal, closeTwoFAModal] = useModal()
   const [twoFAPassword, setTwoFAPassword] = useState('')
   const [twoFAAction, setTwoFAAction] = useState<'enable' | 'disable'>('enable')
   const [twoFALoading, setTwoFALoading] = useState(false)
@@ -882,8 +882,8 @@ function DangerZoneSection() {
   const { data: orgsData } = useOrganizations()
   const { data: role } = useActiveMemberRole(organizationId)
 
-  const [leaveOrgModalOpen, openLeaveOrgModal, closeLeaveOrgModal] = useModalState()
-  const [deleteAccountModalOpen, openDeleteAccountModal, closeDeleteAccountModal] = useModalState()
+  const [leaveOrgModalOpen, openLeaveOrgModal, closeLeaveOrgModal] = useModal()
+  const [deleteAccountModalOpen, openDeleteAccountModal, closeDeleteAccountModal] = useModal()
   const [isLeaving, setIsLeaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletePassword, setDeletePassword] = useState('')

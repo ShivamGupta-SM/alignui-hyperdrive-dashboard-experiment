@@ -38,7 +38,7 @@ import {
 	Info,
 } from "@phosphor-icons/react"
 import { cn, formatDateMedium, formatDateWithWeekday, getErrorMessage } from "@/lib/utils"
-import { useModalState } from "@/hooks/ui"
+import { useModal } from "@/hooks/ui"
 import { OnboardingRequiredAlert, OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
 import { useLocalStorage } from "@/hooks/state"
 import {
@@ -686,8 +686,8 @@ interface Step2Props {
 }
 
 function Step2Schedule({ register, control, errors, watch, setValue }: Step2Props) {
-	const [startDateOpen, openStartDate, closeStartDate, toggleStartDate, setStartDateOpen] = useModalState(false)
-	const [endDateOpen, openEndDate, closeEndDate, toggleEndDate, setEndDateOpen] = useModalState(false)
+	const [startDateOpen, openStartDate, closeStartDate, toggleStartDate, setStartDateOpen] = useModal(false)
+	const [endDateOpen, openEndDate, closeEndDate, toggleEndDate, setEndDateOpen] = useModal(false)
 	const startDate = watch("startDate")
 	const endDate = watch("endDate")
 

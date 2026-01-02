@@ -4,7 +4,7 @@ import * as React from "react"
 // import { useNotifications, useCounts, useNovu } from "@novu/react" // Removed - causing build issues
 import { useRouter, useParams } from "next/navigation"
 import { useMediaQuery } from "usehooks-ts"
-import { useModalState } from "@/hooks/ui"
+import { useModal } from "@/hooks/ui"
 import { toast } from "sonner"
 import { logError, logDebug } from "@/lib/logging/error-logger-simple"
 import {
@@ -344,9 +344,9 @@ function NotificationItem({
 	onRevertSecondary,
 	onClick,
 }: NotificationItemProps) {
-	const [showActions, openActions, closeActions, toggleActions, setShowActions] = useModalState(false)
-	const [showSnoozeMenu, openSnoozeMenu, closeSnoozeMenu, toggleSnoozeMenu, setShowSnoozeMenu] = useModalState(false)
-	const [showCustomSnooze, openCustomSnooze, closeCustomSnooze, toggleCustomSnooze, setShowCustomSnooze] = useModalState(false)
+	const [showActions, openActions, closeActions, toggleActions, setShowActions] = useModal(false)
+	const [showSnoozeMenu, openSnoozeMenu, closeSnoozeMenu, toggleSnoozeMenu, setShowSnoozeMenu] = useModal(false)
+	const [showCustomSnooze, openCustomSnooze, closeCustomSnooze, toggleCustomSnooze, setShowCustomSnooze] = useModal(false)
 	const [customSnoozeDate, setCustomSnoozeDate] = React.useState("")
 	const [customSnoozeTime, setCustomSnoozeTime] = React.useState("")
 	const type = notification.data?.type as string | undefined
@@ -916,7 +916,7 @@ export function NotificationPanel({ open, onOpenChange }: NotificationPanelProps
  * Novu removed - showing basic bell instead
  */
 function NotificationCenterInner() {
-	const [isOpen, open, close, toggle, setIsOpen] = useModalState(false)
+	const [isOpen, open, close, toggle, setIsOpen] = useModal(false)
 	// Novu removed - show basic bell with 0 count
 	const unreadCount = 0
 

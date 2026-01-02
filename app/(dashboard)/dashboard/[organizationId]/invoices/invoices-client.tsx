@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { useState, useMemo, useRef, useCallback, useEffect, useTransition } from 'react'
 import { useCurrentOrganization } from '@/hooks/shared/use-current-organization'
 import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
@@ -85,37 +85,30 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
   const [debouncedSearch] = useDebounceValue(search, 300)
 
   // Bidirectional URL <-> local state sync
-  // Uses refs to prevent infinite loops and unnecessary updates
-  const isUpdatingFromUrl = useRef(false)
-  const isUpdatingToUrl = useRef(false)
+  // Uses useTransition to track pending updates and prevent race conditions
+  const [isPendingUrlUpdate, startUrlTransition] = useTransition()
+  const lastUrlSearchRef = useRef(searchParams.search)
 
+  // Update URL when debounced local search changes
   useEffect(() => {
-    // Skip if we're currently updating from URL
-    if (isUpdatingFromUrl.current) {
-      isUpdatingFromUrl.current = false
-      return
-    }
+    // Skip if URL update is pending or if values match
+    if (isPendingUrlUpdate) return
+    if (debouncedSearch === lastUrlSearchRef.current) return
 
-    // Update URL when debounced value changes
-    if (debouncedSearch !== searchParams.search) {
-      isUpdatingToUrl.current = true
+    startUrlTransition(() => {
+      lastUrlSearchRef.current = debouncedSearch
       setSearchParams({ search: debouncedSearch, page: 1 })
-    }
-  }, [debouncedSearch, searchParams.search, setSearchParams])
+    })
+  }, [debouncedSearch, isPendingUrlUpdate, setSearchParams])
 
+  // Sync local state when URL changes (browser back/forward)
   useEffect(() => {
-    // Skip if we're currently updating to URL
-    if (isUpdatingToUrl.current) {
-      isUpdatingToUrl.current = false
-      return
-    }
-
-    // Sync local state when URL changes (browser back/forward)
-    if (searchParams.search !== search) {
-      isUpdatingFromUrl.current = true
+    // Only sync if URL changed externally (not from our update)
+    if (searchParams.search !== lastUrlSearchRef.current) {
+      lastUrlSearchRef.current = searchParams.search
       setSearch(searchParams.search || "")
     }
-  }, [searchParams.search, search])
+  }, [searchParams.search])
 
   // Excel export handler
   const handleExport = useCallback(() => {

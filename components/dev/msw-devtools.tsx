@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react"
-import { useModalState } from "@/hooks/ui"
+import { useModal } from "@/hooks/ui"
 import { cn } from "@/lib/utils"
 
 // Types
@@ -52,7 +52,7 @@ const NETWORK_PRESETS: NetworkPreset[] = [
 ]
 
 export function MSWDevTools() {
-	const [isOpen, open, close, toggle, setIsOpen] = useModalState(false)
+	const [isOpen, open, close, toggle, setIsOpen] = useModal(false)
 	const [activeTab, setActiveTab] = useState<"database" | "network" | "requests">("database")
 	const [networkPreset, setNetworkPreset] = useState("fast")
 	const [dbStats, setDbStats] = useState<DbStats | null>(null)

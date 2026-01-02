@@ -11,7 +11,7 @@ import * as Avatar from "@/components/ui/primitives/avatar"
 import * as Badge from "@/components/ui/data-display/badge"
 import { FormField } from "@/components/ui/forms/form-field"
 import { cn, getInitial } from "@/lib/utils"
-import { useModalState, useSettingsSearchParams } from "@/hooks"
+import { useModal, useSettingsSearchParams } from "@/hooks"
 import { useQueryClient } from "@tanstack/react-query"
 import { settingsKeys, updateOrganization, verifyBankAccount, addBankAccount, updateOrganizationLogo, removeOrganizationLogo } from "@/features/settings"
 import { organizationKeys } from "@/features/organizations"
@@ -602,7 +602,7 @@ function BankAccountsSection({
 	bankAccounts: SettingsData["bankAccounts"]
 	organizationId: string
 }) {
-	const [showAddModal, openAddModal, closeAddModal, , setShowAddModal] = useModalState()
+	const [showAddModal, openAddModal, closeAddModal, , setShowAddModal] = useModal()
 	const queryClient = useQueryClient()
 
 	const handleRemove = async (accountId: string) => {

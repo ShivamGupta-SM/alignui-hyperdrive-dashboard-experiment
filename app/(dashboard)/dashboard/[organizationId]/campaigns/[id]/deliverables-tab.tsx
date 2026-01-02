@@ -29,7 +29,7 @@ import {
 } from "@/features/campaigns"
 import type { organizations, platforms, campaigns } from "@/brand-client"
 import { toast } from "sonner"
-import { useModalState } from "@/hooks"
+import { useModal } from "@/hooks"
 
 interface DeliverablesTabProps {
 	organizationId: string
@@ -40,7 +40,7 @@ interface DeliverablesTabProps {
 }
 
 export function DeliverablesTab({ organizationId, campaignId, deliverables, platforms, canEdit }: DeliverablesTabProps) {
-	const [isAddModalOpen, openAddModal, closeAddModal, , setIsAddModalOpen] = useModalState()
+	const [isAddModalOpen, openAddModal, closeAddModal, , setIsAddModalOpen] = useModal()
 	const [editingId, setEditingId] = React.useState<string | null>(null)
 	const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
 

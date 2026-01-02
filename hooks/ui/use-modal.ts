@@ -141,10 +141,3 @@ export function useMultiModal<T extends readonly string[]>(modalNames: T) {
 
 export type UseMultiModalReturn<T extends readonly string[]> = ReturnType<typeof useMultiModal<T>>
 
-// ============================================
-// Backward Compatibility
-// ============================================
-
-/** @deprecated Use `useModal` instead */
-export const useModalState = useModal
-export type UseModalStateReturn = ReturnType<typeof useModal>

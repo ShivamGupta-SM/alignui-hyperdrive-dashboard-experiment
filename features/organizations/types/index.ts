@@ -24,6 +24,8 @@ export interface OrganizationListItem {
 	createdAt: string
 	approvalStatus?: string
 	rejectionReason?: string | null
+	/** GST verification status - may be included in dashboard context */
+	gstVerified?: boolean
 }
 export type OrganizationCampaignStats = organizations.OrganizationCampaignStats
 export type OrganizationStats = organizations.OrganizationStats

@@ -23,7 +23,7 @@ export const enrollmentKeys = {
 	...baseKeys,
 	// Override list to include enrollment-specific filters
 	list: (orgId: string, filters?: EnrollmentFilters) =>
-		[...baseKeys.lists(orgId), filters?.status ?? "all", filters?.campaignId ?? "", filters?.skip ?? 0, filters?.take ?? 50] as const,
+		[...baseKeys.lists(orgId), filters?.status ?? "all", filters?.campaignId ?? "", filters?.skip ?? 0, filters?.take ?? PAGE_SIZE.MEDIUM] as const,
 	// Override detail to include campaignId
 	detail: (orgId: string, campaignId: string, id: string) => [...baseKeys.details(orgId), campaignId, id] as const,
 	// Extended keys not in base factory
@@ -202,7 +202,7 @@ export function useApproveEnrollment(orgId: string) {
 
 			// Optimistically update the detail cache
 			qc.setQueryData(enrollmentKeys.detail(orgId, campaignId, id), (old: unknown) => {
-				if (!old || typeof old !== "object") return old
+				if (!old || typeof old !== "object" || !("status" in old)) return old
 				return { ...old, status: "approved" }
 			})
 
@@ -260,7 +260,7 @@ export function useRejectEnrollment(orgId: string) {
 
 			// Optimistically update the detail cache
 			qc.setQueryData(enrollmentKeys.detail(orgId, campaignId, id), (old: unknown) => {
-				if (!old || typeof old !== "object") return old
+				if (!old || typeof old !== "object" || !("status" in old)) return old
 				return { ...old, status: "rejected" }
 			})
 

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { useModalState } from "@/hooks/ui"
+import { useModal } from "@/hooks/ui"
 import * as Button from "@/components/ui/primitives/button"
 import { Logo } from "@/components/ui/branding/logo"
 import {
@@ -12,7 +12,7 @@ import {
 } from '@phosphor-icons/react'
 
 export function NavigationClient() {
-  const [mobileMenuOpen, openMobileMenu, closeMobileMenu, toggleMobileMenu] = useModalState(false)
+  const [mobileMenuOpen, openMobileMenu, closeMobileMenu, toggleMobileMenu] = useModal(false)
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-bg-white-0/80 backdrop-blur-xl border-b border-stroke-soft-200/60 pt-[env(safe-area-inset-top)]">

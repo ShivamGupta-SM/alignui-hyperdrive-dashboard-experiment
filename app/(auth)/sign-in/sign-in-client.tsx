@@ -47,7 +47,16 @@ export function SignInForm() {
 		setIsLoading(true)
 
 		try {
-			const { signInEmail } = await import("@/app/actions")
+			// Dynamic import with explicit error handling
+			let signInEmail: typeof import("@/app/actions").signInEmail
+			try {
+				const actions = await import("@/app/actions")
+				signInEmail = actions.signInEmail
+			} catch (importError) {
+				logError(importError, { source: "SignInPage", data: { context: "dynamic import failed" } })
+				throw new Error("Failed to load authentication. Please refresh and try again.")
+			}
+
 			const result = await signInEmail({ email: data.email, password: data.password, rememberMe: data.rememberMe })
 			logInfo("Sign-in result received", { source: "SignInPage", data: { hasSuccess: result?.data?.success } })
 
@@ -85,6 +94,7 @@ export function SignInForm() {
 			}
 
 			// Use replace() - user shouldn't go back to login form after successful auth
+			// Router errors are caught by the outer catch block
 			router.replace(destination)
 			router.refresh()
 
@@ -98,7 +108,16 @@ export function SignInForm() {
 	const handleGoogleSignIn = async () => {
 		setIsLoading(true)
 		try {
-			const { signInSocial } = await import("@/app/actions")
+			// Dynamic import with explicit error handling
+			let signInSocial: typeof import("@/app/actions").signInSocial
+			try {
+				const actions = await import("@/app/actions")
+				signInSocial = actions.signInSocial
+			} catch (importError) {
+				logError(importError, { source: "SignInPage", data: { context: "Google sign-in import failed" } })
+				throw new Error("Failed to load Google sign-in. Please refresh and try again.")
+			}
+
 			const result = await signInSocial({ provider: "google" })
 
 			if (!result?.data?.success) {
@@ -115,6 +134,7 @@ export function SignInForm() {
 				router.refresh()
 			}
 		} catch (error) {
+			logError(error, { source: "SignInPage", data: { context: "Google sign-in" } })
 			setFormError(getErrorMessage(error, "Failed to sign in with Google. Please try again."))
 		} finally {
 			setIsLoading(false)
