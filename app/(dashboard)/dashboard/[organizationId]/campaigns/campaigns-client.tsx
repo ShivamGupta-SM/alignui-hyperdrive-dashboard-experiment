@@ -158,10 +158,20 @@ export function CampaignsClient({
 	const [isCreateModalOpen, openCreateModal, closeCreateModal] = useModal()
 
 	// SSOT: Use centralized organization hook instead of duplicating logic
-	const { organization, organizationId, isApproved } = useCurrentOrganization()
+	const { organization, organizationId, isApproved, isLoading: isOrgLoading } = useCurrentOrganization()
 
 	// Get products from initial data for create campaign modal
 	const products = initialData?.products ?? []
+
+	// Guard: Wait for organization to load before rendering content
+	// This prevents race conditions where organizationId might be empty string initially
+	if (isOrgLoading || !organizationId) {
+		return (
+			<div className="flex items-center justify-center min-h-[400px]">
+				<div className="size-8 border-2 border-primary-base border-t-transparent rounded-full animate-spin" />
+			</div>
+		)
+	}
 
 	// SSOT: Use centralized debounce search hook
 	const { query: searchQuery, debouncedQuery, setQuery: setSearchQuery, isSearchActive } = useDebounceSearch()
