@@ -3,9 +3,9 @@
 import { cn, formatCurrency } from "@/lib/utils"
 import { Wallet, Clock, Check } from "@phosphor-icons/react"
 import { SimpleStatCard } from "@/components/dashboard/stat-card"
+import { useCurrentOrganization } from "@/hooks"
 
 interface DashboardMetricsProps {
-	organizationId: string
 	wallet: {
 		available: number
 		lowBalanceThreshold: number
@@ -22,11 +22,11 @@ interface DashboardMetricsProps {
  * Shows wallet balance, pending enrollments, and approval rate stat cards
  */
 export function DashboardMetrics({
-	organizationId,
 	wallet,
 	metrics,
 	approvalRate,
 }: DashboardMetricsProps) {
+	const { organizationId } = useCurrentOrganization()
 	const isLowBalance = wallet.available < wallet.lowBalanceThreshold
 	const hasOverdue = metrics.pendingOverdue > 0
 

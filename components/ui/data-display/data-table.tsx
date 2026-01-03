@@ -16,7 +16,7 @@ import { useState, useId } from "react"
 import { cn } from "@/lib/utils"
 import * as Button from "@/components/ui/primitives/button"
 import { SearchInput } from "@/components/ui/forms/input"
-import { CaretLeft, CaretRight, CaretUp, CaretDown } from "@phosphor-icons/react"
+import { CaretLeft, CaretRight, CaretUp, CaretDown, ArrowsDownUp } from "@phosphor-icons/react"
 
 interface DataTableProps<TData, TValue> {
 	columns: ColumnDef<TData, TValue>[]
@@ -195,3 +195,58 @@ export function DataTable<TData, TValue>({
 
 // Re-export types for convenience
 export type { ColumnDef } from "@tanstack/react-table"
+
+// Reusable sortable column header for TanStack Table
+import type { Column } from "@tanstack/react-table"
+
+interface SortableColumnHeaderProps<TData, TValue> {
+	column: Column<TData, TValue>
+	children: React.ReactNode
+	className?: string
+}
+
+/**
+ * Consistent sortable column header for TanStack Table.
+ * Use this in column definitions for consistent sorting UI across all pages.
+ *
+ * @example
+ * ```tsx
+ * const columns: ColumnDef<Data>[] = [
+ *   {
+ *     accessorKey: "name",
+ *     header: ({ column }) => (
+ *       <SortableColumnHeader column={column}>Name</SortableColumnHeader>
+ *     ),
+ *   },
+ * ]
+ * ```
+ */
+export function SortableColumnHeader<TData, TValue>({
+	column,
+	children,
+	className,
+}: SortableColumnHeaderProps<TData, TValue>) {
+	if (!column.getCanSort()) {
+		return <span className={className}>{children}</span>
+	}
+
+	return (
+		<button
+			type="button"
+			onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+			className={cn(
+				"flex items-center gap-1.5 hover:text-text-strong-950 transition-colors",
+				className
+			)}
+		>
+			{children}
+			{column.getIsSorted() === "asc" ? (
+				<CaretUp className="size-3.5" />
+			) : column.getIsSorted() === "desc" ? (
+				<CaretDown className="size-3.5" />
+			) : (
+				<ArrowsDownUp className="size-3.5 text-text-soft-400" />
+			)}
+		</button>
+	)
+}

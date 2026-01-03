@@ -424,7 +424,6 @@ export function CreateCampaignClient({ products }: CreateCampaignClientProps) {
 										watch={watch}
 										setValue={setValue}
 										products={products}
-										organizationId={organizationId}
 									/>
 								)}
 								{currentStep === 2 && (
@@ -512,10 +511,10 @@ interface Step1Props {
 	watch: ReturnType<typeof useForm<CampaignFormInput>>["watch"]
 	setValue: ReturnType<typeof useForm<CampaignFormInput>>["setValue"]
 	products: Product[]
-	organizationId: string
 }
 
-function Step1BasicInfo({ register, control, errors, watch, setValue, products, organizationId }: Step1Props) {
+function Step1BasicInfo({ register, control, errors, watch, setValue, products }: Step1Props) {
+	const { organizationId } = useCurrentOrganization()
 	const productId = watch("productId")
 	const type = watch("type")
 	const isPublic = watch("isPublic")

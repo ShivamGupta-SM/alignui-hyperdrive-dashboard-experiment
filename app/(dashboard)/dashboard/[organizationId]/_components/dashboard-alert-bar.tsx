@@ -4,9 +4,9 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import * as Button from "@/components/ui/primitives/button"
 import { Warning } from "@phosphor-icons/react"
+import { useCurrentOrganization } from "@/hooks"
 
 interface DashboardAlertBarProps {
-	organizationId: string
 	hasOverdue: boolean
 	isLowBalance: boolean
 	pendingOverdue: number
@@ -18,12 +18,12 @@ interface DashboardAlertBarProps {
  * Shows urgent alerts for overdue enrollments or low wallet balance
  */
 export function DashboardAlertBar({
-	organizationId,
 	hasOverdue,
 	isLowBalance,
 	pendingOverdue,
 	runwayDays,
 }: DashboardAlertBarProps) {
+	const { organizationId } = useCurrentOrganization()
 	if (!hasOverdue && !isLowBalance) {
 		return null
 	}

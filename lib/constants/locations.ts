@@ -2,51 +2,73 @@
  * India Location Data
  *
  * State/City data and GST codes for India.
+ * Uses dynamic imports to avoid bundling the large country-state-city library.
  */
 
-import { State, City } from "country-state-city"
-
 // ============================================================================
-// INDIA LOCATION DATA
+// INDIA LOCATION DATA (Lazy loaded)
 // ============================================================================
 
 export const INDIA_ISO_CODE = "IN"
 
-/**
- * Get all Indian states sorted alphabetically
- */
-export const INDIAN_STATES = State.getStatesOfCountry(INDIA_ISO_CODE)
-	.map((state) => state.name)
-	.sort()
+// Cache for loaded data
+let _statesCache: string[] | null = null
+const _citiesCache: Map<string, string[]> = new Map()
 
 /**
- * Get state details by state name
+ * Get all Indian states sorted alphabetically (async, cached)
  */
-export function getIndianStateByName(stateName: string) {
+export async function getIndianStates(): Promise<string[]> {
+	if (_statesCache) return _statesCache
+	const { State } = await import("country-state-city")
+	_statesCache = State.getStatesOfCountry(INDIA_ISO_CODE)
+		.map((state) => state.name)
+		.sort()
+	return _statesCache
+}
+
+/**
+ * Get state details by state name (async)
+ */
+export async function getIndianStateByName(stateName: string) {
+	const { State } = await import("country-state-city")
 	return State.getStatesOfCountry(INDIA_ISO_CODE).find(
 		(state) => state.name.toLowerCase() === stateName.toLowerCase()
 	)
 }
 
 /**
- * Get cities for a given Indian state
+ * Get cities for a given Indian state (async, cached)
  */
-export function getCitiesOfState(stateName: string): string[] {
-	const state = getIndianStateByName(stateName)
+export async function getCitiesOfState(stateName: string): Promise<string[]> {
+	if (_citiesCache.has(stateName)) return _citiesCache.get(stateName)!
+	const { State, City } = await import("country-state-city")
+	const state = State.getStatesOfCountry(INDIA_ISO_CODE).find(
+		(s) => s.name.toLowerCase() === stateName.toLowerCase()
+	)
 	if (!state) return []
-	return City.getCitiesOfState(INDIA_ISO_CODE, state.isoCode)
+	const cities = City.getCitiesOfState(INDIA_ISO_CODE, state.isoCode)
 		.map((city) => city.name)
 		.sort()
+	_citiesCache.set(stateName, cities)
+	return cities
 }
 
 /**
- * Get all Indian cities (flat list)
+ * Get all Indian cities (flat list) - async
  */
-export function getAllIndianCities(): string[] {
+export async function getAllIndianCities(): Promise<string[]> {
+	const { City } = await import("country-state-city")
 	return City.getCitiesOfCountry(INDIA_ISO_CODE)
 		?.map((city) => city.name)
 		.sort() || []
 }
+
+/**
+ * @deprecated Use getIndianStates() async version instead
+ * Kept for backwards compatibility - returns empty array, use async version
+ */
+export const INDIAN_STATES: string[] = []
 
 // ============================================================================
 // E-COMMERCE & PRODUCTS

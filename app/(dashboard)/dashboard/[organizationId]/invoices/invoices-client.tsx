@@ -16,11 +16,23 @@ import {
   FileText,
   Calendar,
   CaretRight,
+  CaretUp,
+  CaretDown,
+  CaretUpDown,
   Check,
   X,
   SpinnerGap,
 } from '@phosphor-icons/react'
+import {
+  type ColumnDef,
+  type SortingState,
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
 import { cn, formatCurrency, formatCurrencyCompact, formatDateShort, formatDateMedium as formatDateFull, getErrorMessage } from '@/lib/utils'
+import { SortableColumnHeader, VirtualizedList } from '@/components/ui/data-display'
 import { useInvoiceSearchParams } from '@/hooks'
 import { useStableTime } from '@/hooks/ui'
 import { useDebounceValue, useMediaQuery } from 'usehooks-ts'
@@ -58,6 +70,59 @@ interface InvoicesClientProps {
       totalEnrollments: number
     }
   }
+}
+
+// Invoice Mobile Card - Card layout for mobile (hoisted for use in InvoicesClient)
+function InvoiceMobileCard({
+  invoice,
+  formatCurrency,
+  formatDate,
+  onView
+}: {
+  invoice: Invoice
+  formatCurrency: (n: number) => string
+  formatDate: (d: Date | string | undefined) => string
+  onView: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onView}
+      className="w-full rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 text-left hover:bg-bg-weak-50 active:scale-[0.99] transition-all duration-200"
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <div className="size-9 rounded-lg bg-bg-weak-50 flex items-center justify-center">
+            <FileText weight="duotone" className="size-5 text-text-soft-400" />
+          </div>
+          <div>
+            <p className="text-label-sm text-text-strong-950 font-mono">{invoice.invoiceNumber}</p>
+            <p className="text-paragraph-xs text-text-soft-400">{formatDate(invoice.createdAt)}</p>
+          </div>
+        </div>
+        <CaretRight className="size-4 text-text-soft-400 mt-1" />
+      </div>
+
+      <div className="flex items-center justify-between pt-3 border-t border-stroke-soft-200">
+        <div className="flex items-center gap-3 text-paragraph-xs text-text-sub-600">
+          <span>{formatDate(invoice.periodStart)} – {formatDate(invoice.periodEnd)}</span>
+          <span className="text-text-soft-400">•</span>
+          <span>{invoice.enrollmentCount} enrollments</span>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mt-3">
+        <div>
+          <p className="text-title-h5 text-text-strong-950 font-semibold">{formatCurrency(invoice.totalAmount)}</p>
+          <p className="text-paragraph-xs text-text-soft-400">incl. {formatCurrency(invoice.gstAmount)} GST</p>
+        </div>
+        <div className="flex items-center gap-1 text-paragraph-xs text-success-base">
+          <Check weight="bold" className="size-3.5" />
+          Paid
+        </div>
+      </div>
+    </button>
+  )
 }
 
 export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
@@ -276,8 +341,8 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
   }, [setSearchParams])
 
   // Null-safe date formatting - uses SSOT from @/lib/utils/format
-  const safeFormatDate = (date: Date | string | undefined) => date ? formatDateShort(date) : '-'
-  const safeFormatDateFull = (date: Date | string | undefined) => date ? formatDateFull(date) : '-'
+  const safeFormatDate = useCallback((date: Date | string | undefined) => date ? formatDateShort(date) : '-', [])
+  const safeFormatDateFull = useCallback((date: Date | string | undefined) => date ? formatDateFull(date) : '-', [])
 
   const filteredInvoices = useMemo(() => {
     let result = allInvoices
@@ -314,6 +379,104 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
     totalGst: filteredInvoices.reduce((acc, i) => acc + i.gstAmount, 0),
     totalEnrollments: filteredInvoices.reduce((acc, i) => acc + (i.enrollmentCount || 0), 0),
   }), [filteredInvoices])
+
+  // TanStack Table: Sorting state
+  const [sorting, setSorting] = useState<SortingState>([])
+
+  // TanStack Table: Column definitions
+  const columns: ColumnDef<Invoice>[] = useMemo(
+    () => [
+      {
+        accessorKey: "invoiceNumber",
+        header: "Invoice",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-lg bg-bg-weak-50 flex items-center justify-center shrink-0 transition-colors group-hover:bg-primary-lighter">
+              <FileText weight="duotone" className="size-5 text-text-soft-400 transition-colors group-hover:text-primary-base" />
+            </div>
+            <div>
+              <p className="text-label-sm text-text-strong-950 font-mono">{row.original.invoiceNumber}</p>
+              <p className="text-paragraph-xs text-text-soft-400">{safeFormatDate(row.original.createdAt)}</p>
+            </div>
+          </div>
+        ),
+        enableSorting: false,
+      },
+      {
+        accessorKey: "periodStart",
+        header: ({ column }) => (
+          <SortableColumnHeader column={column}>Period</SortableColumnHeader>
+        ),
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2 text-paragraph-sm text-text-sub-600">
+            <Calendar className="size-3.5 text-text-soft-400" />
+            <span>{safeFormatDate(row.original.periodStart)} – {safeFormatDate(row.original.periodEnd)}</span>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "enrollmentCount",
+        header: ({ column }) => (
+          <SortableColumnHeader column={column}>Enrollments</SortableColumnHeader>
+        ),
+        cell: ({ row }) => (
+          <span className="text-paragraph-sm text-text-sub-600">{row.original.enrollmentCount} enrollments</span>
+        ),
+      },
+      {
+        accessorKey: "totalAmount",
+        header: ({ column }) => (
+          <SortableColumnHeader column={column} className="ml-auto">Amount</SortableColumnHeader>
+        ),
+        cell: ({ row }) => (
+          <div className="text-right">
+            <p className="text-label-md text-text-strong-950 font-semibold">{formatCurrency(row.original.totalAmount)}</p>
+            <p className="text-paragraph-xs text-text-soft-400">GST {formatCurrency(row.original.gstAmount)}</p>
+          </div>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: () => (
+          <span className="flex items-center gap-1 text-paragraph-xs text-success-base">
+            <Check weight="bold" className="size-3" />
+            Paid
+          </span>
+        ),
+        enableSorting: false,
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <Button.Root
+            variant="ghost"
+            size="xsmall"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleDownloadPDF(row.original)
+            }}
+            aria-label="Download invoice"
+          >
+            <Button.Icon><DownloadSimple className="size-5" /></Button.Icon>
+          </Button.Root>
+        ),
+        enableSorting: false,
+      },
+    ],
+    [safeFormatDate, handleDownloadPDF]
+  )
+
+  // TanStack Table instance
+  const table = useReactTable({
+    data: filteredInvoices,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  })
 
   return (
     <Tooltip.Provider>
@@ -412,17 +575,65 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
           </EmptyState.Content>
         </EmptyState.Root>
       ) : (
-        <div className="space-y-2 sm:space-y-0 sm:rounded-xl sm:bg-bg-white-0 sm:ring-1 sm:ring-inset sm:ring-stroke-soft-200 sm:divide-y sm:divide-stroke-soft-200 sm:overflow-hidden">
-          {filteredInvoices.map((invoice) => (
-            <InvoiceItem
-              key={invoice.id}
-              invoice={invoice}
-              formatCurrency={formatCurrency}
-              formatDate={safeFormatDate}
-              onView={() => setSelectedInvoice(invoice)}
+        <>
+          {/* Mobile: Virtualized card layout for infinite scroll */}
+          <div className="sm:hidden">
+            <VirtualizedList
+              items={table.getRowModel().rows}
+              renderItem={(row) => (
+                <InvoiceMobileCard
+                  key={row.id}
+                  invoice={row.original}
+                  formatCurrency={formatCurrency}
+                  formatDate={safeFormatDate}
+                  onView={() => setSelectedInvoice(row.original)}
+                />
+              )}
+              estimatedItemHeight={140}
+              height="calc(100vh - 380px)"
+              gap={8}
+              getItemKey={(row) => row.id}
+              emptyState={null}
             />
-          ))}
-        </div>
+          </div>
+
+          {/* Desktop: TanStack Table */}
+          <div className="hidden sm:block rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
+            <table className="w-full">
+              <thead>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id} className="border-b border-stroke-soft-200 bg-bg-weak-50">
+                    {headerGroup.headers.map((header) => (
+                      <th
+                        key={header.id}
+                        className="px-4 py-3 text-left text-label-xs text-text-soft-400 uppercase tracking-wide font-medium"
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              <tbody className="divide-y divide-stroke-soft-200">
+                {table.getRowModel().rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => setSelectedInvoice(row.original)}
+                    className="hover:bg-bg-weak-50 transition-colors cursor-pointer group"
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="px-4 py-3">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* Modal */}
@@ -439,98 +650,6 @@ export function InvoicesClient({ initialData }: InvoicesClientProps = {}) {
       />
     </div>
     </Tooltip.Provider>
-  )
-}
-
-// Invoice Item - Card on mobile, row on desktop
-function InvoiceItem({
-  invoice,
-  formatCurrency,
-  formatDate,
-  onView
-}: {
-  invoice: Invoice
-  formatCurrency: (n: number) => string
-  formatDate: (d: Date | string | undefined) => string
-  onView: () => void
-}) {
-  return (
-    <>
-      {/* Mobile: Card layout */}
-      <button
-        type="button"
-        onClick={onView}
-        className="w-full rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 p-4 text-left hover:bg-bg-weak-50 active:scale-[0.99] transition-all duration-200 sm:hidden"
-      >
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <div className="size-9 rounded-lg bg-bg-weak-50 flex items-center justify-center">
-              <FileText weight="duotone" className="size-5 text-text-soft-400" />
-            </div>
-            <div>
-              <p className="text-label-sm text-text-strong-950 font-mono">{invoice.invoiceNumber}</p>
-              <p className="text-paragraph-xs text-text-soft-400">{formatDate(invoice.createdAt)}</p>
-            </div>
-          </div>
-          <CaretRight className="size-4 text-text-soft-400 mt-1" />
-        </div>
-
-        <div className="flex items-center justify-between pt-3 border-t border-stroke-soft-200">
-          <div className="flex items-center gap-3 text-paragraph-xs text-text-sub-600">
-            <span>{formatDate(invoice.periodStart)} – {formatDate(invoice.periodEnd)}</span>
-            <span className="text-text-soft-400">•</span>
-            <span>{invoice.enrollmentCount} enrollments</span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between mt-3">
-          <div>
-            <p className="text-title-h5 text-text-strong-950 font-semibold">{formatCurrency(invoice.totalAmount)}</p>
-            <p className="text-paragraph-xs text-text-soft-400">incl. {formatCurrency(invoice.gstAmount)} GST</p>
-          </div>
-          <div className="flex items-center gap-1 text-paragraph-xs text-success-base">
-            <Check weight="bold" className="size-3.5" />
-            Paid
-          </div>
-        </div>
-      </button>
-
-      {/* Desktop: Row layout */}
-      <button
-        type="button"
-        className="hidden sm:flex w-full items-center gap-4 p-4 hover:bg-bg-weak-50 transition-all duration-200 cursor-pointer group text-left"
-        onClick={onView}
-      >
-        <div className="size-11 rounded-xl bg-bg-weak-50 flex items-center justify-center shrink-0 transition-colors group-hover:bg-primary-lighter">
-          <FileText weight="duotone" className="size-6 text-text-soft-400 transition-colors group-hover:text-primary-base" />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3">
-            <span className="text-label-sm text-text-strong-950 font-mono">{invoice.invoiceNumber}</span>
-            <span className="flex items-center gap-1 text-paragraph-xs text-success-base">
-              <Check weight="bold" className="size-3" />
-              Paid
-            </span>
-          </div>
-          <div className="flex items-center gap-2 text-paragraph-xs text-text-sub-600 mt-0.5">
-            <Calendar className="size-3 text-text-soft-400" />
-            <span>{formatDate(invoice.periodStart)} – {formatDate(invoice.periodEnd)}</span>
-            <span className="text-text-soft-400">•</span>
-            <span>{invoice.enrollmentCount} enrollments</span>
-          </div>
-        </div>
-
-        <div className="text-right shrink-0">
-          <p className="text-label-md text-text-strong-950 font-semibold">{formatCurrency(invoice.totalAmount)}</p>
-          <p className="text-paragraph-xs text-text-soft-400">GST {formatCurrency(invoice.gstAmount)}</p>
-        </div>
-
-        <Button.Root variant="ghost" size="xsmall" onClick={(e) => { e.stopPropagation() }} aria-label="Download invoice">
-          <Button.Icon><DownloadSimple className="size-5" /></Button.Icon>
-        </Button.Root>
-      </button>
-    </>
   )
 }
 

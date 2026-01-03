@@ -1,19 +1,15 @@
 "use client"
 
-import { usePathname } from "next/navigation"
+import { useSelectedLayoutSegments } from "next/navigation"
 import { useMemo } from "react"
-import { capitalizeFirst } from "@/lib/utils"
 
 export interface BreadcrumbItem {
 	label: string
 	href?: string
 }
 
-/**
- * Route labels mapping - add custom labels for routes here
- */
+/** Route labels - customize display names here */
 const ROUTE_LABELS: Record<string, string> = {
-	dashboard: "Dashboard",
 	campaigns: "Campaigns",
 	enrollments: "Enrollments",
 	wallet: "Wallet",
@@ -22,66 +18,52 @@ const ROUTE_LABELS: Record<string, string> = {
 	team: "Team",
 	settings: "Settings",
 	profile: "Profile",
-	create: "Create New",
+	create: "Create",
 	edit: "Edit",
 	new: "New",
 }
 
+/** Check if segment is a dynamic ID (UUID or numeric) */
+const isIdSegment = (s: string) => /^[\da-f-]{36}$/i.test(s) || /^\d+$/.test(s)
+
+/** Format segment: "new-campaign" -> "New Campaign" */
+const formatSegment = (s: string) =>
+	s.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+
 /**
- * Hook to get breadcrumb items based on current pathname.
- * Automatically generates breadcrumbs from URL segments.
+ * Breadcrumbs hook using Next.js useSelectedLayoutSegments.
+ * Automatically skips organizationId and generates proper breadcrumbs.
  *
  * @example
- * const breadcrumbs = useBreadcrumbs()
- * // For pathname: /dashboard/campaigns/123
+ * // URL: /dashboard/org-123/campaigns/456
  * // Returns: [
- * //   { label: 'Dashboard', href: '/dashboard' },
- * //   { label: 'Campaigns', href: '/dashboard/campaigns' },
+ * //   { label: 'Campaigns', href: '/dashboard/org-123/campaigns' },
  * //   { label: 'Details' }
  * // ]
  */
-export function useBreadcrumbs(): BreadcrumbItem[] {
-	const pathname = usePathname()
+export function useBreadcrumbs(basePath?: string): BreadcrumbItem[] {
+	const segments = useSelectedLayoutSegments()
 
 	return useMemo(() => {
-		const segments = pathname.split("/").filter(Boolean)
-		const items: BreadcrumbItem[] = []
+		// Filter out organizationId (first segment after dashboard layout)
+		const filtered = segments.filter((s, i) => !(i === 0 && isIdSegment(s)))
+		if (!filtered.length) return []
 
-		let currentPath = ""
+		// Build breadcrumbs
+		const base = basePath ?? `/dashboard/${segments[0]}`
 
-		for (let i = 0; i < segments.length; i++) {
-			const segment = segments[i]
-			currentPath += `/${segment}`
-			const isLast = i === segments.length - 1
+		return filtered.map((segment, i) => {
+			const isLast = i === filtered.length - 1
+			const path = `${base}/${filtered.slice(0, i + 1).join("/")}`
 
-			// Check if it's a dynamic ID segment (numeric or UUID-like)
-			const isIdSegment = /^[\d]+$/.test(segment) || /^[a-f0-9-]{36}$/i.test(segment)
-
-			if (isIdSegment) {
-				// For ID segments, show "Details" without link
-				items.push({ label: "Details" })
-			} else {
-				// Get label from mapping or format the segment
-				const label = ROUTE_LABELS[segment] || formatSegment(segment)
-
-				items.push({
-					label,
-					href: isLast ? undefined : currentPath,
-				})
+			if (isIdSegment(segment)) {
+				return { label: "Details" }
 			}
-		}
 
-		return items
-	}, [pathname])
-}
-
-/**
- * Format a URL segment into a readable label
- * e.g., "new-campaign" -> "New Campaign"
- */
-function formatSegment(segment: string): string {
-	return segment
-		.split("-")
-		.map((word) => capitalizeFirst(word))
-		.join(" ")
+			return {
+				label: ROUTE_LABELS[segment] || formatSegment(segment),
+				href: isLast ? undefined : path,
+			}
+		})
+	}, [segments, basePath])
 }

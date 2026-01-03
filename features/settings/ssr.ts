@@ -191,23 +191,9 @@ export async function getProfileData() {
 			sessions: [] as { id: string; device: string; browser: string; location: string; lastActive: string; current: boolean; iconType: 'computer' | 'smartphone' | 'mac'; userAgent?: string }[],
 		}
 	} catch (error) {
-		// In production, should redirect to sign-in or show error
-		if (process.env.NODE_ENV === "development") {
-			logWarn("Failed to fetch user profile, using fallback data", { source: "getProfileData", data: { error } })
-			return {
-				user: {
-					id: "1",
-					name: "Admin User",
-					email: "admin@hypedrive.io",
-					phone: "+91 98765 43210",
-					role: "admin",
-					image: undefined,
-					emailVerified: true,
-					twoFactorEnabled: false,
-				},
-				sessions: [] as { id: string; device: string; browser: string; location: string; lastActive: string; current: boolean; iconType: 'computer' | 'smartphone' | 'mac'; userAgent?: string }[],
-			}
-		}
+		// ✅ FIX Bug 21: Removed hardcoded fallback data
+		// Let error propagate - page should handle with error.tsx or redirect
+		logSSRError(error, "getProfileData", "profile", {})
 		throw error
 	}
 }

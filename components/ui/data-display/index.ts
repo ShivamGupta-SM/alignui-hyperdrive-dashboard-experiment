@@ -14,7 +14,7 @@ export {
 	Loading as TableLoading,
 	type SortDirection,
 } from "./table"
-export { DataTable, type ColumnDef } from "./data-table"
+export { DataTable, SortableColumnHeader, type ColumnDef } from "./data-table"
 // Card exports Root, Header - export with prefix
 export {
 	Root as CardRoot,

@@ -9,7 +9,8 @@ import { NotificationsDrawer } from "@/components/dashboard/notifications-drawer
 import { CommandMenu } from "@/components/dashboard/command-menu"
 import { SettingsPanel } from "@/components/dashboard/settings-panel"
 import { StatusBanner } from "@/components/dashboard/status-banner"
-import { useBreadcrumbs, useIsDesktop, useKeyboardShortcut, useModal } from "@/hooks/ui"
+import { useBreadcrumbs, useIsDesktop, useModal } from "@/hooks/ui"
+import { useHotkeys } from "react-hotkeys-hook"
 import { useLocalStorage } from "@/hooks/state/use-local-storage"
 import { useNotifications as useBackendNotifications, useUnreadNotificationCount as useBackendUnreadCount, useMarkAllNotificationsRead as useBackendMarkAllRead, useMarkNotificationRead as useBackendMarkRead, useDashboard } from "@/hooks/shared"
 import { cn } from "@/lib/utils"
@@ -100,18 +101,15 @@ function DashboardShellInner({ children, initialOrganizations = [] }: { children
 	}, [isDesktop, setMobileMenuOpen])
 
 	// Command menu keyboard shortcut (Ctrl/Cmd + K)
-	useKeyboardShortcut(
-		{ key: "k", modifiers: ["ctrl", "meta"] },
-		() => setCommandMenuOpen(true),
-		{ enabled: true, preventDefault: true }
-	)
+	useHotkeys("mod+k", () => setCommandMenuOpen(true), {
+		preventDefault: true,
+		enableOnFormTags: false,
+	})
 
 	// Close mobile sidebar on Escape
-	useKeyboardShortcut(
-		"Escape",
-		() => setMobileMenuOpen(false),
-		{ enabled: mobileSidebarOpen }
-	)
+	useHotkeys("escape", () => setMobileMenuOpen(false), {
+		enabled: mobileSidebarOpen,
+	})
 
 	const handleMobileSidebarToggle = React.useCallback(() => {
 		setMobileMenuOpen(!mobileMenuOpen)

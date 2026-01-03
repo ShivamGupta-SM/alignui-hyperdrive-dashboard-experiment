@@ -1,28 +1,40 @@
 /**
  * Optimistic Update Utilities
  *
- * SSOT: Centralized utilities for optimistic updates across the app.
- * These helpers provide consistent patterns for optimistic UI updates
- * with automatic rollback on errors.
+ * SIMPLIFIED: Single core function with helper utilities.
+ * Provides consistent patterns for optimistic UI updates with automatic rollback.
  */
 
 import type { QueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { getErrorMessage } from "./format"
 
+// ============================================
+// Core Optimistic Update Function
+// ============================================
+
+interface OptimisticUpdateOptions<TData, TResult> {
+	queryClient: QueryClient
+	queryKey: readonly unknown[]
+	updateFn: (oldData: TData | undefined) => TData | undefined
+	serverFn: () => Promise<TResult>
+	onSuccess?: (result: TResult) => void
+	onError?: (error: unknown) => void
+	invalidateKeys?: (readonly unknown[])[]
+	successMessage?: string
+	errorMessage?: string
+}
+
 /**
- * Generic optimistic update helper
- * Immediately updates UI, then syncs with server
+ * Core optimistic update - handles any cache update pattern.
  *
  * @example
  * await performOptimisticUpdate({
  *   queryClient,
- *   queryKey: campaignKeys.detail(orgId, campaignId),
- *   updateFn: (old) => ({ ...old, status: 'paused' }),
- *   serverFn: () => updateCampaignStatus({ organizationId, id, action: 'pause' }),
- *   onSuccess: () => toast.success('Campaign paused'),
- *   onError: (error) => toast.error(getErrorMessage(error)),
- *   invalidateKeys: [campaignKeys.lists(orgId)],
+ *   queryKey: campaignKeys.detail(orgId, id),
+ *   updateFn: (old) => old ? { ...old, status: 'paused' } : old,
+ *   serverFn: () => updateCampaignStatus({ id, action: 'pause' }),
+ *   successMessage: 'Campaign paused',
  * })
  */
 export async function performOptimisticUpdate<TData, TResult>({
@@ -35,61 +47,42 @@ export async function performOptimisticUpdate<TData, TResult>({
 	invalidateKeys = [],
 	successMessage,
 	errorMessage = "An error occurred",
-}: {
-	queryClient: QueryClient
-	queryKey: readonly unknown[]
-	updateFn: (oldData: TData | undefined) => TData | undefined
-	serverFn: () => Promise<TResult>
-	onSuccess?: (result: TResult) => void
-	onError?: (error: unknown) => void
-	invalidateKeys?: (readonly unknown[])[]
-	successMessage?: string
-	errorMessage?: string
-}): Promise<TResult | undefined> {
-	// Snapshot the previous value
+}: OptimisticUpdateOptions<TData, TResult>): Promise<TResult | undefined> {
+	// Snapshot previous value for rollback
 	const previousData = queryClient.getQueryData<TData>(queryKey)
 
-	// Optimistically update to the new value
+	// Optimistically update cache
 	queryClient.setQueryData<TData>(queryKey, updateFn)
 
 	try {
-		// Execute the server action
 		const result = await serverFn()
 
-		// Invalidate related queries to ensure consistency
+		// Invalidate related queries
 		for (const key of invalidateKeys) {
 			queryClient.invalidateQueries({ queryKey: key })
 		}
-
-		// Also invalidate the main query to get fresh data
 		queryClient.invalidateQueries({ queryKey })
 
-		// Show success toast if provided
-		if (successMessage) {
-			toast.success(successMessage)
-		}
-
-		// Call success callback
+		if (successMessage) toast.success(successMessage)
 		onSuccess?.(result)
 
 		return result
 	} catch (error) {
-		// Rollback to the previous value on error
+		// Rollback on error
 		queryClient.setQueryData<TData>(queryKey, previousData)
-
-		// Show error toast
 		toast.error(getErrorMessage(error, errorMessage))
-
-		// Call error callback
 		onError?.(error)
 
 		return undefined
 	}
 }
 
+// ============================================
+// Convenience Helpers (thin wrappers)
+// ============================================
+
 /**
- * Optimistic update for list items
- * Updates a specific item in a list by ID
+ * Update a specific item in a list by ID
  */
 export async function performListItemOptimisticUpdate<
 	TItem extends { id: string },
@@ -100,22 +93,10 @@ export async function performListItemOptimisticUpdate<
 	itemId,
 	updateFn,
 	serverFn,
-	onSuccess,
-	onError,
-	invalidateKeys = [],
-	successMessage,
-	errorMessage = "An error occurred",
-}: {
-	queryClient: QueryClient
-	queryKey: readonly unknown[]
+	...rest
+}: Omit<OptimisticUpdateOptions<{ data: TItem[] } | TItem[], TResult>, "updateFn"> & {
 	itemId: string
 	updateFn: (item: TItem) => TItem
-	serverFn: () => Promise<TResult>
-	onSuccess?: (result: TResult) => void
-	onError?: (error: unknown) => void
-	invalidateKeys?: (readonly unknown[])[]
-	successMessage?: string
-	errorMessage?: string
 }): Promise<TResult | undefined> {
 	return performOptimisticUpdate<{ data: TItem[] } | TItem[], TResult>({
 		queryClient,
@@ -123,7 +104,6 @@ export async function performListItemOptimisticUpdate<
 		updateFn: (oldData) => {
 			if (!oldData) return oldData
 
-			// Handle both { data: TItem[] } and TItem[] formats
 			if (Array.isArray(oldData)) {
 				return oldData.map((item) =>
 					item.id === itemId ? updateFn(item) : item
@@ -142,17 +122,12 @@ export async function performListItemOptimisticUpdate<
 			return oldData
 		},
 		serverFn,
-		onSuccess,
-		onError,
-		invalidateKeys,
-		successMessage,
-		errorMessage,
+		...rest,
 	})
 }
 
 /**
- * Optimistic delete for list items
- * Removes an item from a list by ID
+ * Remove an item from a list by ID
  */
 export async function performOptimisticDelete<
 	TItem extends { id: string },
@@ -162,21 +137,10 @@ export async function performOptimisticDelete<
 	queryKey,
 	itemId,
 	serverFn,
-	onSuccess,
-	onError,
-	invalidateKeys = [],
-	successMessage,
 	errorMessage = "Failed to delete",
-}: {
-	queryClient: QueryClient
-	queryKey: readonly unknown[]
+	...rest
+}: Omit<OptimisticUpdateOptions<{ data: TItem[] } | TItem[], TResult>, "updateFn"> & {
 	itemId: string
-	serverFn: () => Promise<TResult>
-	onSuccess?: (result: TResult) => void
-	onError?: (error: unknown) => void
-	invalidateKeys?: (readonly unknown[])[]
-	successMessage?: string
-	errorMessage?: string
 }): Promise<TResult | undefined> {
 	return performOptimisticUpdate<{ data: TItem[] } | TItem[], TResult>({
 		queryClient,
@@ -184,7 +148,6 @@ export async function performOptimisticDelete<
 		updateFn: (oldData) => {
 			if (!oldData) return oldData
 
-			// Handle both { data: TItem[] } and TItem[] formats
 			if (Array.isArray(oldData)) {
 				return oldData.filter((item) => item.id !== itemId) as TItem[]
 			}
@@ -199,19 +162,18 @@ export async function performOptimisticDelete<
 			return oldData
 		},
 		serverFn,
-		onSuccess,
-		onError,
-		invalidateKeys,
-		successMessage,
 		errorMessage,
+		...rest,
 	})
 }
 
 /**
- * Simple optimistic status change helper
- * Convenience wrapper for status updates
+ * Update status field on both detail and list caches
  */
-export async function performStatusChange<TItem extends { id: string; status: string }, TResult>({
+export async function performStatusChange<
+	TItem extends { id: string; status: string },
+	TResult,
+>({
 	queryClient,
 	listKey,
 	detailKey,
@@ -230,13 +192,10 @@ export async function performStatusChange<TItem extends { id: string; status: st
 	successMessage?: string
 	errorMessage?: string
 }): Promise<TResult | undefined> {
-	// Update detail cache
-	const detailPreviousData = queryClient.getQueryData<TItem>(detailKey)
-	if (detailPreviousData) {
-		queryClient.setQueryData<TItem>(detailKey, {
-			...detailPreviousData,
-			status: newStatus,
-		})
+	// Update detail cache first
+	const previousDetail = queryClient.getQueryData<TItem>(detailKey)
+	if (previousDetail) {
+		queryClient.setQueryData<TItem>(detailKey, { ...previousDetail, status: newStatus })
 	}
 
 	// Update list cache
@@ -248,8 +207,8 @@ export async function performStatusChange<TItem extends { id: string; status: st
 		serverFn,
 		onError: () => {
 			// Rollback detail cache on error
-			if (detailPreviousData) {
-				queryClient.setQueryData<TItem>(detailKey, detailPreviousData)
+			if (previousDetail) {
+				queryClient.setQueryData<TItem>(detailKey, previousDetail)
 			}
 		},
 		invalidateKeys: [detailKey],

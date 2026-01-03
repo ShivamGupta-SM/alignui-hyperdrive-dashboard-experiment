@@ -67,10 +67,11 @@ export {
 // Location Data
 export {
 	INDIA_ISO_CODE,
-	INDIAN_STATES,
+	INDIAN_STATES, // @deprecated - use getIndianStates() async
+	getIndianStates, // Async - loads country-state-city dynamically
 	getIndianStateByName,
-	getCitiesOfState,
-	getAllIndianCities,
+	getCitiesOfState, // Now async
+	getAllIndianCities, // Now async
 	E_COMMERCE_PLATFORMS,
 	PRODUCT_CATEGORIES,
 	PLATFORM_COLORS,

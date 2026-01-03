@@ -1,8 +1,6 @@
 "use client"
 
 import { useState, useEffect, useMemo, useTransition, useCallback } from "react"
-import { useForm, Controller } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
 import * as Button from "@/components/ui/primitives/button"
 import * as Badge from "@/components/ui/data-display/badge"
 import * as Avatar from "@/components/ui/primitives/avatar"
@@ -28,11 +26,20 @@ import {
 	Info,
 	Warning,
 } from "@phosphor-icons/react"
+import {
+	type ColumnDef,
+	type SortingState,
+	flexRender,
+	getCoreRowModel,
+	getSortedRowModel,
+	useReactTable,
+} from "@tanstack/react-table"
 import { ROLE_OPTIONS } from "@/lib/constants"
+import { SortableColumnHeader } from "@/components/ui/data-display"
 import { inviteMember, removeMember, useCancelInvitation, useUpdateMemberRole, teamKeys } from "@/features/team"
 import { toast } from "sonner"
 import { useSession } from "@/features/auth"
-import { inviteMemberSchema, VALIDATION_CONSTANTS, type InviteMemberFormData } from "@/lib/utils"
+import { VALIDATION_CONSTANTS } from "@/lib/utils"
 import { useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { routes } from "@/lib/routes"
@@ -221,6 +228,110 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 		removeModal.openWith(member)
 	}, [removeModal])
 
+	// TanStack Table: Sorting state
+	const [sorting, setSorting] = useState<SortingState>([])
+
+	// TanStack Table: Column definitions for Team Members
+	const columns: ColumnDef<TeamMember>[] = useMemo(
+		() => [
+			{
+				accessorKey: "user.name",
+				header: ({ column }) => (
+					<SortableColumnHeader column={column}>Member</SortableColumnHeader>
+				),
+				cell: ({ row }) => {
+					const member = row.original
+					const isCurrentUser = member.id === currentUserId
+					return (
+						<div className="flex items-center gap-3">
+							<AvatarWithFallback
+								src={member.user?.image || undefined}
+								name={member.user?.name || "User"}
+								size="40"
+								color={getAvatarColor(member.user?.name || "User")}
+							/>
+							<div>
+								<div className="flex items-center gap-2">
+									<span className="text-label-sm text-text-strong-950">{member.user?.name || "Unknown User"}</span>
+									{isCurrentUser && (
+										<span className="text-label-xs text-text-soft-400 bg-bg-soft-200 px-1.5 py-0.5 rounded">
+											You
+										</span>
+									)}
+								</div>
+								<p className="text-paragraph-xs text-text-sub-600">{member.user?.email || "No email"}</p>
+							</div>
+						</div>
+					)
+				},
+			},
+			{
+				accessorKey: "role",
+				header: ({ column }) => (
+					<SortableColumnHeader column={column}>Role</SortableColumnHeader>
+				),
+				cell: ({ row }) => {
+					const member = row.original
+					const RoleIcon = getRoleIcon(member.role)
+					return (
+						<StatusBadge.Root status={getRoleStatus(member.role)} variant="light">
+							<StatusBadge.Icon as={RoleIcon} weight="duotone" />
+							{member.role ? capitalizeFirst(member.role) : "Unknown"}
+						</StatusBadge.Root>
+					)
+				},
+			},
+			{
+				id: "actions",
+				header: "",
+				cell: ({ row }) => {
+					const member = row.original
+					const isCurrentUser = member.id === currentUserId
+					const isOwner = member.role === "owner"
+
+					if (isCurrentUser || isOwner) return null
+
+					return (
+						<div className="flex items-center gap-2 justify-end">
+							<Select.Root value={member.role} onValueChange={(newRole) => handleUpdateRole(member.id, newRole)} size="small">
+								<Select.Trigger className="w-28">
+									<Select.Value />
+								</Select.Trigger>
+								<Select.Content>
+									{ROLE_OPTIONS.filter((r) => r.value !== "owner").map((option) => (
+										<Select.Item key={option.value} value={option.value}>
+											{option.label}
+										</Select.Item>
+									))}
+								</Select.Content>
+							</Select.Root>
+							<Button.Root
+								variant="ghost"
+								size="small"
+								onClick={() => handleRemoveMember(member)}
+								aria-label={`Remove ${member.user?.name || "member"}`}
+							>
+								<Button.Icon><Trash className="size-5" /></Button.Icon>
+							</Button.Root>
+						</div>
+					)
+				},
+				enableSorting: false,
+			},
+		],
+		[currentUserId, handleUpdateRole, handleRemoveMember]
+	)
+
+	// TanStack Table instance
+	const table = useReactTable({
+		data: members,
+		columns,
+		state: { sorting },
+		onSortingChange: setSorting,
+		getCoreRowModel: getCoreRowModel(),
+		getSortedRowModel: getSortedRowModel(),
+	})
+
 	return (
 		<div className="space-y-5 sm:space-y-6">
 			{/* Page Header */}
@@ -336,16 +447,18 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 					<h2 className="text-label-md text-text-strong-950">Team Members</h2>
 					<span className="text-paragraph-xs text-text-soft-400">{members.length} members</span>
 				</div>
-				<div className="divide-y divide-stroke-soft-200">
-					{members.map((member) => {
+
+				{/* Mobile: Card layout */}
+				<div className="divide-y divide-stroke-soft-200 sm:hidden">
+					{table.getRowModel().rows.map((row) => {
+						const member = row.original
 						const isCurrentUser = member.id === currentUserId
 						const isOwner = member.role === "owner"
 						const RoleIcon = getRoleIcon(member.role)
 
 						return (
-							<div key={member.id} className="p-4 hover:bg-bg-weak-50 transition-colors">
-								{/* Mobile Layout - Stacked */}
-								<div className="flex items-start gap-3 sm:hidden">
+							<div key={row.id} className="p-4 hover:bg-bg-weak-50 transition-colors">
+								<div className="flex items-start gap-3">
 									<AvatarWithFallback
 										src={member.user?.image || undefined}
 										name={member.user?.name || "User"}
@@ -363,12 +476,10 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 										</div>
 										<p className="text-paragraph-xs text-text-sub-600">{member.user?.email || "No email"}</p>
 										<div className="flex items-center justify-between mt-2">
-											<div className="flex items-center gap-2">
-												<StatusBadge.Root status={getRoleStatus(member.role)} variant="light">
-													<StatusBadge.Icon as={RoleIcon} weight="duotone" />
-													{member.role ? capitalizeFirst(member.role) : "Unknown"}
-												</StatusBadge.Root>
-											</div>
+											<StatusBadge.Root status={getRoleStatus(member.role)} variant="light">
+												<StatusBadge.Icon as={RoleIcon} weight="duotone" />
+												{member.role ? capitalizeFirst(member.role) : "Unknown"}
+											</StatusBadge.Root>
 											{!isCurrentUser && !isOwner && (
 												<Button.Root
 													variant="ghost"
@@ -382,64 +493,42 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 										</div>
 									</div>
 								</div>
-
-								{/* Desktop Layout - Horizontal */}
-								<div className="hidden sm:flex sm:items-center sm:gap-4">
-									<AvatarWithFallback
-										src={member.user?.image || undefined}
-										name={member.user?.name || "User"}
-										size="48"
-										color={getAvatarColor(member.user?.name || "User")}
-									/>
-									<div className="flex-1 min-w-0">
-										<div className="flex items-center gap-2">
-											<span className="text-label-sm text-text-strong-950">{member.user?.name || "Unknown User"}</span>
-											{isCurrentUser && (
-												<span className="text-label-xs text-text-soft-400 bg-bg-soft-200 px-1.5 py-0.5 rounded">
-													You
-												</span>
-											)}
-										</div>
-										<p className="text-paragraph-xs text-text-sub-600">{member.user?.email || "No email"}</p>
-									</div>
-
-									<StatusBadge.Root
-										status={getRoleStatus(member.role)}
-										variant="light"
-										className="shrink-0"
-									>
-										<StatusBadge.Icon as={RoleIcon} weight="duotone" />
-										{member.role ? capitalizeFirst(member.role) : "Unknown"}
-									</StatusBadge.Root>
-
-									{!isCurrentUser && !isOwner && (
-										<div className="flex items-center gap-2 shrink-0">
-											<Select.Root value={member.role} onValueChange={(newRole) => handleUpdateRole(member.id, newRole)} size="small">
-												<Select.Trigger className="w-28">
-													<Select.Value />
-												</Select.Trigger>
-												<Select.Content>
-													{ROLE_OPTIONS.filter((r) => r.value !== "owner").map((option) => (
-														<Select.Item key={option.value} value={option.value}>
-															{option.label}
-														</Select.Item>
-													))}
-												</Select.Content>
-											</Select.Root>
-											<Button.Root
-												variant="ghost"
-												size="small"
-												onClick={() => handleRemoveMember(member)}
-												aria-label={`Remove ${member.user?.name || "member"}`}
-											>
-												<Button.Icon><Trash className="size-5" /></Button.Icon>
-											</Button.Root>
-										</div>
-									)}
-								</div>
 							</div>
 						)
 					})}
+				</div>
+
+				{/* Desktop: TanStack Table */}
+				<div className="hidden sm:block">
+					<table className="w-full">
+						<thead>
+							{table.getHeaderGroups().map((headerGroup) => (
+								<tr key={headerGroup.id} className="border-b border-stroke-soft-200 bg-bg-weak-50">
+									{headerGroup.headers.map((header) => (
+										<th
+											key={header.id}
+											className="px-4 py-3 text-left text-label-xs text-text-soft-400 uppercase tracking-wide font-medium"
+										>
+											{header.isPlaceholder
+												? null
+												: flexRender(header.column.columnDef.header, header.getContext())}
+										</th>
+									))}
+								</tr>
+							))}
+						</thead>
+						<tbody className="divide-y divide-stroke-soft-200">
+							{table.getRowModel().rows.map((row) => (
+								<tr key={row.id} className="hover:bg-bg-weak-50 transition-colors">
+									{row.getVisibleCells().map((cell) => (
+										<td key={cell.id} className="px-4 py-3">
+											{flexRender(cell.column.columnDef.cell, cell.getContext())}
+										</td>
+									))}
+								</tr>
+							))}
+						</tbody>
+					</table>
 				</div>
 			</div>
 
@@ -571,13 +660,12 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 			</div>
 
 			{/* Invite Modal */}
-			<InviteMemberModal {...inviteModal.props} organizationId={organizationId} />
+			<InviteMemberModal {...inviteModal.props} />
 
 			{/* Remove Member Modal */}
 			<RemoveMemberModal
 				{...removeModal.props}
 				member={removeModal.data ?? null}
-				organizationId={organizationId}
 			/>
 		</div>
 	)
@@ -587,8 +675,8 @@ export function TeamClient({ initialData }: TeamClientProps = {}) {
 function InviteMemberModal({
 	open,
 	onOpenChange,
-	organizationId,
-}: { open: boolean; onOpenChange: (open: boolean) => void; organizationId: string }) {
+}: { open: boolean; onOpenChange: (open: boolean) => void }) {
+	const { organizationId } = useCurrentOrganization()
 	const queryClient = useQueryClient()
 	const [message, setMessage] = useState("")
 	const [email, setEmail] = useState("")
@@ -740,13 +828,12 @@ function RemoveMemberModal({
 	open,
 	onOpenChange,
 	member,
-	organizationId,
 }: {
 	open: boolean
 	onOpenChange: (open: boolean) => void
 	member: TeamMember | null
-	organizationId: string
 }) {
+	const { organizationId } = useCurrentOrganization()
 	const [isPending, startTransition] = useTransition()
 	const queryClient = useQueryClient()
 

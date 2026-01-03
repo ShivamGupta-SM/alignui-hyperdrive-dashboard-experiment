@@ -387,7 +387,7 @@ export function CampaignDetailClient({ campaignId, initialData }: CampaignDetail
 			)}
 
 			{activeTab === "enrollments" && (
-				<EnrollmentsTab campaignId={campaign.id} enrollments={campaignEnrollments} organizationId={organizationId} />
+				<EnrollmentsTab campaignId={campaign.id} enrollments={campaignEnrollments} />
 			)}
 
 			{activeTab === "deliverables" && (
@@ -851,12 +851,12 @@ function OverviewTab({
 interface EnrollmentsTabProps {
 	campaignId: string
 	enrollments: organizations.EnrollmentWithRelations[]
-	organizationId: string
 }
 
 // Helper functions imported from @/lib/utils/date
 
-function EnrollmentsTab({ campaignId, enrollments, organizationId }: EnrollmentsTabProps) {
+function EnrollmentsTab({ campaignId, enrollments }: EnrollmentsTabProps) {
+	const { organizationId } = useCurrentOrganization()
 	const router = useRouter()
 	const [isPending, startTransition] = React.useTransition()
 	const [sorting, setSorting] = React.useState<SortingState>([])

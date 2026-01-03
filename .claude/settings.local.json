@@ -22,7 +22,8 @@
       "Bash(ls:*)",
       "Bash(npm run dev:*)",
       "Bash(npx next dev:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(npx @next/bundle-analyzer)"
     ]
   }
 }

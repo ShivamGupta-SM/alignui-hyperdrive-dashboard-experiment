@@ -1,34 +1,34 @@
 "use client"
 
 import { Warning, Trash } from "@phosphor-icons/react"
-import { ConfirmationModal } from "../confirmation-modal"
+import { ConfirmationModal } from "./confirmation-modal"
 
-interface DeleteProductModalProps {
+interface DeleteCampaignModalProps {
 	open: boolean
 	onOpenChange: (open: boolean) => void
-	productName: string
-	activeCampaignsCount: number
+	campaignTitle: string
+	enrollmentsCount: number
 	onConfirm: () => void
 	isLoading?: boolean
 }
 
-export function DeleteProductModal({
+export function DeleteCampaignModal({
 	open,
 	onOpenChange,
-	productName,
-	activeCampaignsCount,
+	campaignTitle,
+	enrollmentsCount,
 	onConfirm,
 	isLoading = false,
-}: DeleteProductModalProps) {
+}: DeleteCampaignModalProps) {
 	return (
 		<ConfirmationModal
 			open={open}
 			onOpenChange={onOpenChange}
-			title="Delete Product"
-			description={`Are you sure you want to delete "${productName}"?`}
+			title="Delete Campaign"
+			description={`Are you sure you want to delete "${campaignTitle}"?`}
 			variant="danger"
 			icon={Trash}
-			confirmLabel="Delete Product"
+			confirmLabel="Delete Campaign"
 			loadingLabel="Deleting..."
 			onConfirm={onConfirm}
 			isLoading={isLoading}
@@ -37,11 +37,11 @@ export function DeleteProductModal({
 				<Warning weight="duotone" className="inline-block size-4 mr-2" />
 				This action cannot be undone.
 			</div>
-			{activeCampaignsCount > 0 && (
+			{enrollmentsCount > 0 && (
 				<div className="mt-3 rounded-10 bg-warning-lighter p-3 text-paragraph-sm text-warning-base">
 					<Warning weight="duotone" className="inline-block size-4 mr-2" />
-					This product is used in {activeCampaignsCount} active campaign{activeCampaignsCount !== 1 ? "s" : ""}.
-					Those campaigns will need to be updated.
+					This campaign has {enrollmentsCount} active enrollment{enrollmentsCount !== 1 ? "s" : ""}.
+					All enrollments will be cancelled.
 				</div>
 			)}
 		</ConfirmationModal>

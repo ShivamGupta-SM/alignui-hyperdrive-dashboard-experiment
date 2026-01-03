@@ -3,6 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { Megaphone, CaretRight } from "@phosphor-icons/react"
+import { useCurrentOrganization } from "@/hooks"
 
 interface Campaign {
 	id: string
@@ -15,7 +16,6 @@ interface Campaign {
 }
 
 interface DashboardCampaignsSectionProps {
-	organizationId: string
 	campaigns: Campaign[]
 	metrics: {
 		activeCampaigns: number
@@ -29,10 +29,10 @@ interface DashboardCampaignsSectionProps {
  * Shows campaign stats and top campaigns list
  */
 export function DashboardCampaignsSection({
-	organizationId,
 	campaigns,
 	metrics,
 }: DashboardCampaignsSectionProps) {
+	const { organizationId } = useCurrentOrganization()
 	return (
 		<div className="lg:col-span-5 rounded-xl bg-bg-white-0 ring-1 ring-inset ring-stroke-soft-200 overflow-hidden">
 			<div className="flex items-center justify-between p-3 sm:p-4 border-b border-stroke-soft-200">

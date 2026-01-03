@@ -1,7 +1,7 @@
 "use client"
 
 import { Warning, Bank } from "@phosphor-icons/react"
-import { ConfirmationModal } from "../confirmation-modal"
+import { ConfirmationModal } from "./confirmation-modal"
 
 interface DeleteBankAccountModalProps {
 	open: boolean

@@ -11,7 +11,7 @@ import * as Avatar from "@/components/ui/primitives/avatar"
 import * as Badge from "@/components/ui/data-display/badge"
 import { FormField } from "@/components/ui/forms/form-field"
 import { cn, getInitial } from "@/lib/utils"
-import { useModal, useSettingsSearchParams } from "@/hooks"
+import { useModal, useSettingsSearchParams, useCurrentOrganization } from "@/hooks"
 import { useQueryClient } from "@tanstack/react-query"
 import { settingsKeys, updateOrganization, verifyBankAccount, addBankAccount, updateOrganizationLogo, removeOrganizationLogo } from "@/features/settings"
 import { organizationKeys } from "@/features/organizations"
@@ -201,10 +201,7 @@ export function SettingsClient({ initialData }: SettingsClientProps = {}) {
 					)}
 					{activeSection === "gst" && <GstSection gstDetails={data.gstDetails} />}
 					{activeSection === "bank-accounts" && (
-						<BankAccountsSection
-							bankAccounts={data.bankAccounts}
-							organizationId={data.organization.id}
-						/>
+						<BankAccountsSection bankAccounts={data.bankAccounts} />
 					)}
 					{activeSection === "notifications" && <NotificationPreferencesSection />}
 				</div>
@@ -597,11 +594,10 @@ function GstSection({ gstDetails }: { gstDetails: SettingsData["gstDetails"] }) 
 // ===========================================
 function BankAccountsSection({
 	bankAccounts,
-	organizationId,
 }: {
 	bankAccounts: SettingsData["bankAccounts"]
-	organizationId: string
 }) {
+	const { organizationId } = useCurrentOrganization()
 	const [showAddModal, openAddModal, closeAddModal, , setShowAddModal] = useModal()
 	const queryClient = useQueryClient()
 
@@ -671,7 +667,7 @@ function BankAccountsSection({
 					) : (
 						bankAccounts.map((account) => (
 							<div key={account.id} className="relative">
-								<BankAccountCard account={account} organizationId={organizationId} />
+								<BankAccountCard account={account} />
 								{/* Actions Menu */}
 								<div className="absolute top-4 right-4 flex items-center gap-2">
 									{!account.isDefault && (
@@ -702,7 +698,6 @@ function BankAccountsSection({
 			<AddBankAccountModal
 				open={showAddModal}
 				onOpenChange={setShowAddModal}
-				organizationId={organizationId}
 			/>
 		</div>
 	)
@@ -1001,10 +996,10 @@ function CardFooter({
 // ===========================================
 interface BankAccountCardProps {
 	account: SettingsData["bankAccounts"][0]
-	organizationId: string
 }
 
-function BankAccountCard({ account, organizationId }: BankAccountCardProps) {
+function BankAccountCard({ account }: BankAccountCardProps) {
+	const { organizationId } = useCurrentOrganization()
 	const [isVerifying, setIsVerifying] = useState(false)
 	const [isRemoving, setIsRemoving] = useState(false)
 	const [isSettingDefault, setIsSettingDefault] = useState(false)
@@ -1166,10 +1161,10 @@ function BankAccountCard({ account, organizationId }: BankAccountCardProps) {
 interface AddBankAccountModalProps {
 	open: boolean
 	onOpenChange: (open: boolean) => void
-	organizationId: string
 }
 
-function AddBankAccountModal({ open, onOpenChange, organizationId }: AddBankAccountModalProps) {
+function AddBankAccountModal({ open, onOpenChange }: AddBankAccountModalProps) {
+	const { organizationId } = useCurrentOrganization()
 	const isMobile = useMediaQuery("(max-width: 639px)")
 	const [isPending, setIsPending] = useState(false)
 	const queryClient = useQueryClient()

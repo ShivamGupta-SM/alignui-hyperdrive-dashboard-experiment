@@ -436,7 +436,6 @@ export function DashboardClient({
 
 			{/* ALERT BAR */}
 			<DashboardAlertBar
-				organizationId={organizationId}
 				hasOverdue={hasOverdue}
 				isLowBalance={isLowBalance}
 				pendingOverdue={metrics.pendingOverdue}
@@ -445,7 +444,6 @@ export function DashboardClient({
 
 			{/* METRICS */}
 			<DashboardMetrics
-				organizationId={organizationId}
 				wallet={{ available: wallet.available, lowBalanceThreshold: wallet.lowBalanceThreshold }}
 				metrics={{ pendingTotal: metrics.pendingTotal, pendingOverdue: metrics.pendingOverdue }}
 				approvalRate={approvalRate}
@@ -455,7 +453,6 @@ export function DashboardClient({
 			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-12">
 				{/* CAMPAIGNS */}
 				<DashboardCampaignsSection
-					organizationId={organizationId}
 					campaigns={topCampaigns}
 					metrics={{
 						activeCampaigns: metrics.activeCampaigns,
@@ -479,7 +476,6 @@ export function DashboardClient({
 
 			{/* PRIORITY QUEUE */}
 			<DashboardPriorityQueue
-				organizationId={organizationId}
 				priorityEnrollments={priorityEnrollments}
 				pendingTotal={metrics.pendingTotal}
 				hasOverdue={hasOverdue}

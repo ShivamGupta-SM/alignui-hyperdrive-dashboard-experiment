@@ -7,14 +7,13 @@ export {
 	alertVariants,
 } from "./alert"
 export * from "./callout"
-// Notification exports Root - export with prefix
+// Notification exports Root - export with prefix (AlignUI component, use sonner for toasts)
 export {
 	Root as NotificationRoot,
 	Provider as NotificationProvider,
 	Action as NotificationAction,
 	Viewport as NotificationViewport,
 } from "./notification"
-export * from "./notification-provider"
 // Hint exports Root, Icon - export with prefix
 export {
 	Root as HintRoot,

@@ -1,10 +1,9 @@
 "use client"
 
 import { ThemeProvider } from "next-themes"
-import { useState, type ReactNode } from "react"
+import type { ReactNode } from "react"
 import { Toaster } from "sonner"
 import { Provider as TooltipProvider } from "@/components/ui/layout/tooltip"
-import { NotificationProvider } from "@/components/ui/feedback/notification-provider"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import { PostHogProvider } from "@/lib/integrations/posthog"
@@ -50,7 +49,6 @@ export function Providers({ children }: { children: ReactNode }) {
 							{children}
 						</TooltipProvider>
 
-						<NotificationProvider />
 						<Toaster />
 					</ThemeProvider>
 				</NuqsAdapter>

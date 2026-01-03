@@ -22,7 +22,7 @@ import {
 	CloudArrowUp,
 	WarningCircle,
 } from "@phosphor-icons/react"
-import { BUSINESS_TYPE_OPTIONS, INDUSTRY_CATEGORY_OPTIONS, INDIAN_STATES, getStateFromGSTCode, getCitiesOfState, STORAGE_KEYS, clearOnboardingStorage } from "@/lib/constants"
+import { BUSINESS_TYPE_OPTIONS, INDUSTRY_CATEGORY_OPTIONS, getIndianStates, getStateFromGSTCode, getCitiesOfState, STORAGE_KEYS, clearOnboardingStorage } from "@/lib/constants"
 import { onboardingFormSchema, onboardingDraftSchema, type OnboardingFormInput, getErrorMessage } from "@/lib/utils"
 import type { BusinessType, IndustryCategory, OrganizationDraft } from "@/features/organizations/types"
 import { useSession } from "@/features/auth"
@@ -962,6 +962,25 @@ function Step2BusinessAndVerification({
 	const gstNumber = watch("verification.gstNumber")
 	const gstVerified = watch("verification.gstVerified")
 	const businessType = watch("businessDetails.businessType")
+
+	// Load states asynchronously to avoid bundling country-state-city
+	const [indianStates, setIndianStates] = useState<string[]>([])
+	const [citiesForState, setCitiesForState] = useState<string[]>([])
+	const selectedState = watch("businessDetails.state")
+
+	// Load states on mount
+	useEffect(() => {
+		getIndianStates().then(setIndianStates)
+	}, [])
+
+	// Load cities when state changes
+	useEffect(() => {
+		if (selectedState) {
+			getCitiesOfState(selectedState).then(setCitiesForState)
+		} else {
+			setCitiesForState([])
+		}
+	}, [selectedState])
 	return (
 		<div className="space-y-5 sm:space-y-6">
 			<div>
@@ -1167,10 +1186,10 @@ function Step2BusinessAndVerification({
 								}}
 							>
 								<Select.Trigger>
-									<Select.Value placeholder="Select state" />
+									<Select.Value placeholder={indianStates.length === 0 ? "Loading..." : "Select state"} />
 								</Select.Trigger>
 								<Select.Content>
-									{INDIAN_STATES.map((state) => (
+									{indianStates.map((state) => (
 										<Select.Item key={state} value={state}>
 											{state}
 										</Select.Item>
@@ -1185,9 +1204,7 @@ function Step2BusinessAndVerification({
 						name="businessDetails.city"
 						control={control}
 						render={({ field }) => {
-							const selectedState = watch("businessDetails.state")
-							const cities = selectedState ? getCitiesOfState(selectedState) : []
-							const hasNoCities = selectedState && cities.length === 0
+							const hasNoCities = selectedState && citiesForState.length === 0
 
 							// If state is selected but has no cities in database, show input field
 							if (hasNoCities) {
@@ -1213,7 +1230,7 @@ function Step2BusinessAndVerification({
 										<Select.Value placeholder={selectedState ? "Select city" : "Select state first"} />
 									</Select.Trigger>
 									<Select.Content>
-										{cities.map((city) => (
+										{citiesForState.map((city) => (
 											<Select.Item key={city} value={city}>
 												{city}
 											</Select.Item>

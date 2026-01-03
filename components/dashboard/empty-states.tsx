@@ -5,6 +5,7 @@ import type { ElementType, ReactNode } from "react"
 import * as Button from "@/components/ui/primitives/button"
 import * as EmptyState from "@/components/ui/feedback/empty-state"
 import { CalloutWithActions } from "@/components/ui/feedback/callout"
+import { useCurrentOrganization } from "@/hooks/shared/use-current-organization"
 import {
 	Rocket,
 	Megaphone,
@@ -148,11 +149,9 @@ export function OrganizationSetupRequiredEmptyState({
 // Welcome Empty State (New Organization)
 // ============================================
 
-interface WelcomeEmptyStateProps {
-	organizationId: string
-}
+export function WelcomeEmptyState() {
+	const { organizationId } = useCurrentOrganization()
 
-export function WelcomeEmptyState({ organizationId }: WelcomeEmptyStateProps) {
 	return (
 		<EmptyState.Root size="large">
 			<EmptyState.Header>
@@ -209,11 +208,9 @@ export function WelcomeEmptyState({ organizationId }: WelcomeEmptyStateProps) {
 // No Campaigns Empty State
 // ============================================
 
-interface NoCampaignsEmptyStateProps {
-	organizationId: string
-}
+export function NoCampaignsEmptyState() {
+	const { organizationId } = useCurrentOrganization()
 
-export function NoCampaignsEmptyState({ organizationId }: NoCampaignsEmptyStateProps) {
 	return (
 		<SimpleEmptyState
 			icon={Megaphone}
@@ -234,11 +231,9 @@ export function NoCampaignsEmptyState({ organizationId }: NoCampaignsEmptyStateP
 // No Pending Enrollments Empty State
 // ============================================
 
-interface NoPendingEnrollmentsEmptyStateProps {
-	organizationId: string
-}
+export function NoPendingEnrollmentsEmptyState() {
+	const { organizationId } = useCurrentOrganization()
 
-export function NoPendingEnrollmentsEmptyState({ organizationId }: NoPendingEnrollmentsEmptyStateProps) {
 	return (
 		<SimpleEmptyState
 			icon={Check}
@@ -259,11 +254,9 @@ export function NoPendingEnrollmentsEmptyState({ organizationId }: NoPendingEnro
 // No Products Empty State
 // ============================================
 
-interface NoProductsEmptyStateProps {
-	organizationId: string
-}
+export function NoProductsEmptyState() {
+	const { organizationId } = useCurrentOrganization()
 
-export function NoProductsEmptyState({ organizationId }: NoProductsEmptyStateProps) {
 	return (
 		<SimpleEmptyState
 			icon={ShoppingBag}
@@ -353,11 +346,9 @@ export function NoSearchResultsEmptyState({
 // No Invoices Empty State
 // ============================================
 
-interface NoInvoicesEmptyStateProps {
-	organizationId: string
-}
+export function NoInvoicesEmptyState() {
+	const { organizationId } = useCurrentOrganization()
 
-export function NoInvoicesEmptyState({ organizationId }: NoInvoicesEmptyStateProps) {
 	return (
 		<SimpleEmptyState
 			icon={FileText}
@@ -442,11 +433,9 @@ export function NetworkErrorEmptyState({ onRetry }: NetworkErrorEmptyStateProps)
 // Permission Denied Empty State
 // ============================================
 
-interface PermissionDeniedEmptyStateProps {
-	organizationId?: string
-}
+export function PermissionDeniedEmptyState() {
+	const { organizationId } = useCurrentOrganization()
 
-export function PermissionDeniedEmptyState({ organizationId }: PermissionDeniedEmptyStateProps) {
 	return (
 		<SimpleEmptyState
 			icon={Lock}
@@ -490,11 +479,9 @@ export function NoWalletTransactionsEmptyState({
 // No Enrollments Empty State
 // ============================================
 
-interface NoEnrollmentsEmptyStateProps {
-	organizationId: string
-}
+export function NoEnrollmentsEmptyState() {
+	const { organizationId } = useCurrentOrganization()
 
-export function NoEnrollmentsEmptyState({ organizationId }: NoEnrollmentsEmptyStateProps) {
 	return (
 		<SimpleEmptyState
 			icon={UserPlus}
@@ -540,11 +527,9 @@ export function NoFilteredResultsEmptyState({
 // No Activity Empty State
 // ============================================
 
-interface NoActivityEmptyStateProps {
-	organizationId?: string
-}
+export function NoActivityEmptyState() {
+	const { organizationId } = useCurrentOrganization()
 
-export function NoActivityEmptyState({ organizationId }: NoActivityEmptyStateProps) {
 	return (
 		<SimpleEmptyState
 			icon={ClockCounterClockwise}
@@ -565,11 +550,9 @@ export function NoActivityEmptyState({ organizationId }: NoActivityEmptyStatePro
 // No Analytics Data Empty State
 // ============================================
 
-interface NoAnalyticsEmptyStateProps {
-	organizationId: string
-}
+export function NoAnalyticsEmptyState() {
+	const { organizationId } = useCurrentOrganization()
 
-export function NoAnalyticsEmptyState({ organizationId }: NoAnalyticsEmptyStateProps) {
 	return (
 		<SimpleEmptyState
 			icon={ChartLine}

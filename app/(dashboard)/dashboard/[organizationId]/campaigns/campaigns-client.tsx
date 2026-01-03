@@ -71,15 +71,14 @@ const CampaignCardWrapper = memo(function CampaignCardWrapper({
 	onStatusChange,
 	onDelete,
 	onDuplicate,
-	organizationId,
 }: {
 	campaign: CampaignWithStats
 	onStatusChange: (campaignId: string, status: CampaignStatus) => void
 	onDelete: (campaignId: string) => void
 	onDuplicate: (campaignId: string) => void
-	organizationId: string
 }) {
 	const router = useRouter()
+	const { organizationId } = useCurrentOrganization()
 	const campaignId = campaign.id
 
 	// Memoize handlers to prevent CampaignCard re-renders
@@ -519,7 +518,7 @@ export function CampaignsClient({
 					{campaigns.length === 0 ? (
 						<div className="p-8 sm:p-12">
 							{statusFilter === "all" ? (
-								<NoCampaignsEmptyState organizationId={organizationId} />
+								<NoCampaignsEmptyState />
 							) : (
 								<div className="text-center">
 									<Megaphone weight="duotone" className="size-12 mx-auto mb-4 text-text-soft-400" />
@@ -545,7 +544,6 @@ export function CampaignsClient({
 										onStatusChange={handleStatusChange}
 										onDelete={handleDelete}
 										onDuplicate={handleDuplicate}
-										organizationId={organizationId}
 									/>
 								))}
 							</div>
@@ -572,7 +570,6 @@ export function CampaignsClient({
 				open={isCreateModalOpen}
 				onOpenChange={(open) => !open && closeCreateModal()}
 				products={products}
-				organizationId={organizationId}
 			/>
 		</Tooltip.Provider>
 	)
@@ -593,12 +590,12 @@ interface CampaignModalProps {
 	open: boolean
 	onOpenChange: (open: boolean) => void
 	products: ProductWithStats[]
-	organizationId: string
 }
 
-function CampaignModal({ open, onOpenChange, products, organizationId }: CampaignModalProps) {
+function CampaignModal({ open, onOpenChange, products }: CampaignModalProps) {
 	const router = useRouter()
 	const queryClient = useQueryClient()
+	const { organizationId } = useCurrentOrganization()
 	const [isPending, startTransition] = useTransition()
 	const [currentStep, setCurrentStep] = useState(1)
 

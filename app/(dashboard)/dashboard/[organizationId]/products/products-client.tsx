@@ -354,7 +354,7 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 							</div>
 						) : (
 							// No products at all - use pre-built component
-							<NoProductsEmptyState organizationId={organizationId} />
+							<NoProductsEmptyState />
 						)}
 					</div>
 				) : (
@@ -366,7 +366,6 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 									product={product}
 									categories={categories}
 									platforms={platforms}
-									organizationId={organizationId}
 									onEdit={() => setEditingProduct(product)}
 									onDelete={() => handleDeleteProduct(product.id)}
 								/>
@@ -388,7 +387,6 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 				product={editingProduct}
 				categories={categories}
 				platforms={platforms}
-				organizationId={organizationId}
 			/>
 
 			{/* Delete Confirmation Modal */}
@@ -410,7 +408,6 @@ export function ProductsClient({ initialData = { data: [] } }: ProductsClientPro
 				onOpenChange={(open) => !open && closeBulkImportModal()}
 				categories={categories}
 				platforms={platforms}
-				organizationId={organizationId}
 			/>
 		</div>
 	)
@@ -421,13 +418,13 @@ interface ProductCardProps {
 	product: Product
 	categories: Array<{ id: string; name: string }>
 	platforms: Array<{ id: string; name: string }>
-	organizationId: string
 	onEdit: () => void
 	onDelete: () => void
 }
 
-function ProductCard({ product, categories, platforms, organizationId, onEdit, onDelete }: ProductCardProps) {
+function ProductCard({ product, categories, platforms, onEdit, onDelete }: ProductCardProps) {
 	const router = useRouter()
+	const { organizationId } = useCurrentOrganization()
 	const [imageError, setImageError] = useState(false)
 	const productImage = product.productImages?.[0]?.imageUrl || null
 	const hasImage = productImage && !imageError
@@ -586,10 +583,10 @@ interface ProductModalProps {
 	product?: Product | null
 	categories: Array<{ id: string; name: string; icon?: string }>
 	platforms: Array<{ id: string; name: string }>
-	organizationId: string
 }
 
-function ProductModal({ open, onOpenChange, product, categories, platforms, organizationId }: ProductModalProps) {
+function ProductModal({ open, onOpenChange, product, categories, platforms }: ProductModalProps) {
+	const { organizationId } = useCurrentOrganization()
 	const [isPending, startTransition] = useTransition()
 	const [uploadedImage, setUploadedImage] = useState<string | null>(null)
 
@@ -933,7 +930,6 @@ interface BulkImportModalProps {
 	onOpenChange: (open: boolean) => void
 	categories: Array<{ id: string; name: string }>
 	platforms: Array<{ id: string; name: string }>
-	organizationId: string
 }
 
 // Industry Standard: Proper TypeScript types instead of any
@@ -948,11 +944,12 @@ interface ImportRow {
 }
 
 // Match actual return type from bulkImportProducts action
-type ImportResult = 
+type ImportResult =
 	| { success: true; message: string; imported: number; errors?: string[] }
 	| { success: false; error: string }
 
-function BulkImportModal({ open, onOpenChange, categories, platforms, organizationId }: BulkImportModalProps) {
+function BulkImportModal({ open, onOpenChange, categories, platforms }: BulkImportModalProps) {
+	const { organizationId } = useCurrentOrganization()
 	const [importData, setImportData] = useState<ImportRow[]>([])
 	const [result, setResult] = useState<ImportResult | null>(null)
 	const [step, setStep] = useState<"upload" | "preview" | "result">("upload")

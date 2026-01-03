@@ -1,57 +1,60 @@
 /**
  * Campaign React Query Hooks
  *
- * Clean pattern: Direct client usage for queries
- * URL-based multi-tenancy: organizationId from URL params
+ * SIMPLIFIED: Consolidated hooks with factory patterns for status mutations.
+ * URL-based multi-tenancy: organizationId from URL params.
  */
 
 "use client"
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { client } from "@/lib/api/client"
-import { STALE_TIME, GC_TIME, PAGE_SIZE, DEFAULT_RETRY_CONFIG, createMutationErrorHandler, createStatsQueryKeyFactory } from "@/lib/utils/query-config"
+import {
+	STALE_TIME,
+	GC_TIME,
+	PAGE_SIZE,
+	DEFAULT_RETRY_CONFIG,
+	createMutationErrorHandler,
+	createStatsQueryKeyFactory,
+} from "@/lib/utils/query-config"
 import type { campaigns as campaignTypes, shared } from "@/brand-client"
 import * as actions from "../actions/campaigns"
 import type { CampaignStatusAction } from "../types"
 
 // ============================================
-// Query Keys - Using factory + custom extensions
+// Query Keys
 // ============================================
+
 const baseKeys = createStatsQueryKeyFactory("campaigns")
 
 export const campaignKeys = {
 	...baseKeys,
-	// Extended keys not in base factory
 	performance: (orgId: string, id: string, startDate?: string, endDate?: string) =>
 		[...baseKeys.detail(orgId, id), "performance", startDate ?? "", endDate ?? ""] as const,
 	deliverables: (orgId: string, campaignId: string) =>
 		[...baseKeys.detail(orgId, campaignId), "deliverables"] as const,
-	deliverable: (orgId: string, id: string) =>
-		["campaign-deliverable", orgId, id] as const,
+	deliverable: (orgId: string, id: string) => ["campaign-deliverable", orgId, id] as const,
 	pendingSubmissions: (orgId: string, skip?: number, take?: number) =>
 		[...baseKeys.all(orgId), "pending-submissions", skip ?? 0, take ?? 50] as const,
 }
 
-// Deliverable types query keys (global catalog, not org-scoped)
 export const deliverableKeys = {
 	all: () => ["deliverable-types"] as const,
 	list: (status?: string) => [...deliverableKeys.all(), "list", status] as const,
 	detail: (id: string) => [...deliverableKeys.all(), "detail", id] as const,
 }
 
-// Submission query keys (org-scoped)
 export const submissionKeys = {
 	deliverable: (orgId: string, id: string) => ["deliverable-submission", orgId, id] as const,
-	enrollment: (orgId: string, enrollmentId: string) => ["enrollment-submissions", orgId, enrollmentId] as const,
+	enrollment: (orgId: string, enrollmentId: string) =>
+		["enrollment-submissions", orgId, enrollmentId] as const,
 }
 
 // ============================================
-// QUERIES - Direct Client Usage
+// QUERIES
 // ============================================
 
-/**
- * List campaigns for organization
- */
+/** List campaigns for organization */
 export function useCampaigns(
 	orgId: string,
 	params?: { skip?: number; take?: number; status?: shared.CampaignStatus }
@@ -71,10 +74,11 @@ export function useCampaigns(
 	})
 }
 
-/**
- * Search campaigns - uses listCampaigns with filtering
- */
-export function useSearchCampaigns(orgId: string, params: { q: string; skip?: number; take?: number; status?: shared.CampaignStatus }) {
+/** Search campaigns */
+export function useSearchCampaigns(
+	orgId: string,
+	params: { q: string; skip?: number; take?: number; status?: shared.CampaignStatus }
+) {
 	return useQuery({
 		queryKey: campaignKeys.search(orgId, params.q),
 		queryFn: () =>
@@ -89,9 +93,7 @@ export function useSearchCampaigns(orgId: string, params: { q: string; skip?: nu
 	})
 }
 
-/**
- * Get single campaign
- */
+/** Get single campaign */
 export function useCampaign(orgId: string, id: string) {
 	return useQuery({
 		queryKey: campaignKeys.detail(orgId, id),
@@ -103,19 +105,16 @@ export function useCampaign(orgId: string, id: string) {
 	})
 }
 
-/**
- * Get campaign with stats
- * SSOT: Combines useCampaign cache with stats - avoids duplicate getCampaign call
- */
+/** Get campaign with stats (combines two queries) */
 export function useCampaignWithStats(orgId: string, id: string) {
-	// Get campaign from cache (uses useCampaign's cached data)
 	const campaignQuery = useCampaign(orgId, id)
 	const statsQuery = useCampaignStats(orgId, id)
 
 	return {
-		data: campaignQuery.data && statsQuery.data
-			? { ...campaignQuery.data, stats: statsQuery.data }
-			: undefined,
+		data:
+			campaignQuery.data && statsQuery.data
+				? { ...campaignQuery.data, stats: statsQuery.data }
+				: undefined,
 		isPending: campaignQuery.isPending || statsQuery.isPending,
 		isLoading: campaignQuery.isLoading || statsQuery.isLoading,
 		isError: campaignQuery.isError || statsQuery.isError,
@@ -126,10 +125,7 @@ export function useCampaignWithStats(orgId: string, id: string) {
 	}
 }
 
-/**
- * Get campaign stats only
- * SSOT: Separate query for stats - different data from campaign detail
- */
+/** Get campaign stats */
 export function useCampaignStats(orgId: string, id: string) {
 	return useQuery({
 		queryKey: campaignKeys.stats(orgId, id),
@@ -141,30 +137,25 @@ export function useCampaignStats(orgId: string, id: string) {
 	})
 }
 
-/**
- * Get campaign pricing - derives from campaign cache
- * SSOT: Uses SAME queryKey as useCampaign - shares cache, no duplicate API call
- */
+/** Get campaign pricing (uses select to derive from campaign cache) */
 export function useCampaignPricing(orgId: string, id: string) {
 	return useQuery({
-		// SSOT: Same queryKey as useCampaign - shares cache
 		queryKey: campaignKeys.detail(orgId, id),
 		queryFn: () => client.organizations.getCampaign(orgId, id),
 		enabled: !!orgId && !!id,
 		staleTime: STALE_TIME.SHORT,
 		gcTime: GC_TIME.MEDIUM,
 		...DEFAULT_RETRY_CONFIG,
-		// Extract only pricing-related fields from cached campaign data
-		select: (campaign) => ({
-			campaignType: campaign.campaignType,
-		}),
+		select: (campaign) => ({ campaignType: campaign.campaignType }),
 	})
 }
 
-/**
- * Get campaign performance
- */
-export function useCampaignPerformance(orgId: string, id: string, params?: { startDate?: string; endDate?: string }) {
+/** Get campaign performance */
+export function useCampaignPerformance(
+	orgId: string,
+	id: string,
+	params?: { startDate?: string; endDate?: string }
+) {
 	return useQuery({
 		queryKey: campaignKeys.performance(orgId, id, params?.startDate, params?.endDate),
 		queryFn: () => client.organizations.getCampaignPerformance(orgId, id, params ?? {}),
@@ -175,9 +166,7 @@ export function useCampaignPerformance(orgId: string, id: string, params?: { sta
 	})
 }
 
-/**
- * List deliverable types (catalog) - from campaigns service
- */
+/** List deliverable types (catalog) */
 export function useDeliverableTypes(status?: campaignTypes.DeliverableStatus) {
 	return useQuery({
 		queryKey: deliverableKeys.list(status),
@@ -188,9 +177,7 @@ export function useDeliverableTypes(status?: campaignTypes.DeliverableStatus) {
 	})
 }
 
-/**
- * Get single deliverable type - from campaigns service
- */
+/** Get single deliverable type */
 export function useDeliverableType(id: string) {
 	return useQuery({
 		queryKey: deliverableKeys.detail(id),
@@ -202,9 +189,7 @@ export function useDeliverableType(id: string) {
 	})
 }
 
-/**
- * List campaign deliverables
- */
+/** List campaign deliverables */
 export function useCampaignDeliverables(orgId: string, campaignId: string) {
 	return useQuery({
 		queryKey: campaignKeys.deliverables(orgId, campaignId),
@@ -216,9 +201,7 @@ export function useCampaignDeliverables(orgId: string, campaignId: string) {
 	})
 }
 
-/**
- * Get single campaign deliverable
- */
+/** Get single campaign deliverable */
 export function useCampaignDeliverable(orgId: string, id: string) {
 	return useQuery({
 		queryKey: campaignKeys.deliverable(orgId, id),
@@ -230,9 +213,7 @@ export function useCampaignDeliverable(orgId: string, id: string) {
 	})
 }
 
-/**
- * Get deliverable submission
- */
+/** Get deliverable submission */
 export function useDeliverableSubmission(orgId: string, id: string) {
 	return useQuery({
 		queryKey: submissionKeys.deliverable(orgId, id),
@@ -244,9 +225,7 @@ export function useDeliverableSubmission(orgId: string, id: string) {
 	})
 }
 
-/**
- * List enrollment submissions for an enrollment
- */
+/** List enrollment submissions */
 export function useEnrollmentSubmissions(orgId: string, enrollmentId: string) {
 	return useQuery({
 		queryKey: submissionKeys.enrollment(orgId, enrollmentId),
@@ -258,9 +237,7 @@ export function useEnrollmentSubmissions(orgId: string, enrollmentId: string) {
 	})
 }
 
-/**
- * List pending submissions for review
- */
+/** List pending submissions for review */
 export function usePendingSubmissions(orgId: string, params?: { skip?: number; take?: number }) {
 	return useQuery({
 		queryKey: campaignKeys.pendingSubmissions(orgId, params?.skip, params?.take),
@@ -273,31 +250,40 @@ export function usePendingSubmissions(orgId: string, params?: { skip?: number; t
 }
 
 // ============================================
-// MUTATIONS - Via Server Actions
-// All mutations pass organizationId for URL-based multi-tenancy
+// MUTATIONS - Core
 // ============================================
 
-/**
- * Create campaign
- */
+/** Create campaign */
 export function useCreateCampaign(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: (data: Omit<Parameters<typeof actions.createCampaign>[0], "organizationId">) =>
-			actions.createCampaign({ ...data, organizationId: orgId }),
+		mutationFn: (
+			data: Omit<Parameters<typeof actions.createCampaign>[0], "organizationId">
+		) => actions.createCampaign({ ...data, organizationId: orgId }),
 		onSuccess: () => qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) }),
 		onError: createMutationErrorHandler("create campaign"),
 	})
 }
 
-/**
- * Update campaign
- */
+/** Update campaign */
 export function useUpdateCampaign(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: ({ id, data }: { id: string; data: { title?: string; description?: string; startDate?: string; endDate?: string; maxEnrollments?: number; isPublic?: boolean; termsAndConditions?: string } }) =>
-			actions.updateCampaign({ organizationId: orgId, id, data }),
+		mutationFn: ({
+			id,
+			data,
+		}: {
+			id: string
+			data: {
+				title?: string
+				description?: string
+				startDate?: string
+				endDate?: string
+				maxEnrollments?: number
+				isPublic?: boolean
+				termsAndConditions?: string
+			}
+		}) => actions.updateCampaign({ organizationId: orgId, id, data }),
 		onSuccess: (_, { id }) => {
 			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, id) })
 			qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) })
@@ -306,22 +292,15 @@ export function useUpdateCampaign(orgId: string) {
 	})
 }
 
-/**
- * Delete campaign
- * Includes optimistic update for instant UI feedback
- */
+/** Delete campaign (with optimistic update) */
 export function useDeleteCampaign(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
 		mutationFn: (id: string) => actions.deleteCampaign({ organizationId: orgId, id }),
 		onMutate: async (id) => {
-			// Cancel outgoing refetches
 			await qc.cancelQueries({ queryKey: campaignKeys.lists(orgId) })
-
-			// Snapshot previous value for rollback
 			const previousLists = qc.getQueriesData({ queryKey: campaignKeys.lists(orgId) })
 
-			// Optimistically remove from list caches
 			qc.setQueriesData({ queryKey: campaignKeys.lists(orgId) }, (old: unknown) => {
 				if (!old || typeof old !== "object" || !("campaigns" in old)) return old
 				const data = old as { campaigns: Array<{ id: string }>; total?: number }
@@ -335,7 +314,6 @@ export function useDeleteCampaign(orgId: string) {
 			return { previousLists }
 		},
 		onError: (err, _id, context) => {
-			// Rollback on error
 			if (context?.previousLists) {
 				for (const [key, data] of context.previousLists) {
 					qc.setQueryData(key, data)
@@ -344,32 +322,12 @@ export function useDeleteCampaign(orgId: string) {
 			createMutationErrorHandler("delete campaign")(err)
 		},
 		onSettled: () => {
-			// Always refetch after mutation settles
 			qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) })
 		},
 	})
 }
 
-/**
- * Update campaign status
- * SSOT: Uses CampaignStatusAction from actions/campaigns.ts
- */
-export function useUpdateCampaignStatus(orgId: string) {
-	const qc = useQueryClient()
-	return useMutation({
-		mutationFn: ({ id, action, reason }: { id: string; action: CampaignStatusAction; reason?: string }) =>
-			actions.updateCampaignStatus({ organizationId: orgId, id, action, reason }),
-		onSuccess: (_, { id }) => {
-			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, id) })
-			qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) })
-		},
-		onError: createMutationErrorHandler("update campaign status"),
-	})
-}
-
-/**
- * Duplicate campaign
- */
+/** Duplicate campaign */
 export function useDuplicateCampaign(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
@@ -379,80 +337,118 @@ export function useDuplicateCampaign(orgId: string) {
 	})
 }
 
-/**
- * Pause campaign - Convenience hook using updateCampaignStatus
- * SSOT: Uses unified updateCampaignStatus action with action="pause"
- */
-export function usePauseCampaign(orgId: string) {
-	const qc = useQueryClient()
-	return useMutation({
-		mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
-			actions.updateCampaignStatus({ organizationId: orgId, id, action: "pause", reason }),
-		onSuccess: (_, { id }) => {
-			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, id) })
-			qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) })
-		},
-		onError: createMutationErrorHandler("pause campaign"),
-	})
-}
-
-/**
- * Resume campaign - Convenience hook using updateCampaignStatus
- * SSOT: Uses unified updateCampaignStatus action with action="resume"
- */
-export function useResumeCampaign(orgId: string) {
-	const qc = useQueryClient()
-	return useMutation({
-		mutationFn: (id: string) =>
-			actions.updateCampaignStatus({ organizationId: orgId, id, action: "resume" }),
-		onSuccess: (_, id) => {
-			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, id) })
-			qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) })
-		},
-		onError: createMutationErrorHandler("resume campaign"),
-	})
-}
-
-/**
- * End campaign - Convenience hook using updateCampaignStatus
- * SSOT: Uses unified updateCampaignStatus action with action="end"
- */
-export function useEndCampaign(orgId: string) {
-	const qc = useQueryClient()
-	return useMutation({
-		mutationFn: (id: string) =>
-			actions.updateCampaignStatus({ organizationId: orgId, id, action: "end" }),
-		onSuccess: (_, id) => {
-			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, id) })
-			qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) })
-		},
-		onError: createMutationErrorHandler("end campaign"),
-	})
-}
-
-/**
- * Export campaign enrollments
- */
+/** Export campaign enrollments */
 export function useExportCampaignEnrollments(orgId: string) {
 	return useMutation({
-		mutationFn: (campaignId: string) => actions.exportCampaignEnrollments({ organizationId: orgId, campaignId }),
+		mutationFn: (campaignId: string) =>
+			actions.exportCampaignEnrollments({ organizationId: orgId, campaignId }),
 		onError: createMutationErrorHandler("export enrollments"),
 	})
 }
 
+/** Update campaign pricing */
+export function useUpdateCampaignPricing(orgId: string) {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: ({
+			campaignId,
+			...pricingData
+		}: {
+			campaignId: string
+			rebatePercentage?: number
+			billRate?: number
+			platformFee?: number
+			bonusAmount?: number
+		}) => actions.updateCampaignPricing({ organizationId: orgId, campaignId, ...pricingData }),
+		onSuccess: (_, { campaignId }) => {
+			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, campaignId) })
+		},
+		onError: createMutationErrorHandler("update pricing"),
+	})
+}
+
+/** Validate campaign before submission */
+export function useValidateCampaign(orgId: string) {
+	return useMutation({
+		mutationFn: (id: string) => actions.validateCampaign({ organizationId: orgId, id }),
+		onError: createMutationErrorHandler("validate campaign"),
+	})
+}
+
 // ============================================
-// DELIVERABLE MUTATIONS - Via Server Actions
-// SSOT: All mutations use server actions for consistent validation
+// STATUS MUTATIONS - Factory pattern
+// SIMPLIFIED: Single factory creates all status change hooks
 // ============================================
 
-/**
- * Add deliverable to campaign
- */
+function createStatusMutation(orgId: string, action: CampaignStatusAction, errorLabel: string) {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: (input: string | { id: string; reason?: string }) => {
+			const id = typeof input === "string" ? input : input.id
+			const reason = typeof input === "string" ? undefined : input.reason
+			return actions.updateCampaignStatus({ organizationId: orgId, id, action, reason })
+		},
+		onSuccess: (_, input) => {
+			const id = typeof input === "string" ? input : input.id
+			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, id) })
+			qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) })
+		},
+		onError: createMutationErrorHandler(errorLabel),
+	})
+}
+
+/** Generic status update (accepts action parameter) */
+export function useUpdateCampaignStatus(orgId: string) {
+	const qc = useQueryClient()
+	return useMutation({
+		mutationFn: ({
+			id,
+			action,
+			reason,
+		}: {
+			id: string
+			action: CampaignStatusAction
+			reason?: string
+		}) => actions.updateCampaignStatus({ organizationId: orgId, id, action, reason }),
+		onSuccess: (_, { id }) => {
+			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, id) })
+			qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) })
+		},
+		onError: createMutationErrorHandler("update campaign status"),
+	})
+}
+
+// Convenience hooks for specific status actions
+export const usePauseCampaign = (orgId: string) =>
+	createStatusMutation(orgId, "pause", "pause campaign")
+export const useResumeCampaign = (orgId: string) =>
+	createStatusMutation(orgId, "resume", "resume campaign")
+export const useEndCampaign = (orgId: string) =>
+	createStatusMutation(orgId, "end", "end campaign")
+export const useActivateCampaign = (orgId: string) =>
+	createStatusMutation(orgId, "activate", "activate campaign")
+export const useArchiveCampaign = (orgId: string) =>
+	createStatusMutation(orgId, "archive", "archive campaign")
+export const useUnarchiveCampaign = (orgId: string) =>
+	createStatusMutation(orgId, "unarchive", "unarchive campaign")
+export const useSubmitForApproval = (orgId: string) =>
+	createStatusMutation(orgId, "submit", "submit campaign")
+
+// ============================================
+// DELIVERABLE MUTATIONS
+// ============================================
+
+/** Add deliverable to campaign */
 export function useAddCampaignDeliverable(orgId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: (data: { campaignId: string; deliverableId: string; quantity?: number; isRequired?: boolean; instructions?: string }) =>
-			actions.addCampaignDeliverable({ organizationId: orgId, ...data }),
+		mutationFn: (data: {
+			campaignId: string
+			deliverableId: string
+			quantity?: number
+			isRequired?: boolean
+			instructions?: string
+		}) => actions.addCampaignDeliverable({ organizationId: orgId, ...data }),
 		onSuccess: (_, { campaignId }) => {
 			qc.invalidateQueries({ queryKey: campaignKeys.deliverables(orgId, campaignId) })
 			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, campaignId) })
@@ -461,14 +457,18 @@ export function useAddCampaignDeliverable(orgId: string) {
 	})
 }
 
-/**
- * Add multiple deliverables (batch)
- */
+/** Add multiple deliverables (batch) */
 export function useAddCampaignDeliverablesBatch(orgId: string, campaignId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: (deliverables: { deliverableId: string; quantity?: number; payout?: number }[]) =>
-			actions.addCampaignDeliverablesBatch({ organizationId: orgId, campaignId, deliverables }),
+		mutationFn: (
+			deliverables: { deliverableId: string; quantity?: number; payout?: number }[]
+		) =>
+			actions.addCampaignDeliverablesBatch({
+				organizationId: orgId,
+				campaignId,
+				deliverables,
+			}),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: campaignKeys.deliverables(orgId, campaignId) })
 			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, campaignId) })
@@ -477,14 +477,19 @@ export function useAddCampaignDeliverablesBatch(orgId: string, campaignId: strin
 	})
 }
 
-/**
- * Update campaign deliverable
- */
+/** Update campaign deliverable */
 export function useUpdateCampaignDeliverable(orgId: string, campaignId: string) {
 	const qc = useQueryClient()
 	return useMutation({
-		mutationFn: ({ id, ...data }: { id: string; quantity?: number; isRequired?: boolean; instructions?: string }) =>
-			actions.updateCampaignDeliverable({ organizationId: orgId, campaignId, id, ...data }),
+		mutationFn: ({
+			id,
+			...data
+		}: {
+			id: string
+			quantity?: number
+			isRequired?: boolean
+			instructions?: string
+		}) => actions.updateCampaignDeliverable({ organizationId: orgId, campaignId, id, ...data }),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: campaignKeys.deliverables(orgId, campaignId) })
 			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, campaignId) })
@@ -493,9 +498,7 @@ export function useUpdateCampaignDeliverable(orgId: string, campaignId: string) 
 	})
 }
 
-/**
- * Remove deliverable from campaign
- */
+/** Remove deliverable from campaign */
 export function useRemoveCampaignDeliverable(orgId: string, campaignId: string) {
 	const qc = useQueryClient()
 	return useMutation({
@@ -506,94 +509,5 @@ export function useRemoveCampaignDeliverable(orgId: string, campaignId: string) 
 			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, campaignId) })
 		},
 		onError: createMutationErrorHandler("remove deliverable"),
-	})
-}
-
-// ============================================
-// STATUS MUTATIONS - Via Server Actions
-// ============================================
-
-/**
- * Activate campaign
- */
-export function useActivateCampaign(orgId: string) {
-	const qc = useQueryClient()
-	return useMutation({
-		mutationFn: (id: string) => actions.updateCampaignStatus({ organizationId: orgId, id, action: "activate" }),
-		onSuccess: (_, id) => {
-			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, id) })
-			qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) })
-		},
-		onError: createMutationErrorHandler("activate campaign"),
-	})
-}
-
-/**
- * Archive campaign
- */
-export function useArchiveCampaign(orgId: string) {
-	const qc = useQueryClient()
-	return useMutation({
-		mutationFn: (id: string) => actions.updateCampaignStatus({ organizationId: orgId, id, action: "archive" }),
-		onSuccess: (_, id) => {
-			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, id) })
-			qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) })
-		},
-		onError: createMutationErrorHandler("archive campaign"),
-	})
-}
-
-/**
- * Unarchive campaign
- */
-export function useUnarchiveCampaign(orgId: string) {
-	const qc = useQueryClient()
-	return useMutation({
-		mutationFn: (id: string) => actions.updateCampaignStatus({ organizationId: orgId, id, action: "unarchive" }),
-		onSuccess: (_, id) => {
-			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, id) })
-			qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) })
-		},
-		onError: createMutationErrorHandler("unarchive campaign"),
-	})
-}
-
-/**
- * Submit campaign for approval
- */
-export function useSubmitForApproval(orgId: string) {
-	const qc = useQueryClient()
-	return useMutation({
-		mutationFn: (id: string) => actions.updateCampaignStatus({ organizationId: orgId, id, action: "submit" }),
-		onSuccess: (_, id) => {
-			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, id) })
-			qc.invalidateQueries({ queryKey: campaignKeys.lists(orgId) })
-		},
-		onError: createMutationErrorHandler("submit campaign"),
-	})
-}
-
-/**
- * Update campaign pricing
- */
-export function useUpdateCampaignPricing(orgId: string) {
-	const qc = useQueryClient()
-	return useMutation({
-		mutationFn: ({ campaignId, ...pricingData }: { campaignId: string; rebatePercentage?: number; billRate?: number; platformFee?: number; bonusAmount?: number }) =>
-			actions.updateCampaignPricing({ organizationId: orgId, campaignId, ...pricingData }),
-		onSuccess: (_, { campaignId }) => {
-			qc.invalidateQueries({ queryKey: campaignKeys.detail(orgId, campaignId) })
-		},
-		onError: createMutationErrorHandler("update pricing"),
-	})
-}
-
-/**
- * Validate campaign before submission
- */
-export function useValidateCampaign(orgId: string) {
-	return useMutation({
-		mutationFn: (id: string) => actions.validateCampaign({ organizationId: orgId, id }),
-		onError: createMutationErrorHandler("validate campaign"),
 	})
 }

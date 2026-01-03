@@ -1,6 +1,11 @@
-// AlignUI useTabObserver v0.0.0
+/**
+ * useTabObserver - Observe active tab changes in tab lists
+ *
+ * Uses usehooks-ts for observer utilities.
+ */
 
 import * as React from "react"
+import { useResizeObserver } from "usehooks-ts"
 
 interface TabObserverOptions {
 	onActiveTabChange?: (index: number, element: HTMLElement) => void
@@ -26,14 +31,16 @@ export function useTabObserver({ onActiveTabChange }: TabObserverOptions = {}) {
 		}
 	}, [])
 
+	// Use usehooks-ts resize observer
+	useResizeObserver({ ref: listRef as React.RefObject<HTMLElement>, onResize: handleUpdate })
+
+	// Still need MutationObserver for attribute changes (data-state)
 	React.useEffect(() => {
 		setMounted(true)
 
-		const resizeObserver = new ResizeObserver(handleUpdate)
 		const mutationObserver = new MutationObserver(handleUpdate)
 
 		if (listRef.current) {
-			resizeObserver.observe(listRef.current)
 			mutationObserver.observe(listRef.current, {
 				childList: true,
 				subtree: true,
@@ -44,7 +51,6 @@ export function useTabObserver({ onActiveTabChange }: TabObserverOptions = {}) {
 		handleUpdate()
 
 		return () => {
-			resizeObserver.disconnect()
 			mutationObserver.disconnect()
 		}
 	}, [handleUpdate])

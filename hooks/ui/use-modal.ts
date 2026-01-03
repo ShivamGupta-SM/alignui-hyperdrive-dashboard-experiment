@@ -2,48 +2,20 @@
 
 import { useCallback, useMemo, useState } from "react"
 
-// ============================================
-// Types
-// ============================================
-
-export type UseModalReturn<T = undefined> = readonly [
-	isOpen: boolean,
-	open: () => void,
-	close: () => void,
-	toggle: () => void,
-	setIsOpen: React.Dispatch<React.SetStateAction<boolean>>
-] & {
-	isOpen: boolean
-	data: T | undefined
-	open: () => void
-	openWith: (value: T) => void
-	close: () => void
-	toggle: () => void
-	props: { open: boolean; onOpenChange: (value: boolean) => void }
-	setData: React.Dispatch<React.SetStateAction<T | undefined>>
-	setIsOpen: React.Dispatch<React.SetStateAction<boolean>>
-}
-
-// ============================================
-// Unified Modal Hook
-// ============================================
-
 /**
- * useModal - Universal modal state management hook
+ * useModal - Simple modal state management
  *
- * Supports two usage patterns:
- * 1. Simple tuple return for basic open/close
- * 2. Object return with data support for complex modals
+ * SIMPLIFIED: Object-first API with tuple support for backwards compatibility.
  *
- * @example Simple usage (tuple pattern)
+ * @example Recommended usage (object pattern)
  * ```tsx
- * const [isOpen, open, close, toggle] = useModal()
+ * const modal = useModal()
  *
- * <Button onClick={open}>Open</Button>
- * <Modal open={isOpen} onOpenChange={(v) => !v && close()}>...</Modal>
+ * <Button onClick={modal.open}>Open</Button>
+ * <Modal {...modal.props}>...</Modal>
  * ```
  *
- * @example With data (object pattern)
+ * @example With data
  * ```tsx
  * const modal = useModal<User>()
  *
@@ -52,14 +24,17 @@ export type UseModalReturn<T = undefined> = readonly [
  *   <UserForm data={modal.data} />
  * </Modal>
  * ```
+ *
+ * @example Legacy tuple pattern (backwards compatible)
+ * ```tsx
+ * const [isOpen, open, close, toggle, setIsOpen] = useModal()
+ * ```
  */
-export function useModal<T = undefined>(initialOpen = false): UseModalReturn<T> {
+export function useModal<T = undefined>(initialOpen = false) {
 	const [isOpen, setIsOpen] = useState(initialOpen)
 	const [data, setData] = useState<T | undefined>(undefined)
 
-	const open = useCallback(() => {
-		setIsOpen(true)
-	}, [])
+	const open = useCallback(() => setIsOpen(true), [])
 
 	const openWith = useCallback((value: T) => {
 		setData(value)
@@ -68,13 +43,13 @@ export function useModal<T = undefined>(initialOpen = false): UseModalReturn<T> 
 
 	const close = useCallback(() => {
 		setIsOpen(false)
+		// Clear data after animation
 		setTimeout(() => setData(undefined), 300)
 	}, [])
 
-	const toggle = useCallback(() => {
-		setIsOpen((prev) => !prev)
-	}, [])
+	const toggle = useCallback(() => setIsOpen((prev) => !prev), [])
 
+	// Props spread for Modal components
 	const props = useMemo(
 		() => ({
 			open: isOpen,
@@ -86,11 +61,8 @@ export function useModal<T = undefined>(initialOpen = false): UseModalReturn<T> 
 		[isOpen, close]
 	)
 
-	// Create tuple array
-	const tuple = [isOpen, open, close, toggle, setIsOpen] as const
-
-	// Attach object properties to tuple
-	return Object.assign(tuple, {
+	// Create result object
+	const result = {
 		isOpen,
 		data,
 		open,
@@ -100,13 +72,19 @@ export function useModal<T = undefined>(initialOpen = false): UseModalReturn<T> 
 		props,
 		setData,
 		setIsOpen,
-	}) as UseModalReturn<T>
+	}
+
+	// Support tuple destructuring for backwards compatibility
+	// [isOpen, open, close, toggle, setIsOpen]
+	return Object.assign([isOpen, open, close, toggle, setIsOpen] as const, result)
 }
 
+export type UseModalReturn<T = undefined> = ReturnType<typeof useModal<T>>
+
 /**
- * Multi-Modal State Hook
+ * useMultiModal - Manage multiple modals with single state
  *
- * Manages multiple modals with a single hook, ensuring only one is open at a time.
+ * Ensures only one modal is open at a time.
  *
  * @example
  * ```tsx
@@ -124,20 +102,15 @@ export function useMultiModal<T extends readonly string[]>(modalNames: T) {
 	const close = useCallback(() => setActiveModal(null), [])
 	const isOpen = useCallback((name: ModalName) => activeModal === name, [activeModal])
 
-	const setOpen = useCallback((name: ModalName, value: boolean) => {
-		setActiveModal(value ? name : null)
-	}, [])
-
 	const getProps = useCallback(
 		(name: ModalName) => ({
 			open: activeModal === name,
-			onOpenChange: (value: boolean) => setOpen(name, value),
+			onOpenChange: (value: boolean) => setActiveModal(value ? name : null),
 		}),
-		[activeModal, setOpen]
+		[activeModal]
 	)
 
-	return { activeModal, open, close, isOpen, setOpen, getProps }
+	return { activeModal, open, close, isOpen, getProps }
 }
 
 export type UseMultiModalReturn<T extends readonly string[]> = ReturnType<typeof useMultiModal<T>>
-

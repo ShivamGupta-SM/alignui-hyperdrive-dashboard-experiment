@@ -5,6 +5,7 @@ import * as Badge from "@/components/ui/data-display/badge"
 import * as StatusBadge from "@/components/ui/data-display/status-badge"
 import * as Table from "@/components/ui/data-display/table"
 import { Tracker } from "@/components/ui/data-display/tracker"
+import { VirtualizedGrid } from "@/components/ui/data-display/virtualized-list"
 import { OnboardingRequiredAlert, OrganizationSetupRequiredEmptyState } from "@/components/dashboard/empty-states"
 import * as Checkbox from "@/components/ui/forms/checkbox"
 import * as Select from "@/components/ui/forms/select"
@@ -1023,8 +1024,10 @@ export function EnrollmentsClient({
 								</div>
 							</div>
 						) : (
-							<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-								{filteredEnrollments.map((enrollment) => (
+							<VirtualizedGrid
+								items={filteredEnrollments}
+								columns={2}
+								renderItem={(enrollment) => (
 									<EnrollmentCardItem
 										key={enrollment.id}
 										enrollment={enrollment}
@@ -1035,8 +1038,13 @@ export function EnrollmentsClient({
 											)
 										}
 									/>
-								))}
-							</div>
+								)}
+								estimatedItemHeight={160}
+								height="calc(100vh - 400px)"
+								gap={12}
+								getItemKey={(enrollment) => enrollment.id}
+								emptyState={null}
+							/>
 						)}
 					</>
 				)}

@@ -7,6 +7,7 @@ import * as Button from "@/components/ui/primitives/button"
 import { ArrowRight } from "@phosphor-icons/react"
 import { THRESHOLDS } from "@/lib/types/constants"
 import { DISPLAY_LIMITS } from "@/lib/constants"
+import { useCurrentOrganization } from "@/hooks"
 
 interface PriorityEnrollment {
 	id: string
@@ -25,7 +26,6 @@ interface PriorityEnrollment {
 }
 
 interface DashboardPriorityQueueProps {
-	organizationId: string
 	priorityEnrollments: PriorityEnrollment[]
 	pendingTotal: number
 	hasOverdue: boolean
@@ -36,11 +36,11 @@ interface DashboardPriorityQueueProps {
  * Shows pending enrollments that need review with priority indicators
  */
 export function DashboardPriorityQueue({
-	organizationId,
 	priorityEnrollments,
 	pendingTotal,
 	hasOverdue,
 }: DashboardPriorityQueueProps) {
+	const { organizationId } = useCurrentOrganization()
 	const isEnrollmentOverdue = (hoursAgo: number) => hoursAgo > THRESHOLDS.ENROLLMENT_OVERDUE_HOURS
 
 	return (

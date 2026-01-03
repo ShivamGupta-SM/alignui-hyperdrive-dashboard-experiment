@@ -1,12 +1,5 @@
 /**
  * Dashboard Modals - Centralized Exports
- *
- * Modals are split into logical groups for better code splitting:
- * - confirmation: Base confirmation and generic modals
- * - enrollment: Enrollment-specific modals (approve, reject, request changes)
- * - campaign: Campaign-related modals (delete, status change)
- * - wallet: Financial modals (add funds, withdrawal, credit)
- * - team: Team management modals (invite, delete bank account)
  */
 
 // Confirmation modals
@@ -14,21 +7,29 @@ export { ConfirmationModal } from "./confirmation-modal"
 export type { ConfirmationModalProps } from "./confirmation-modal"
 
 // Enrollment modals
-export { ApproveEnrollmentModal } from "./enrollment/approve-enrollment-modal"
-export { RejectEnrollmentModal } from "./enrollment/reject-enrollment-modal"
-export { RequestChangesModal } from "./enrollment/request-changes-modal"
-export { ExtendDeadlineModal } from "./enrollment/extend-deadline-modal"
+export { ApproveEnrollmentModal } from "./approve-enrollment-modal"
+export { RejectEnrollmentModal } from "./reject-enrollment-modal"
+export { RequestChangesModal } from "./request-changes-modal"
+export { ExtendDeadlineModal } from "./extend-deadline-modal"
 
 // Campaign modals
-export { DeleteCampaignModal } from "./campaign/delete-campaign-modal"
-export { CampaignStatusModal } from "./campaign/campaign-status-modal"
-export type { CampaignStatusAction } from "./campaign/campaign-status-modal"
+export { DeleteCampaignModal } from "./delete-campaign-modal"
+export { CampaignStatusModal } from "./campaign-status-modal"
+export type { CampaignStatusAction } from "./campaign-status-modal"
 
 // Wallet/Financial modals
-export { AddFundsModal } from "./wallet/add-funds-modal"
-export { WithdrawalModal, WithdrawalRequestModal } from "./wallet/withdrawal-modal"
-export { CreditLimitRequestModal } from "./wallet/credit-limit-modal"
+export { AddFundsModal } from "./add-funds-modal"
+export { WithdrawalModal, WithdrawalRequestModal } from "./withdrawal-modal"
+export { CreditLimitRequestModal } from "./credit-limit-modal"
 
 // Team modals
-export { InviteTeamMemberModal } from "./team/invite-team-member-modal"
-export { DeleteBankAccountModal } from "./team/delete-bank-account-modal"
+export { InviteTeamMemberModal } from "./invite-team-member-modal"
+export { DeleteBankAccountModal } from "./delete-bank-account-modal"
+
+// Product modals
+export { DeleteProductModal } from "./delete-product-modal"
+
+// Utility modals
+export { ExportDataModal } from "./export-data-modal"
+export { SessionTimeoutModal } from "./session-timeout-modal"
+export { UnsavedChangesModal } from "./unsaved-changes-modal"
