@@ -73,12 +73,3 @@ export function useDebounceSearch(options: UseDebounceSearchOptions = {}): UseDe
 		isDebouncing,
 	}
 }
-
-/**
- * Hook for debounced value (generic version)
- * Re-export from usehooks-ts for convenience
- */
-export function useDebounce<T>(value: T, delay: number = 300): T {
-	const [debouncedValue] = useDebounceValue(value, delay)
-	return debouncedValue
-}

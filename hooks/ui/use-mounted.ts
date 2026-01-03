@@ -10,20 +10,6 @@
 import { useState, useEffect } from "react"
 
 /**
- * Returns true after component has mounted on the client.
- *
- * @example
- * const isMounted = useIsMounted()
- * if (!isMounted) return <Skeleton />
- * return <div>Current time: {Date.now()}</div>
- */
-export function useIsMounted(): boolean {
-	const [mounted, setMounted] = useState(false)
-	useEffect(() => setMounted(true), [])
-	return mounted
-}
-
-/**
  * Returns current timestamp after hydration, null during SSR.
  * Updates every `updateInterval` ms (default: 60000 = 1 minute).
  *

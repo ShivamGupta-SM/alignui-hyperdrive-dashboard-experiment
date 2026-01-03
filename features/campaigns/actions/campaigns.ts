@@ -245,6 +245,8 @@ export const addCampaignDeliverable = authAction
 
 /**
  * Add multiple deliverables to campaign (batch)
+ *
+ * ✅ FIX Bug 8: Standardized bulk response shape
  */
 export const addCampaignDeliverablesBatch = authAction
 	.inputSchema(z.object({
@@ -258,10 +260,25 @@ export const addCampaignDeliverablesBatch = authAction
 	}))
 	.action(async ({ parsedInput, ctx }) => {
 		const { organizationId, campaignId, deliverables } = parsedInput
+		const total = deliverables.length
 		const result = await ctx.client.organizations.addCampaignDeliverablesBatch(organizationId, campaignId, { deliverables })
 		revalidateTag("campaigns")
 		revalidateTag(`campaign-${campaignId}`)
-		return result
+
+		// Standardized bulk response shape (consistent with products, enrollments)
+		const successCount = result.deliverables?.length ?? total
+		const failedCount = total - successCount
+		return {
+			success: failedCount === 0,
+			successCount,
+			failedCount,
+			total,
+			isPartialSuccess: failedCount > 0 && successCount > 0,
+			errors: [] as string[],
+			message: `Added ${successCount} deliverables to campaign`,
+			// Keep original data for backwards compatibility
+			deliverables: result.deliverables,
+		}
 	})
 
 /**

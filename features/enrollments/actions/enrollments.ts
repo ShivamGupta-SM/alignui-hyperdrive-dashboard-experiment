@@ -144,11 +144,14 @@ export const extendDeadline = authAction
 /**
  * Bulk update enrollments (approve/reject multiple at once)
  * Uses organization-scoped bulk endpoints for multi-tenancy
+ *
+ * ✅ FIX Bug 8: Standardized bulk response shape
  */
 export const bulkUpdateEnrollments = authAction
 	.inputSchema(bulkUpdateSchema)
 	.action(async ({ parsedInput, ctx }) => {
 		const { organizationId, ids, status, reason } = parsedInput
+		const total = ids.length
 
 		if (status === "approved") {
 			const result = await ctx.client.organizations.bulkApproveEnrollments(organizationId, {
@@ -159,7 +162,20 @@ export const bulkUpdateEnrollments = authAction
 			revalidateTag("enrollments")
 			revalidateTag("dashboard")
 
-			return { updatedCount: result.approved, failedCount: result.failed, errors: result.errors }
+			// Standardized bulk response shape
+			const successCount = result.approved
+			const failedCount = result.failed
+			return {
+				success: failedCount === 0,
+				successCount,
+				failedCount,
+				total,
+				isPartialSuccess: failedCount > 0 && successCount > 0,
+				errors: result.errors,
+				message: failedCount > 0
+					? `Approved ${successCount} enrollments. Failed: ${failedCount}`
+					: `Approved ${successCount} enrollments`,
+			}
 		} else {
 			const result = await ctx.client.organizations.bulkRejectEnrollments(organizationId, {
 				enrollmentIds: ids,
@@ -169,6 +185,19 @@ export const bulkUpdateEnrollments = authAction
 			revalidateTag("enrollments")
 			revalidateTag("dashboard")
 
-			return { updatedCount: result.rejected, failedCount: result.failed, errors: result.errors }
+			// Standardized bulk response shape
+			const successCount = result.rejected
+			const failedCount = result.failed
+			return {
+				success: failedCount === 0,
+				successCount,
+				failedCount,
+				total,
+				isPartialSuccess: failedCount > 0 && successCount > 0,
+				errors: result.errors,
+				message: failedCount > 0
+					? `Rejected ${successCount} enrollments. Failed: ${failedCount}`
+					: `Rejected ${successCount} enrollments`,
+			}
 		}
 	})

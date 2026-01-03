@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * CreditLimitRequestModal - Modal for requesting credit limit increase
+ *
+ * ✅ FIX Bug 22 & 27: Uses shared useCurrencyForm hook
+ */
+
 import * as React from "react"
 import * as Modal from "@/components/ui/layout/modal"
 import * as Button from "@/components/ui/primitives/button"
@@ -7,6 +13,7 @@ import * as Input from "@/components/ui/forms/input"
 import * as Textarea from "@/components/ui/forms/textarea"
 import { Info } from "@phosphor-icons/react"
 import { formatCurrency } from "@/lib/utils"
+import { useCurrencyForm } from "@/hooks/forms"
 
 interface CreditLimitRequestModalProps {
 	open: boolean
@@ -23,11 +30,22 @@ export function CreditLimitRequestModal({
 	onConfirm,
 	isLoading = false,
 }: CreditLimitRequestModalProps) {
-	const [requestedLimit, setRequestedLimit] = React.useState("")
+	// ✅ FIX Bug 22 & 27: Using shared currency form hook
+	const { amount: requestedLimit, setAmount: setRequestedLimit, amountNumber, isValidAmount, errorMessage, reset } = useCurrencyForm({
+		minAmount: currentLimit + 1, // Must be greater than current limit
+	})
 	const [reason, setReason] = React.useState("")
 
+	// Reset form when modal closes
+	React.useEffect(() => {
+		if (!open) {
+			reset()
+			setReason("")
+		}
+	}, [open, reset])
+
 	const handleConfirm = () => {
-		onConfirm(Number(requestedLimit), reason)
+		onConfirm(amountNumber, reason)
 	}
 
 	return (
@@ -57,6 +75,9 @@ export function CreditLimitRequestModal({
 								/>
 							</Input.Wrapper>
 						</Input.Root>
+						{errorMessage && (
+							<p className="mt-1 text-paragraph-xs text-error-base">{errorMessage}</p>
+						)}
 					</div>
 
 					<div>
@@ -86,7 +107,7 @@ export function CreditLimitRequestModal({
 					<Button.Root
 						variant="primary"
 						onClick={handleConfirm}
-						disabled={!requestedLimit || !reason.trim() || isLoading}
+						disabled={!isValidAmount || !reason.trim() || isLoading}
 					>
 						{isLoading ? "Submitting..." : "Submit Request"}
 					</Button.Root>

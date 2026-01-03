@@ -1,16 +1,23 @@
 "use client"
 
+/**
+ * InviteTeamMemberModal - Modal for inviting team members
+ *
+ * ✅ FIX Bug 27: Uses shared useInviteMemberForm hook with Zod validation
+ */
+
 import * as React from "react"
 import * as Modal from "@/components/ui/layout/modal"
 import * as Button from "@/components/ui/primitives/button"
 import * as Input from "@/components/ui/forms/input"
 import * as Radio from "@/components/ui/forms/radio"
 import { cn } from "@/lib/utils"
+import { useInviteMemberForm, type InviteMemberRole } from "@/hooks/forms"
 
 interface InviteTeamMemberModalProps {
 	open: boolean
 	onOpenChange: (open: boolean) => void
-	onConfirm: (email: string, role: string) => void
+	onConfirm: (email: string, role: InviteMemberRole) => void
 	isLoading?: boolean
 }
 
@@ -20,14 +27,21 @@ export function InviteTeamMemberModal({
 	onConfirm,
 	isLoading = false,
 }: InviteTeamMemberModalProps) {
-	const [email, setEmail] = React.useState("")
-	const [role, setRole] = React.useState("viewer")
+	// ✅ FIX Bug 27: Using shared form hook with Zod validation
+	const { email, setEmail, role, setRole, isValid, emailError, reset } = useInviteMemberForm()
 
-	const roles = [
+	const roles: { value: InviteMemberRole; label: string; description: string }[] = [
 		{ value: "admin", label: "Admin", description: "Full access except owner actions" },
 		{ value: "manager", label: "Manager", description: "Manage campaigns and enrollments" },
 		{ value: "viewer", label: "Viewer", description: "View-only access" },
 	]
+
+	// Reset form when modal closes
+	React.useEffect(() => {
+		if (!open) {
+			reset()
+		}
+	}, [open, reset])
 
 	const handleConfirm = () => {
 		onConfirm(email, role)
@@ -55,6 +69,9 @@ export function InviteTeamMemberModal({
 								/>
 							</Input.Wrapper>
 						</Input.Root>
+						{emailError && (
+							<p className="mt-1 text-paragraph-xs text-error-base">{emailError}</p>
+						)}
 					</div>
 
 					<div>
@@ -88,7 +105,7 @@ export function InviteTeamMemberModal({
 					<Button.Root variant="ghost" onClick={() => onOpenChange(false)}>
 						Cancel
 					</Button.Root>
-					<Button.Root variant="primary" onClick={handleConfirm} disabled={!email || isLoading}>
+					<Button.Root variant="primary" onClick={handleConfirm} disabled={!isValid || isLoading}>
 						{isLoading ? "Sending..." : "Send Invitation"}
 					</Button.Root>
 				</Modal.Footer>

@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * AddFundsModal - Modal for adding funds via UPI
+ *
+ * ✅ FIX Bug 22 & 27: Uses shared useCurrencyForm hook
+ */
+
 import * as React from "react"
 import * as Modal from "@/components/ui/layout/modal"
 import * as Button from "@/components/ui/primitives/button"
@@ -7,6 +13,7 @@ import * as Input from "@/components/ui/forms/input"
 import { QrCode } from "@phosphor-icons/react"
 import { cn, formatCurrency } from "@/lib/utils"
 import { EXTERNAL_URLS } from "@/lib/constants"
+import { useCurrencyForm } from "@/hooks/forms"
 
 interface AddFundsModalProps {
 	open: boolean
@@ -21,13 +28,23 @@ export function AddFundsModal({
 	onConfirm,
 	isLoading = false,
 }: AddFundsModalProps) {
-	const [amount, setAmount] = React.useState("")
+	// ✅ FIX Bug 22 & 27: Using shared currency form hook
+	const { amount, setAmount, amountNumber, quickAmounts, selectQuickAmount, reset } = useCurrencyForm({
+		minAmount: 1,
+		quickAmounts: [10000, 25000, 50000, 100000],
+	})
 	const [upiId, setUpiId] = React.useState("")
 
-	const quickAmounts = [10000, 25000, 50000, 100000]
+	// Reset form when modal closes
+	React.useEffect(() => {
+		if (!open) {
+			reset()
+			setUpiId("")
+		}
+	}, [open, reset])
 
 	const handleConfirm = () => {
-		onConfirm(Number(amount), upiId)
+		onConfirm(amountNumber, upiId)
 	}
 
 	return (
@@ -61,7 +78,7 @@ export function AddFundsModal({
 								<button
 									key={value}
 									type="button"
-									onClick={() => setAmount(value.toString())}
+									onClick={() => selectQuickAmount(value)}
 									className={cn(
 										"px-3 py-1.5 rounded-10 text-label-sm transition-colors",
 										amount === value.toString()
@@ -109,7 +126,7 @@ export function AddFundsModal({
 							)}
 						</div>
 						<p className="text-paragraph-sm text-text-sub-600">
-							Scan with any UPI app to pay {amount ? formatCurrency(Number(amount)) : "₹0"}
+							Scan with any UPI app to pay {amount ? formatCurrency(amountNumber) : "₹0"}
 						</p>
 					</div>
 				</Modal.Body>

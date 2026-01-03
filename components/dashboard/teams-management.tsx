@@ -1,10 +1,15 @@
 "use client"
 
+/**
+ * TeamsManagement - Team management component
+ *
+ * ✅ FIX Bug 27: Uses shared useTeamForm hook with Zod validation
+ */
+
 import { useState, useCallback } from "react"
 import { useModal } from "@/hooks/ui"
+import { useTeamForm } from "@/hooks/forms"
 import * as Button from "@/components/ui/primitives/button"
-import * as Badge from "@/components/ui/data-display/badge"
-import * as Avatar from "@/components/ui/primitives/avatar"
 import { AvatarWithFallback } from "@/components/ui/primitives/avatar"
 import * as Modal from "@/components/ui/layout/modal"
 import * as Input from "@/components/ui/forms/input"
@@ -276,36 +281,35 @@ function CreateTeamModal({
 	onSubmit: (data: { name: string; metadata?: TeamMetadata }) => Promise<void>
 	isPending: boolean
 }) {
-	const [name, setName] = useState("")
-	const [description, setDescription] = useState("")
-	const [department, setDepartment] = useState("")
-	const [color, setColor] = useState("#6366F1")
-	const [icon, setIcon] = useState("")
-	const [slackChannel, setSlackChannel] = useState("")
+	// ✅ FIX Bug 27: Using shared form hook with Zod validation
+	const {
+		name, setName,
+		description, setDescription,
+		department, setDepartment,
+		color, setColor,
+		icon, setIcon,
+		slackChannel, setSlackChannel,
+		isValid,
+		reset,
+		getFormData,
+	} = useTeamForm()
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
-		await onSubmit({
-			name,
-			metadata: {
-				description: description || undefined,
-				department: department || undefined,
-				color: color || undefined,
-				icon: icon || undefined,
-				slackChannel: slackChannel || undefined,
-			},
-		})
-		// Reset form
-		setName("")
-		setDescription("")
-		setDepartment("")
-		setColor("#6366F1")
-		setIcon("")
-		setSlackChannel("")
+		await onSubmit(getFormData())
+		reset()
+	}
+
+	// Reset form when modal closes
+	const handleOpenChange = (newOpen: boolean) => {
+		if (!newOpen) {
+			reset()
+		}
+		onOpenChange(newOpen)
 	}
 
 	return (
-		<Modal.Root open={open} onOpenChange={onOpenChange}>
+		<Modal.Root open={open} onOpenChange={handleOpenChange}>
 			<Modal.Content>
 				<Modal.Header>
 					<Modal.Title>Create Team</Modal.Title>
@@ -415,7 +419,7 @@ function CreateTeamModal({
 					<Button.Root
 						type="button"
 						variant="ghost"
-						onClick={() => onOpenChange(false)}
+						onClick={() => handleOpenChange(false)}
 						disabled={isPending}
 					>
 						Cancel
@@ -424,7 +428,7 @@ function CreateTeamModal({
 						type="submit"
 						form="create-team-form"
 						variant="primary"
-						disabled={isPending || !name}
+						disabled={isPending || !isValid}
 					>
 						{isPending ? "Creating..." : "Create Team"}
 					</Button.Root>
@@ -448,25 +452,21 @@ function EditTeamModal({
 	onSubmit: (data: { name?: string; metadata?: TeamMetadata }) => Promise<void>
 	isPending: boolean
 }) {
-	const [name, setName] = useState(team.name)
-	const [description, setDescription] = useState("")
-	const [department, setDepartment] = useState("")
-	const [color, setColor] = useState("#6366F1")
-	const [icon, setIcon] = useState("")
-	const [slackChannel, setSlackChannel] = useState("")
+	// ✅ FIX Bug 27: Using shared form hook with Zod validation
+	const {
+		name, setName,
+		description, setDescription,
+		department, setDepartment,
+		color, setColor,
+		icon, setIcon,
+		slackChannel, setSlackChannel,
+		isValid,
+		getFormData,
+	} = useTeamForm({ initialName: team.name })
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
-		await onSubmit({
-			name,
-			metadata: {
-				description: description || undefined,
-				department: department || undefined,
-				color: color || undefined,
-				icon: icon || undefined,
-				slackChannel: slackChannel || undefined,
-			},
-		})
+		await onSubmit(getFormData())
 	}
 
 	return (
@@ -584,7 +584,7 @@ function EditTeamModal({
 						type="submit"
 						form="edit-team-form"
 						variant="primary"
-						disabled={isPending || !name}
+						disabled={isPending || !isValid}
 					>
 						{isPending ? "Saving..." : "Save Changes"}
 					</Button.Root>

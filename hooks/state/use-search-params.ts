@@ -112,20 +112,3 @@ export function useProductSearchParams() {
 		platform: parseAsString.withDefault("all"),
 	})
 }
-
-// ============================================
-// Generic utilities
-// ============================================
-
-/** Simple search input state */
-export function useSearchParam() {
-	return useQueryState("search", parseAsString.withDefault(""))
-}
-
-/** Basic pagination state */
-export function usePaginationParams() {
-	return useQueryStates({
-		page: parseAsInteger.withDefault(1),
-		limit: parseAsInteger.withDefault(10),
-	})
-}

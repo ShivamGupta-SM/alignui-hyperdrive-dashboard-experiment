@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * WithdrawalModal - Modal for requesting withdrawal
+ *
+ * ✅ FIX Bug 22 & 27: Uses shared useCurrencyForm hook
+ */
+
 import * as React from "react"
 import * as Modal from "@/components/ui/layout/modal"
 import * as Button from "@/components/ui/primitives/button"
@@ -12,6 +18,7 @@ import { useParams } from "next/navigation"
 import { useBankAccounts } from "@/features/settings"
 import { requestWithdrawal } from "@/features/wallet"
 import { toast } from "sonner"
+import { useCurrencyForm } from "@/hooks/forms"
 
 interface BankAccount {
 	id: string
@@ -38,16 +45,32 @@ export function WithdrawalModal({
 	onConfirm,
 	isLoading = false,
 }: WithdrawalModalProps) {
-	const [amount, setAmount] = React.useState("")
+	// ✅ FIX Bug 22 & 27: Using shared currency form hook with validation
+	const { amount, setAmount, amountNumber, isValidAmount, errorMessage, reset } = useCurrencyForm({
+		minAmount: 1000,
+		maxAmount: availableBalance,
+	})
 	const [selectedBank, setSelectedBank] = React.useState(
 		bankAccounts.find((b) => b.isDefault)?.id || bankAccounts[0]?.id || ""
 	)
 
-	const handleConfirm = () => {
-		onConfirm(Number(amount), selectedBank)
-	}
+	// Reset form when modal closes
+	React.useEffect(() => {
+		if (!open) {
+			reset()
+		}
+	}, [open, reset])
 
-	const isValidAmount = Number(amount) >= 1000 && Number(amount) <= availableBalance
+	// Update selected bank when bankAccounts change
+	React.useEffect(() => {
+		if (bankAccounts.length > 0 && !selectedBank) {
+			setSelectedBank(bankAccounts.find((b) => b.isDefault)?.id || bankAccounts[0]?.id || "")
+		}
+	}, [bankAccounts, selectedBank])
+
+	const handleConfirm = () => {
+		onConfirm(amountNumber, selectedBank)
+	}
 
 	return (
 		<Modal.Root open={open} onOpenChange={onOpenChange}>
@@ -78,9 +101,13 @@ export function WithdrawalModal({
 								/>
 							</Input.Wrapper>
 						</Input.Root>
-						<p className="mt-1 text-paragraph-xs text-text-soft-400">
-							Minimum: ₹1,000 | Maximum: {formatCurrency(availableBalance)}
-						</p>
+						{errorMessage ? (
+							<p className="mt-1 text-paragraph-xs text-error-base">{errorMessage}</p>
+						) : (
+							<p className="mt-1 text-paragraph-xs text-text-soft-400">
+								Minimum: ₹1,000 | Maximum: {formatCurrency(availableBalance)}
+							</p>
+						)}
 					</div>
 
 					<div>
@@ -126,7 +153,7 @@ export function WithdrawalModal({
 							<div className="flex justify-between">
 								<span className="text-text-sub-600">Withdrawal Amount</span>
 								<span className="text-text-strong-950">
-									{amount ? formatCurrency(Number(amount)) : "₹0"}
+									{amount ? formatCurrency(amountNumber) : "₹0"}
 								</span>
 							</div>
 							<div className="flex justify-between">
@@ -137,7 +164,7 @@ export function WithdrawalModal({
 								<div className="flex justify-between font-medium">
 									<span className="text-text-strong-950">You will receive</span>
 									<span className="text-primary-base">
-										{amount ? formatCurrency(Number(amount)) : "₹0"}
+										{amount ? formatCurrency(amountNumber) : "₹0"}
 									</span>
 								</div>
 							</div>

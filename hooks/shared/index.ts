@@ -10,11 +10,11 @@ export { dashboardKeys, useDashboard } from "./use-dashboard"
 export type { DashboardData } from "./use-dashboard"
 
 // Current organization hook (SSOT for URL-based org)
-export { useCurrentOrganization, useCanPerformActions } from "./use-current-organization"
+export { useCurrentOrganization } from "./use-current-organization"
 export type { UseCurrentOrganizationReturn } from "./use-current-organization"
 
 // Debounce search hook (replaces duplicated debounce logic)
-export { useDebounceSearch, useDebounce } from "./use-debounce-search"
+export { useDebounceSearch } from "./use-debounce-search"
 export type { UseDebounceSearchOptions, UseDebounceSearchReturn } from "./use-debounce-search"
 
 // Draft form persistence hook

@@ -137,6 +137,8 @@ export const deleteProduct = authAction
 
 /**
  * Bulk import products
+ *
+ * ✅ FIX Bug 8: Standardized bulk response shape
  */
 export const bulkImportProducts = authAction
 	.inputSchema(bulkImportSchema)
@@ -144,6 +146,7 @@ export const bulkImportProducts = authAction
 		const { organizationId, products: productsData } = parsedInput
 		let successCount = 0
 		const errors: string[] = []
+		const total = productsData.length
 
 		try {
 			const result = await ctx.client.organizations.bulkImportProducts(organizationId, {
@@ -183,21 +186,17 @@ export const bulkImportProducts = authAction
 
 		revalidateTag("products")
 
-		// RESTful: Include explicit partial success indicator for client handling
-		const totalRequested = productsData.length
-		const isPartialSuccess = errors.length > 0 && successCount > 0
-		const isFullSuccess = errors.length === 0 && successCount === totalRequested
-
+		// Standardized bulk response shape (consistent with enrollments, campaigns)
+		const failedCount = errors.length
 		return {
-			success: isFullSuccess,
-			partialSuccess: isPartialSuccess,
-			imported: successCount,
-			failed: errors.length,
-			total: totalRequested,
+			success: failedCount === 0,
+			successCount,
+			failedCount,
+			total,
+			isPartialSuccess: failedCount > 0 && successCount > 0,
 			errors,
-			message:
-				errors.length > 0
-					? `Imported ${successCount} products. Failed: ${errors.length}`
-					: `Imported ${successCount} products`,
+			message: failedCount > 0
+				? `Imported ${successCount} products. Failed: ${failedCount}`
+				: `Imported ${successCount} products`,
 		}
 	})

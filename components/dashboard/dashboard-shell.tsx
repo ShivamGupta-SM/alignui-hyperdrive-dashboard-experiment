@@ -38,15 +38,11 @@ function DashboardShellInner({ children, initialOrganizations = [] }: { children
 	const [storedSidebarCollapsed, setSidebarCollapsed, , sidebarHydrated] = useLocalStorage("sidebar-collapsed", false)
 	const sidebarCollapsed = sidebarHydrated ? storedSidebarCollapsed : false
 
-	// Drawer/Panel states - local state (no persistence needed)
-	const [notificationsDrawerOpen, , , , setNotificationsDrawerOpen] = useModal(false)
-	const [commandMenuOpen, , , , setCommandMenuOpen] = useModal(false)
-	const [settingsPanelOpen, , , , setSettingsPanelOpen] = useModal(false)
-
-	// Mobile menu uses local state
-	const [mobileMenuOpen, , , , setMobileMenuOpen] = useModal(false)
-	const mobileSidebarOpen = mobileMenuOpen
-	const setMobileSidebarOpen = setMobileMenuOpen
+	// Drawer/Panel states - using object pattern for cleaner API
+	const notificationsDrawer = useModal(false)
+	const commandMenu = useModal(false)
+	const settingsPanel = useModal(false)
+	const mobileMenu = useModal(false)
 
 	// Notifications API integration
 	// Use backend hooks - they handle both Novu enabled and disabled cases
@@ -87,33 +83,33 @@ function DashboardShellInner({ children, initialOrganizations = [] }: { children
 
 	// Close mobile sidebar on route change
 	React.useEffect(() => {
-		setMobileMenuOpen(false)
-	}, [pathname, setMobileMenuOpen])
+		mobileMenu.close()
+	}, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Use media query hook instead of direct window.innerWidth
 	const isDesktop = useIsDesktop()
-	
+
 	// Close mobile sidebar when switching to desktop
 	React.useEffect(() => {
 		if (isDesktop) {
-			setMobileMenuOpen(false)
+			mobileMenu.close()
 		}
-	}, [isDesktop, setMobileMenuOpen])
+	}, [isDesktop]) // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Command menu keyboard shortcut (Ctrl/Cmd + K)
-	useHotkeys("mod+k", () => setCommandMenuOpen(true), {
+	useHotkeys("mod+k", commandMenu.open, {
 		preventDefault: true,
 		enableOnFormTags: false,
 	})
 
 	// Close mobile sidebar on Escape
-	useHotkeys("escape", () => setMobileMenuOpen(false), {
-		enabled: mobileSidebarOpen,
+	useHotkeys("escape", mobileMenu.close, {
+		enabled: mobileMenu.isOpen,
 	})
 
 	const handleMobileSidebarToggle = React.useCallback(() => {
-		setMobileMenuOpen(!mobileMenuOpen)
-	}, [mobileMenuOpen, setMobileMenuOpen])
+		mobileMenu.toggle()
+	}, [mobileMenu])
 
 	return (
 			<div
@@ -130,7 +126,7 @@ function DashboardShellInner({ children, initialOrganizations = [] }: { children
 						collapsed={sidebarCollapsed}
 						onCollapsedChange={setSidebarCollapsed}
 						pendingEnrollments={pendingEnrollmentsCount}
-						onSettingsClick={() => setSettingsPanelOpen(true)}
+						onSettingsClick={settingsPanel.open}
 						initialOrganizations={initialOrganizations}
 					/>
 				</div>
@@ -142,11 +138,11 @@ function DashboardShellInner({ children, initialOrganizations = [] }: { children
 						{/* Header first - aligns with sidebar logo */}
 						<Header
 							unreadNotifications={unreadCount}
-							onNotificationsClick={() => setNotificationsDrawerOpen(true)}
-							onCommandMenuClick={() => setCommandMenuOpen(true)}
+							onNotificationsClick={notificationsDrawer.open}
+							onCommandMenuClick={commandMenu.open}
 							sidebarCollapsed={sidebarCollapsed}
 							onSidebarCollapsedChange={setSidebarCollapsed}
-							onSettingsClick={() => setSettingsPanelOpen(true)}
+							onSettingsClick={settingsPanel.open}
 						/>
 						{/* Breadcrumbs - Below header, above content */}
 						{breadcrumbItems.length > 0 && (
@@ -208,11 +204,11 @@ function DashboardShellInner({ children, initialOrganizations = [] }: { children
 				>
 					<Header
 						unreadNotifications={unreadCount}
-						onNotificationsClick={() => setNotificationsDrawerOpen(true)}
-						onCommandMenuClick={() => setCommandMenuOpen(true)}
+						onNotificationsClick={notificationsDrawer.open}
+						onCommandMenuClick={commandMenu.open}
 						onMobileMenuClick={handleMobileSidebarToggle}
-						isMobileSidebarOpen={mobileSidebarOpen}
-						onSettingsClick={() => setSettingsPanelOpen(true)}
+						isMobileSidebarOpen={mobileMenu.isOpen}
+						onSettingsClick={settingsPanel.open}
 					/>
 				</div>
 
@@ -223,19 +219,19 @@ function DashboardShellInner({ children, initialOrganizations = [] }: { children
 						className={cn(
 							"absolute inset-x-2 top-0 bottom-2 z-0",
 							"transition-opacity duration-300",
-							mobileSidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+							mobileMenu.isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
 						)}
 					>
-					<Sidebar
-						collapsed={false}
-						pendingEnrollments={pendingEnrollmentsCount}
-						onMobileClose={() => setMobileSidebarOpen(false)}
-						onSettingsClick={() => {
-							setSettingsPanelOpen(true)
-							setMobileSidebarOpen(false)
-						}}
-						initialOrganizations={initialOrganizations}
-					/>
+						<Sidebar
+							collapsed={false}
+							pendingEnrollments={pendingEnrollmentsCount}
+							onMobileClose={mobileMenu.close}
+							onSettingsClick={() => {
+								settingsPanel.open()
+								mobileMenu.close()
+							}}
+							initialOrganizations={initialOrganizations}
+						/>
 					</div>
 
 					{/* Content Sheet - Inset floating card, slides down to reveal sidebar */}
@@ -244,7 +240,7 @@ function DashboardShellInner({ children, initialOrganizations = [] }: { children
 							"relative z-10 flex flex-col h-full",
 							"bg-bg-white-0 rounded-2xl border border-stroke-soft-200 shadow-md ring-1 ring-black/3 dark:ring-white/3",
 							"transition-[transform,box-shadow] duration-300 ease-out will-change-transform",
-							mobileSidebarOpen
+							mobileMenu.isOpen
 								? "translate-y-[70%] scale-[0.96] shadow-2xl"
 								: "translate-y-0 scale-100"
 						)}
@@ -265,14 +261,14 @@ function DashboardShellInner({ children, initialOrganizations = [] }: { children
 					</div>
 
 					{/* Tap outside to close - when sidebar is open (covers visible content sheet area) */}
-					{mobileSidebarOpen && (
+					{mobileMenu.isOpen && (
 						<button
 							type="button"
 							className="absolute inset-x-2 bottom-2 z-20 h-[30%] cursor-pointer"
 							onClick={(e) => {
 								e.preventDefault()
 								e.stopPropagation()
-								setMobileSidebarOpen(false)
+								mobileMenu.close()
 							}}
 							onMouseDown={(e) => {
 								// Prevent this from blocking other clicks
@@ -290,8 +286,7 @@ function DashboardShellInner({ children, initialOrganizations = [] }: { children
 
 			{/* Notifications Drawer */}
 			<NotificationsDrawer
-				open={notificationsDrawerOpen}
-				onOpenChange={setNotificationsDrawerOpen}
+				{...notificationsDrawer.props}
 				notifications={notificationsData?.data?.map((n) => ({
 					id: n.id,
 					userId: "1",
@@ -309,15 +304,15 @@ function DashboardShellInner({ children, initialOrganizations = [] }: { children
 					if (isValidInternalUrl(notification.actionUrl)) {
 						router.push(notification.actionUrl!)
 					}
-					setNotificationsDrawerOpen(false)
+					notificationsDrawer.close()
 				}}
 			/>
 
 			{/* Command Menu */}
-			<CommandMenu open={commandMenuOpen} onOpenChange={setCommandMenuOpen} />
+			<CommandMenu {...commandMenu.props} />
 
 			{/* Settings Panel */}
-			<SettingsPanel open={settingsPanelOpen} onOpenChange={setSettingsPanelOpen} />
+			<SettingsPanel {...settingsPanel.props} />
 			</div>
 	)
 }

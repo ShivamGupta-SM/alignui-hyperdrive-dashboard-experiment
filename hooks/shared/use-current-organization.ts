@@ -96,11 +96,3 @@ export function useCurrentOrganization(): UseCurrentOrganizationReturn {
 		}
 	}, [organization, organizationId, isSessionPending, isOrgsLoading, error, organizations])
 }
-
-/**
- * Hook to check if user can perform actions that require approved organization
- */
-export function useCanPerformActions(): boolean {
-	const { isApproved } = useCurrentOrganization()
-	return isApproved
-}

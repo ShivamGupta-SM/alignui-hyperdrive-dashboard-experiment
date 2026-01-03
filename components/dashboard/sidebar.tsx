@@ -268,6 +268,8 @@ export function Sidebar({
 
 		try {
 			const status = org.approvalStatus
+
+			// Handle non-approved statuses - redirect to appropriate page
 			if (status === "draft" || status === "rejected") {
 				// Draft/Rejected orgs → go to onboarding to complete/fix
 				router.push(routes.onboarding.root)
@@ -276,6 +278,11 @@ export function Sidebar({
 			if (status === "pending") {
 				// Pending orgs → go to pending approval page
 				router.push(routes.onboarding.pending)
+				return
+			}
+			if (status === "banned") {
+				// Banned orgs → go to banned page
+				router.push(routes.onboarding.banned)
 				return
 			}
 
@@ -308,11 +315,16 @@ export function Sidebar({
 	}
 
 	const isActiveHref = (href: string) => {
-		// For organization dashboard root, exact match
+		// For organization dashboard root, exact match only
 		if (href === `/dashboard/${organizationId}`) {
 			return pathname === `/dashboard/${organizationId}`
 		}
-		return pathname.startsWith(href)
+		// For other routes, use segment-based matching
+		// This ensures /campaigns matches /campaigns/123 but not /campaigns-old
+		const hrefSegments = href.split("/")
+		const pathSegments = pathname.split("/")
+		// Check if all href segments match the start of pathname segments
+		return hrefSegments.every((segment, i) => pathSegments[i] === segment)
 	}
 
 	return (

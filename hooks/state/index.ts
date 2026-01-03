@@ -16,7 +16,5 @@ export {
 	useInvoiceSearchParams,
 	useWalletSearchParams,
 	useSettingsSearchParams,
-	useSearchParam,
-	usePaginationParams,
 	useProductSearchParams,
 } from './use-search-params'

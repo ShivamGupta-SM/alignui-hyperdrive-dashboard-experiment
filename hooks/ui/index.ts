@@ -22,7 +22,6 @@ export type { BreadcrumbItem } from './use-breadcrumbs'
 
 // Hydration-safe hooks
 export {
-	useIsMounted,
 	useHydratedTime,
 	useStableTime,
 	useFormattedDate
